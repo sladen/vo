@@ -1,0 +1,30 @@
+Format: http://dep.debian.net/deps/dep5/
+Upstream-Name: Aladin
+Upstream-Contact:
+ Thomas Boch <thomas.boch@astro.unistra.fr>
+ Francois Bonnarel <bonnarel@astro.u-strasbg.fr>
+ Pierre Fernique <fernique@astro.u-strasbg.fr>
+ Anais Oberto <oberto@astro.u-strasbg.fr>
+Contributors:
+ Francois Ochsenbein <francois@astro.u-strasbg.fr>
+ Andre Schaaff <andre.schaaff@astro.unistra.fr>
+Source: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=get&id=AladinSrc.jar
+
+Files: *
+Copyright: 1999-2012 Universite de Strasbourg / Centre de Donnees
+ astronomiques de Strasbourg
+License: GPL-3
+ On Debian systems the full text of the GNU General Public License
+ version 3 can be found in the file `/usr/share/common-licenses/GPL-3`.
+
+Files: org/asterope/healpix/*
+Copyright: Krystof Gorski, Jan Kotek, Nikolai Kuropatkin
+License: GPL-2
+ On Debian systems the full text of the GNU General Public License
+ version 2 can be found in the file `/usr/share/common-licenses/GPL-2`.
+
+Files: debian/*
+Copyright: (c) 2012 Florian Rothmaier <gavo@ari.uni-heidelberg.de>
+License: GPL-3
+ On Debian systems the full text of the GNU General Public License
+ version 3 can be found in the file `/usr/share/common-licenses/GPL-3`.

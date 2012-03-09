@@ -1,0 +1,18 @@
+aladin (7.0-1) unstable; urgency=low
+
+  * Initial release. (Closes: #100011)
+  * Repacked source archive "AladinSrc.jar" into a compressed tarball
+    after changing the directory tree from 'src/path/to/file' to
+    'aladin-7.0/src/path/to/file'
+  * Stripped all third-party JARs from the source package.
+  * Modified "build.xml" file:
+     added several Debian packages under /usr/share/java/ to the
+     classpath to replace the imports of third-party libraries which
+     came in JAR archives with the sources;
+     added some useful properties;
+     improved the build directory infrastructure (creation and
+     deletion of build dirs);
+     added target 'javadoc' which creates the API documentation of the
+     package.
+
+ -- Florian Rothmaier <gavo@ari.uni-heidelberg.de>  Fri, 09 Mar 2012 09:27:25 +0100

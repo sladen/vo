@@ -1,0 +1,5 @@
+# The latest version of upstream can be found at
+#  http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading .
+# Since upstream does not provide a versioning scheme, however,
+#  (source archives are generally named "AladinSrc.jar") the watch
+#  file syntax will not have any effect.
