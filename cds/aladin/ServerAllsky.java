@@ -20,6 +20,11 @@
 
 package cds.aladin;
 
+import javax.swing.ButtonGroup;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JRadioButton;
+
 /**
  * Le formulaire d'interrogation de l'arbre des Allskys
  *
@@ -28,6 +33,7 @@ package cds.aladin;
  */
 public class ServerAllsky extends ServerTree  {
    private boolean populated=false;
+   private JRadioButton fitsRadio;
 
    /** Initialisation des variables propres */
    @Override
@@ -36,6 +42,41 @@ public class ServerAllsky extends ServerTree  {
       aladinLabel = "Allsky";
       aladinLogo  = "Allsky.gif";
    }
+   
+   // boutons radio pour choix JPEG/FITS
+   protected int addTailPanel(int y) {
+      int h=25;
+      if( Aladin.OUTREACH ) return y;
+      JPanel formatPanel = new JPanel();
+      JRadioButton b;
+      ButtonGroup group = new ButtonGroup();
+      JLabel l = new JLabel(aladin.chaine.getString("ALADINDEFFMT"));
+      formatPanel.add(l);
+      b = new JRadioButton("Jpeg (faster)");
+      b.setBackground(Aladin.BLUE);
+      b.setSelected(true);
+      group.add(b);
+      formatPanel.add(b);
+      fitsRadio = b = new JRadioButton("Fits (full dynamic)");
+      b.setBackground(Aladin.BLUE);
+      group.add(b);
+      formatPanel.add(b);
+      
+      formatPanel.setBackground(Aladin.BLUE);
+      formatPanel.setBounds(0,y,XWIDTH,h); y+=h;
+
+      add(formatPanel);
+      return y;
+   }
+   
+   protected int makeTarget(int y) {
+      JPanel tPanel = new JPanel();
+      int h = makeTargetPanel(tPanel,0);
+      tPanel.setBackground(Aladin.BLUE);
+      tPanel.setBounds(0,y,XWIDTH,h); y+=h;
+      add(tPanel);
+      return y;
+   }
 
    @Override
    protected void createChaine() {
@@ -43,6 +84,7 @@ public class ServerAllsky extends ServerTree  {
       title = aladin.chaine.getString("ALLSKYTITLE");
       info = aladin.chaine.getString("ALLSKYINFO");
       info1 = null;
+      description = aladin.chaine.getString("ALLSKYDESC");
    }
 
    /** Creation du formulaire d'interrogation par arbre. */
@@ -50,9 +92,39 @@ public class ServerAllsky extends ServerTree  {
 
    @Override
    protected int createPlane(String target,String radius,String criteria, String label, String origin) {
-      int j=criteria==null || criteria.length()==0 ? 0 : aladin.glu.findGluSky((new Tok(criteria)).nextToken(),2);
-      if( j!=-1 ) aladin.allsky(aladin.glu.getGluSky(j),label,target,radius);
+      String survey;
+      int defaultMode=PlanBG.UNKNOWN;
+      
+      if( criteria==null || criteria.trim().length()==0 ) survey="DSS colored";
+      else {
+         Tok tok = new Tok(criteria,", ");
+         survey = tok.nextToken();
+         
+         while( tok.hasMoreTokens() ) {
+            String s = tok.nextToken();
+            if( s.equalsIgnoreCase("Fits") ) defaultMode=PlanBG.FITS;
+            else if( s.equalsIgnoreCase("Jpeg") || s.equalsIgnoreCase("jpg") ) defaultMode=PlanBG.JPEG;
+         }
+      }
+      
+      int j = aladin.glu.findGluSky(survey,2);
+      if( j<0 ) {
+         Aladin.warning(this,"Healpix allsky unknown ["+survey+"]",1);
+         return -1;
+      }
+
+      TreeNodeAllsky gSky = aladin.glu.getGluSky(j);
+      try { gSky.setDefaultMode(defaultMode);
+      } catch( Exception e ) {
+         aladin.command.printConsole("!!! "+e.getMessage());
+      }
+      aladin.allsky(gSky,label,target,radius);
+      
       return j;
+      
+//      int j=criteria==null || criteria.length()==0 ? 0 : aladin.glu.findGluSky((new Tok(criteria)).nextToken(),2);
+//      if( j!=-1 ) aladin.allsky(aladin.glu.getGluSky(j),label,target,radius);
+//      return j;
    }
 
    @Override
@@ -62,8 +134,15 @@ public class ServerAllsky extends ServerTree  {
    protected void initTree() { 
       if( populated ) return;
       populated=true;
-      freeTree();
-      populateTree( aladin.glu.vGluSky.elements() );
+      tree.freeTree();
+      tree.populateTree( aladin.glu.vGluSky.elements() );
    }
+   
+   public void submit(TreeNode n) {
+      TreeNodeAllsky gsky = (TreeNodeAllsky)n;
+      gsky.setDefaultMode( fitsRadio.isSelected() ? PlanBG.FITS : PlanBG.JPEG);
+      aladin.calque.newPlanBG(gsky, null, getTarget(false), getRadius(false) );
+   }
+
 
 }

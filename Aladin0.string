@@ -30,10 +30,11 @@ MOPENURL	Open URL...
 MLOADIMG	Load astronomical image
 MLOADCAT	Load catalog
 MLOADVO	Load from the Virtual Observatory...
-MHISTORY	History...
+#MHISTORY	History...
 MLOADFOV	Load instrument FoV...
 MPIXEL	Pixel contrast & map...
 MCONTOUR	Contour plot...
+MRAINBOW	Color map
 MDEL	Delete
 MDELALL	Delete All
 MPROP	Properties...
@@ -79,12 +80,17 @@ MEXPORTEPS	Export the current view (EPS)...
 MEXPORT	Export planes (FITS,VOTable,...)...
 MBACKUP	Backup the stack...
 MARITHM	Arithmetic operation...
-MHEALPIXARITHM Healpix arithmetic operations...
+MMOC Coverage map (MOC)...
+MMOCGEN Generation from images/catalogs...
+MMOCOP	Boolean operations...
+MHEALPIXARITHM HEALPix arithmetic operations...
 #MADD	Addition
 #MSUB	Subtraction
 #MMUL	Multiplication
 #MDIV	Division
 MNORM	Pixel normalisation (div. by avg)
+MBITPIX	Bitpix convert...
+MPIXEXTR Pixel extraction...
 MCONV	Convolution...
 MHEAD	Fits header...
 MBKGD	All sky
@@ -93,8 +99,8 @@ SELECTTAG	Select tagged sources
 DETAG	Untag the tagged sources
 TAGSELECT	Tag selected sources
 
-#MLOAD.fr	Charge...
-MSAVE.fr	Enregistre...
+#MLOAD.fr	Charger...
+MSAVE.fr	Enregistrer...
 MTOOLS.fr	Outil
 MPLUGS.fr	Plugins
 #MLINK.fr	Lien...
@@ -117,10 +123,11 @@ MOPENURL.fr	Ouvrir une URL...
 MLOADIMG.fr	Charger une image astronomique
 MLOADCAT.fr	Charger un catalogue
 MLOADVO.fr	Charger depuis l'Observatoire Virtuel...
-MHISTORY.fr	Historique...
+#MHISTORY.fr	Historique...
 MLOADFOV.fr	Charger un champ instrumental (FoV)...
 MPIXEL.fr	Contraste des pixels...
 MCONTOUR.fr	Tracer des contours...
+MRAINBOW.fr	Table des couleurs
 MDEL.fr	Supprimer
 MDELALL.fr	Tout supprimer
 MPROP.fr	Propriétés...
@@ -165,6 +172,9 @@ MSAVEVIEW.fr	Enregistrer la vue courante...
 MEXPORTEPS.fr	Exporter la vue courante (EPS)...
 MEXPORT.fr	Exporter des plans (FITS,VOTable,...)...
 MBACKUP.fr	Sauvegarder la pile...
+MMOC.fr Cartes de couverture (MOC)...
+MMOCGEN.fr	Génération à partir d'images/catalogues
+MMOCOP.fr	Opérations logiques...
 MARITHM.fr	Opérations arithmétiques...
 MHEALPIXARITHM.fr Opérations arithmétiques sur plan Healpix...
 #MADD.fr	Addition
@@ -172,6 +182,8 @@ MHEALPIXARITHM.fr Opérations arithmétiques sur plan Healpix...
 #MMUL.fr	Multiplication
 #MDIV.fr	Division
 MNORM.fr	Normalisation des pixels (div. by avg)
+MBITPIX.fr	Conversion Bitpix...
+MPIXEXTR.fr Extraction des pixels...
 MCONV.fr	Convolution...
 MHEAD.fr	Entête Fits...
 MBKGD.fr	Ciel complet
@@ -179,6 +191,13 @@ MBKM.fr	Signets...
 SELECTTAG.fr	Sélectionner les sources cochées
 DETAG.fr	Décocher les sources cochées
 TAGSELECT.fr	Cocher les sources sélectionnées
+
+PIXEXTRINFO1 The pixel extraction creates a source catalogue. Each source will be centered on a pixel of the current image and will provide the pixel values of each selected images in the stack (via the closest pixel method).
+PIXEXTRINFO1.fr L'extraction de pixels génère un catalogue de sources centrées sur chaque pixel de l'image courante. Chaque source fournira les valeurs de pixels pour chaque image sélectionnée dans la pile (méthode du plus proche pixel).
+PIXEXTRINFO2 To select other images concerned by the extraction, click on their name in the stack with the CTRL key pressed.
+PIXEXTRINFO2.fr Pour sélectionner d'autres images concernées par l'extraction, cliquez sur leur nom dans la pile en maintenant appuyé la touche CTRL.
+PIXELEXTRSUBMIT Extract
+PIXELEXTRSUBMIT.fr Extraire
 
 # Aladin.java - Sub-menus
 CMD	Script Console...
@@ -388,6 +407,7 @@ NORTHUP	north
 BLINK	assoc
 RSAMP	rsamp
 CROP	crop
+PLOT	x-y
 
 SELECT.fr	select
 DRAW.fr	dessin
@@ -410,6 +430,7 @@ NORTHUP.fr	nord
 BLINK.fr	assoc
 RSAMP.fr	rsamp
 CROP.fr	coupe
+PLOT.fr	x-y
 
 #Zoom
 ZINFO	Adjust the visible area (clic&drag + mouse wheel)
@@ -422,12 +443,16 @@ REDUCEH	Click here to reduce/maximize the measurement frame
 REDUCEH.fr	Cliquer pour réduire/agrandir la fenêtre des mesures
 GRID	grid
 GRID.fr	grille
-GRIDH	Click to activate/unactivate the coordinate grid
-GRIDH.fr	Cliquer pour activer/désactiver la grille de coordonnées
+GRIDH	Activate/unactivate the coordinate grid
+GRIDH.fr	Active/désactive la grille de coordonnées
+OEIL	wink
+OEIL.fr	cligne
+OEILH	Activate/unactivate the overlayed planes
+OEILH.fr	Active/désactive les plans superposés
 BKGD	allsky
 BKGD.fr	ciel
-BKGDH	Click to activate/unactivate the background sky
-BKGDH.fr	Cliquer pour activer/désactiver le ciel d'arrière plan
+#BKGDH	Click to activate/unactivate the background sky
+#BKGDH.fr	Cliquer pour activer/désactiver le ciel d'arrière plan
 NORTHUPHELP	Turn the image North up, Est left
 NORTHUPHELP.fr	Oriente l'image le Nord en haut, l'Est à gauche
 
@@ -453,6 +478,7 @@ HBLINK	Create a image association (mosaic or blink sequence)
 HRSAMP	Resample selected images
 HXMATCH	Cross match two catalogue sources
 HCROP	Image cropping
+HPLOT	Scatter plot for catalog sources
 
 HSELECT.fr	Sélecteur de vues ou d'objets - cliquer/étendre avec ou sans la touche MAJ
 HDRAW.fr	Dessin - cliquer en continue, ou point à point pour ajouter des lignes
@@ -475,6 +501,7 @@ HBLINK.fr	Crée une association d'images (soit une mosaïque, soit une séquence an
 HRSAMP.fr	Rééchantillonne les images sélectionnées
 HXMATCH.fr	Corrèle les sources de 2 catalogues 
 HCROP.fr	Copie une portion de l'image
+HPLOT.fr	Trace un diagramme de dispersion pour des sources de catalogues
 
 # ToolBox.java strings
 TBBAR	Change the screen area proportions (drag it)
@@ -575,13 +602,15 @@ ALADINSERVERR.fr	!Erreur du serveur d'images Aladin !
 VZTITLE	VizieR catalog service
 VZNAME	VizieR\nCatalogs
 VZINFO	CDS VizieR catalog service (>5000 astronomical catalogs)
-VZCATDESC	Get info.
+VZCATDESC	Info.
+VZCATMOC	Coverage map (MOC).
 VZFROM	Provided by CDS VizieR catalog service
 VZDESC	VizieR provides access to the most complete library of published astronomical catalogues and data tables available on line.\n \nYou can access VizieR catalog service by a "get" command line (use the Aladin console, menu "Tools -> Aladin console"). For VizieR, the "get" syntax follows these conventions:\nget VizieR(catID1[,catID2]...[,allcolumns]) [target] [radiusUnit]\n   - catIDn : is a VizieR catalog identifier\n   - allcolumns : to get all columns
 VZINFO1	Specify a target, and a catalog name or identification...
 VZINFO2	... don't know which catalog ? Select the \npotentially interesting ones with words/keywords !
 VZGETALL2	All columns
 VZGETALL3	Whole catalog
+VZGETMOC	MOC only
 VZCAT	Catalog
 VZKEYWORD	Author, free text...:
 VZALLCAT	Do you really want to download\nall
@@ -590,12 +619,14 @@ VZTITLE.fr	Le service des catalogues VizieR
 VZNAME.fr	Catalog.\nVizieR
 VZINFO.fr	Service des catalogues VizieR du CDS (>5000 catalogues astronomiques)
 VZCATDESC.fr	Info
+VZCATMOC.fr	Couverture (MOC)
 VZFROM.fr	Fournit par le service des catalogues VizieR du CDS
 VZDESC.fr	VizieR offre l'accès à la plus complète des bibliothèques de catalogues et tables astronomiques accessibles en ligne.\n \nVous pouvez accéder à VizieR également par une commande en ligne "get" (ouvrir la console Aladin, menu "Outils -> Console Aladin). Dans le cas de VizieR, la commande "get" suit les conventions suivantes :\nget VizieR(catID1[,catID2]...[,allcolumns]) [target] [radiusUnit]\n   - catIDn : est un identificateur de catalogue\n   - allcolumns : pour récupérer toutes les colonnes des catalogues
 VZINFO1.fr	Indiquez une position et l'identificateur d'un catalogue...
 VZINFO2.fr	... Vous ne connaissez pas l'identificateur ? Générez une liste\nde catalogues potentiels à partir de mots-clés !
 VZGETALL2.fr	Toutes col.
 VZGETALL3.fr	Tout le cata.
+VZGETMOC.fr	MOC uniquem.
 VZCAT.fr	Catalogue
 VZKEYWORD.fr	Auteur, texte libre...:
 VZALLCAT.fr	Voulez-vous vraiment décharger\ntout le catalogue
@@ -795,6 +826,51 @@ ARITHPLANE.fr	Plan
 ARITHPLANEVALUE.fr Plan ou Valeur
 ARITHHELP.fr	Note 1: Après avoir effectué l'opération arithmétique, Aladin ajuste automatique le contraste de l'image résultante. Il n'est donc pas anormal que l'aspect de l'image puisse ne pas changer.\n \nNote 2: Les opérations arithmétiques ne peuvent s'appliquer sur les images pour lesquelles Aladin ne dispose pas des vraies valeurs de pixels, typiquement les images 8 bits JPEG.
 
+# FrameMocOperation.java strings
+MOCOP	MOC operation:
+MOCUNION	Union
+MOCINTER	Intersection
+MOCSUB	Subtraction
+MOCCOMP	Complement
+MOCTITLE	MOC operations
+MOCINFO	Specify one or two MOC planes,\n choose a MOC operation and\npress the CREATE button to generate the resulting MOC.\n
+MOCPLANE	Plane
+MOCHELP	A MOC is a sky region described by a HEALPix Multi-Order coverage map. It is possible to compute very fast operations on such objects.
+
+MOCOP.fr	Opérations sur les MOC:
+MOCUNION.fr	Union
+MOCINTER.fr	Intersection
+MOCSUB.fr	Soustraction
+MOCCOMP.fr	Complement
+MOCTITLE.fr	Opérations sur les MOC
+MOCINFO.fr	Désignez 1 ou 2 plans images\nainsi que l'opération à effectuer puis\nappuyez sur le bouton CREER pour générer le MOC résultant.
+MOCPLANE.fr	Plan
+MOCHELP.fr	Un MOC représente une couverture du ciel à partir d'une carte multi-échelle HEALPix. Il est possible d'effectuer très efficacemnet des opérations sur de tels objets
+
+# FrameMocGeneration.java strings
+MOCGENOP	MOC generation:
+MOCGENTITLE	MOC generation
+MOCGENINFO	Specify image and/or catalog planes,\n choose a MOC resolution and\npress the CREATE button to generate the resulting MOC.\n
+
+MOCGENOP.fr	Opérations sur les MOC:
+MOCGENTITLE.fr	Opérations sur les MOC
+MOCGENINFO.fr	Désignez des images et/ou des catalogues\nainsi que la résolution souhaitée\npuis appuyez sur le bouton CREER pour générer le MOC résultant.
+
+# FrameBitpix.java strings
+BITPIXTITLE	Bitpix image conversion
+BITPIXINFO	Specify an image plane\n choose the new pixel encoded format and\npress the CREATE button to generate the resulting image.\n
+BITPIXCUTLABEL	Method:
+BITPIXCUT	Adjust pixel dynamic
+BITPIXCAST	Simple cast
+BITPIXHELP	Note 1: After computing the image, Aladin autocuts the pixels.\n \nNote 2: Arithmetic operations are available only with images for which Aladin can have full pixel values (for instance : not JPEG 8bit images).
+
+BITPIXTITLE.fr	Bitpix image conversion
+BITPIXINFO.fr	Désignez un plan image\nainsi que le nouveau format d'encodage puis\nappuyez sur le bouton CREER pour générer l'image résultante.
+BITPIXCUTLABEL.fr	Méthode:
+BITPIXCUT.fr	Ajustement de la dynamique des pixels
+BITPIXCAST.fr	Cast simple
+BITPIXHELP.fr	Note 1: Après avoir effectué la conversion, Aladin ajuste automatique le contraste de l'image résultante. \n \nNote 2: L'opération de conversion ne peut s'appliquer que sur les images pour lesquelles Aladin ne dispose pas des vraies valeurs de pixels, typiquement les images 8 bits JPEG.
+
 # FrameConvolution.java strings
 CONVTITLE Convolution
 CONVINFO Specify one image plane and a convolution kernel.\nFor gaussian filter, adjust the parameters.\nPress the CREATE button to generate the resulting image.\n
@@ -813,13 +889,13 @@ CONVKERNEL.fr Autres noyaux
 CONVRADIUS.fr	Rayon matrice
 
 # FrameHealpixArithmetic.java strings
-HARITHTITLE  Operation on Healpix planes
-HARITHINFO   Specify two Healpix planes or one Healpix plane and a value,\n choose an arithmetic operation and\npress the CREATE button to generate the resulting plane.\n
-HARITHHELP   Note : Currently, this function will only work\nfor Healpix planes with the same NSIDE\nand the same coordinate system
+HARITHTITLE  Operation on HEALPix planes
+HARITHINFO   Specify two HEALPix planes or one Healpix plane and a value,\n choose an arithmetic operation and\npress the CREATE button to generate the resulting plane.\n
+HARITHHELP   Note : Currently, this function will only work\nfor HEALPix planes with the same NSIDE\nand the same coordinate system
 
-HARITHTITLE.fr  Opérations sur les plans Healpix
-HARITHINFO.fr   Désigner 2 plans Healpix ou 1 plan Healpix et une valeur\nainsi que l'opération arithmétique à effectuer puis\nappuyer sur le bouton CREER pour générer le plan résultant.
-HARITHHELP.fr   NB : actuellement, cette fonction ne fonctionne\nque pour les plans Healpix ayant même NSIDE\net même système de coordonnées.
+HARITHTITLE.fr  Opérations sur les plans HEALPix
+HARITHINFO.fr   Désigner 2 plans Healpix ou 1 plan HEALPix et une valeur\nainsi que l'opération arithmétique à effectuer puis\nappuyer sur le bouton CREER pour générer le plan résultant.
+HARITHHELP.fr   NB : actuellement, cette fonction ne fonctionne\nque pour les plans HEALPix ayant même NSIDE\net même système de coordonnées.
 
 # FrameRGB.java strings
 RGBRED	1) Red
@@ -947,13 +1023,17 @@ PROPSEGMENTLENGTH Segments length
 PROPSEGMENTTHICK Segments thickness
 PROPSEGMENTDENSITY Number of segments
 PROPSCALINGFACTOR Scaling factor (for filters)
+PROPPOINTING Pointing centers
+PROPPOINTINGLABEL Export pointing centers
 PROPDEFCATPROJ	Used projection
 PROPOPACITY	Overlay opacity/transparency
 PROPOPACITYLEVEL	Opacity level
+PROPDENSITY	Density correction
 PROPRELOAD	Reload
 PROPAUTO	Automatic
 PROPWHITE	White
 PROPBLACK	Black
+PROPFULLDESCR Full description...
 
 PROPSEEFITS.fr	En-tête FITS originale
 #PROPINFO.fr	Information technique
@@ -1021,24 +1101,30 @@ PROPSEGMENTLENGTH.fr Longueur des segments
 PROPSEGMENTTHICK.fr Epaisseur des segments
 PROPSEGMENTDENSITY.fr Nombre de segments
 PROPSCALINGFACTOR.fr Facteur d'échelle (pour les filtres)
+PROPPOINTING.fr Pointages
+PROPPOINTINGLABEL.fr Exporter les positions des pointages
 PROPDEFCATPROJ.fr	Projection utilisée
 PROPOPACITY.fr	Niveau d'Opacité/Transparence
 PROPOPACITYLEVEL.fr	Niveau d'opacité
+PROPDENSITY.fr	Correction de la densité
 PROPRELOAD.fr	Recharger
 PROPAUTO.fr	Automatique
 PROPWHITE.fr	Blanc
 PROPBLACK.fr	Noir
+PROPFULLDESCR.fr Description complète...
 
 # Select.java Strings
-SLHSTACK	Click to activate/mask it
+SLHSTACK0	Click to designate this plane as the projection reference for the current view
+SLHSTACK	Click to show/hide this plane in the projection of the current view
 SLHSTACK2	Click to select it
 SLHEYE	Click to activate/mask all overlays
 SLWAITMIN	Please be patient...\nThis plane is under construction !
 SLNOPROJ	These planes cannot be superimposed.\nRegions do not overlap !
 SLMSELECT	Select all objects in selected planes
-SLMBDCASTPLANES	Broadcast planes to all SAMP applications
+SLMBDCASTPLANES	Broadcast to all SAMP applications
 SLMBDCASTTABLES	Broadcast selected tables to ...
 SLMBDCASTIMAGES	Broadcast selected images to ...
+SLMBDCASTSPECTRUM	Broadcast selected spectrum to ...
 SLMALLAPPS	... all SAMP applications
 SLMDEL	Delete
 SLMDELEMPTY	Delete empty/error planes
@@ -1055,16 +1141,20 @@ SLMEXP	Expand the selected folders
 SHOW	Show
 HIDE	Hide
 GOTO	Reticle to the center of this plane
+SWARNING For displaying this plane, activate before a reference plane with compatible projection
+SWARNINGSLIDER For displaying this plane, use the opacity slider.\noR activate it as the projection reference
 
-SLHSTACK.fr	Cliquez pour l'activer/désactiver
+SLHSTACK0.fr	Cliquez pour désigner ce plan en tant que projection de référence de la vue courante
+SLHSTACK.fr	Cliquez pour montrer/cacher ce plan dans la projection de la vue courante
 SLHSTACK2.fr	Cliquez pour le sélectionner
 SLHEYE.fr	Cliquez pour voir/masquer les ajouts
 SLWAITMIN.fr	Un instant...\nCe plan est en cours de chargement !
 SLNOPROJ.fr	Ces plans ne peuvent se superposer.\nCes régions ne se recouvrent pas !
 SLMSELECT.fr	Sélectionner tous les objets des plans sélectionnées
-SLMBDCASTPLANES.fr	Envoie ces plans à toutes les applications SAMP
+SLMBDCASTPLANES.fr	Envoie à toutes les applications SAMP
 SLMBDCASTTABLES.fr	Envoie les tables sélectionnées à ...
 SLMBDCASTIMAGES.fr	Envoie les images sélectionnées à ...
+SLMBDCASTSPECTRUM.fr	Envoie les spectres sélectionnés à ...
 SLMALLAPPS.fr		... toutes les applications SAMP
 SLMDEL.fr	Supprimer
 SLMDELEMPTY.fr	Supprimer les plans vides/erronés
@@ -1081,6 +1171,8 @@ SLMEXP.fr	Ouvrir les dossiers sélectionnés
 SHOW.fr	Montrer
 HIDE.fr	Cacher
 GOTO.fr	Centrer le réticule sur ce plan
+SWARNING.fr Pour visualiser ce plan, activez au préalable un plan de reférence avec une projection compatible
+SWARNINGSLIDER.fr Pour visualiser ce plan, utilisez le curseur de transparence.\nOu activez-le en tant que référence de projection
 
 # View.java Strings
 VWPLOTCAT	Create a scatter plot
@@ -1199,6 +1291,7 @@ FTBEGINNER	Beginner mode
 FTADVANCED	Advanced mode
 FTSELECT	Select
 FTEXPORT	Export
+FTRAINBOWCM   Show rainbow color table
 FTUCD	Open UCD Browser
 FTFILTER_EXAMPLES	Examples
 FTFILTERMANUAL	Help
@@ -1249,6 +1342,7 @@ FTBEGINNER.fr	Mode débutant
 FTADVANCED.fr	Mode expert
 FTSELECT.fr	Sélectionnez
 FTEXPORT.fr	Exporte
+FTRAINBOWCM.fr Afficher la table de couleurs rainbow
 FTUCD.fr	Ouvrir le sélectionneur d'UCD
 FTFILTER_EXAMPLES.fr	Exemples
 FTFILTERMANUAL.fr	Aide
@@ -1327,6 +1421,7 @@ NCXYPOS	"x y" position
 NCERRNOXY	No XY object near the pointer, try again
 NCERRNOBEST	Aladin will use the clicked coordinates
 NCERRIMG	Click on image to calibrate !
+NCALIBAGAIN This image has already an astrometrical solution !\nDo you really want to modify it ?
 #NCCOPYCAL	Do you want to use the astrometrical calibration\nof this plane for the new calibration ?
 
 NCTITLE.fr	Calibration astrométrique
@@ -1360,6 +1455,7 @@ NCXYPOS.fr	position "x y"
 NCERRNOXY.fr	Aucun objet avec des coordonnées XY à côté du pointeur,\nessayez à nouveau
 NCERRNOBEST.fr	Aladin va utiliser la position sous la souris
 NCERRIMG.fr	Cliquez dans l'image à calibrer !
+NCALIBAGAIN.fr Cette image a déjà une solution astrométrique. Voulez-vous réellement la modifier ?
 #NCCOPYCAL.fr	Voulez-vous utilisez la solution astrométrique de ce plan\npour la nouvelle calibration
 
 #Configuration.java strings
@@ -1402,11 +1498,13 @@ UPIMGS	Server
 UPIMGC	Survey/Color
 UPFRAMEB	Coordinate frame
 UPFRAMEALLSKYB Allsky mode
-UPFRAMEH	Choose the default coordinate frame
+UPFRAMEH	Specify the default coordinate frame.\nIn case of allsky display, the drawing orientation will use by default the same coordinate system. But you can explicitely specify another orientation.\nYou can modify this first choice via the plane propertie window.
 UPCACHE	Permanent disk cache
 UPCACHEH	Aladin requires local disk space for keeping data from one session to the other. More it has, better it runs
 UPLOG CDS log
 UPLOGH You will help the CDS team to improve Aladin by keeping the log mechanism activated. These "logs" are anonymous and do not transmit any local information (paths, file names,...) just some usage statistics and possibly bug reports. Thanks !
+PHELP Wizard
+UPHELPH Switch on/off the beginner help. Help new Aladin users to discover progressively the Aladin graphical interface.
 #UPTAGCENTER	Centered tag
 #UPTAGCENTERH Activate this selector to automatically center tags ("Tag" tool button) on the barycentre of the closest object.
 
@@ -1463,12 +1561,14 @@ UPIMGH.fr	Indiquez le serveur d'image, le relevé et/ou la couleur qui sera utili
 UPIMGS.fr	Serveur
 UPIMGC.fr	Relevé/Couleur
 UPFRAMEB.fr	Référentiel céleste
-UPFRAMEALLSKYB.fr Mode ciel
-UPFRAMEH.fr	Indiquez le système de référence céleste
+UPFRAMEALLSKYB.fr Mode ciel complet
+UPFRAMEH.fr	Indiquez le système de référence céleste par défaut.\nLe tracé d'un ciel complet sera orienté par défaut dans le même système, à moins que vous n'en précisiez un autre explicitement.\nIl est possible de modifier ce choix a posteriori via les propriétés du plan.
 UPCACHE.fr	Mémoire tampon
 UPCACHEH.fr	Aladin requière de la place sur le disque local afin de conserver les données d'une session à l'autre. Plus il en dispose, mieux il s'exécutera.
 UPLOG.fr Log CDS
 UPLOGH.fr Vous aiderez l'équipe de CDS à améliorer Aladin en laissant actif ce mécanisme de logs. Ceux-ci sont anonymes et ne contiennent aucune information locale (noms de fichier, répertoires,...), uniquement des statistiques d'utilisation et d'éventuels rapports de bogues . Merci !
+UPHELP.fr Assistant
+UPHELPH.fr Active/désactive l'assistant pour les débutatns. Celui-ci permet aux nouveaux utilisateurs d'Aaldin de se familiariser avec l'interface graphique
 #UPTAGCENTER.fr	Marque centrée
 #UPTAGCENTERH.fr Activez ce sélecteur afin de contraindre l'outil de marquage (Outil "Marq") à se centrer automatiquement sur le barycentre de l'objet le plus proche
 
@@ -2066,79 +2166,187 @@ SWATLEASTONE    Select at least one image to mosaic
 SWATLEASTONE.fr Sélectionnez au minimum une image
 
 #Healpix strings
-HPXMENU HEALPix toolbox
-HPXMENU.fr Boite à outils HEALPix
-HPXGRID	Display control grid
-HPXGRID.fr	Grille de contrôle de l'affichage
-HPXCREATE Convert to an HEALPix sky map
-HPXCREATE.fr Convertit en map HEALPix
-HPXDUMP Convert to a flat image plane
-HPXDUMP.fr Convertit en plan image classique
+#HPXMENU HEALPix toolbox
+#HPXMENU.fr Boite à outils HEALPix
+HPXGENERATE HEALPix all-sky builder...
+HPXGENERATE.fr	Generateur de ciel complet HEALPix...
+HPXCREATE Convert current image to an HEALPix sky map
+HPXCREATE.fr Convertit l'image courante en map HEALPix
+HPXGRID	HEALPix grid
+HPXGRID.fr	Grille HEALPix
+#HPXDUMP Convert to a flat image plane
+#HPXDUMP.fr Convertit en plan image classique
 
 #package cds.allsky
-MDESC -1- Description
-MDESC.fr -1- Description
+MDESC -1- Data description
+MDESC.fr -1- Description des données
 MTIPDESC Description step for your Allsky view
 MTIPDESC.fr Etape de description de la vue tout le ciel 
-MBUILD -2- Build Info
-MBUILD.fr -2- Construction
+MBUILD -2- Processing
+MBUILD.fr -2- Création
 MTIPBUILD Build step for your Allsky files
 MTIPBUILD.fr Etape de construction des fichiers du allsky
-MDISPLAY -3- Display
-MDISPLAY.fr -3- Affichage
+MDISPLAY -3- Post-processing
+MDISPLAY.fr -3- Post-traitement
+MNOPOST Your sky does not require a post-processing, the tiles are already in JPEG.
+MNOPOST.fr Votre ciel complet ne nécessite pas de post-traitement, les tuiles qui le composent sont déjà en JPEG.
 MTIPDISP Parameters for your Allsky view
 MTIPDISP.fr Paramètres pour la visualisation du allsky
-MPUBLISH -4- Publish
+MPUBLISH -4- Publish result
 MPUBLISH.fr -4- Publication
 MTIPPUBLISH Share your Allsky view
 MTIPPUBLISH.fr Partager votre allsky
-MRGB RGB
-MRGB.fr RVB
+MRGBA Generate RGB
+MRGBA.fr Construction RVB
 MTIPRGB Color composition with allskys
 MTIPRGB.fr Composition couleur
-MCLEAN Clean up
-MCLEAN.fr Nettoyage
-MTIPCLEAN Remove unused files
-MTIPCLEAN.fr Suppression des fichiers temporaires
 
-ABORT ABORT
-ABORT.fr ANNULER
+ABORT Abort
+ABORT.fr Annuler
 START START
 START.fr LANCER
-RE_START <html><b>RE</b>START</html>
-RE_START.fr <html><b>RE</b>LANCER</html>
-RESUME RESUME
-RESUME.fr REPRENDRE
-PAUSE PAUSE
-PAUSE.fr PAUSE
-HIDE1 HIDE
-HIDE1.fr CACHER
-HELPALLSKY First, choose a directory containing your fits images. \nFrom here, Aladin will suggest you the best healpix resolution, and other parameters. \nClick on "START" to launch the computation, and Aladin will open as soon as it is possible a new plan \nwith your background while it's building. \nThe whole build could take a while, so be patient.
-HELPALLSKY.fr D'abord, sélectionnez un réperoire avec vos image fits. \nEnsuite, Aladin va vous suggérer la meilleure résolution healpix et d'autres paramètres. \nCliquez sur "LANCER" pour lancer les calculs, et Aladin ouvrira le plus tot possible un nouveau plan \ncontenant votre vue de tout le ciel en train d'être construite. \nLe temps total des calculs peu être très long, soyez patient.
+#STOP Stop
+#STOP.fr Stop
+LOADMOC	See index coverage...
+LOADMOC.fr Voir la couverture (index)...
+LOADMOCP	See final coverage...
+LOADMOCP.fr Voir la couverture finale...
+SEE	See one original image...
+SEE.fr Voir une image originale
+NEXT Next >
+NEXT.fr Suivant >
+PREVIOUS < Previous
+PREVIOUS.fr  < Précédent
+RE_START RE START
+RE_START2 <html><b>RE</b>START</html>
+RE_START.fr RE-LANCER
+RE_START2.fr <html><b>RE</b>LANCER</html>
+RESUME Resume
+RESUME.fr Reprendre
+PAUSE Pause
+PAUSE.fr Pause
+#DONE DONE
+#DONE.fr FINI
+PUBLISHALLSKY Form to publish
+PUBLISHALLSKY.fr Formulaire pour publier
+HELPRGBALLSKY In order to build a colored allsky survey, select 2 or 3 allskys you have built (opened in the stack and grey levels adjusted).  
+HELPRGBALLSKY.fr Afin de générer une vue du ciel en mode coloré, vous pouvez choisir 2 ou 3 allsky déjà générés (ouverts dans la pile d'Aladin, et avec l'étirement des niveaux de gris choisi).
 TITLEALLSKY Build your own Allsky on Aladin
-TITLEALLSKY.fr Créez votre propre vue tout le ciel avec Aladin
-TIPCANCALLSKY Kill and remove this allsky
-TIPCANCALLSKY.fr Tuer et supprimer le allsky courant
-TIPHIDEALLSKY Hide the panel
-TIPHIDEALLSKY.fr Cache cette fenetre
-REPSALLSKY Source directory with YOUR images :
-REPSALLSKY.fr Répertoire source avec VOS images :
-REPDALLSKY Target directory :
-REPDALLSKY.fr Répertoire destination :
-REPRESALLSKY Reset before
-REPRESALLSKY.fr Vider avant
-LABELALLSKY Menu label for this allsky :
-LABELALLSKY.fr Texte du menu pour votre allsky :
-DESCALLSKY Two words description :
-DESCALLSKY.fr Description courte :
-DESCFALLSKY Full description :
+TITLEALLSKY.fr Créez votre ciel avec Aladin
+TIPSTOPALLSKY Kill process for this allsky
+TIPSTOPALLSKY.fr Tue la creation du allsky courant
+TIPHIDEALLSKY Close this window, computation keeps processing
+TIPHIDEALLSKY.fr Ferme cette fenetre, les calculs continuent
+REPSALLSKY Source directory:
+REPSALLSKY.fr Rép. source:
+REPDALLSKY Target directory:
+REPDALLSKY.fr Rép. destination :
+PARAMALLSKY Advanced param:
+PARAMALLSKY.fr Param. avancés:
+REPRESALLSKY Clear all pre-existing target tiles
+REPRESALLSKY.fr Supprimer toutes les tuiles pré-existantes
+INDEXRESETALLSKY The set of the source images has been modified
+INDEXRESETALLSKY.fr Le jeu d'images sources a été modifié
+KEEPALLSKY keep already-computed pixel values
+KEEPALLSKY.fr conserver les valeurs des pixels déjà calculés
+KEEPCELLALLSKY	keep pre-existing target tiles
+KEEPCELLALLSKY.fr	conserver les tuiles pré-existantes
+COADDALLSKY average
+COADDALLSKY.fr moyenner
+OVERWRITEALLSKY overwrite
+OVERWRITEALLSKY.fr remplacer
+SPECIFALLSKY Only process these tiles (e.g 3/128...)
+SPECIFALLSKY.fr Ne traiter que certaines tuiles (ex 3/128...)
+BLANKALLSKY Alternate blank FITS value
+BLANKALLSKY.fr Valeur BLANK alternative
+BORDERALLSKY Image border to ignore (N W S E in pix)
+BORDERALLSKY.fr Bords d'image à ignorer (N O S E en pix)
+SKYVALALLSKY Sky background to subtract (FITS keyword)
+SKYVALALLSKY.fr Fond du ciel à soustraire (mot clé FITS)
+LABELALLSKY Data name:
+LABELALLSKY.fr Nom des données:
+INFOALLSKY Thanks to this panel, you will be able to generate an all sky survey from a set of images. These images must be in FITS, JPEG or PNG format, astrometrically calibrated, possibly gzipped. Aladin resamples your image collection on an HEALPix grid, and stores the result under a hierarchy of directories and files (called "tiles"). This process can be very quick for low resolution surveys (e.g.: 1 minute for an all-sky survey at a 1' resolution => 768MB), and days for high resolution survey (ex: 10 days for 0.8" resolution => 4 TB). Once the system of hierarchical directories and files is build, you can load the target directory in Aladin and view your new progressive allsky in the same way as any remote all-sky survey in Aladin. You can also publish it for your collaborators
+INFOALLSKY.fr	Ce formulaire vous permet de construire un "ciel complet progressif" à partir d'une collection d'images. Celles-ci doivent être au format FITS, JPEG ou PNG, calibrées astrométriquement, éventuellement gzippées. Aladin va rééchantillonnger votre collection d'images dans une grille HEALPix, et enregistrer le résultat sous la forme d'une hiérarchie de répertoires et de fichiers (nommés "tuiles"). Ce processus sera rapide pour des images de faible résolution angulaire (ex: 1 minute pour un relevé du ciel d'une seconde d'arc par pixel => 768Mo). Il pourra être long pour un relevé profond (ex: 10 jours pour une résolution de 0,8" => 4To). Une fois construite la hiérarchie de répertoires et fichiers, vous pourrez accéder directement à votre vue progressive de la même manière que pour les autres vues "ciel complet" disponibles dans Aladin. Vous pourrez également publier votre ciel complet afin de le rendre disponible pour vos collaborateurs.
+RGBALLSKY	This panel allows you to create a color all-sky survey from two or three monochromatic precomputed "all-sky" surveys. You must load these surveys in the Aladin stack, adjust their contrast as you wish. After that, you must associate the RED, GREEN and BLUE components via the  three choice menus, specify the target directory and submit.
+RGBALLSKY.fr Ce formulaire est dédié à la création d'un "ciel complet" colorisé. Celui-ci sera généré à partir de 2 ou 3 relevés en niveaux de gris, ayant déjà été calculés au préalable. Pour ce faire, vous devez charger ces relevés dans la pile d'Aladin, puis ajuster leur contraste respectif. Après cela, il s'agit d'associer à chacune des composantes couleurs Rouge, Vert et Bleu le relevé souhaité, de spécifier le répertoire de destination puis de lancer le calcul.
 DESCFALLSKY Description :
+DESCFALLSKY.fr Description :
 COPYRIGHT Copyright :
 COPYRIGHT.fr Copyright :
 ORIGIN Origin :
 ORIGIN.fr Origine :
-ERRFITS No Fits file found in directory : 
-ERRFITS.fr Aucun fichier Fits trouvé dans le repertoire : 
+BITPIXALLSKY	Number of bits per pixel
+BITPIXALLSKY.fr Nombre de bits par pixel
+KEEPORIGALLSKY Keep original BITPIX
+KEEPORIGALLSKY.fr Conserver le BITPIX original
+RESOALLSKY Pixel angular resolution
+RESOALLSKY.fr Résolution angulaire du pixel
+RESPARAMALLSKY Resampling parameters
+RESPARAMALLSKY.fr Contrôle du rééchantillonnage
+SAMPLINGALLSKY Method
+SAMPLINGALLSKY.fr Méthode
+FIRSTALLSKY First pixel found
+FIRSTALLSKY.fr Premier pixel trouvé
+BILIALLSKY Bilinear approximation
+BILIALLSKY.fr Approximation bilinéaire
+OVERLAYALLSKY Overlay:
+OVERLAYALLSKY.fr Recouvrement :
+FADINGALLSKY Apodized borders
+FADINGALLSKY.fr Bords fondu-enchainés
+IMGINDEXALLSKY Image indexation
+IMGINDEXALLSKY.fr Indexation des images
+TESSALLSKY HEALPix sampling
+TESSALLSKY.fr Rééchantillonnage HEALPix
+HELPDIRSRCALLSKY Folder and sub-folders of FITS source files (possibly gzipped)
+HELPDIRSRCALLSKY.fr Répertoire et sous-répertoires contenant les fichiers FITs originaux (éventuellement gzippés)
+HELPDIRTRGALLSKY Target folder for the generated HEALPix tile tree (ensure enough space)
+HELPDIRTRGALLSKY.fr Répertoire où va être généré l'arborescence des tuiles HEALPix (prévoir suffisamment de place - cf. formulaire 2)
+HELPLABELALLSKY Name/identifier of survey (e.g: DSS, 2MASS...)
+HELPLABELALLSKY.fr Nom/identificateur du relevé (ex: DSS, 2MASS...)
+HELPPARAMALLSKY Defines advanced parameters:\n 1) The first three lines define the strategy for resuming a previous calculation, due to an interruption, or a data addition\n 2) Limits the computation to an HEALPix area determined by cells numbers (eg, order/order number/start-end ...) \n 3) Specifies a BLANK  pixel value, especially if it is not specified in the FITS header of the original files \n 4) Indicates to ignore an edge in the source images, by a single value (in pixels) to cut off four sides, or by four values in the order North, West, South, East.
+HELPPARAMALLSKY.fr Définit les paramètres avancées :\n 1) Les 3 premières lignes déterminent la stratégie à adopter dans le cas d'une reprise d'un calcul précédent, soit à cause d'une interruption, soit à cause d'un ajout de données\n2) Limite le calcul à une zone HEALPix déterminée par des numéros des cellules (ex: ordre/numero order/deb-fin ...)\n3) Spécifie une valeur de pixel non valide, notamment dans le cas où celle-ci n'est pas spécifiée dans l'entête FITS des fichiers originaux\n4) Indique une bordure à ignorer dans les images sources, soit par une seule valeur (en pixels) retranchée aux 4 côtés, soit par 4 valeurs données dans l'ordre Nord, Ouest, Sud, Est.
+HELPBITPIXALLSKY Specify the pixel depth (in bits)
+HELPBITPIXALLSKY.fr Détermine la profondeur du pixel (en bits).
+HELPRESOALLSKY Provide the correspondance between the angular pixel resolution and the size of the generated data. The blue row highlights the more appropriated choice in regard to the original images. It is possible to over/sub-sample
+HELPRESOALLSKY.fr Fournit la correspondance entre résolution angulaire finale et volume de données. La ligne bleutée indique le choix le plus approprié en fonction des images d'origine. Il est possible de sur/sous-échantillonner.
+HELPESAMPALLSKY Specify the resampling method. The pixel value will be either the first found value or the bilinear approximation from the 4 closest original pixels. In case of overlapping images, it is possible to choose either the first pixel found or the average of all overlaying pixels, possibly ponderated by the border distance.
+HELPESAMPALLSKY.fr Détermine la méthode utilisée pour le rééchantillonnage. La valeur du pixel sera soit le premier trouvé, soit une approximation bilinéaire des 4 pixels originaux les plus proches. En cas de superposition d'image, il sera possible de choisir, soit le premier pixel trouvé, soit la moyenne des pixels, éventuellement pondérée par la distance au bord de l'image.
+JPEGINFOALLSKY This step allows you to generate the JPEG tiles corresponding to the FITS tiles. This step is strongly recommended if you plan to publish your data through a Web site. The JPEG tiles provides better respond times. 
+JPEGINFOALLSKY.fr Cette étape vous permet de créer les tuiles JPEG associées aux tuiles FITS. Dans le cas où vous souhaitez rendre accessible ces données depuis un site Web il est vivement conseillée de générer ces JPEGs qui offriront à vos utilisateurs des temps de réponses bien plus rapides.
+JPEGMCUTALLSKY Manual cut (linear):
+JPEGMCUTALLSKY.fr Seuillage manuel (linéaire) :
+HELPJPEGMCUTALLSKY Allows you to specify the pixel value range used for generating the JPEG tiles
+HELPJPEGMCUTALLSKY.fr Permet d'indiquer spécifiquement la plage des valeurs des pixels qui sera retenue pour générer les tuiles JPEG. 
+JPEGCUTALLSKY Cut params imported from current view:
+JPEGCUTALLSKY.fr Seuillage utilisé dans la vue :
+HELPJPEGCUTALLSKY Take into account the cut parameters presently used in the control view. This method is better that the manual cut as you are not limited to a linear transformation.
+HELPJPEGCUTALLSKY.fr Va prendre en compte les paramètres de seuillage actuellement utilisés dans la vue de contrôle. Cette méthode est plus performante que la précédente car elle n'est pas nécessairement linéaire. 
+JPEGBUILDALLSKY Build JPEG
+JPEGBUILDALLSKY.fr Génération des JPEG
+METHODJPG Computing method:
+METHODJPG.fr Méthode de calcul :
+MEDIANJPG median
+MEDIANJPG.fr médiane
+AVERAGEJPG average
+AVERAGEJPG.fr moyenne
+PUBFORYOUALLSKY Only for you:
+PUBFORYOUALLSKY.fr Juste pour vous :
+OPENALLSKY You can load whenever you want the allsky by opening the target directory
+OPENALLSKY.fr A n'importe quel moment, vous pouvez rechargez votre relevé simplement en ouvrant le repertoire cible
+EXPORTALLSKY Generate
+EXPORTALLSKY.fr Générer
+PUBMAPALLSKY Distribute as a unique FITS HEALPix map:
+PUBMAPALLSKY.fr Distribution en tant que fichier FITS HEALPix unique :
+PUBMAPINFOALLSKY Export your producted data in a FITs map and send it to your collaborators. This file is following the HEALPix format NESTED, and will use pixels values for the angular resolution of 51" (NSIDE=4096).
+PUBMAPINFOALLSKY.fr Exporter votre relevé généré en tant qu'un unique fichier FITS que vous pourrez envoyer à vos collaborateurs. Ce fichier sera conforme à la norme HEALPix NESTED et sa résolution angulaire par pixel sera de 51" (NISDE=4096).
+PUBRESTALLSKY Restricted distribution:
+PUBRESTALLSKY.fr Distribution retreinte :
+PUBRESTINFOALLSKY By exposing your target folder behind a Web server, you will allow your collaborator to access it via the URL below. This Web access can be retricted (by password).
+PUBRESTINFOALLSKY.fr Pour une distribution retreinte de votre relevé, placez le répertoire de destination derrière un serveur Web. Vos collaborateurs pourront accéder à votre relevé en utilisant directement l'adresse Web ci-dessous. Cet accès pourra être éventuellement protégé par mot de passe.
+PUBLICALLSKY Public distribution:
+PUBLICALLSKY.fr Distribution publique :
+PUBLICINFOALLSKY To allow an access to all Aladin users, "expose" your target folder behind a Web server, fill up and validate this following form:
+PUBLICINFOALLSKY.fr Afin de rendre accessible votre relevé pour tous les utilisateurs Aladin, veuillez "exposer" le repértoire de destination derrière un serveur Web, remplir et valider le formulaire suivant :
 
 # Info and warning strings
 HFINGER	Simbad pointer:\n \nPoint your mouse on any astronomical object\nand wait 3 secondes to see if this object is known by Simbad.\n \nIf there are several objects around the position,\nonly the object with the largest bibliographical reference number will be displayed.
@@ -2164,7 +2372,7 @@ NOIMGSTK.fr	Il n'y aucune image chargée depuis le Web\ndans la pile
 BADFILTER	This filter can not be applied : please check the syntax
 BADFILTER.fr	Ce filtre ne peut être appliqué : vérifiez sa syntaxe
 EXPORTWARNING	Local data can be uploaded\nonly if the TCP port 4128 is opened on your machine.\nTry it ?
-EXPORTWARNING.fr	Les données locales ne peuvent être télécharger à distante\nque si le port TCP 4128 est ouvert sur votre machine.\nVOulez-vous essayer ?
+EXPORTWARNING.fr	Les données locales ne peuvent être télécharger à distante\nque si le port TCP 4128 est ouvert sur votre machine.\nVoulez-vous essayer ?
 POSITION	Location
 POSITION.fr	Position
 COMMAND	Command
@@ -2183,9 +2391,24 @@ TOOMANYIMG	You can not download\nso many images simultaneously !
 TOOMANYIMG.fr	Vous ne pouvez pas charger\nautant d'images simultanément !
 PARSING	Parsing report
 PARSING.fr Rapport de traitement
+COORDCOLUMN	Coord. columns
+COORDCOLUMN.fr Colonnes des coord.
+COORDCOLUMNDETAIL The column called "Coo" allows you to modify the selection of the object coordinate columns. Either in a celestial reference (J2000), or in a cartesian reference (XY fits convention). Clic into the concerned cell.
+COORDCOLUMNDETAIL.fr La colonne intitulée "Coo" vous permet de modifier la sélection des colonnes des coordonnées des objets, soit dans un référentiel céleste (J2000), soit dans un référentiel cartésien (XY convention FITS).\nCliquez sur la case désirée.
 
-GETOBJ	Provide an object, coordinates, an URL or a filename ?
-GETOBJ.fr	Saississez un objet, des coordonnées, une URL ou un nom de fichier ?
+GETOBJ	Object, coordinates, URL, filename or command ?
+GETOBJ.fr	Un objet, des coordonnées, une URL, un fichier ou une commande ?
+
+OPACITY opac.
+OPACITY.fr opac.
+OPACITYTIP Adjust the transparency/opacity of selected planes
+OPACITYTIP.fr Ajuste le niveau de transparence des plans sélectionnés
+ZOOMTIP Adjust the zoom level of selected views
+ZOOMTIP.fr Ajuste le facteur de zoom des vues sélectionnées
+SLIDERSIZE size
+SLIDERSIZE.fr taille
+SLIDERSIZETIP Adjust the graphical source size of selected planes
+SLIDERSIZETIP.fr	Ajuste la taille des sources graphiques des plans sélectionnés
 
 # Bookmarks strings
 BKMTITLE	Bookmarks controler
@@ -2218,6 +2441,14 @@ ALLSKYTITLE	Available data in "allsky" mode
 ALLSKYTITLE.fr	Données disponibles en mode "ciel complet"	
 ALLSKYINFO Select items and press SUBMIT
 ALLSKYINFO.fr Sélectionner, puis appuyer sur CHERCHER
+ALLSKYDESC The "allsky" mode allows you to visualise a survey\nfrom the whole sky view to the limit of the resolution. Aladin provides in "allsky" mode images, catalogues (progressive access), or density maps. The "allsky" image surveys are delivered in color composition, or in 8 bit pixels (JPEG), or in true pixels (FITS). Use the "Pixel" button for switching in the other pixel mode.\n \nWarning: the survey distributed in "allsky" mode have been bilinearly resampled. 
+ALLSKYDESC.fr Le mode "ciel complet" vous permet de visualiser un relevé\ndepuis une vue globale du ciel jusqu'à la limite de la résolution fournie. Il peut s'agir d'images, de catalogues ou de cartes de densité. Les relevés images en mode "ciel complet" sont fournis en composition colorée, ou en pixel 8 bits (JPEG), ou encore en "vrai" pixels" (FITS). Utilisez le bouton "Pixel" pour passer d'un mode pixel à l'autre).\n \nAttention : le mode "ciel complet" ne fournit pas les pixels originaux, mais un rééchantillonnages bilinéaire de ceux-ci.
+TARGETNOTVISIBLE Target out of field.\nSelect another plane before.
+TARGETNOTVISIBLE.fr Cible hors champ.\nSélectionnez au préalable un autre plan.
+
+#ServerAlmaFootprint strings
+ALTITLE ALMA footprints
+ALINFO  Create a footprint for a configuration of ALMA
 
 #Tooltip strings
 TIPLOGO	Click on it to the Aladin Web page
@@ -2320,7 +2551,7 @@ TIP18	Extract a pointed spectra in a cube [phot button]
 TIP19	Define the object size and shape rules [filter button]
 TIP20	Compare two images via colored subtraction tool [RGB button]
 TIP21	Detach the object measurements in a separated window ["out arrow" icon]
-TIP22	Switch off all other planes by clicking the Aladin eye
+#TIP22	Switch off all other planes by clicking the Aladin eye
 TIP23	Write a script command directly into the "Command/Location" field
 TIP24	Insert a new column to a catalog [Catalog>Add a new column]
 #TIP25	Autocenter the tags by pressing the SHIFT key
@@ -2371,7 +2602,7 @@ TIP18.fr	Extrayez un spectre d'un cube [bouton phot]
 TIP19.fr	Définissez la taille et la forme des sources [bouton filtre]
 TIP20.fr	Comparez deux images par soustraction colorisée [bouton RGB]
 TIP21.fr	Détachez la fenêtre des mesures [flêche en bas à droite]
-TIP22.fr	Activez/désactivez tous les autres plans en cliquant sur l'oeil d'Aladin
+#TIP22.fr	Activez/désactivez tous les autres plans en cliquant sur l'oeil d'Aladin
 TIP23.fr	Saisissez une commande script directement dans le champ "Commande/Position"
 TIP24.fr	Insérez une nouvelle colonne à un catalogue [Catalogue>Ajouter...]
 #TIP25.fr	Centrez automatiquement le "Tag" en maintenant appuyé la touche MAJ
@@ -2400,3 +2631,15 @@ TIP46.fr Déplacer rapidement la vue [bouton central de la souris]
 TIP47.fr Revenir à la position précédente [flêches vertes en haut à gauche]
 TIP48.fr Passer en plein écran [icône en haut à droite]
 TIP49.fr Utiliser Aladin en mode "enseignement" [préférences utilisateurs]
+
+BEGIN1	Bienvenue on Aladin,\nyour professional sky atlas.\n \n* Discover all astronomical data available over the net!\n \n* Compare them with your own data.\n \n* Prepare your observation missions.\n \n \nTo start, type any object name, such as M1, and press ENTER...
+BEGIN2	Imagine your eye\nlooking through a stack of planes.\n \nEach plane contains its own data set: image, catalog, graphical overlays...\n \nYou see the combination of them.\n \nUse File->Open for discovering all other data,\nor clic & drag your own files.
+BEGIN3	Stack controls:\n \n*the icon: show/hide a plane\n*size: change object size\n*zoom: adjust field size.\n*Opacity: adjust transparency.\n \nThe vue is drawn according to the projection of a reference plane.\n \nFor changing the reference, click on its check box.
+BEGIN4	Mouse controls:\n \n*Left: source selection.\n*Middle: quick panning.\n*Right: constrast adjustement.\n*Wheel: quick zoom on the reticle.\n*Simple-clic: move the reticle.\n*Double-clic: re-center.\n \nLet you mouse pointer on an object for discovering associated Simbad data.
+BEGIN5	Basic controls:\n \n-Type any object name or coordinates for moving on it.\n \n-Select catalog sources for displaying associated data measurements.\n \nDisplay simultaneously several views via the "multiview" controler.
+
+BEGIN1.fr Bienvenue sur Aladin,\nvotre atlas professional du ciel.\n \n* Accédez à toutes les données astronomiques disponibles sur le net !\n \n* Comparez-les avec vos propre données.\n \n* Préparez vos missions d'observations.\n \n \nPour débuter, saisissez un nom d'objet, par exemple M1, puis validez par ENTER...
+BEGIN2.fr	Imaginez votre oeil regardant à travers une pile de calques.\n \nChaque calque représente une donnée: image, catalogues, graphiques...\n \nLa vue ci-contre est la combinaison de l'ensemble de ces calques.\n \nPour accéder à d'autres données utilisez le menu Fichier->Ouvrir,\nou glissez/déposez vos propres fichiers.
+BEGIN3.fr	Contrôle de la pile:\n \n*le logo: montre/cache le plan\n*taille: change la taille des objets*zoom: modifie l'agrandissement.\n*opacité: ajuste la transparence.\n \nLa vue est dessinée en fonction de la projection d'un plan de référence.\n \nPour changer de plan de référence, cliquer sur sa coche.
+BEGIN4.fr	Contrôle par la souris:\n \n*Gauche: sélection des sources.\n*Milieu: déplacement du champ.\n*Droite: ajustement du contraste.\n*Molette: zoom sur le réticule.\n*Simple-clic: déplace le réticule\n*Double-clic: recentre la vue.\n \nPour découvrir les informations Simbad sur un objet, laissez dessus qq secondes le pointeur.
+BEGIN5.fr	Contrôle de base:\n \n- Saisissez un nom d'objet, des coordonnées pour vous déplacez dessus.\n \n- Sélectionnez des sources de catalogues afin de visualiser les mesures associées.\n \n- Visualiser simultanément plusieurs vues via le contrôle du"multivue".

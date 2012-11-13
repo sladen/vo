@@ -29,6 +29,9 @@ import javax.swing.JFrame;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 
+import cds.allsky.Context;
+import cds.allsky.SkyGen;
+import cds.astro.AstroMath;
 import cds.astro.Astrocoo;
 import cds.savot.model.SavotField;
 import cds.tools.Util;
@@ -62,16 +65,20 @@ public final class Command implements Runnable {
 
    Aladin a;
    Calque c;
+   private CommandDS9 ds9;      // Pour gérer les conversions de commandes DS9
    private boolean stop;        // passe à true pour tuer les threads de lecture
 
    private String lastCmd="";		// Dernière commande exécutée
    
-   protected boolean waitSave=false;  // True si on doit attendre la fin d'un Save,Export ou Backup pour quitter
+//   protected boolean syncNeedSave=false;  // True si on doit attendre la fin d'un Save,Export ou Backup pour quitter
+   protected Synchro syncSave = new Synchro();
    
    private Thread thread;   // Le thread de lecture des commandes
    JFrame robotInfo;
    String curTuto;
    JTextArea infoTxt;
+   
+   HashMap<String, String> var  = new HashMap<String, String>(100);
 
    MyRobot robot;
    
@@ -106,18 +113,19 @@ public final class Command implements Runnable {
       "   @flipflop [x|v] [V|H]           @tag|@untag\n\n" +
       "   @contour [nn] [nosmooth] [zoom] @select -tag\n" +
       "   @grey\n" +
+      "   @bitpix [-cut] [x] BITPIX\n" +
       "  \n" +
       "#GRAPHIC# #TOOL:#                   #FOLDER:#\n" +
-      "   @draw fct(param)                @md [-localscope] [name]\n" +
+      "   @draw [color] fct(param)        @md [-localscope] [name]\n" +
       "   @grid [on|off]                  @mv|@rm [name]\n" +
       "   @reticle [on|off]               @collapse|@expand [name]\n" +
       "   @overlay [on|off]               @show|@hide [name]\n" +
       " \n" +
       "#MISCELLANEOUS:#\n" +
-      "   @backup filename     @status    @sync           @demo [on|off|end]\n" +
-      "   @pause [nn]          @trace     @mem            @info msg\n" +
-      "   @function ...        @call fct  @list [fct]     @reset\n" +
-      "   @setconf prop=value  @quit      @help ...       " +
+      "   @backup filename     @status       @sync       @demo [on|off|end]\n" +
+      "   @pause [nn]          @trace        @mem        @info msg\n" +
+      "   @macro script param  @call fct     @list [fct] @reset\n" +
+      "   @setconf prop=value  @function ... @quit       @help ...       " +
       "";
  ;
 
@@ -129,9 +137,10 @@ public final class Command implements Runnable {
 
    // Liste des commandes scripts documentés
    static final String CMD[] = {
-      "addcol","backup","blink","call","cm","collapse","conv","contour","coord","copy",
+      "addcol","backup","bitpix","blink","call","cm","collapse","conv","contour","coord","copy",
       "cplane","cview","crop","demo","draw","expand","export","filter","function",
-      "flipflop","get","grey","grid","help","hide","hist","info","kernel","list","load","lock","md","mem",
+      "flipflop","get","grey","grid","help","hide","hist","info","kernel","list","load","lock",
+      "macro","md","mem",
       "mosaic","mv","norm","overlay","pause","print","quit","resamp","reset","reticle",
       "RGB","RGBdiff","rm","save","scale","search","select","set","setconf","show",
       "status","stick","sync","tag","thumbnail","trace","unlock","unstick",
@@ -140,16 +149,16 @@ public final class Command implements Runnable {
    
    // Liste des commandes qui ne requierent pas un sync() avant d'être exécutée
    static final private String NOSYNCCMD[] = {
-      "call","collapse","demo","draw","expand","function",
+      "call","collapse","demo","expand","function",
       "get","grid","help","hist","info","list","kernel","load","lock","md","mem",
-      "pause","reset","reticle",
-      "scale","setconf",
+      "pause",/*"reset",*/"reticle",
+      "scale",/*"setconf",*/
       "status","stick","sync","timeout","trace","unlock","unstick",
    };
    
    /** retourne true si la commande requiert un sync() avant d'être exécutée */
    private boolean needSync(String cmd) {
-      return Util.indexInArrayOf(cmd, NOSYNCCMD)<0;
+      return Util.indexInArrayOf(cmd, NOSYNCCMD)== -1;
    }
 
   /** Creation d'un module de commande.
@@ -157,6 +166,7 @@ public final class Command implements Runnable {
    */
    Command(Aladin aladin) {
       a=aladin;
+      ds9 = new CommandDS9(aladin);
       testRobot();
       if( Aladin.ROBOTSUPPORT ) {
           robot = new MyRobot(a);
@@ -167,15 +177,20 @@ public final class Command implements Runnable {
    /** Arrêt forcer du thread de lecture des commandes */
    protected void stop() { stop=true; }
    
-   protected void toStdoutAndConsole(String s) {
-      toStdout(s);
+   public void printConsole(String s) {
+      print(s);
+      console(s);
+   }
+   
+   public void console(String s) {
       if( !s.startsWith("!!!") ) a.console.setInfo(s);
       else a.console.setError(s);
+
    }
 
    /** Affichage sur le standard output si possible */
-   protected void toStdoutln(String s) { toStdout(s+"\n"); }
-   protected void toStdout(String s) {
+   public void println(String s) { print(s+"\n"); }
+   public void print(String s) {
       if( Aladin.NOGUI && !s.startsWith("!!!")  ) return;
       if( !Aladin.isApplet() ) System.out.print(s);
    }
@@ -226,7 +241,7 @@ public final class Command implements Runnable {
 //            if( !a.dialog.isShowing() ) a.dialog.show();
 //         }
 //      }
-      toStdoutln("Aladin is waiting commands...");
+      println("Aladin is waiting commands...");
       scriptFromInputStream();
       a.trace(2,"Command interpreter stopped !");
    }
@@ -321,7 +336,7 @@ public final class Command implements Runnable {
       String s=null;
       boolean prompt=(stream==System.in);
 
-      if( prompt ) toStdout(getPrompt());
+      if( prompt ) print(getPrompt());
       while(!stop /* && true */) {
          try {
             if( robotMode ) robotSync();
@@ -334,10 +349,10 @@ public final class Command implements Runnable {
                //            if( s.charAt(0)=='#' && !filterMode ) continue;
                execScript(s);
             }
-            if( prompt ) toStdout(getPrompt());
+            if( prompt ) print(getPrompt());
          } catch( Exception e ) {
             if( Aladin.levelTrace>=3 ) e.printStackTrace();
-            toStdoutln("!!! "+e);
+            println("!!! "+e);
             e.printStackTrace();
          }
       }
@@ -356,11 +371,11 @@ public final class Command implements Runnable {
    protected int getViewNumber(String vID,boolean verbose) {
       int nview = a.view.getNViewFromID(vID);
       if( verbose && nview<0 ) {
-         toStdoutAndConsole("!!! Not a valid view identifier [ex: B2]");
+         printConsole("!!! Not a valid view identifier [ex: B2]");
          return -1;
       }
       if( nview>= a.view.getModeView() ) {
-         if( verbose ) toStdoutAndConsole("!!! View \""+vID+"\" not visible "+nview);
+         if( verbose ) printConsole("!!! View \""+vID+"\" not visible "+nview);
          return -1;
       }
       return nview;
@@ -407,17 +422,17 @@ public final class Command implements Runnable {
          if( methode==1 && !at ) {
             n=a.calque.getIndexPlan(s);
             if( n<0 ) {
-               if( verbose ) toStdoutAndConsole("!!! Plane \"" + s + "\" not found !");
+               if( verbose ) printConsole("!!! Plane \"" + s + "\" not found !");
                return null;
             }
             return allPlans[n];
          }
-         if( verbose ) toStdoutAndConsole("!!! Plane number error ("+s+")");
+         if( verbose ) printConsole("!!! Plane number error ("+s+")");
          return null;
       }
       n=allPlans.length-n;
       if( allPlans[n].type==Plan.NO ) {
-         if( verbose ) toStdoutAndConsole("!!! Plane number "+s+" not assigned");
+         if( verbose ) printConsole("!!! Plane number "+s+" not assigned");
          return null;
       }
       return allPlans[n];
@@ -512,17 +527,47 @@ public final class Command implements Runnable {
       return v.toArray(new Plan[v.size()]);
    }
 
+//   protected boolean isSyncServer1() {
+//      for( int i=0; i<a.dialog.server.length; i++ ) {
+//         if( !a.dialog.server[i].isSync() ) {
+//            Aladin.trace(4,"Command.isSyncServer() : waiting server["+i+"] \""+a.dialog.server[i].aladinLabel+"\"...");
+//            return false;
+//         }
+//      }
+//      return true;
+//   }
    /** Retourne true si tous les serveurs sont syncrhonisés */
    protected boolean isSyncServer() {
-      for( int i=0; i<a.dialog.server.length; i++ ) {
-         if( !a.dialog.server[i].isSync() ) {
-            Aladin.trace(4,"Command.isSyncServer() : waiting server["+i+"] \""+a.dialog.server[i].aladinLabel+"\"...");
-            return false;
-         }
-      }
-      return true;
+      if( a.synchroServer.isReady() ) return true;
+      Aladin.trace(4,"Command.isSyncServer() : waiting server...\n" +
+      		         "==> "+a.synchroServer);
+      return false;
    }
    
+   /** Retourne true si tous les plugins sont syncrhonisés */
+   protected boolean isSyncPlugin() { 
+      if( a.plugins==null ) return true;
+      return a.plugins.isSync();
+   }
+   
+   /** Retourne true si tous les plans sont syncrhonisés */
+   protected boolean isSyncPlan() {
+      if( a.synchroPlan.isReady() ) return true;
+      Aladin.trace(4,"Command.isSyncPlan() : waiting plane...\n" +
+                     "==> "+a.synchroPlan);
+      return false;
+   }
+   
+   /** Retourne true si tous les serveurs sont syncrhonisés */
+   protected boolean isSyncSave() {
+      if( syncSave.isReady() ) return true;
+      Aladin.trace(4,"Command.isSyncSave() : waiting save process...\n" +
+                     "==> "+syncSave);
+      return false;
+   }
+   
+
+
    protected boolean syncNeedRepaint=false;
    protected boolean syncNeedSesame=false;
    
@@ -535,7 +580,8 @@ public final class Command implements Runnable {
       }
       
       if( syncNeedSesame && a.view.isSesameInProgress() ) {
-         a.trace(4,"Command.isSync() : waiting sesame...");
+         a.trace(4,"Command.isSync() : waiting sesame...\n" +
+         		   "==> "+a.view.sesameSynchro);
          return false;
       }
       syncNeedSesame=false;
@@ -547,8 +593,11 @@ public final class Command implements Runnable {
       }
       
       if( !isSyncServer() ) return false;
+      if( !isSyncPlan() ) return false;
+      if( !isSyncPlugin() ) return false;
+      if( !isSyncSave() ) return false;
       
-      if( !a.calque.isPlanBGSync() ) return false;
+//      if( !a.calque.isPlanBGSync() ) return false;
       
       Plan [] plan = a.calque.getPlans();
       for( int i=plan.length-1; i>=0; i-- ) {
@@ -557,9 +606,13 @@ public final class Command implements Runnable {
             if( plan[i].label==null ) {
                System.err.println("isSync label==null : type="+plan[i].type+" state="+plan[i].getDebugFlag());
             }
+//            if( Aladin.NOGUI && plan[i] instanceof PlanBG && !((PlanBG)plan[i]).isFullyDrawn() ) {
+//               syncNeedRepaint=true;
+//            }
             return false;
          }
       }
+      
 //      System.out.println("All is sync");
       return true;
    }
@@ -598,29 +651,25 @@ public final class Command implements Runnable {
       while( !isSync() ) {
       	 if( killSync ) {
       	 	killSync = false;
-            toStdoutln("!!! Command sync has been killed !");
+            println("!!! Command sync has been killed !");
             inSync = false;
             return;
       	 }
          if( timeout>0 && System.currentTimeMillis()-d>timeout ) {
-            toStdoutln("!!! Time out error ("+(timeout/60000)+" minutes).");
+            println("!!! Time out error ("+(timeout/60000)+" minutes).");
             inSync = false;
             return;
          }
-         Util.pause(500);
+         Util.pause(100);
       }
       inSync = false;
    }
 
-   /** Attend que les serveurs soient OK */
-   private void syncServer() {
-      long d = System.currentTimeMillis();
-      while( !isSyncServer() ) {
-         if( timeout>0 && System.currentTimeMillis()-d>timeout ) {
-            toStdoutln("!!! Time out error ("+(timeout/60000)+" minutes).");
-            return;
-         }
-         Util.pause(50);
+   private void syncServer() { 
+      try {
+         a.synchroServer.waitUntil(timeout);
+      } catch( Exception e ) {
+         println("!!! Time out error ("+(timeout/60000)+" minutes).");
       }
    }
 
@@ -646,7 +695,7 @@ public final class Command implements Runnable {
        long d = System.currentTimeMillis();
        while( !ActionExecutor.ready || ActionExecutor.interruptAction ) {
           if( timeout>0 && System.currentTimeMillis()-d>timeout ) {
-             toStdoutln("!!! Time out error ("+(timeout/60000)+" minutes).");
+             println("!!! Time out error ("+(timeout/60000)+" minutes).");
              return;
           }
           Util.pause(500);
@@ -661,7 +710,7 @@ public final class Command implements Runnable {
   /** Affichage du status */
    private String execStatusCmd(String param) {
       String status = getStatus(param);
-      toStdoutln(status);
+      println(status);
       return status;
    }
    
@@ -850,13 +899,13 @@ public final class Command implements Runnable {
 
   /** Decoupage des champs d'une commande "get [serveur...] target [radius]" */
    protected boolean splitGetCmd(StringBuffer servers, StringBuffer target,
-                               StringBuffer radius,String cmd) {
+                               StringBuffer radius,String cmd,boolean withServer) {
        char b[]=cmd.toCharArray();
        int d,i;
        int inPar;	// Niveau de parenthesage
 
        // chargement des records GLU additionels
-       if( (servers.indexOf("IVOA")>=0 || cmd.indexOf("IVOA")>=0)
+       if( withServer && (servers.indexOf("IVOA")>=0 || cmd.indexOf("IVOA")>=0)
                && ! a.dialog.ivoaServersLoaded ) {
            a.dialog.appendIVOAServer();
        }
@@ -884,7 +933,7 @@ public final class Command implements Runnable {
        // Si le premier serveur n'existe pas, il s'agit sans
        // doute uniquement d'un target
        StringTokenizer st = new StringTokenizer(s,",(");
-       if( a.dialog.getServer(st.nextToken())<0 ) {
+       if( !withServer || a.dialog.getServer(st.nextToken())<0 ) {
 
           // Si la vue courante est vide il faut prendre
           // la liste des serveurs par defaut
@@ -915,6 +964,7 @@ public final class Command implements Runnable {
              
              // ou via une position ou une target
              a.view.sesameResolve(cmd);
+             a.dialog.setDefaultTarget(cmd);
              
              return false;
           }
@@ -1034,14 +1084,14 @@ public final class Command implements Runnable {
     }
 
   /** Execution d'une commande get */
-   protected String execGetCmd(String cmd,String label) {
+   protected String execGetCmd(String cmd,String label,boolean withServer) {
       StringBuffer targetX=new StringBuffer();
       StringBuffer radiusX=new StringBuffer();
       StringBuffer serversX=new StringBuffer();
       StringBuffer erreur=new StringBuffer();	 // Liste des erreurs
       
       // Extraction des trois champs de la commande
-      if( !splitGetCmd(serversX,targetX,radiusX,cmd) ) return null;
+      if( !splitGetCmd(serversX,targetX,radiusX,cmd,withServer) ) return null;
       String target = a.localisation.getICRSCoord(targetX.toString().trim());
       String radius = radiusX.toString();
 
@@ -1085,13 +1135,7 @@ Aladin.trace(4,"Command.execGetCmd("+cmd+","+label+") => server=["+server+"] cri
          if( server.equalsIgnoreCase("VizierX") ) server="VizieR";   // Pour charger tout un catalogue sans poser un problème de compatibilité
 
 
-         // Pour les fonds de ciel
-         /* if( server.equalsIgnoreCase("allsky") ) {
-            j=criteria==null || criteria.length()==0 ? 0 : a.glu.findGluSky((new Tok(criteria)).nextToken(),2);
-            if( j!=-1 ) a.allsky(a.glu.getGluSky(j),target);
-            
-         // Pour les serveurs classiques
-         } else */if( (j=a.dialog.getServer(server))>=0 ) {
+         if( (j=a.dialog.getServer(server))>=0 ) {
             a.dialog.server[j].flagToFront=false;	// Pour eviter le toFront d'Aladin
             a.dialog.server[j].createPlane(target,radius,criteria,label,a.dialog.server[j].institute);
             if( a.isFullScreen() ) a.fullScreen.repaint();
@@ -1110,6 +1154,79 @@ Aladin.trace(4,"Command.execGetCmd("+cmd+","+label+") => server=["+server+"] cri
 
       return "";
    }
+   
+   protected SkyGen skygen=null;            // pour la génération des allskys via commande script
+   
+   /** Lancement via une commande script de la génération d'un allsky */
+   protected void execSkyGen(String param)  {
+      try {
+         Tok tok = new Tok(param);
+         String [] arg = new String[ tok.countTokens() ];
+         for( int i=0; i<arg.length; i++ ) arg[i] = tok.nextToken();
+         
+         
+         // Interruption d'une exécution précédente en cours
+         if( Util.indexOfIgnoreCase(param, "abort")>=0 || Util.indexOfIgnoreCase(param, "pause")>=0 
+               || Util.indexOfIgnoreCase(param, "resume")>=0) {
+            Context context = skygen!=null && skygen.context!=null && skygen.context.isTaskRunning() ? skygen.context : null;
+            if( context==null ) throw new Exception("There is no running skygen task");
+            if( Aladin.NOGUI )  skygen.execute(arg);
+            else skygen.executeAsync(arg);
+            return;
+         }
+         
+         if( skygen!=null && skygen.context!=null && skygen.context.isTaskRunning() ) {
+            throw new Exception("There is already a running skygen task !");
+         }
+         skygen = new SkyGen();
+         if( Aladin.NOGUI )  skygen.execute(arg);
+         else skygen.executeAsync(arg);
+      } catch( Exception e ) {
+         if( a.levelTrace>=3 ) e.printStackTrace();
+         a.warning("skygen error !"+e.getMessage()+"\n",1);
+      }
+   }
+   
+   /** Lancement d'une macro par script */
+   protected void execMacro(String param) {
+      try {
+         Tok tok = new Tok(param);
+         
+         // Récupération des lignes de commandes de la macro
+         String scriptFile = a.getFullFileName(tok.nextToken());
+         MyInputStream scriptStream = (new MyInputStream(Util.openAnyStream(scriptFile))).startRead();
+         String s;
+         Vector<String> v = new Vector<String>(100);
+         while( (s=scriptStream.readLine())!=null ) {
+            String s1 = s.trim();
+            v.addElement(s1);
+         }
+         Object [] cmd = v.toArray();
+         
+         // Instanciation du controler de macro
+         MacroModel macro = new MacroModel(a);
+         
+         // Récupération des paramètres de la macro
+         String paramFile = a.getFullFileName(tok.nextToken());
+         MyInputStream paramStream = (new MyInputStream(Util.openAnyStream(paramFile))).startRead();
+         HashMap params = new HashMap();
+         while( (s=paramStream.readLine())!=null ) {
+            int offset=-1;
+            int i,deb;
+            for( deb=0,i=1; (offset=s.indexOf('\t',offset+1))!=-1; i++, deb=offset ) {
+               String s1 = s.substring(deb,offset).trim();
+               params.put("$"+i,s1);
+            }
+            params.put("$"+i,s.substring(deb).trim());
+            
+            for( i=0; i<cmd.length; i++ ) macro.executeScript((String)cmd[i], params);
+         }
+      } catch( Exception e ) {
+         if( a.levelTrace>=3 ) e.printStackTrace();
+         a.warning("macro error !"+e.getMessage()+"\n",1);
+      }
+   }
+   
    /** Execution d'une commande setconfig propertie = value*/
    protected String execSetconfCmd(String param) {
 
@@ -1143,8 +1260,14 @@ Aladin.trace(4,"Command.execSetconfCmd("+param+") => prop=["+propertie+"] value=
       try { a.configuration.setconf(propertie,value); }
       catch( Exception e ) {
          if( Aladin.levelTrace>=3 ) e.printStackTrace();
-         toStdoutAndConsole("!!! setconf error: "+e.getMessage());
+         printConsole("!!! setconf error: "+e.getMessage());
          return e.getMessage();
+      }
+      
+      // On met automatiquement le mode de drawing correspondant au frame courant
+      if( propertie.equalsIgnoreCase("frame") ) {
+         if( Util.indexOfIgnoreCase(value, "XY")>=0 ) setDrawMode(DRAWXY);
+         else setDrawMode(DRAWRADEC);
       }
 
       return "";
@@ -1197,14 +1320,14 @@ Aladin.trace(4,"Command.execSetCmd("+param+") =>plans=["+plans+"] "
       // Test qu'il n'y a qu'un plan concerné dans le cas d'une spécification "/xxx"
       if( specif!=null && p.length>1 ) {
          String s = "set error: only suppport one plane with \"/\" specification";
-         toStdoutAndConsole("!!! set error: "+s);
+         printConsole("!!! set error: "+s);
          return s;
       }
 
       for( i=0; i<p.length; i++ ) {
          try { p[i].setPropertie(propertie,specif,value);}
          catch( Exception e ) {
-            toStdoutAndConsole("!!! set error: "+e.getMessage());
+            printConsole("!!! set error: "+e.getMessage());
             return e.getMessage();
          }
       }
@@ -1271,25 +1394,27 @@ Aladin.trace(4,"Command.execSetCmd("+param+") =>plans=["+plans+"] "
       return "";
    }
 
-  // voir getDrawParam();
-   private int getOneDrawParam(StringBuffer p,char a[],int i) {
-      boolean flagText,bslash;
-
-      for( bslash=flagText=false; i<a.length; i++) {
-         if( !flagText) {
-            if( a[i]==',' || a[i]==' ') break;
-            else if( a[i]=='"' ) { flagText=true; continue; }
-         } else {
-            if( a[i]=='"' ) {
-               if( !bslash ) { i++; break; }
-            }
-            if( a[i]=='\\' ) { bslash=true; continue; }
-            else bslash=false;
-         }
-         p.append(a[i]);
-      }
-      return i;
-   }
+//  // voir getDrawParam();
+//   private int getOneDrawParam(StringBuffer p,char a[],int i) {
+//      boolean flagText,bslash;
+//      boolean first=true;
+//
+//      for( bslash=flagText=false; i<a.length; i++) {
+//         if( !flagText) {
+//            if( a[i]==',' || a[i]==' ' || a[i]==')' ) { i++; break; }
+//            else if( first && a[i]=='"' ) { flagText=true; continue; }
+//         } else {
+//            if( a[i]=='"' ) {
+//               if( !bslash ) { i++; break; }
+//            }
+//            if( a[i]=='\\' ) { bslash=true; continue; }
+//            else bslash=false;
+//         }
+//         p.append(a[i]);
+//         first=false;
+//      }
+//      return i;
+//   }
 
   /** Decoupe dans un tableau de String une ligne de parametres separes
    * par des , ou blancs. Les parametres peuvent etre
@@ -1297,34 +1422,35 @@ Aladin.trace(4,"Command.execSetCmd("+param+") =>plans=["+plans+"] "
    * etre enquotees par ", (avec \" si exception)
    * Utilise getOneDrawParam().
    */
-   private String [] getDrawParam(String param) {
-      char a[] = param.toCharArray();
-      int i=0;
-      StringBuffer p=null;
-      Vector<StringBuffer> v = new Vector<StringBuffer>(5);
-
-      while( i<a.length ) {
-         while( i<a.length && (a[i]==' ' || a[i]==',') ) i++;	// passe les separateurs
-         p = new StringBuffer();
-         i = getOneDrawParam(p,a,i);
-         v.addElement(p);
-      }
-
-      Enumeration<StringBuffer> e = v.elements();
-      String s[] = new String[v.size()];
-      for( i=0; e.hasMoreElements(); i++ ) {
-         s[i] = new String(e.nextElement());
-      }
-if( Aladin.levelTrace==2 ) {
-   System.out.print("getDrawParam: ");
-   for( i=0; s!=null && i<s.length; i++ ) {
-      System.out.print(" p["+i+"]=["+s[i]+"]");
-   }
-   System.out.println();
-}
-
-      return s;
-   }
+//   private String [] getDrawParam(String param) {
+//      if( param.trim().length()==0 ) return new String[0];
+//      char a[] = param.toCharArray();
+//      int i=0;
+//      StringBuffer p=null;
+//      Vector<StringBuffer> v = new Vector<StringBuffer>(5);
+//
+//      while( i<a.length ) {
+//         while( i<a.length && (a[i]==' ' || a[i]==',') ) i++;	// passe les separateurs
+//         p = new StringBuffer();
+//         i = getOneDrawParam(p,a,i);
+//         v.addElement(p);
+//      }
+//
+//      Enumeration<StringBuffer> e = v.elements();
+//      String s[] = new String[v.size()];
+//      for( i=0; e.hasMoreElements(); i++ ) {
+//         s[i] = new String(e.nextElement());
+//      }
+//      if( Aladin.levelTrace>=4 ) {
+//         System.out.print("Command.getDrawParam: ");
+//         for( i=0; s!=null && i<s.length; i++ ) {
+//            System.out.print(" p["+i+"]=["+s[i]+"]");
+//         }
+//         System.out.println();
+//      }
+//
+//      return s;
+//   }
 
    /** Supprime les marques de liens dans une chaine de caractères */
    protected String removeLinks(String help) {
@@ -1352,7 +1478,7 @@ if( Aladin.levelTrace==2 ) {
          }
       } catch( Exception e ) { 
          if( a.levelTrace>=3 ) e.printStackTrace();
-         toStdoutAndConsole("!!! thumbnail error: "+e.getMessage());
+         printConsole("!!! thumbnail error: "+e.getMessage());
       }
    }
 
@@ -1415,16 +1541,16 @@ if( Aladin.levelTrace==2 ) {
          else if( modeStr.equalsIgnoreCase("bestmatch") ) mode = CDSXMatch.BESTMATCH;
          else if( modeStr.equalsIgnoreCase("nomatch") ) mode = CDSXMatch.NOMATCH;
          else {
-            toStdoutAndConsole("!!! xmatch error: parameter "+modeStr+" was not recognized !");
-            toStdoutln("Allowed modes are : allmatch|bestmatch|nomatch");
+            printConsole("!!! xmatch error: parameter "+modeStr+" was not recognized !");
+            println("Allowed modes are : allmatch|bestmatch|nomatch");
             return "";
          }
       }
 
-      if( pCat1==null || pCat2==null || dist<0. ) toStdoutAndConsole("!!! xmatch error: missing or incorrect parameters");
+      if( pCat1==null || pCat2==null || dist<0. ) printConsole("!!! xmatch error: missing or incorrect parameters");
       else {
         if( !(pCat1 instanceof PlanCatalog) || !(pCat2 instanceof PlanCatalog) ) {
-            toStdoutAndConsole("!!! xmatch error: can only be performed on catalog planes !");
+            printConsole("!!! xmatch error: can only be performed on catalog planes !");
             return "";
         }
         CDSXMatch xMatch = new CDSXMatch(a);
@@ -1456,7 +1582,7 @@ if( Aladin.levelTrace==2 ) {
    private int[] getCoordIdx(PlanCatalog pc, String colStr) {
       	String[] coord = Util.split(colStr, ",", ' ', ' ', true);
       	if( coord.length<2 ) {
-      		toStdoutAndConsole("!!! xmatch error: there should be 2 coordinate columns !");
+      		printConsole("!!! xmatch error: there should be 2 coordinate columns !");
       		return null;
       	}
       	int idxRa, idxDe;
@@ -1478,8 +1604,8 @@ if( Aladin.levelTrace==2 ) {
 		catch( Exception e ) {e.printStackTrace(); return null;}
 
 		if( idxRa<0 || idxDe<0 ) {
-		    toStdoutAndConsole("!!! xmatch error: could not find coordinate columns "+colStr+" for plane "+pc.getLabel());
-			toStdoutln("Cross-match will be performed using coordinate columns found by UCD !");
+		    printConsole("!!! xmatch error: could not find coordinate columns "+colStr+" for plane "+pc.getLabel());
+			println("Cross-match will be performed using coordinate columns found by UCD !");
 			return null;
 		}
 		return new int[]{idxRa, idxDe};
@@ -1497,7 +1623,7 @@ if( Aladin.levelTrace==2 ) {
             if( a.msgOn ) a.msgOn = false;
             a.help.setHyperText("","|!Aladin script commands."+execHelp());
          }
-         toStdoutln(removeLinks(execHelp()));
+         println(removeLinks(execHelp()));
          return;
       }
       
@@ -1506,7 +1632,7 @@ if( Aladin.levelTrace==2 ) {
       else {
          String s=getHelpString(param);
          if( s.length() == 0 ) return;
-         toStdoutln(removeLinks(s));
+         println(removeLinks(s));
          if( inAladinFrame ) {
             a.inScriptHelp=true;
             a.cardView.show(a.bigView,"Help");
@@ -1517,10 +1643,10 @@ if( Aladin.levelTrace==2 ) {
 
    /** Affiche le Help des commandes à la queue leuleu */
    private void execAllHelp() {
-      toStdoutln(removeLinks(execHelp()));
+      println(removeLinks(execHelp()));
       for( int i=0; i<CMD.length; i++ ) {
-         toStdoutln("----");
-         toStdoutln(removeLinks(getHelpString(CMD[i])));
+         println("----");
+         println(removeLinks(getHelpString(CMD[i])));
       }
    }
 
@@ -1540,7 +1666,7 @@ if( Aladin.levelTrace==2 ) {
          String s1 = "Help."+Util.toLower(p);
          s = a.chaine.getString(s1);
          if( s.length()==0 || s.equals("["+s1+"]") ) {
-            toStdoutAndConsole("!!! help error: command \""+p+"\" unknown !");
+            printConsole("!!! help error: command \""+p+"\" unknown !");
             return "";
          }
       }
@@ -1597,7 +1723,7 @@ if( Aladin.levelTrace==2 ) {
          int order = Integer.parseInt(param.substring(0,offset).trim());
          int npix = Integer.parseInt(param.substring(offset+1).trim());
          
-         long nSide = (long) Math.pow(2, order);
+         long nSide = CDSHealpix.pow2(order);
          double x[];
          x = CDSHealpix.polarToRadec(CDSHealpix.pix2ang_nest(nSide, npix));
          Coord c = new Coord(x[0], x[1]);
@@ -1608,7 +1734,7 @@ if( Aladin.levelTrace==2 ) {
             a.localisation.frameToFrame(c, ((PlanBG)pref).frameOrigin, Localisation.ICRS);
          }
          a.view.setRepere(c);
-         toStdoutAndConsole("Healpix "+order+"/"+npix+" => "+c);
+         printConsole("Healpix "+order+"/"+npix+" => "+c);
          return true;
       } catch( Exception e ) { }
       return false;
@@ -1665,7 +1791,7 @@ if( Aladin.levelTrace==2 ) {
                   }
                }
             } catch( Exception e ) {
-               toStdoutAndConsole("!!! select cube frame error: "+e.getMessage()); 
+               printConsole("!!! select cube frame error: "+e.getMessage()); 
             }
             return;         
          
@@ -1738,12 +1864,12 @@ if( Aladin.levelTrace==2 ) {
       if( label!=null ) {
          try {
             p[0] = this.a.calque.dupPlan((PlanImage)p[0],label,p[0].type,false);
-         } catch( Exception e ) { toStdoutAndConsole("!!! fliflop error: "+e.getMessage()); return; }
+         } catch( Exception e ) { printConsole("!!! fliflop error: "+e.getMessage()); return; }
       }
       try {
          this.a.view.flip((PlanImage)p[0],methode);
       } catch( Exception e ) {
-         toStdoutAndConsole("!!! fliflop error: "+e.getMessage());
+         printConsole("!!! fliflop error: "+e.getMessage());
       }
    }
 
@@ -1755,6 +1881,7 @@ if( Aladin.levelTrace==2 ) {
       int i,j;
       String size,pos=null;
       double x=0,y=0,w=50,h=50;
+      Coord c1=null;
 
       // recup de la taille wxh
       boolean flagDim=false;
@@ -1785,6 +1912,7 @@ if( Aladin.levelTrace==2 ) {
       }
 
       // Récupération du plan concerné (on ne supporte plus la possibilité de mentionner plusieurs plans)
+      // Attention, cette possibilité n'est pas offerte dans le cas d'un PlanBG (allsky) non visible
       PlanImage pi=null;
       try {
          pi = (PlanImage)getPlan(param.substring(0,j),1)[0];
@@ -1792,8 +1920,12 @@ if( Aladin.levelTrace==2 ) {
       } catch( Exception e1 ) {
          pi = (PlanImage)a.calque.getPlanBase();
       }
-      
       ViewSimple v = a.view.getView(pi);
+      if( pi instanceof PlanBG && (!pi.active || !pi.ref && pi.getOpacityLevel()==0f) ) {
+         Aladin.warning("crop error: allsky plane ["+pi.label+"] must be visible to be cropped!",1);
+         System.err.println("crop error: allsky plane ["+pi.label+"] must be visible to be cropped!");
+         return null;
+      }
 
       // On détermine la taille si non précisée ?
       if( !flagDim ) {
@@ -1801,43 +1933,90 @@ if( Aladin.levelTrace==2 ) {
             w=v.rzoom.width;
             h=v.rzoom.height;
          } catch( Exception e ) { }
+         
       }
+      else if( pi instanceof PlanBG ) { w /=v.zoom; h/=v.zoom; }
 
     // On essaye la position du repere, sinon le centre de la vue, si nécessaire
       if( !flagPos ) {
          try {
-            Coord c = new Coord(a.view.repere.raj,a.view.repere.dej);
-            pi.projd.getXY(c);
-            x = c.x-w/2.;
-            y = c.y-h/2.;
+            c1 = pi instanceof PlanBG ? v.getCooCentre()
+                  : new Coord(a.view.repere.raj,a.view.repere.dej);
+            pi.projd.getXY(c1);
+//            x = c1.x;
+//            y = c1.y;
+            x = c1.x-w/2.;
+            y = c1.y-h/2.;
             y = pi.naxis2-(y+h);
          } catch( Exception e1 ) {
+            e1.printStackTrace();
             x=v.rzoom.x;
-            y= v.rzoom.y; 
+            y=v.rzoom.y; 
          }
       }
 
-//      a.trace(4,"Command.crop: param=["+param+"] label="+label+" "+x+","+y+(flagPos?" (provided) ":" (on reticle) ")+w+"x"+h+(flagDim?"(provided)":"(view size)"));
+      a.trace(4,"Command.crop: on "+v+" param=["+param+"] label="+label+" "+x+","+y+(flagPos?"(provided) ":" ("+c1+" on reticle) ")+w+"x"+h+(flagDim?"( provided)":"(view size)"));
 
-      a.view.getView(pi).cropArea(new RectangleD(x,pi.naxis2-(y+h),w,h), label, 1, 1,false);
+      if( v.cropArea(new RectangleD(x,pi.naxis2-(y+h),w,h), label, v.zoom, 1,true,false)==null ) {
+         Aladin.warning("crop error: view ["+v+"] not usable!",1);;
+         System.err.println("crop error: view ["+v+"] not usable!");
+         return null;
+      }
+      syncNeedRepaint=true;
+      a.view.repaintAll();
       return pi;
    }
    
+   
+   protected void setDrawMode(int mode) { drawMode=mode; }
+   
+   /** Recupération d'une couleur spécifique, et recalage du Tok si nécessaire
+    * dans le cas d'un rgb(r,g,b) qui nécessite de lire 3 paramètres
+    * @param s le nom de la couleur ou de la fonction de couleur
+    * @param tok le parser des paramètres calés sur le prochain
+    * @return la couleur, ou null s'il ne s'agit pas d'un nom de couleur ou d'une fonction de couleur
+    */
+   private Color getSpecifColor(String s,Tok tok) {
+      Color c;
+      if( s.equalsIgnoreCase("rgb") ) {
+         String r = tok.nextToken();
+         String g = tok.nextToken();
+         String b = tok.nextToken();
+         s = s+"("+r+","+g+","+b+")";
+         c = Action.getColor(s);
+      } else c = Action.getColor(s);
+      return c;
+   }
+   
+   private boolean flagFoV=false;   // Une commande de création de FoV a été passée au préalable
+   private Color globalColor=null;  // Dernière couleur demandée
+   private Plan oPlan=null;         // Dernier plan Tool ou FoV utilisé
+   
   /** Execution d'une commande get */
-   protected boolean execDrawCmd(String cmd) {
+   protected boolean execDrawCmd(String cmd,String param) {
       Plan plan=null;	// Plan ou il faudra dessiner
       int height;		// On va compter XY à partir du bas
-      int n;		    // Numero du plan
       Obj newobj=null;  // Nouvelle objet a inserer
       Coord c=null;	    // Position de l'objet si drawMode==DRAWRADEC;
       double x=0,y=0;	// Position de l'objet si drawMode==DRAWXY;
-
-//toConsole("execution de la commande ["+cmd+"]");
-      StringTokenizer st = new StringTokenizer(cmd,"(");
-      String fct = st.nextToken();
-      String param = cmd.substring(fct.length()+1,cmd.length()-1);
-      String p [] = getDrawParam(param);
-
+      Color specifColor=null;  // Couleur spécifique à l'objet
+      
+//      StringTokenizer st = new StringTokenizer(param,"(");
+//      String fct = st.nextToken();
+//      String parameter =  fct.length()<param.length() ? param.substring(fct.length()+1,param.length()-1) : "";
+//      String p [] = getDrawParam(parameter);
+      
+      Tok tok = new Tok(param,"(, )");
+      String fct = tok.nextToken();
+      
+      // Couleur spécifique ? => on la traite, et on se recale
+      specifColor=getSpecifColor(fct,tok);
+      if( specifColor!=null )  fct = tok.nextToken();
+      
+      // Recupération des paramètres de la fonction
+      String p [] = new String[ tok.countTokens() ];
+      for( int i=0; i<p.length; i++ ) p[i] = tok.nextToken();
+      
       // Détermination de la hauteur de l'image de base,
       // sinon on prendra 500 par défaut
       height = 500;
@@ -1849,22 +2028,77 @@ if( Aladin.levelTrace==2 ) {
          if( p[0].equalsIgnoreCase("xy") ) drawMode = DRAWXY;
          else if( p[0].equalsIgnoreCase("radec") ) drawMode = DRAWRADEC;
          else {
-            toStdoutAndConsole("!!! draw error: mode param ("+p[0]+") unknown");
+            printConsole("!!! draw error: mode param ("+p[0]+") unknown");
             return false;
          }
+         console("Draw mode: "+(drawMode==DRAWXY ? "XY coordinates":"celestial coordinates"));
+         
+         return true;
+      }
+      
+      // Commande global(prop=value,prop=value...)
+      if( fct.equalsIgnoreCase("global") ) {
+         memoGlobal(p);
          return true;
       }
 
+      // Création d'un plan tool => draw newtool(mytool)
+      if( fct.equalsIgnoreCase("newtool") ) {
+         String name=null;
+         if( p.length>0 ) name=p[0];
+         oPlan=plan = a.calque.createPlanTool(name);
+         if( globalColor!=null ) plan.c=globalColor;
+         return true;
+      }
+      
+      // Création d'un plan FoV => draw newFOV(xc,yc[,angle,mytool])
+      try {
+         if( fct.equalsIgnoreCase("newfov") ) {
+            if( drawMode==DRAWRADEC ) {
+               c = new Coord(p[0]+" "+p[1]);
+               c=a.localisation.frameToICRS(c);
+            } else {
+               c = new Coord();
+               c.x = parseDouble(p[0])-0.5;
+               c.y = height-parseDouble(p[1])+0.5;
+               a.view.getCurrentView().getProj().getCoord(c);
+            }
+            double angle = p.length<3 ? 0 : parseDouble(p[2]);
+            String name = p.length>=4 ? p[3] : null;
+            oPlan=plan = a.calque.createPlanField(name,c,angle,true,true);
+            if( globalColor!=null ) plan.c=globalColor;
+            flagFoV=true;
+            return true;
+         }
+      } catch( Exception e ) {
+         printConsole("!!! draw error: "+e.getMessage());
+         if( Aladin.levelTrace!=0 ) e.printStackTrace();
+         return false;
+      }
+      
       // Determination du plan TOOL, ou creation si necessaire
-      plan = a.calque.selectPlanTool();
-
+      // On essaye de reprendre le précédent si possible
+      if( oPlan!=null && oPlan.type!=Plan.APERTURE && flagFoV ) oPlan=null; // Il faut passer à un plan FoV
+      if( oPlan!=null && a.calque.planToolOk(oPlan,flagFoV) ) plan=oPlan;   // On reprend le précédent
+      else plan = flagFoV ? a.calque.selectPlanToolOrFoV() : a.calque.selectPlanTool();
+      oPlan=plan;
+      
+      // Positionnement des variables globales au plan
+      if( globalColor!=null ) {
+         if( globalColor!=plan.c && plan.type==Plan.TOOL && plan.getCounts()>0 ) plan=a.calque.createPlanTool(null); // Création automatique au changement de couleur
+         plan.c=globalColor;
+      }
+      if( drawMode==DRAWRADEC ) plan.setXYorig(false);
+      
       try {
 
          // Recuperation de la position (toujours les 2 premiers parametres)
-         if( drawMode==DRAWRADEC ) c = new Coord(p[0]+" "+p[1]);
-         else {
-            x = Double.valueOf(p[0]).doubleValue();
-            y = height-Double.valueOf(p[1]).doubleValue();
+         if( drawMode==DRAWRADEC ) {
+            c = new Coord(p[0]+" "+p[1]);
+            c=a.localisation.frameToICRS(c);
+         } else {
+            x = parseDouble(p[0])-0.5;
+            y = height-parseDouble(p[1])+0.5;
          }
 
          // Commande string(x,y,text)
@@ -1874,35 +2108,36 @@ if( Aladin.levelTrace==2 ) {
             else newobj = tag = new Tag(plan,a.view.getCurrentView(),x,y,p[2]);
             tag.setDist(5); tag.setAngle(0); tag.setPole("nopole");
 
-         // Commande tag(x,y...)
+            // Commande tag(x,y...)
          } else if( fct.equalsIgnoreCase("tag") || fct.equalsIgnoreCase("string")) {
             Tag tag;
             String id = p.length<3 ? null : p[2]; 
             if( drawMode==DRAWRADEC ) newobj = tag = new Tag(plan,c,id);
             else newobj = tag = new Tag(plan,a.view.getCurrentView(),x,y,id);
             try {
-               if( p.length>3 ) tag.setDist( Integer.parseInt(p[3]) );
-               if( p.length>4 ) tag.setAngle( (int)Double.parseDouble(p[4]) );
+               if( p.length>3 ) tag.setDist( (int)parseDouble(p[3]) );
+               if( p.length>4 ) tag.setAngle( (int)parseDouble(p[4]) );
                if( p.length>5 ) tag.setPole( p[5] );
-               if( p.length>6 ) tag.setFontSize( Integer.parseInt(p[6]) );
+               if( p.length>6 ) tag.setFontSize( (int)parseDouble(p[6]) );
             } catch( Exception e ) {
-               toStdoutAndConsole("!!! draw tag error: usage: draw tag(x,y[,label,dist,angle,pole,fontSize])");
+               printConsole("!!! draw tag error: usage: draw tag(x,y[,label,dist,angle,pole,fontSize])");
                return false;
             }
-
-//         } else if( fct.equalsIgnoreCase("tag") ) {
-//            if( drawMode==DRAWRADEC ) newobj = new Repere(plan,c);
-//            else newobj = new Repere(plan,a.view.getCurrentView(),x,y);
 
          // Commande phot(x,y,r)
          } else if( fct.equalsIgnoreCase("phot") ) {
             Repere phot;
-            if( drawMode==DRAWRADEC ) newobj = phot = new Repere(plan,c);
-            else newobj = phot = new Repere(plan,a.view.getCurrentView(),x,y);
+            ViewSimple v = a.view.getCurrentView();
             try {
-               phot.setRadius( p[2] );
+               if( drawMode==DRAWRADEC ) {
+                  newobj = phot = new Repere(plan,c);
+                  phot.setRadius( p[2] );
+               } else {
+                  newobj = phot = new Repere(plan,v,x,y);
+                  phot.setRayon( v,parseDouble(p[2]) );
+               }
             } catch( Exception e ) {
-               toStdoutAndConsole("!!! draw phot error: usage: draw phot(x,y,radius)");
+               printConsole("!!! draw phot error: usage: draw phot(x,y,radius)");
                return false;
             }
 
@@ -1910,70 +2145,179 @@ if( Aladin.levelTrace==2 ) {
          } else if( fct.equalsIgnoreCase("circle") ) {
 
             if( drawMode==DRAWRADEC ) {
-               double r = Server.getAngle(p[2],Server.RADIUS)/60.;
+               double r = Server.getAngle(p[2],Server.RADIUSs)/60.;
                newobj = new Cercle(plan,c,r);
             } else {
-               double r = Double.valueOf(p[2]).doubleValue();
+               double r = parseDouble(p[2]);
                newobj = new Cercle(plan,a.view.getCurrentView(),x,y,r);
+            }
+
+            // Commande ellipse(x,y,semiMA,semiMI,angle)
+         } else if( fct.equalsIgnoreCase("ellipse") ) {
+            double angle   = parseDouble(p[4]);
+            if( drawMode==DRAWRADEC ) {
+               double semiMA = Server.getAngle(p[2],Server.RADIUSs)/60.;
+               double semiMI = Server.getAngle(p[3],Server.RADIUSs)/60.;
+               newobj = new Ellipse(plan,c,semiMA,semiMI,angle);
+            } else {
+               double semiMA = parseDouble(p[2]);
+               double semiMI = parseDouble(p[3]);
+               newobj = new Ellipse(plan,a.view.getCurrentView(),x,y,semiMA,semiMI,angle);
+            }
+
+            // Commande box(x,y,w,h[,angle])
+         } else if( fct.equalsIgnoreCase("box") ) {
+            double angle=0;
+            try { angle = parseDouble(p[4]); } catch( Exception e ) { }
+            if( drawMode==DRAWRADEC ) {
+               double w = Server.getAngle(p[2],Server.RADIUSs)/60.;
+               double h = Server.getAngle(p[3],Server.RADIUSs)/60.;
+               newobj = new Box(plan,c,w,h,angle);
+            } else {
+               double w = parseDouble(p[2]);
+               double h = parseDouble(p[3]);
+               newobj = new Box(plan,a.view.getCurrentView(),x,y,w,h,angle);
+            }
+
+            // Commande vector(x,y,w,angle)
+         } else if( fct.equalsIgnoreCase("vector") ) {
+            double angle = parseDouble(p[3]);
+            if( drawMode==DRAWRADEC ) {
+               double w = Server.getAngle(p[2],Server.RADIUSs)/60.;
+               newobj = new Vecteur(plan,c,w,angle);
+            } else {
+               double w = parseDouble(p[2]);
+               newobj = new Vecteur(plan,a.view.getCurrentView(),x,y,w,angle);
             }
 
             // Commande arc(x,y,r,startAngle,endAngle)
          } else if( fct.equalsIgnoreCase("arc") ) {
-            double startAngle = Double.valueOf(p[3]).doubleValue();
-            double angle   = Double.valueOf(p[4]).doubleValue();
+            double startAngle = parseDouble(p[3]);
+            double angle   = parseDouble(p[4]);
             if( drawMode==DRAWRADEC ) {
-               double r = Server.getAngle(p[2],Server.RADIUS)/60.;
+               double r = Server.getAngle(p[2],Server.RADIUSs)/60.;
                newobj = new Arc(plan,c,r,startAngle,angle);
             } else {
-               double r = Double.valueOf(p[2]).doubleValue();
+               double r = parseDouble(p[2]);
                newobj = new Arc(plan,a.view.getCurrentView(),x,y,r,startAngle,angle);
             }
 
             // Commande pickle(x,y,r1,r2,startAngle,endAngle)
          } else if( fct.equalsIgnoreCase("pickle") ) {
-            double startAngle = Double.valueOf(p[4]).doubleValue();
-            double angle   = Double.valueOf(p[5]).doubleValue();
+            double startAngle = parseDouble(p[4]);
+            double angle   = parseDouble(p[5]);
             if( drawMode==DRAWRADEC ) {
-               double r1 = Server.getAngle(p[2],Server.RADIUS)/60.;
-               double r2 = Server.getAngle(p[3],Server.RADIUS)/60.;
+               double r1 = Server.getAngle(p[2],Server.RADIUSs)/60.;
+               double r2 = Server.getAngle(p[3],Server.RADIUSs)/60.;
                newobj = new Pickle(plan,c,r1,r2,startAngle,angle);
             } else {
-               double r1 = Double.valueOf(p[2]).doubleValue();
-               double r2 = Double.valueOf(p[3]).doubleValue();
+               double r1 = parseDouble(p[2]);
+               double r2 = parseDouble(p[3]);
                newobj = new Pickle(plan,a.view.getCurrentView(),x,y,r1,r2,startAngle,angle);
             }
-
-         } else if( fct.equalsIgnoreCase("line") ) {
-            if( drawMode==DRAWRADEC ) {
-               Coord c2 = new Coord(p[2]+" "+p[3]);
-               Ligne p1 = new Ligne(c.al,c.del, plan, a.view.getCurrentView());
-               plan.pcat.setObjetFast(p1);
-               newobj = new Ligne(c2.al, c2.del, plan, a.view.getCurrentView(),p1);
-            } else {
-               Ligne p1 = new Ligne(plan,a.view.getCurrentView(),x,y);
-               x = Double.valueOf(p[2]).doubleValue();
-               y = height-Double.valueOf(p[3]).doubleValue();
-               plan.pcat.setObjetFast(p1);
-               if( p.length>4 ) newobj = new Ligne(plan,a.view.getCurrentView(),x,y,p[4],p1);
-               else  newobj = new Ligne(plan,a.view.getCurrentView(),x,y,p1);;
+            
+         } else if( fct.equalsIgnoreCase("line") 
+                 || fct.equalsIgnoreCase("polygon") ) {
+            newobj=null;
+            Ligne p1,op1 = null;
+            ViewSimple v = a.view.getCurrentView();
+            // Y a-t-il un label en dernier paramètre ?
+            String id=null;
+            int n = p.length;
+            if( n%2==1 ) {
+               id = p[n-1];
+               n--;
+            }
+            for( int i=0; i<n; i+=2) {
+               if( drawMode==DRAWRADEC ) {
+                  c = new Coord(p[i]+" "+p[i+1]);
+                  c=a.localisation.frameToICRS(c);
+                  p1  = new Ligne(c.al,c.del, plan, v,id,op1);
+               } else {
+                  x = parseDouble(p[i])-0.5;
+                  y = height-parseDouble(p[i+1])+0.5;
+                  p1 = new Ligne(plan,v,x,y,id,op1);
+               }
+               if( specifColor!=null ) p1.setColor(specifColor);
+               addObj(plan,p1);
+               op1=p1;
+            }
+            // bouclage
+            if( fct.equalsIgnoreCase("polygon") ) {
+               newobj = p1 = new Ligne(0,0,plan,v,id,op1);
+               p1.makeLastLigneForClose(v);
             }
 
-         // Commande draw inconnue
+         } else if( fct.equalsIgnoreCase("dist") ) {
+            newobj=null;
+            Cote p1,op1 = null;
+            ViewSimple v = a.view.getCurrentView();
+            int n = p.length;
+            for( int i=0; i<n; i+=2) {
+               if( drawMode==DRAWRADEC ) {
+                  c = new Coord(p[i]+" "+p[i+1]);
+                  c=a.localisation.frameToICRS(c);
+                  p1  = new Cote(c.al,c.del, plan, v,op1);
+               } else {
+                  x = parseDouble(p[i])-0.5;
+                  y = height-parseDouble(p[i+1])+0.5;
+                  p1 = new Cote(plan,v,x,y,op1);
+               }
+               if( specifColor!=null ) p1.setColor(specifColor);
+               addObj(plan,p1);
+               op1=p1;
+            }
+            
+        // Commande draw inconnue
          } else {
-            toStdoutAndConsole("!!! draw error: function unknown ("+fct+")");
+            printConsole("!!! draw error: function unknown ("+fct+")");
             return false;
          }
       } catch( Exception e ) {
-         toStdoutAndConsole("!!! draw error: "+e.getMessage());
+         printConsole("!!! draw error: "+e.getMessage());
          if( Aladin.levelTrace!=0 ) e.printStackTrace();
          return false;
       }
 
-      // Tracage
-      if( newobj!=null ) plan.pcat.setObjetFast(newobj);
+      // Couleur spécifique + Tracage
+      if( newobj!=null ) {
+         if( specifColor!=null ) newobj.setColor(specifColor);
+         addObj(plan,newobj);
+      }
+      
       plan.resetProj();
       a.view.repaintAll();
       return true;
+   }
+   
+   // Parsing d'un double avec prise en compte d'un éventuel format
+   // en suffixe (à la IRAF, ex: 23.7686d)
+   // prend également en compte le signe '+' en préfixe
+   private double parseDouble(String s) throws Exception {
+      s = s.trim();
+      int fin;
+      for( fin=s.length()-1; fin>0 && !Character.isDigit(s.charAt(fin)); fin--);
+      int deb= s.length()>0 && s.charAt(0)=='+' ? 1 : 0;
+      return Double.parseDouble(s.substring(deb,fin+1));
+   }
+   
+   // Ajout d'un objet graphique => dans le cas d'un ajout dans un plan FoV (PlanField)
+   // Il est nécessaire de calculer également les (x,y) tangentiels
+   private void addObj(Plan plan,Obj newobj) {
+      plan.pcat.setObjetFast(newobj);
+      
+      // Il faut encore calculer les tangentes par rapport au centre de la projection
+      if( plan.type!=Plan.APERTURE ) return;
+      ((Position)newobj).setXYTan(plan.co);
+   }
+   
+   private void memoGlobal(String [] p) {
+      for( int i=0; i<p.length; i++ ) {
+         if( p[i].startsWith("color=") ) {
+            globalColor=Action.getColor(p[i].substring(6));
+//            System.out.println("globalColor found="+p[i].substring(6)+" c="+globalColor);
+         }
+      }
    }
 
    /** Execution d'une commande info
@@ -1997,8 +2341,8 @@ if( Aladin.levelTrace==2 ) {
    * @param verbose true si on baratine
    * @return null si la premiere commande n'est pas trouvee
    */
-   protected String execScript(String s) { return execScript(s,true); }
-   synchronized protected String execScript(String s,boolean verbose) {
+   public String execScript(String s) { return execScript(s,true,false); }
+   synchronized public String execScript(String s,boolean verbose,boolean flagOnlyFunction) {
 //      StringTokenizer st = new StringTokenizer(s,";\n\r");
       // thomas, 16/11/06 : permet de ne pas couper la déf. des filtres (pb des ';' dans les UCD !)
       String[] commands = Util.split(s, ";\n\r", '[', ']');
@@ -2011,8 +2355,8 @@ if( Aladin.levelTrace==2 ) {
          try {
             String cmd = commands[k].trim();
             if( cmd.length()>0 ) {
-               if( i==0 ) { if( (s1=exec(cmd,verbose))==null ) return null; }
-               else s1=exec(cmd,verbose);
+               if( i==0 ) { if( (s1=exec(cmd,verbose,flagOnlyFunction))==null ) return null; }
+               else s1=exec(cmd,verbose,flagOnlyFunction);
             }
             if( s1!=null && s1.length()>0 ) rep.append(s1);
             i++;
@@ -2028,13 +2372,19 @@ if( Aladin.levelTrace==2 ) {
 
    /** Retourne le code du calcul algébrique ou -1 si non trouvé */
    private int findAlgebre(String s) {
-      if( s.indexOf(" + ")>0 || s.startsWith("+") ) return PlanImageAlgo.ADD;
-      if( s.indexOf(" - ")>0 || s.startsWith("-") ) return PlanImageAlgo.SUB;
-      if( s.indexOf(" * ")>0 || s.startsWith("* ") ) return PlanImageAlgo.MUL;
-      if( s.indexOf(" / ")>0 || s.startsWith("/") ) return PlanImageAlgo.DIV;
+      if( s.startsWith("+") ) return PlanImageAlgo.ADD;
+      if( s.startsWith("-") ) return PlanImageAlgo.SUB;
+      if( s.startsWith("* ") ) return PlanImageAlgo.MUL;
+      if( s.startsWith("/") ) return PlanImageAlgo.DIV;
+      
+      if( s.indexOf(" + ")>0 ) return PlanImageAlgo.ADD;
+      if( s.indexOf(" - ")>0 ) return PlanImageAlgo.SUB;
+      if( s.indexOf(" * ")>0 ) return PlanImageAlgo.MUL;
+      if( s.indexOf(" / ")>0 ) return PlanImageAlgo.DIV;
+      
       return -1;
    }
-   
+      
    StringBuffer comment=null;           // Last comment
    Function fonct=null;
    
@@ -2055,8 +2405,8 @@ if( Aladin.levelTrace==2 ) {
          });
       }
    }
-   protected String exec(String s) { return exec(s,true); }
-   protected String exec(String s1,boolean verbose) {
+   protected String exec(String s) { return exec(s,true,false); }
+   protected String exec(String s1,boolean verbose,boolean flagOnlyFunction) {
       
       
       if( a.isFullScreen() && !a.fullScreen.isVisible() ) a.fullScreen.setVisible(true);
@@ -2064,6 +2414,21 @@ if( Aladin.levelTrace==2 ) {
       // Attente que les serveurs soient OK
       syncServer();
       
+      // mémorisation du dernier commentaire pour une éventuelle définition de fonction
+      if( s1.length()>0 && s1.trim().charAt(0)=='#' ) {
+         if( comment==null ) comment = new StringBuffer(s1.trim().substring(1));
+         else comment.append(" "+s1.trim().substring(1));
+      } else if( !s1.startsWith("function") ) comment=null;
+
+      // Compatibilité pour les commandes "region" de DS9
+      try { 
+         String s2 = ds9.translate(s1);
+         if( s2!=null ) {
+            if( s2.length()==0 ) return ""; // Commande jugée inutile (par exemple changement de frame)
+            return execScript(s2, verbose, flagOnlyFunction);
+         }
+      } catch( Exception e) { printConsole(e.getMessage()); return "";}
+
       // Extraction d'un éventuel préfixe désignant le plan target
       // ex: toto = get Simbad m1
       StringBuffer tp = new StringBuffer();
@@ -2088,7 +2453,7 @@ if( Aladin.levelTrace==2 ) {
       boolean echo = verbose && (a.getInstanceId()>0 || a.getInstanceId()==0 && !a.flagLaunch);
 
       // Echo sur la sortie standard
-      if( echo  ) toStdoutln("["+s1+"]...");
+      if( echo  ) println("["+s1+"]...");
       
       // sync automatique pour les commandes concernées
       if( syncMode==SYNCON && needSync(cmd) ) {
@@ -2107,14 +2472,17 @@ if( Aladin.levelTrace==2 ) {
       if( fonct!=null ) {
          try {
             if( fonct.parseFunction(s1) ) { addFunction(fonct); fonct=null; }
-         } catch( Exception e ) { toStdoutAndConsole("!!! "+e.getMessage()); fonct=null; }
+         } catch( Exception e ) { printConsole("!!! "+e.getMessage()); fonct=null; }
          return "";
       }
+      
+      // Ne fait que charger les fonctions
+      if( flagOnlyFunction ) return "";
 
       //thomas
 	  // est-ce le debut d'une nouvelle definition de filtre ?
       if( s.toLowerCase().startsWith("filter") && s.indexOf("{")>=0 ) {
-      	toStdoutln("Enter the constraints for the new filter");
+      	println("Enter the constraints for the new filter");
       	filterMode = true;
       	filterDef = new StringBuffer();
       }
@@ -2138,29 +2506,26 @@ if( Aladin.levelTrace==2 ) {
             return "";
          }
 
-         if (Action.countNbOcc('\n', filterDef.toString()) > 1) toStdoutln("Enter other constraints for the new filter");
+         if (Action.countNbOcc('\n', filterDef.toString()) > 1) println("Enter other constraints for the new filter");
          return "";
       }
       
       // Echo sur la console
       if( echo ) a.console.setCommand(s1);
       
-
-      // mémorisation du dernier commentaire pour une éventuelle définition de fonction
-      if( s1.length()>0 && s1.trim().charAt(0)=='#' ) {
-         if( comment==null ) comment = new StringBuffer(s1.trim().substring(1));
-         else comment.append(" "+s1.trim().substring(1));
-         return "";
-      } else if( !s1.startsWith("function") ) comment=null;
-
+      // Commentaire
+      if( s1.length()>0 && s1.trim().charAt(0)=='#' ) return "";
+      
       if( robotMode &&  Aladin.ROBOTSUPPORT ) {
           if( robot.executeCommand(cmd, param) ) return "";
       }
       
       a.trace(4,"Command.exec() : execute now \""+cmd+" "+param+"\"...");
-
+      
            if( cmd.equalsIgnoreCase("taquin") ) a.view.taquin(param);
-      else if( cmd.equalsIgnoreCase("createRGB") ) testCreateRGB(param);
+      else if( cmd.equalsIgnoreCase("skygen") ) execSkyGen(param);
+      else if( cmd.equalsIgnoreCase("macro") )  execMacro(param);
+//      else if( cmd.equalsIgnoreCase("createRGB") ) testCreateRGB(param);
       else if( cmd.equalsIgnoreCase("test") )   a.execCommand("USNO-B1_14000885+1348332 = get VizieR(USNO-B1,allcolumns) 14 00 08.85792000000265 +13 48 33.29639999999799 3.0arcmin");
       else if( cmd.equalsIgnoreCase("testlang") ) a.chaine.testLanguage(param);
       else if( cmd.equalsIgnoreCase("testimg") )testCalib(label,param,0);
@@ -2185,10 +2550,9 @@ if( Aladin.levelTrace==2 ) {
       else if( cmd.equalsIgnoreCase("grey")
             || cmd.equalsIgnoreCase("gray") )   a.grey();
       else if( cmd.equalsIgnoreCase("quit") )   a.quit(0);
-      else if( cmd.equalsIgnoreCase("get") )    return execGetCmd(param,label);
+      else if( cmd.equalsIgnoreCase("get") )    return execGetCmd(param,label,true);
       else if( cmd.equalsIgnoreCase("set") )    return execSetCmd(param);
       else if( cmd.equalsIgnoreCase("setconf") )return execSetconfCmd(param);
-      else if( cmd.equalsIgnoreCase("draw") )   execDrawCmd(param);
       else if( cmd.equalsIgnoreCase("status") ) return execStatusCmd(param);
       else if( cmd.equalsIgnoreCase("info") )   execInfo(param);//a.status.setText(param);
       else if( cmd.equalsIgnoreCase("help") )   execHelpCmd(param,false);
@@ -2199,7 +2563,8 @@ if( Aladin.levelTrace==2 ) {
             || cmd.equalsIgnoreCase("plane") )  a.calque.newPlanCatalogBySelectedObjet(label!=null?label:param,false);
       else if( cmd.equalsIgnoreCase("thumbnail")
             || cmd.equalsIgnoreCase("createROI")
-            || cmd.equalsIgnoreCase("ROI") ) execROICmd(param);
+            || cmd.equalsIgnoreCase("ROI") )    execROICmd(param);
+      else if( cmd.equalsIgnoreCase("draw") )   execDrawCmd(cmd,param);
       else if( cmd.equalsIgnoreCase("rename") || cmd.equalsIgnoreCase("ren") ) {  // For compatibility
          try {
             Plan p=null;
@@ -2215,7 +2580,7 @@ if( Aladin.levelTrace==2 ) {
             }
             a.calque.rename(p,nameDst);
          } catch ( Exception e ) {
-            toStdoutAndConsole("!!! rename error: "+e.getMessage());
+            printConsole("!!! rename error: "+e.getMessage());
             return "";
          }
       }
@@ -2263,18 +2628,20 @@ if( Aladin.levelTrace==2 ) {
       else if( cmd.equalsIgnoreCase("blink") ) {
               PlanImage p[] = getPlanImage(param);
               if( p.length<2 ) {
-                 toStdoutAndConsole("!!! blink error: 2 images are required for blinking");
+                 printConsole("!!! blink error: 2 images are required for blinking");
                  return "";
               }
               a.calque.newPlanImageBlink(p,label,800);
+              syncNeedRepaint=true;
            }
       else if( cmd.equalsIgnoreCase("mosaic") ) {
          PlanImage p[] = getPlanImage(param);
          if( p.length<2 ) {
-            toStdoutAndConsole("!!! mosaic error: 2 images are required for mosaic");
+            printConsole("!!! mosaic error: 2 images are required for mosaic");
             return "";
          }
          a.calque.newPlanImageMosaic(p,label,null);
+         syncNeedRepaint=true;
       }
       else if( cmd.equalsIgnoreCase("resamp") || cmd.equalsIgnoreCase("rsamp")) {
              try {
@@ -2291,8 +2658,9 @@ if( Aladin.levelTrace==2 ) {
                    if( c=='B' || c=='b' ) methode=PlanImageResamp.BILINEAIRE;
                 }
                 a.calque.newPlanImageResamp(p1,p2,label,methode,fullPixel,true);
+                syncNeedRepaint=true;
             } catch( Exception e ) {
-                toStdoutAndConsole("Resamp error: "+e.getMessage());
+                printConsole("Resamp error: "+e.getMessage());
                 return "";
              }
            }
@@ -2321,7 +2689,7 @@ if( Aladin.levelTrace==2 ) {
                if( p1==null && p2==null && Double.isNaN(coef)) throw new Exception();
                a.calque.newPlanImageAlgo(label,p1,p2,fct,coef,null,PlanImageAlgo.BILINEAIRE);
             } else throw new Exception();
-         } catch( Exception e ) { toStdoutAndConsole("!!! Arithmetic expression syntax error: "+e.getMessage()); return "error"; }
+         } catch( Exception e ) { printConsole("!!! Arithmetic expression syntax error: "+e.getMessage()); return "error"; }
       }
       else if( cmd.equalsIgnoreCase("norm") ) {
          try {
@@ -2333,7 +2701,8 @@ if( Aladin.levelTrace==2 ) {
             if( v1!=null && v1.equals("-cut") ) { fct=PlanImageAlgo.NORMCUT; v1=v2; }
             if( v1!=null ) p1 = (PlanImage)getPlanFromParam(v1);
             a.calque.newPlanImageAlgo(label,p1,null,fct,0,null,0);
-         } catch( Exception e ) { toStdoutAndConsole("!!! norm error: "+e.getMessage()); return "error"; }
+            syncNeedRepaint=true;
+         } catch( Exception e ) { printConsole("!!! norm error: "+e.getMessage()); return "error"; }
        }
       else if( cmd.equalsIgnoreCase("kernel") ) {
          String s2="";
@@ -2349,13 +2718,13 @@ if( Aladin.levelTrace==2 ) {
                catch( Exception e ) {}
                try { a.kernelList.addKernel(param,pixRes);
                } catch( Exception e ) {
-                  toStdoutAndConsole("!!! conv error: kernel definition error"); 
+                  printConsole("!!! conv error: kernel definition error"); 
                   return "error";
                }
             // Affichage les kernels qui correspondent au masque passé en paramètre
             } else s2 = a.kernelList.getKernelDef(param);
          }
-         toStdout(s2);
+         print(s2);
          a.console.setInPad(s2);
          return s2;
       }
@@ -2368,25 +2737,57 @@ if( Aladin.levelTrace==2 ) {
             if( p1!=null ) conv = param.substring(v1.length()).trim();
             else conv=param;
             a.calque.newPlanImageAlgo(label,p1,null,PlanImageAlgo.CONV,0,conv,0);
-        } catch( Exception e ) { toStdoutAndConsole("!!! conv error: "+e.getMessage()); return "error"; }
+            syncNeedRepaint=true;
+        } catch( Exception e ) { printConsole("!!! conv error: "+e.getMessage()); return "error"; }
+      }
+      else if( cmd.equalsIgnoreCase("bitpix") ) {
+         try {
+//            st = new Tok(param);
+//            String v1 = st.nextToken();
+//            String bitpix=null;
+//            PlanImage p1 = (PlanImage)getPlanFromParam(v1,0,true);
+//            if( p1!=null ) bitpix = param.substring(v1.length()).trim();
+//            else bitpix=param;
+//            a.calque.newPlanImageAlgo(label,p1,null,PlanImageAlgo.BITPIX,0,bitpix,0);
+            
+            fct = PlanImageAlgo.BITPIX;
+            st = new Tok(param);
+            String v1 = st.nextToken();
+            String v2 = st.hasMoreTokens() ? st.nextToken() : null;
+            String v3 = st.hasMoreTokens() ? st.nextToken() : null;
+            PlanImage p1=null;
+            if( v1!=null && v1.equals("-cut") ) { fct=PlanImageAlgo.BITPIXCUT; v1=v2; v2=v3;}
+            p1 = (PlanImage)getPlanFromParam(v1,0,true);
+            if( p1!=null ) v1=v2;
+            String bitpix=v1;
+            
+            if( p1!=null && !p1.isSimpleImage() 
+             || p1==null && !a.calque.getPlanBase().isSimpleImage() ) { throw new Exception("Uncompatible image");  }
+
+            a.calque.newPlanImageAlgo(label,p1,null,fct,0,bitpix,0);
+            syncNeedRepaint=true;
+           
+         } catch( Exception e ) { printConsole("!!! bitpix error: "+e.getMessage()); return "error"; }
       }
       else if( cmd.equalsIgnoreCase("RGB") ) {
                PlanImage p[] = getPlanImage(param);
                if( p.length<2 ) {
-                  toStdoutAndConsole("!!! RGB error: not enough images");
+                  printConsole("!!! RGB error: not enough images");
                   return "";
                }
                a.calque.newPlanImageRGB(p[0],p.length>2?p[1]:null,
                                         p.length>2?p[2]:p[1],p[0],label,false);
+               syncNeedRepaint=true;
            }
       else if( cmd.equalsIgnoreCase("RGBdiff") ) {
                PlanImage p[] = getPlanImage(param);
                if( p.length!=2 ) {
-                  toStdoutAndConsole("!!! RGBdiff error: requires two images");
+                  printConsole("!!! RGBdiff error: requires two images");
                   return "";
                }
                a.calque.newPlanImageRGB(p[0],p[1],null,p[0],label,true);
-     }
+               syncNeedRepaint=true;
+      }
       else if (cmd.equalsIgnoreCase("cm") ) execCM(param);
       else if( cmd.equalsIgnoreCase("sync") ) sync();
       else if( cmd.equalsIgnoreCase("md") ) {
@@ -2434,8 +2835,9 @@ if( Aladin.levelTrace==2 ) {
               try { 
                  if( p instanceof PlanImageBlink ) a.calque.newPlanImageFromBlink( (PlanImageBlink)p, -1);
                  else a.calque.dupPlan((PlanImage)p,p2.trim().length()==0 ? null:p2,p.type,true);
+                 syncNeedRepaint=true;
               } catch( Exception e ) {
-                 toStdoutAndConsole("!!! copy error: "+e.getMessage());
+                 printConsole("!!! copy error: "+e.getMessage());
                  return "";
               }
            }
@@ -2463,10 +2865,11 @@ if( Aladin.levelTrace==2 ) {
                   for( int i=j-2; i>=0; i--) {
                      a.calque.permute(vp.elementAt(i),target);
                   }
+                  syncNeedRepaint=true;
                   a.view.newView(1);
                   a.calque.repaintAll();
                } catch( Exception eMv ) {
-                  toStdoutAndConsole("!!! mv error: "+eMv.getMessage());
+                  printConsole("!!! mv error: "+eMv.getMessage());
                   return "";
                }
            }
@@ -2546,7 +2949,7 @@ if( Aladin.levelTrace==2 ) {
                   try {
                      a.view.viewSimple[nview].addPlotTable(p, col[0], col[1] ,false);
                   } catch( Exception e ) {
-                     toStdoutAndConsole("!!! cview -plot error: "+e.getMessage());
+                     printConsole("!!! cview -plot error: "+e.getMessage());
                   }
                }
                a.calque.repaintAll();
@@ -2568,19 +2971,25 @@ if( Aladin.levelTrace==2 ) {
                }
            }
       else if( cmd.equalsIgnoreCase("zoom") ) {
+               syncNeedRepaint=true;
                if( !a.calque.zoom.setZoom(param) ) {
-                  toStdoutAndConsole("!!! zoom error: factor \""+param+"\" unknown !");
+                  printConsole("!!! zoom error: factor \""+param+"\" unknown !");
                }
-           }
+      }
       else if( cmd.equalsIgnoreCase("backup") ) {
-              waitSave=true;
-              if( a.save==null ) a.save = new Save(a);
-              (a.save).saveAJ(param);
-              waitSave=false;
-           }
-
+         String syncId = syncSave.start("Command.backup");
+         try {
+            if( a.save==null ) a.save = new Save(a);
+            (a.save).saveAJ(param);
+         }
+         catch( Exception e ) {}
+         finally {
+            syncSave.stop(syncId);
+         }
+      }
       else if( cmd.equalsIgnoreCase("save") ) {
-              waitSave=true;
+         String syncId = syncSave.start("Command.save");
+         try {
               if( a.save==null ) a.save = new Save(a);
 
               String tmp=null;
@@ -2664,16 +3073,16 @@ if( Aladin.levelTrace==2 ) {
 //System.out.println("save mode="+mode+" w="+w+" h="+h+" file="+(file==null?"null":file));
 
               if( flagDim && !a.NOGUI) {
-                 tmp="dimension specification required NOGUI mode (-nogui parameter)";
-                 toStdoutAndConsole("!!! save error: "+tmp);
-                 waitSave=false;
-                 return tmp;
+                 tmp="dimension specification required NOGUI mode (-nogui parameter), assume window size";
+                 a.warning("save error: "+tmp,1);
+                 w=h=View.INITW;
+//                 waitSave=false;
+//                 return tmp;
               }
 
               if( file==null && !a.NOGUI) {
                  tmp="saving on standard output required NOGUI mode (-nogui parameter)";
-                 toStdoutAndConsole("!!! save error: "+tmp);
-                 waitSave=false;
+                 a.warning("save error: "+tmp,1);
                  return tmp;
               } else file = Tok.unQuote(file);
 
@@ -2685,7 +3094,7 @@ if( Aladin.levelTrace==2 ) {
                     v.setZoomXY(1, -1, -1);
                  } else v.setDimension(w,h);
                  v.paintComponent(null);
-                 sync();
+//                 sync(false);
               }
               
              // Mode Image non précisé ?
@@ -2699,10 +3108,14 @@ if( Aladin.levelTrace==2 ) {
 
               if( flagROI ) a.view.saveROI(file,w,h,mode);
               else (a.save).saveView(file,w,h,mode,qual);
-              waitSave=false;
-           }
+         }
+         catch( Exception e ) { e.printStackTrace(); }
+         finally {
+            syncSave.stop(syncId);
+         }
+      }
       else if( cmd.equalsIgnoreCase("export") ) {
-         waitSave=true;
+         String syncId = syncSave.start("Command.export");
          try {
             if( param!=null && param.startsWith("-ROI") ) {
                String prefix = null;
@@ -2741,8 +3154,7 @@ if( Aladin.levelTrace==2 ) {
                Plan p=getNumber(planID);
                if( p==null ) {
                   String tmp="nothing to export";
-                  toStdoutAndConsole("!!! export error: "+tmp);
-                  waitSave=false;
+                  printConsole("!!! export error: "+tmp);
                   return tmp;
                }
 
@@ -2765,19 +3177,25 @@ if( Aladin.levelTrace==2 ) {
                   }
                }
                String file = finFile==-1 ? s.substring(posFile) : s.substring(posFile,finFile);
-               file = file.trim();
+               file = Tok.unQuote(file.trim()).trim();
+               if( file.endsWith("fits") || file.endsWith("FITS")) {
+                  fits=true;
+               } else if( file.endsWith("hpx") || file.endsWith("HPX")) {
+                  hpx=true;
+               }
 
                if( p.isCatalog() ) (a.save).saveCatalog(file,p,!vot,addXY);
                else if( p.isImage() && !(p instanceof PlanImageBlink) ) (a.save).saveImage(file,p,hpx?1:fits?0:2);
                else {
                   String tmp="plane type ["+Plan.Tp[p.type]+"] not supported";
-                  toStdoutAndConsole("!!! export error: "+tmp);
-                  waitSave=false;
+                  printConsole("!!! export error: "+tmp);
                   return tmp;
                }
             }
          } catch( Exception e ) { if( a.levelTrace>=3 ) e.printStackTrace(); }
-         waitSave=false;
+           finally {
+              syncSave.stop(syncId);
+         }
       }
       else if( cmd.equalsIgnoreCase("trace") ) {
                if( param.equals("off") || param.equals("0")) {
@@ -2794,21 +3212,23 @@ if( Aladin.levelTrace==2 ) {
                long total = Runtime.getRuntime().totalMemory()/(1024*1024);
                long free = Runtime.getRuntime().freeMemory()/(1024*1024);
                long max = Runtime.getRuntime().maxMemory()/(1024*1024);
-               toStdoutAndConsole("Total used memory: "+
+               printConsole("Total used memory: "+
                  (int)(total - free)+ "Mb (total="+total+"Mb free="+free+"Mb max="+max+"Mb)\n");
             }
       else if( cmd.equalsIgnoreCase("gc") ) {
               if( param.equals("off") ) a.gc=false;
               else a.gc=true;
             }
-      else if( cmd.equalsIgnoreCase("load") ) a.load(Tok.unQuote(param),label);
+      else if( cmd.equalsIgnoreCase("load") ) {
+         a.load(Tok.unQuote(param),label);
+      }
 
       // Pour CFHT-QSO: Renaud Savalle
       // Creation d'un nouveau plan tool
       // arguments; nom du plan
       else if( cmd.equalsIgnoreCase("ptool") )  {
                String nom = st.nextToken();
-               toStdoutAndConsole("Creating new PlanTool "+nom);
+               printConsole("Creating new PlanTool "+nom);
                a.calque.newPlanTool(nom);
                a.calque.repaintAll();
              }
@@ -2824,7 +3244,7 @@ if( Aladin.levelTrace==2 ) {
                int x = Integer.parseInt(st.nextToken());
                int y = Integer.parseInt(st.nextToken());
                // Creation du repere
-               toStdoutAndConsole("Creating repere ("+x+","+y+") on plane "+p);
+               printConsole("Creating repere ("+x+","+y+") on plane "+p);
                Repere repere = new Repere(plan,a.view.getCurrentView(),x,y);
                // Ajoute le repere sur le plan courant, il doit etre du type PlanTool sinon rien ne se passe
                a.calque.setObjet(repere);
@@ -2860,11 +3280,11 @@ if( Aladin.levelTrace==2 ) {
       else if( cmd.equals("contour") ) {
                PlanImage p = (PlanImage)a.calque.getPlanBase();
                if( p==null || !p.flagOk ) {
-                  toStdoutAndConsole("!!! contour error: no image ready !");
+                  printConsole("!!! contour error: no image ready !");
                   return "";
                }
                if( p.type==Plan.IMAGERGB || p instanceof PlanImageBlink ) {
-                  toStdoutAndConsole("!!! contour error: can't produce contours on this image");
+                  printConsole("!!! contour error: can't produce contours on this image");
                  return "";
                }
 
@@ -2873,7 +3293,7 @@ if( Aladin.levelTrace==2 ) {
                if( st.hasMoreTokens() ) {
 			     String p1 = st.nextToken();
                  try{ nbContours = Integer.parseInt(p1);}
-                 catch (NumberFormatException e) { toStdoutAndConsole("!!! contour error: incorrect or missing parameter");return "";}
+                 catch (NumberFormatException e) { printConsole("!!! contour error: incorrect or missing parameter");return "";}
                }
 
 
@@ -2905,7 +3325,7 @@ if( Aladin.levelTrace==2 ) {
 
 
 
-               a.calque.newPlanContour(label!=null?label:"Contours",levels,new ContourPlot(),useSmoothing,2,currentZoomOnly,true,null);
+               a.calque.newPlanContour(label!=null?label:"Contours",null,levels,new ContourPlot(),useSmoothing,2,currentZoomOnly,true,null);
              }
 
       // thomas
@@ -2925,8 +3345,8 @@ if( Aladin.levelTrace==2 ) {
                     PlanCatalog.desactivateAllDedicatedFilters(a);
       	    	}
       	    	else {
-      	    	    toStdoutAndConsole("!!! filter error: incorrect parameter \""+onOff+"\"");
-      	    	    toStdoutln(correctSyntax);
+      	    	    printConsole("!!! filter error: incorrect parameter \""+onOff+"\"");
+      	    	    println(correctSyntax);
       	    	}
       	    }
       	    else if(nbParam==2) {
@@ -2951,19 +3371,19 @@ if( Aladin.levelTrace==2 ) {
       	             a.calque.select.repaint();
       	          }
       	          else {
-      	             toStdoutAndConsole("!!! filter error: incorrect parameter \""+onOff+"\"");
-      	             toStdoutln(correctSyntax);
+      	             printConsole("!!! filter error: incorrect parameter \""+onOff+"\"");
+      	             println(correctSyntax);
       	          }
 
       	       }
 
       	       else {
-      	          toStdoutAndConsole("!!! filter error: the filter "+fName+" does not exist");
+      	          printConsole("!!! filter error: the filter "+fName+" does not exist");
       	       }
       	    }
       	    else {
-      	       toStdoutAndConsole("!!! filter error: incorrect number of parameters");
-      	       toStdoutln(correctSyntax);
+      	       printConsole("!!! filter error: incorrect number of parameters");
+      	       println(correctSyntax);
       	    }
       }
 
@@ -2973,12 +3393,21 @@ if( Aladin.levelTrace==2 ) {
          String p [] = st.getStrings();
          return a.plugins.execPluginByScript(cmd,p);
       }
+           
+      // S'agit-il d'un traitement d'une variable
+      else if( execVar(s) ) return "";
 
       // Bon on va donc simplement activer Sesame et déplacer le repere
       else { 
-         return execGetCmd(s,label);
+         return execGetCmd(s,label,false);
       }
       return "";
+   }
+   
+   // Traitement d'une commande propre a une variable (genre A = A+1)
+   // PAS ENCORE IMPLANTE
+   private boolean execVar(String s) {
+      return false;
    }
 
    /** Retourne un tableau de ViewSimple correspondant aux identificateurs
@@ -3042,12 +3471,12 @@ if( Aladin.levelTrace==2 ) {
 
       	if( pf!=null && pf.isValid() ) {
 
-      	    toStdoutAndConsole("Filter "+pf.label+" created");
+      	    printConsole("Filter "+pf.label+" created");
             pf.setActivated(true);   // PF
             pf.updateState();        // PF
       	}
       	else {
-      	 toStdoutAndConsole("!!! Bad filter syntax !");
+      	 printConsole("!!! Bad filter syntax !");
            pf=null;
       	// FAIRE QQCH DU GENRE F.CHECKSYNTAX()
    }
@@ -3109,13 +3538,13 @@ if( Aladin.levelTrace==2 ) {
        // on cherche le plan en question
        Plan plan = getNumber(plane);
        if( plan==null ) {
-          toStdoutAndConsole("!!! addcol error : plane "+plane+" is not in current stack");
-          toStdoutln(syntax);
+          printConsole("!!! addcol error : plane "+plane+" is not in current stack");
+          println(syntax);
           return;
        }
        if( !plan.isSimpleCatalog() ) {
-          toStdoutAndConsole("!!! addcol error : plane "+plane+" is not a catalogue plane");
-          toStdoutln(syntax);
+          printConsole("!!! addcol error : plane "+plane+" is not a catalogue plane");
+          println(syntax);
           return;
        }
 
@@ -3123,8 +3552,8 @@ if( Aladin.levelTrace==2 ) {
 
        // on vérifie que le nom de la nouvelle colonne n'est pas déja utilisé !
        if( FrameColumnCalculator.colExist(name, pc) ) {
-          toStdoutAndConsole("!!! addcol error : A column with label \""+name+"\"already exists in this plane !");
-          toStdoutln(syntax);
+          printConsole("!!! addcol error : A column with label \""+name+"\"already exists in this plane !");
+          println(syntax);
           return;
        }
 
@@ -3135,8 +3564,8 @@ if( Aladin.levelTrace==2 ) {
 
        ColumnCalculator cc = new ColumnCalculator(new SavotField[] {f}, new String[] {expr}, pc, nbDec, a);
        if( !cc.createParser() ) {
-          toStdoutAndConsole("!!! addcol error : "+cc.getError());
-          toStdoutln(syntax);
+          printConsole("!!! addcol error : "+cc.getError());
+          println(syntax);
           return;
        }
        cc.compute();
@@ -3163,22 +3592,22 @@ if( Aladin.levelTrace==2 ) {
    private ArrayList<Function> function=new ArrayList<Function>();
    private boolean functionLocalDefinition = false;
    
-   protected void setFunctionLocalDefinition(boolean flag) { functionLocalDefinition=flag; }
-   protected boolean getFunctionLocalDefinition() { return functionLocalDefinition; }
+   public void setFunctionLocalDefinition(boolean flag) { functionLocalDefinition=flag; }
+   public boolean getFunctionLocalDefinition() { return functionLocalDefinition; }
    
    /** Retourne le nombre de fonctions */
-   protected int getNbFunctions() {
+   public int getNbFunctions() {
       return function.size();
    }
    
    /** Retourne la fonction à l'indice indiqué */
-   protected Function getFunction(int i) {
+   public Function getFunction(int i) {
       if( function==null || i<0 || i>=function.size() ) return null;
       return function.get(i);
    }
    
    /** Retourne la fonction repérée par son nom, ou null si introuvable */
-   protected Function getFunction(String name) {
+   public Function getFunction(String name) {
       int i = findFunction(name);
       return i<0 ? null : getFunction(i);
    }
@@ -3190,7 +3619,7 @@ if( Aladin.levelTrace==2 ) {
       return -1;
    }
    
-   protected void addFunction(Function f) {
+   public void addFunction(Function f) {
       String name = f.getName();
       f.setLocalDefinition(functionLocalDefinition);
       int i = findFunction(name);
@@ -3199,14 +3628,14 @@ if( Aladin.levelTrace==2 ) {
       functionModif=true;
    }
    
-   protected void removeFunction(Function f) {
+   public void removeFunction(Function f) {
       int i = findFunction(f.getName());
       if( i<0 ) return;
       function.remove(i);
       functionModif=true;
    }
    
-   protected void setFunctionModif(boolean flag) {
+   public void setFunctionModif(boolean flag) {
       functionModif=flag;
       Iterator it = function.iterator();
       while( it.hasNext() ) {
@@ -3217,7 +3646,7 @@ if( Aladin.levelTrace==2 ) {
    }
    
    private boolean functionModif=false;
-   protected boolean functionModif() {
+   public boolean functionModif() {
       if( functionModif ) return true;
       Iterator<Function> it = function.iterator();
       while( it.hasNext() ) {
@@ -3260,7 +3689,7 @@ if( Aladin.levelTrace==2 ) {
             if( verbose ) s.append(f+"\n");
             else s.append(name+(f.getDescription().length()>0?" - "+f.getDescription():"")+"\n");
          }
-         toStdout(s.toString());
+         print(s.toString());
          a.console.setInPad(s.toString());
          return s.toString();
          
@@ -3270,13 +3699,13 @@ if( Aladin.levelTrace==2 ) {
       }
    }
    
-   protected void resetBookmarks() {
+   public void resetBookmarks() {
       if( function==null ) return;
       Iterator<Function> e = function.iterator();
       while( e.hasNext() ) (e.next()).setBookmark(false);
    }
    
-   protected Vector<Function> getBookmarkFunctions() { return getFunctions(0); }
+   public Vector<Function> getBookmarkFunctions() { return getFunctions(0); }
    protected Vector<Function> getLocalFunctions() { return getFunctions(1); }
    
    /** Récupération d'une liste de fonctions
@@ -3322,7 +3751,7 @@ if( Aladin.levelTrace==2 ) {
       "draw tag(05:34:30.87,+22:01:02.1,\"Crab nebulae\",50,-30,circle,14);" +
       "set Draw* color=yellow;" +
       "draw mode(xy);" +
-      "draw phot(63 57 1');" +
+      "draw phot(63 57 15);" +
       "get LEDA M1;" +
       "hide Contours;" +
       "select ESO*;" +
@@ -3436,7 +3865,7 @@ if( Aladin.levelTrace==2 ) {
                   if( param==null || param.trim().length()==0 ) file.delete();
                   else {
                      if( !file.isDirectory() ) {
-                        toStdoutAndConsole("!!! testperf error: test file is already existing ["+param+"]");
+                        printConsole("!!! testperf error: test file is already existing ["+param+"]");
                         return;
                      }
                      filename= Util.concatDir(filename,"AladinTestDisk.tmp");
@@ -3449,27 +3878,31 @@ if( Aladin.levelTrace==2 ) {
                long size = GB;
                int cpt=0;
 
-               toStdout("testperf disk writing...");
+               print("testperf disk writing...");
                long t = System.currentTimeMillis();
                RandomAccessFile f = new RandomAccessFile(filename, "rw");
                while( size>0 ) {
                   f.write(buf);
                   size-= (long) buf.length;
                   cpt+= buf.length;
-                  if( cpt>=1024*1024*10 ) { toStdout("."); cpt=0; }
+                  if( cpt>=1024*1024*10 ) { print("."); cpt=0; }
                }
-               toStdoutln("");
+               println("");
                f.close();
                long msw = System.currentTimeMillis() -t;
                double debitw = (GB/(msw/1000.))/(1024*1024);
                
-               toStdoutln("testperf cache flush...");
-               t = System.currentTimeMillis();
-               testDiskFlush(new File("/"),GB/8);
-               long msf = System.currentTimeMillis() -t;
+//               println("testperf cache flush...");
+//               t = System.currentTimeMillis();
+//               try {
+//                  testDiskFlush(new File("/"),GB/8);
+//               } catch( Exception e1 ) {
+//                  e1.printStackTrace();
+//               }
+//               long msf = System.currentTimeMillis() -t;
 //               toStdoutln(" reading 1GB tree file in "+Util.getTemps(msf));
               
-               toStdout("testperf disk reading...");
+               print("testperf disk reading...");
                t = System.currentTimeMillis();
                f = new RandomAccessFile(filename, "rw");
                size = f.length();
@@ -3477,16 +3910,16 @@ if( Aladin.levelTrace==2 ) {
                   f.read(buf);
                   size-= (long) buf.length;
                   cpt+= buf.length;
-                  if( cpt>=1024*1024*10 ) { toStdout("."); cpt=0; }
+                  if( cpt>=1024*1024*10 ) { print("."); cpt=0; }
                }
-               toStdoutln("");
+               println("");
                f.close();
                long msr = System.currentTimeMillis() -t;
                double debitr = (GB/(msr/1000.))/(1024*1024);
                
                double debitmw=0;
                try {
-                  toStdoutln("testperf memory...");
+                  println("testperf memory...");
                   long MEM = GB/4;
                   int NBTEST=10;
                   buf = new byte[(int)MEM];
@@ -3497,14 +3930,14 @@ if( Aladin.levelTrace==2 ) {
                   }
                   size=0;
                   for( int j=0; j<buf.length; j++ ) size += buf[j];
-                  toStdoutln("Optimiser obfuscator...("+size+")...");
+                  println("Optimiser obfuscator...("+size+")...");
                   
                   long msmw = System.currentTimeMillis() -t;
                   debitmw = ((MEM/(msmw/1000.))/(1024*1024*1024) )*NBTEST;
                } catch( Exception e ) { }
                
                
-               toStdoutAndConsole("testperf: Disk: w="+ Util.myRound(debitw)+"MB/s r="+Util.myRound(debitr)+"MB/s" +
+               printConsole("testperf: Disk: w="+ Util.myRound(debitw)+"MB/s r="+Util.myRound(debitr)+"MB/s" +
                		" - Memory: r/w="+ Util.myRound(debitmw)+"GB/s"
                		                        );
 
@@ -3601,18 +4034,18 @@ if( Aladin.levelTrace==2 ) {
       }
    }
    
-   // Juste pour montrer à Anaïs
-   private void testCreateRGB(String param) {
-      try {
-         StringTokenizer st = new StringTokenizer(param);
-         String rgbFile = st.nextToken();
-         PlanImageRGB rgb = new PlanImageRGB(a,st.nextToken(),null, st.nextToken(), null, st.nextToken(),null);
-         a.save.saveImageColor(rgbFile, rgb, 2);
-      } catch( Exception e ) {
-         e.printStackTrace();
-      }
-   }
-
+//   // Juste pour montrer à Anaïs
+//   private void testCreateRGB(String param) {
+//      try {
+//         StringTokenizer st = new StringTokenizer(param);
+//         String rgbFile = st.nextToken();
+//         PlanImageRGB rgb = new PlanImageRGB(a,st.nextToken(),null, st.nextToken(), null, st.nextToken(),null);
+//         a.save.saveImageColor(rgbFile, rgb, 2);
+//      } catch( Exception e ) {
+//         e.printStackTrace();
+//      }
+//   }
+   
    /**
     * Création d'un fichier TSV de test */
    protected void createTSVTest(String file,int width,int height,double raj,double dej,double pxSize) {
@@ -3669,7 +4102,7 @@ if( Aladin.levelTrace==2 ) {
          int cx = width/2;
          int cy = height/2;
          Projection p = new Projection("Test",Projection.SIMPLE,raj,dej,rm,rm1,
-                                              cx,cy,width,height,0,true,type);
+                                              cx-0.5,cy-0.5,width,height,0,true,type,Calib.FK5);
 
          File g = new File(a.getDefaultDirectory()+Util.FS+file);
          g.delete();
@@ -3677,7 +4110,7 @@ if( Aladin.levelTrace==2 ) {
 
          Vector<String> key   = new Vector<String>(20);
          Vector<String> value = new Vector<String>(20);
-         try { p.c.GetWCS(key,value); }
+         try { p.getWCS(key,value); }
          catch( Exception e ) { System.err.println("GetWCS error"); }
 
          Vector<byte[]> v = new Vector<byte[]>();
@@ -3759,8 +4192,8 @@ if( Aladin.levelTrace==2 ) {
                      if( y<height && y>=0 && x<width && x>=0 ) {
                         PlanImage.setPixVal(out,bitpix,y*width+x,c);
                      }
-                     x= cx+(col-m/2+ck);
-                     y= cy-(100-(lig-m/2+lk) );
+                     x= (int)cx+(col-m/2+ck);
+                     y= (int)cy-(100-(lig-m/2+lk) );
                      if( y<height && y>=0 && x<width && x>=0 ) {
                         PlanImage.setPixVal(out,bitpix,y*width+x,c);
                      }

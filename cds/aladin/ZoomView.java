@@ -432,12 +432,11 @@ public final class ZoomView extends JComponent
                gbuf.fillRect(0,0,SIZE,SIZE);
 
                Image pimg;
-               if( pi.type==Plan.IMAGERGB ) {
-                  PlanImageRGB prgb = (PlanImageRGB)pi;
-                  if( prgb.pixelsZoomRGB==null ) prgb.calculPixelsZoomRGB(prgb.pixelsRGB);
-                  pimg = createImage( new MemoryImageSource(SIZE,SIZE,prgb.pixelsZoomRGB, 0,SIZE));
+               if( pi.type==Plan.IMAGERGB || pi.type==Plan.IMAGECUBERGB ) {
+                  if( ((PlanRGBInterface)pi).getPixelsZoomRGB()==null ) ((PlanRGBInterface)pi).calculPixelsZoomRGB();
+                  pimg = createImage( new MemoryImageSource(SIZE,SIZE,((PlanRGBInterface)pi).getPixelsZoomRGB(), 0,SIZE));
                } else {
-                  if( pi.pixelsZoom==null ) pi.calculPixelsZoom(pi.getBufPixels8());
+                  if( pi.pixelsZoom==null ) pi.calculPixelsZoom();
                   pimg = createImage( new MemoryImageSource(SIZE,SIZE,pi.cm,pi.pixelsZoom,0,SIZE));
                }     
                gbuf.drawImage(pimg,0,0,this);               
@@ -490,7 +489,7 @@ try {
    
             oiz=v.iz;
             ov=v.hashCode();
-            if( proj==null ) proj = new Projection(null,0,0,0,360*60,SIZE/2,SIZE/2,SIZE,0,false, Calib.AIT);
+            if( proj==null ) proj = new Projection(null,0,0,0,360*60,SIZE/2,SIZE/2,SIZE,0,false, Calib.AIT,Calib.FK5);
             else proj.frame = Localisation.ICRS;
             Coord c = new Coord(0,0);
             proj.getXY(c);
@@ -522,7 +521,7 @@ try {
                c = v.getCooCentre();
                if( c== null ) {
                   System.out.println("Gag ++ ");
-                  v.pref.projd = new Projection("allsky",Projection.WCS,0,0,60*4,60*4,250,250,500,500,0,false,Calib.SIN);
+                  v.pref.projd = new Projection("allsky",Projection.WCS,0,0,60*4,60*4,250,250,500,500,0,false,Calib.SIN,Calib.FK5);
                   v.pref.projd.frame = aladin.localisation.getFrame();
                   drawAllSkyControl(g, v);
                   return;
@@ -675,7 +674,7 @@ try {
 
           // Affichage de la valeur du pixel courant (sous la souris)
           if( cutX>0 ) {
-             s = p.getPixelInfoFromGrey(ViewSimple.floor(cutX* (256./SIZE)));
+             s = p.getPixelInfoFromGrey((int)Math.floor(cutX* (256./SIZE)));
              int x = cutX;
              
              g.setColor(Color.red);
@@ -757,7 +756,7 @@ try {
    protected void setCut(Obj objCut, int [] v, int mode ) {
       cutX=-1;
       this.objCut=objCut;
-      if( objCut==null || v==null || aladin.toolbox.tool[ToolBox.WEN].mode==Tool.DOWN ) {
+      if( objCut==null || v==null || aladin.toolBox.tool[ToolBox.WEN].mode==Tool.DOWN ) {
          if( flagCut ) repaint();
          flagCut=false;
          return;
@@ -828,7 +827,7 @@ try {
    
    protected void addPixelHist(double pix) { hist.addPixel(pix); }
    
-   protected void createPixelHist() { hist.createHistPixel(); }
+   protected void createPixelHist(String titre) { hist.createHistPixel(titre); }
    
    protected void activeHistPixel(String texte) {
 //      if( hist.isOverFlow() ) { flagHist=true;  }
@@ -968,7 +967,7 @@ try {
    protected void calculWen(ViewSimple v, int x,int y) {
       xmwen = x;
       ymwen = y;
-      int w = ViewSimple.top((double)SIZE/WENZOOM);
+      int w = (int)Math.ceil((double)SIZE/WENZOOM);
    /*anais*/
       int x1 = xmwen-w/2;
       int y1 = ymwen-w/2;
@@ -1212,7 +1211,7 @@ try {
 
       // Repere dans la loupe et les flèches dans les 4 directions
       if( flagwen && imgok ) {
-         int n = ViewSimple.top((double)SIZE/WENZOOM);
+         int n = (int)Math.ceil((double)SIZE/WENZOOM);
          int c = (n/2)*WENZOOM;
          int W2 = WENZOOM/2;
          gr.setColor( Color.blue );

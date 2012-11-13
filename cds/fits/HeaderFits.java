@@ -19,31 +19,13 @@
 
 package cds.fits;
 
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.WindowEvent;
 import java.io.OutputStream;
 import java.util.*;
-
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
-import javax.swing.JTextPane;
-import javax.swing.text.DefaultStyledDocument;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
 
 import cds.aladin.Aladin;
 import cds.aladin.FrameHeaderFits;
 import cds.aladin.MyInputStream;
 import cds.aladin.Save;
-import cds.tools.Util;
 
 /**
  * Classe dediee a la gestion d'un header FITS.
@@ -59,11 +41,10 @@ import cds.tools.Util;
  * @version 0.9 : (18 mai 99) Creation
  */
 public final class HeaderFits {
-   private boolean flagHCOMP;
 
   /** Les elements de l'entete */
    protected Hashtable header;
-   protected Vector keysOrder;
+   protected Vector<String> keysOrder;
 
 
    /** La taille de l'entete FITS (en octets) */
@@ -75,10 +56,6 @@ public final class HeaderFits {
     }
 
   /** Creation du header.
-   * Rq: si gzis est !=null, ce sera ce flux qui sera pris, sinon dis
-   * @param dis le flux en entree
-   * @param gzis le flux en entree (gzip)
-   * @param flagHCOMP true s'il s'agit de FITS HCOMP
    */
     public HeaderFits(MyInputStream dis) throws Exception {
       readHeader(dis);
@@ -91,9 +68,6 @@ public final class HeaderFits {
     public HeaderFits(MyInputStream dis,FrameHeaderFits frameHeaderFits) throws Exception {
        readHeader(dis,frameHeaderFits);
     }
-
-  /** Retourne Vrai s'il s'agit d'un FITS Hcompresse */
-    public boolean isHCOMP() { return flagHCOMP; }
 
   /** Taille en octets de l'entete FITS.
    * Uniquemenent mis a jour apres readHeader()
@@ -161,7 +135,7 @@ public final class HeaderFits {
       alloc();
       try {
          while( true ) {
-            String s = dis.gets();
+            String s = dis.readLine();
             linesRead++;
             if( s.length()==0 ) continue;
 //            System.out.println("["+s+"]");
@@ -195,7 +169,6 @@ public final class HeaderFits {
       sizeHeader=0;
       boolean firstLine=true;
 
-
 //Aladin.trace(3,"Reading FITS header");
       byte[] buffer = new byte[fieldsize];
 
@@ -217,22 +190,9 @@ public final class HeaderFits {
             keysOrder.addElement(key);
          }
 
-        // Test s'il s'agit de FITS Hcompresse (on ne teste que le premier
-        // code magic car JAVA 1.0 ne permet pas le unread de plus d'1 octet
-        if( (dis.getType() & MyInputStream.HCOMP)!=0 ) {
-           flagHCOMP=true;
-           return true;
-        } else flagHCOMP=false;
-/*
-        int a=0;
-        if( (a=dis.read())!=0xDD ) dis.unread(a);
-        else {
-           flagHCOMP=true;
-           dis.unread(a);
-           return true;
-        }
-        flagHCOMP=false;
-*/
+        // Test s'il s'agit de FITS Hcompresse 
+        if( dis.isHCOMP() ) return true;
+        
          // On passe le bourrage eventuel
          int bourrage = blocksize - sizeHeader%blocksize;
          if( bourrage!=blocksize ) {
@@ -247,9 +207,9 @@ public final class HeaderFits {
          if( linesRead==0 ) Aladin.error="Remote server message:\n"+new String(buffer,0);
          else {
             Aladin.error="Fits header error (line "+(linesRead+1)+")";
-            if( Aladin.levelTrace>=3 ) e.printStackTrace();
+//            if( Aladin.levelTrace>=3 ) e.printStackTrace();
          }
-         throw new Exception();
+         throw e;
       }
 
       return true;
@@ -315,15 +275,34 @@ public final class HeaderFits {
             
             // Dans le cas d'une entête DSS dans un fichier ".hhh" il ne faut pas retenir les mots
             // clés concernant l'astrométrie de la plaque entière
-            if( !( specialDSS && (key.startsWith("AMD") || key.startsWith("PLT"))) ) {
+//            if( !( specialDSS && (key.startsWith("AMD") || key.startsWith("PLT"))) ) {
                header.put(key, value);
                keysOrder.addElement(key);
-            }
+//            }
             if( frameHeaderFits!=null ) frameHeaderFits.appendMHF((new String(Save.getFitsLine(key, value, com))).trim());
          }
          i=c+1;
       }
+      
+      // NORMALEMENT C'EST CORRIGE PAR BOF - PF fév 2011
+//      if( specialDSS ) purgeAMDifRequired();
+      
       return true;
+   }
+   
+   // HORRIBLE PATCH (Pierre)
+   // Dans le cas des entêtes .hhh associées aux imagettes DSS, il y a souvent deux calibrations, non compatibles
+   // dans ce cas, je supprime celle de la plaque et je ne garde que celle de l'imagette.
+   private void purgeAMDifRequired() {
+      if( header.get("CRPIX1")==null ) return; 
+      
+      System.err.println("*** Double calibration on DSS image => remove AMD/PLT one");
+      Vector<String> nKeysOrder = new Vector<String>();
+      for( String key : keysOrder ) {
+         if( key.startsWith("AMD") || key.startsWith("PLT") ) header.remove(key);
+         else nKeysOrder.addElement(key);
+      }
+      keysOrder = nKeysOrder;
    }
 
    /**
@@ -434,8 +413,9 @@ public final class HeaderFits {
    }
 
    /** Ecriture de l'entête FITS des mots clés mémorisés. L'ordre est conservé
-    * comme à l'origine - les commentaires ne sont pas restitués */
-   public void writeHeader(OutputStream os ) throws Exception {
+    * comme à l'origine - les commentaires ne sont pas restitués 
+    * @return le nombre d'octets écrits */
+   public int writeHeader(OutputStream os ) throws Exception {
       int n=0;
       Enumeration e = keysOrder.elements();
       while( e.hasMoreElements() ) {
@@ -445,7 +425,10 @@ public final class HeaderFits {
          os.write( getFitsLine(key,value) );
          n+=80;
       }
-      os.write( getEndBourrage(n));
+      byte [] b= getEndBourrage(n);
+      n+=b.length;
+      os.write(b);
+      return n;
    }
 
    /** Génération de la fin de l'entête FITS, càd le END et le byte de bourrage
@@ -469,10 +452,10 @@ public final class HeaderFits {
    * @param comment Un éventuel commentaire, sinon ""
    * @return la chaine de 80 caractères au format FITS
    */
-  private byte [] getFitsLine(String key, String value) {
+  static public byte [] getFitsLine(String key, String value) {
      return getFitsLine(key,value,null);
   }
-  private byte [] getFitsLine(String key, String value, String comment) {
+  static public  byte [] getFitsLine(String key, String value, String comment) {
      int i=0,j;
      char [] a;
      byte [] b = new byte[80];
@@ -519,7 +502,7 @@ public final class HeaderFits {
    * @return true si s est une chaine ni numérique, ni booléenne
    * ATTENTION: NE PREND PAS EN COMPTE LES NOMBRES IMAGINAIRES
    */
-  private boolean isFitsString(String s) {
+  static private boolean isFitsString(String s) {
      if( s.length()==0 ) return true;
      char c = s.charAt(0);
      if( s.length()==1 && (c=='T' || c=='F') ) return false;   // boolean
@@ -537,7 +520,7 @@ public final class HeaderFits {
    * @param a la chaine a mettre en forme. Elle peut être déjà quotée
    * @return la chaine mise en forme
    */
-  private char [] formatFitsString(char [] a) {
+  static private char [] formatFitsString(char [] a) {
      if( a.length==0 ) return a;
      StringBuffer s = new StringBuffer();
      int i;

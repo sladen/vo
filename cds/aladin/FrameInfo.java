@@ -277,7 +277,7 @@ public class FrameInfo extends JFrame implements WindowListener, MyListener, Act
 	    return p;
 */
 	}
-	
+
 	/** Initialisation du target par défaut (soit au premier affichage, soit lors d'un
 	 * changement de frame général - MODIF PF déc 2010 => juste extrait de update(...) */
 	public void initTarget() {
@@ -337,7 +337,7 @@ public class FrameInfo extends JFrame implements WindowListener, MyListener, Act
         if( node.type==ResourceNode.IMAGE || (node.type==ResourceNode.SPECTRUM /*&& node.getFov()!=null*/) ) btnPanel.add(fovBtn);
         if( node.isLeaf || node.hasData ) {
         	boolean connectedToPlastic = aladin.getMessagingMgr().isRegistered();
-        	String[] plasticApps = null;
+        	ArrayList<String> plasticApps = null;
 
         	// on récupère les applis compatibles PLASTIC/SAMP
         	if( connectedToPlastic ) {
@@ -348,7 +348,7 @@ public class FrameInfo extends JFrame implements WindowListener, MyListener, Act
         	if( node.type!=ResourceNode.SPECTRUM || (node.type==ResourceNode.SPECTRUM && node.location!=null) || (node.location!=null && node.location.indexOf("Xpix")>=0 ) ) {
         		btnPanel.add(loadBtn);
         		// ajout du bouton "load in" s'il existe une appli PLASTIC compatible avec le noeud traité
-        		if( connectedToPlastic && plasticApps!=null && plasticApps.length>0 ) {
+        		if( connectedToPlastic && plasticApps!=null && plasticApps.size()>0 ) {
         			btnPanel.add(loadInBtn);
         			loadInBtn.setEnabled(true);
         			fillPlasticPopupMenu(plasticApps);
@@ -358,7 +358,7 @@ public class FrameInfo extends JFrame implements WindowListener, MyListener, Act
         	else {
         		// on ajoute le bouton "Load in" quoi qu'il arrive
         		btnPanel.add(loadInBtn);
-        		loadInBtn.setEnabled(plasticApps!=null && plasticApps.length>0);
+        		loadInBtn.setEnabled(plasticApps!=null && plasticApps.size()>0);
         		fillPlasticPopupMenu(plasticApps);
         	}
         }
@@ -870,13 +870,13 @@ public class FrameInfo extends JFrame implements WindowListener, MyListener, Act
 	 * @param plasticApps
 	 *
 	 */
-	private void fillPlasticPopupMenu(String[] plasticApps) {
+	private void fillPlasticPopupMenu(ArrayList<String> plasticApps) {
 		if( plasticApps==null ) return;
 
 		plasticPopup = new JPopupMenu();
 		JMenuItem mi;
-		for( int i=0; i<plasticApps.length; i++ ) {
-			mi = new JMenuItem(plasticApps[i]);
+		for(String app: plasticApps) {
+			mi = new JMenuItem(app);
             mi.addActionListener(this);
 			mi.setActionCommand(LOADIN);
             plasticPopup.add(mi);

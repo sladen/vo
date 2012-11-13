@@ -22,6 +22,12 @@ package cds.aladin;
 
 import java.util.*;
 import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.awt.print.PageFormat;
+import java.awt.print.Printable;
+import java.awt.print.PrinterException;
+import java.awt.print.PrinterJob;
 
 import cds.tools.Util;
 
@@ -49,6 +55,8 @@ class Printer implements Runnable {
     * positionner des caches blancs sur les cotes pour "gommer" les overlays
     * qui debordent. C'est vraiment lourd comme contournement de bug
     * mais ca marche
+    * 
+    * MAI 2011 : Désormais inutile. J'utilise le setClip() classique
     */
     
    Printer(Aladin aladin) {
@@ -68,58 +76,225 @@ class Printer implements Runnable {
          aladin.log("print",mode);
       } catch( Exception e ) { e.printStackTrace(); }
       aladin.setFlagPrint(false);
-     }
+   }
+   
+   class PrintTest implements Printable {
+      
+      private ViewSimple v;
+      
+      PrintTest(ViewSimple v) { this.v = v; }
+      
+      public int print(Graphics g, PageFormat pf, int page) throws PrinterException {
+         if( page>0 ) return NO_SUCH_PAGE;
+         
+         int w = v.getWidth();
+         int h = v.getHeight();
+         adjustGraphics((Graphics2D)g,pf,w,h);
+         g.setColor(Color.black);
+         g.drawRect(0,0,w,h);
+         g.setColor(Color.red);
+         g.drawLine(0,0,w,h);
+         g.drawLine(0,h,w,0);
+         g.setColor(Color.blue);
+         return PAGE_EXISTS;
+      }
+   }
+   
+   private void adjustGraphics(Graphics2D pg,PageFormat pf, int w,int h) {
+      double x = pf.getImageableX();
+      double y = pf.getImageableY();
+      double margeX = Math.max(MARGE,x);
+      double margeY = Math.max(MARGE,y);
+      double W=pf.getImageableWidth()-margeX-(x==0?MARGE:0);
+      double H=pf.getImageableHeight()-margeY-(y==0?MARGE:0);
+      double scaleW = W/w;
+      double scaleH = H/h;
+      double scale = Math.min(scaleW, scaleH);
+      pg.translate(margeX, margeY);
+      pg.scale(scale,scale);
+   }
 
    
    /** Impression de la vue courante. */
-   private void printCurrentView() {
-      int x=MARGE;
-      int y=MARGE;
-      PrintJob pj = Toolkit.getDefaultToolkit().getPrintJob(aladin.f,"Aladin",null);
-
-      if( pj!=null ) {
-         Graphics pg = pj.getGraphics();
-         if( pg!=null ) {
-            
-            ViewSimple v = aladin.view.getCurrentView();
- 
-            int w = aladin.view.getWidth();
-            int h = aladin.view.getHeight();
-            // Affichage et calcul de la taille du titre
-            y=printTitre(pg,x,y,w);
-            
-            if( v.pref.active ) v.paintOverlays(pg,null,MARGE,y);
-
-//            // Affichage de l'image raster
-//            if( v.pref.active ) pg.drawImage(v.imgprep, MARGE+v.dx, y+v.dy, aladin);
-//
-//            // Affichage des overlays
-//            if( Projection.isOk(v.pref.projd ) ) v.paintOverlays(pg,null,MARGE,y);
-
-            // Positionnement des caches
-            int W=pj.getPageDimension().width;
-            int H=pj.getPageDimension().height;
-            pg.setColor( Color.white );
-            pg.fillRect(0,0,W,y);
-            pg.fillRect(0,y+h,W,H-y+h);
-            pg.fillRect(0,y,MARGE,h);
-            pg.fillRect(MARGE+w,y,W,h);
-
-            // affichage des titres et legendes
-            pg.setColor(Color.black);
-            printTitre(pg,x,MARGE,w);
-            pg.drawRect(x,y,w,h);
-            printLegende(pg,pj.getPageDimension().width-25,y+20,true);
-            y+=h;
-            y=printCopyright(pg,w,y,true);
-
-            pg.dispose();
-         }
-         pj.end();
-      }
-
-      aladin.view.repaintAll();	      // Pour forcer le recalcul
+   private void printCurrentView() throws Exception {
+      PrinterJob job = PrinterJob.getPrinterJob();
+      job.setPrintable(new PrintCurrentView(aladin.view.getCurrentView()));
+//      job.setPrintable(new PrintTest(aladin.view.getCurrentView()));
+      if( job.printDialog() ) job.print();
    }
+   
+   /** Impression de la vue courante. */
+   private void printMosaique() throws Exception {
+      PrinterJob job = PrinterJob.getPrinterJob();
+      job.setPrintable(new printMosaique());
+      if( job.printDialog() ) job.print();
+   }
+   
+   class PrintCurrentView implements Printable {
+      
+      private ViewSimple v;
+      
+      PrintCurrentView(ViewSimple v) { this.v = v; }
+      
+      public int print(Graphics g, PageFormat pf, int page) throws PrinterException {
+         if( page>0 ) return NO_SUCH_PAGE;
+         
+         int w = v.getWidth();
+         int h = v.getHeight();
+         adjustGraphics((Graphics2D)g,pf,w,h);
+         
+         // Affichage et calcul de la taille du titre
+         int x=1;
+         int y=1;
+         g.setClip(0,0,x+w,y+h+200);
+
+         y=printTitre(g,x,y,w);
+
+         g.setClip(x,y,w,h);
+         if( v.pref.active ) {
+            // Pour contourner le problème du Graphics2D de l'imprimante
+            // qui ne sait pas gérer les transformées affines
+            // Ca va pixeliser les fontes, mais les allsky et les vues
+            // synchronisées s'impriment désormais correctement
+            Image img = v.getImage(-1, -1);
+            g.drawImage(img, x, y, aladin);
+//            v.paintOverlays(g,null,x,y,true);
+            
+         }
+         g.setClip(0,0,x+w,y+h+200);
+
+         // affichage des titres et legendes
+         g.setColor(Color.black);
+         g.drawRect(x,y,w,h);
+         
+//         printTitre(g,x,0,w);
+         printLegende(g,x+w,y+20,true);
+         y+=h;
+         y=printCopyright(g,0,y,w,true);
+
+//         aladin.view.repaintAll();       // Pour forcer le recalcul
+         return PAGE_EXISTS;
+      }
+   }
+   
+   class printMosaique implements Printable {
+      
+      static final int GAP=10;
+      
+      public int print(Graphics g, PageFormat pf, int page) throws PrinterException {
+         if( page>0 ) return NO_SUCH_PAGE;
+         int x=MARGE;
+         int y=70;
+
+         int offsetY=0;
+         int col = aladin.viewControl.getNbCol();
+         
+         int w = aladin.view.getWidth() +GAP*(col-1);
+         int W=(int)pf.getImageableWidth();
+         int h = aladin.view.getWidth() +GAP*(col-1);
+         int H=(int)pf.getImageableWidth();
+         
+         double scaleW = (double)W/w;
+         if( scaleW>1 ) scaleW = 1+(scaleW-1)/2;
+         double scaleH = (double)H/(h+70);
+         if( scaleH>1 ) scaleH = 1+(scaleH-1)/2;
+         double scale = Math.min(scaleW, scaleH);
+         
+         Graphics2D pg = (Graphics2D)g;
+         pg.scale(scale,scale);
+
+         for( int i=0; i<aladin.view.getModeView(); i++ ) {
+            ViewSimple v = aladin.view.viewSimple[i];
+
+            // Changement de ligne
+            if( i>0 && i%col==0 ) {
+               x=MARGE;
+               y+=offsetY;
+               offsetY=0;
+            }
+
+            // Impression
+            if( !v.isFree() ) {
+               try { 
+                  pg.setClip(x,y,v.getWidth(),v.getHeight());
+
+                  // Pour contourner le problème du Graphics2D de l'imprimante
+                  // qui ne sait pas gérer les transformées affines
+                  // Ca va pixeliser les fontes, mais les allsky et les vues
+                  // synchronisées s'impriment désormais correctement
+                  Image img = v.getImage(-1, -1);
+                  pg.drawImage(img, x, y, aladin);
+                  // if( v.imgprep!=null ) v.paintOverlays(pg,null,x,y,true);
+                  
+               } catch( Exception e ) {}
+
+            }
+//            try { pg.setClip(null); }
+//            catch( Exception e ) {}
+
+            // Encadrement
+            pg.setColor(Color.black);
+            pg.drawRect(x,y,v.getWidth(),v.getHeight());
+
+            // Changement de vue
+            x+=v.getWidth()+GAP;
+            if( v.getHeight()>offsetY ) offsetY=v.getHeight()+GAP;
+         }
+
+         x=MARGE;
+         y+=offsetY;
+         g.setClip(x,y,w,200);
+         printCopyright(pg,x,y,w,false);
+//         printLegende(pg,W-100,y,false);
+         
+         return PAGE_EXISTS;
+      }
+   }
+   
+
+   /** Impression de la vue courante. */
+//   private void printCurrentView1() {
+//      int x=MARGE;
+//      int y=MARGE;
+//      PrintJob pj = Toolkit.getDefaultToolkit().getPrintJob(aladin.f,"Aladin",null);
+//
+//      if( pj!=null ) {
+//         Graphics pg = pj.getGraphics();
+//         if( pg!=null ) {
+//            
+//            ViewSimple v = aladin.view.getCurrentView();
+// 
+//            int w = aladin.view.getWidth();
+//            int h = aladin.view.getHeight();
+//            // Affichage et calcul de la taille du titre
+//            y=printTitre(pg,x,y,w);
+//            
+//            if( v.pref.active ) v.paintOverlays(pg,null,MARGE,y);
+//
+//            // Positionnement des caches
+//            int W=pj.getPageDimension().width;
+//            int H=pj.getPageDimension().height;
+//            pg.setColor( Color.white );
+//            pg.fillRect(0,0,W,y);
+//            pg.fillRect(0,y+h,W,H-y+h);
+//            pg.fillRect(0,y,MARGE,h);
+//            pg.fillRect(MARGE+w,y,W,h);
+//
+//            // affichage des titres et legendes
+//            pg.setColor(Color.black);
+//            printTitre(pg,x,MARGE,w);
+//            pg.drawRect(x,y,w,h);
+//            printLegende(pg,pj.getPageDimension().width-25,y+20,true);
+//            y+=h;
+//            y=printCopyright(pg,w,y,true);
+//
+//            pg.dispose();
+//         }
+//         pj.end();
+//      }
+//
+//      aladin.view.repaintAll();	      // Pour forcer le recalcul
+//   }
 
    /** Impression de la mosaïque des multivues courantes
     * ATTENTION:  IL Y A UN BUG CAR LES OBJETS QUI SONT A CHEVAL
@@ -128,69 +303,64 @@ class Printer implements Runnable {
     * COMMENT CORRIGER CELA.
     *
     */
-   private void printMosaique() {
-      int x=MARGE;
-      int y=70;
-      PrintJob pj = Toolkit.getDefaultToolkit().getPrintJob(aladin.f,"Aladin",null);
-
-      if( pj!=null ) {
-         Graphics pg = pj.getGraphics();
-         if( pg!=null ) {
-
-            int w = aladin.view.getWidth();
-            
-            // Affichage et calcul de la taille du titre
-//            y=printTitre(pg,x,y,w);
-            
-            int W=pj.getPageDimension().width;
-            
-            int offsetY=0;
-            int col = aladin.viewControl.getNbCol();
-
-            for( int i=0; i<aladin.view.getModeView(); i++ ) {
-               ViewSimple v = aladin.view.viewSimple[i];
-               
-               // Changement de ligne
-               if( i>0 && i%col==0 ) {
-                  x=MARGE;
-                  y+=offsetY;
-                  offsetY=0;
-               }
-               
-               // Impression
-               if( !v.isFree() ) {
-                  try { pg.setClip(x,y,v.getWidth(),v.getHeight()); }
-                  catch( Exception e ) {}
-                  if( v.imgprep!=null ) v.paintOverlays(pg,null,x,y);
-//                  if( v.imgprep!=null ) pg.drawImage(v.imgprep, x+v.dx, y+v.dy, aladin);
-//                  if( Projection.isOk(v.pref.projd ) ) v.paintOverlays(pg,null,x,y);
-               }
-               try { pg.setClip(0,0,pj.getPageDimension().width,pj.getPageDimension().height); }
-               catch( Exception e ) {}
-              
-               // Encadrement
-               pg.setColor(Color.black);
-               pg.drawRect(x,y,v.getWidth(),v.getHeight());
-               
-               // Changement de vue
-               x+=v.getWidth();
-               if( v.getHeight()>offsetY ) offsetY=v.getHeight();
-            }
-
-           y+=offsetY;
-           printCopyright(pg,w,y,false);
-           printLegende(pg,W-100,y,false);
-           pg.dispose();
-         }
-         pj.end();
-      }
-
-      // Pour forcer le recalcul
-      aladin.view.repaintAll();
-   }
+//   private void printMosaique() {
+//      int x=MARGE;
+//      int y=70;
+//      PrintJob pj = Toolkit.getDefaultToolkit().getPrintJob(aladin.f,"Aladin",null);
+//
+//      if( pj!=null ) {
+//         Graphics pg = pj.getGraphics();
+//         if( pg!=null ) {
+//
+//            int w = aladin.view.getWidth();
+//            
+//            int W=pj.getPageDimension().width;
+//            
+//            int offsetY=0;
+//            int col = aladin.viewControl.getNbCol();
+//
+//            for( int i=0; i<aladin.view.getModeView(); i++ ) {
+//               ViewSimple v = aladin.view.viewSimple[i];
+//               
+//               // Changement de ligne
+//               if( i>0 && i%col==0 ) {
+//                  x=MARGE;
+//                  y+=offsetY;
+//                  offsetY=0;
+//               }
+//               
+//               // Impression
+//               if( !v.isFree() ) {
+//                  try { pg.setClip(x,y,v.getWidth(),v.getHeight()); }
+//                  catch( Exception e ) {}
+//                  if( v.imgprep!=null ) v.paintOverlays(pg,null,x,y);
+//               }
+//               try { pg.setClip(0,0,pj.getPageDimension().width,pj.getPageDimension().height); }
+//               catch( Exception e ) {}
+//              
+//               // Encadrement
+//               pg.setColor(Color.black);
+//               pg.drawRect(x,y,v.getWidth(),v.getHeight());
+//               
+//               // Changement de vue
+//               x+=v.getWidth();
+//               if( v.getHeight()>offsetY ) offsetY=v.getHeight();
+//            }
+//
+//           y+=offsetY;
+//           printCopyright(pg,w,y,false);
+//           printLegende(pg,W-100,y,false);
+//           pg.dispose();
+//         }
+//         pj.end();
+//      }
+//
+//      // Pour forcer le recalcul
+//      aladin.view.repaintAll();
+//   }
 
   /** Impression des copyrights */
-   private int printCopyright(Graphics pg,int imgW,int y,boolean flagOrigin) {
+   private int printCopyright(Graphics pg,int x,int y, int imgW,boolean flagOrigin) {
       Font f  = new Font("TimesRoman",Font.PLAIN,7);
       FontMetrics  fm;
 
@@ -199,7 +369,7 @@ class Printer implements Runnable {
       fm = pg.getFontMetrics();
 
       // Le soft
-      int cx = MARGE;
+      int cx = x;
       int cy = y+fm.getAscent()+2;
       pg.drawString("Produced by Aladin (Centre de Donnees astronomiques de Strasbourg)",cx,cy);
       cy+=fm.getHeight();
@@ -210,7 +380,7 @@ class Printer implements Runnable {
       Plan p = aladin.calque.getPlanRef();
       if( flagOrigin && p!=null && p.from!=null ) {
          cy = y+fm.getAscent()+2;
-         cx = MARGE+imgW-fm.stringWidth(p.from);
+         cx =imgW-fm.stringWidth(p.from);
          pg.drawString(p.from,cx,cy);
       }
 
@@ -247,7 +417,7 @@ class Printer implements Runnable {
       if( p.isImage() ) {
          pg.setFont(f1);
          fm = pg.getFontMetrics();
-         cx = MARGE+wImg-fm.stringWidth(p.label)-10;
+         cx = wImg-fm.stringWidth(p.label)-10;
          pg.drawString(p.label,cx,cy);
          pg.setFont(f);
          fm = pg.getFontMetrics();
@@ -259,7 +429,7 @@ class Printer implements Runnable {
          cy+=fm.getAscent();
       }
 
-      return cy+10;
+      return cy+2;
    }
 
   /** Impression du cadre des legendes des plans
@@ -285,7 +455,7 @@ class Printer implements Runnable {
       dy = fm.getHeight();
       for( i=0; i< plan.length; i++ ) {
          p = plan[i];
-         if( !p.isCatalog() || !p.flagOk || p.error!=null ) continue;
+         if( !p.isCatalog() || !p.flagOk || p.error!=null || !p.active ) continue;
          v.addElement(p);
          w = fm.stringWidth(p.getLabel());
          if( w>W ) W=w;
@@ -300,7 +470,6 @@ class Printer implements Runnable {
       W += 28;
       H = v.size()*dy+fm.getDescent();
 
-
       // Affichage de la boite
       if( cadre ) {
          pg.setColor(Color.white);
@@ -309,23 +478,21 @@ class Printer implements Runnable {
          pg.drawRect(x - W,y,W,H);
       }
 
-
       // Affichage de chaque label de plan + logo d'un objet
       cy=y+dy;
       Enumeration e = v.elements();
       while( e.hasMoreElements() ) {
          p = (Plan) e.nextElement();
-         if( !p.isCatalog() ) continue;
+         if( !p.isCatalog() || !p.flagOk || p.error!=null || !p.active ) continue;
          Iterator<Obj> it = p.iterator();
          Source o=null;
          while( it.hasNext() ) {
             Obj o1 = it.next();
             if( !(o1 instanceof Source) ) continue;
-            o = (Source)o;
+            o = (Source)o1;
             break;
          }
          cx=x-W+10;
-
          if( o!=null ) o.print(pg,cx,cy-dy/3);
          cx+=10;
          pg.setColor( Color.black );

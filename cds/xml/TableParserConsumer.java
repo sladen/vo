@@ -165,7 +165,7 @@ public abstract interface TableParserConsumer {
     * @param nX X column index (0=first column)
     * @param nY Y column index (0=first column)
     */
-   public abstract void setTableRaDecXYIndex(int nRa, int nDec,int nX, int nY);
+   public abstract void setTableRaDecXYIndex(int nRa, int nDec,int nX, int nY, boolean badDetection);
 
   /** This method is called by the TableParser parser when the XML
    * /FIELD is encountered (the end of the element FIELD).

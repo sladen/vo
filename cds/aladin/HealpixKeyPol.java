@@ -125,9 +125,9 @@ protected int loadFits(String filename) throws Exception {
       byte [] head = new byte[2880];
       System.arraycopy(buf, 0, head, 0, 2880);
       try {
-         width  = (int)getValue(head,"NAXIS1  ");
-         height = (int)getValue(head,"NAXIS2  ");
-         bitpix = (int)getValue(head,"BITPIX  ");
+         width  = (int)getValue(head,"NAXIS1");
+         height = (int)getValue(head,"NAXIS2");
+         bitpix = (int)getValue(head,"BITPIX");
       } catch( Exception e ) { width=height=1024; bitpix=8; }
 
       // Allocation puis lecture du premier HDU pour U
@@ -143,7 +143,7 @@ protected int loadFits(String filename) throws Exception {
       if( pos%2880!=0 ) deb+=2880;
       System.arraycopy(buf, deb, head, 0, 2880);
       try {
-         bitpix2 = (int)getValue(head,"BITPIX  ");
+         bitpix2 = (int)getValue(head,"BITPIX");
          taille = width*height*(Math.abs(bitpix2)/8);
          in = new byte[taille];
          System.arraycopy(buf, deb+2880,in, 0, taille);
@@ -174,7 +174,7 @@ protected int loadFits(String filename) throws Exception {
    }
 
    protected double getPixRes() {
-      long nside = (long)Math.pow(2, order+PlanHealpix.log2(width));
+      long nside = CDSHealpix.pow2(order+PlanHealpix.log2(width));
       return CDSHealpix.pixRes(nside)/3600;
    }
 

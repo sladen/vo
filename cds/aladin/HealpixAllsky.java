@@ -22,6 +22,7 @@ package cds.aladin;
 
 import java.io.File;
 import cds.tools.Util;
+import cds.tools.pixtools.Hpix;
 
 
 /**
@@ -33,11 +34,12 @@ class HealpixAllsky extends HealpixKey {
    protected int nbPix;       // Nombre de losanges
    protected HealpixKey [] pixList;  // Liste des losanges
    private int mem=0;
+   private int order;
 
    protected HealpixAllsky(PlanBG planBG,int order) {
       this.planBG = planBG;
       this.order=order;
-      this.pixid=-1;
+      this.npix=-1;
       allSky=true;
       resetTimer();
       String nameNet = "Norder"+order+"/Allsky";
@@ -59,8 +61,9 @@ class HealpixAllsky extends HealpixKey {
       HealpixKey h = new HealpixKey();
       h.planBG=planBG;
       h.order=order;
-      h.pixid=npix;
-      h.corners = h.computeCorners();
+      h.npix=npix;
+      h.hpix = new Hpix(order,npix,planBG.frameOrigin);
+//      h.corners = h.computeCorners();
       h.resetTimer();
       h.width=h.height=width;
       h.pixels=pix;
@@ -74,8 +77,9 @@ class HealpixAllsky extends HealpixKey {
       HealpixKey h = new HealpixKey();
       h.planBG=planBG;
       h.order=order;
-      h.pixid=npix;
-      h.corners = h.computeCorners();
+      h.npix=npix;
+//      h.corners = h.computeCorners();
+      h.hpix = new Hpix(order,npix,planBG.frameOrigin);
       h.resetTimer();
       h.width=h.height=width;
       h.rgb=rgb;
@@ -173,7 +177,7 @@ class HealpixAllsky extends HealpixKey {
       int n=0;
       if( pixList!=null ) {
          n=pixList.length;
-         for( int j=0; j<pixList.length; j++ ) pixList[j].free();
+         for( int j=0; j<pixList.length; j++ ) if( pixList[j]!=null ) pixList[j].free();
       }
       pixList=null;
       mem=0;
@@ -182,7 +186,7 @@ class HealpixAllsky extends HealpixKey {
    
    protected void clearBuf() {
       if( pixList==null ) return;
-      for( int j=0; j<pixList.length; j++ ) pixList[j].clearBuf();
+      for( int j=0; j<pixList.length; j++ ) if( pixList[j]!=null ) pixList[j].clearBuf();
    }
    
    HealpixKey [] getPixList() {

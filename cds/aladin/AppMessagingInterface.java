@@ -19,6 +19,7 @@
 
 package cds.aladin;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -42,11 +43,13 @@ public interface AppMessagingInterface {
 
 //    public abstract Object getMessage(AbstractMessage abstractMessage);
 
-    public abstract boolean broadcastImage(final PlanImage pi, final String[] recipients);
+    public abstract boolean broadcastImage(final Plan planImage, final String[] recipients);
 
-    public abstract boolean broadcastTable(final PlanCatalog pc, final String[] recipients);
+    public abstract boolean broadcastTable(final Plan planCatalog, final String[] recipients);
 
-    public abstract String[] getAppsSupporting(AbstractMessage message);
+    public abstract ArrayList<String> getAppsSupportingTables();
+
+    public abstract ArrayList<String> getAppsSupporting(AbstractMessage message);
 
     public abstract Object getAppWithName(String s);
 

@@ -18,15 +18,25 @@
 //
 
 package cds.aladin;
-import cds.astro.*;
-import cds.tools.*;
-import java.util.*;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.GridLayout;
 import java.awt.event.ActionListener;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Vector;
 
 import javax.swing.JCheckBox;
 import javax.swing.JPanel;
-import javax.swing.JRadioButton;
+
+import cds.astro.AstroMath;
+import cds.astro.Astrocoo;
+import cds.astro.ICRS;
+import cds.astro.Proj3;
+import cds.tools.Util;
+import cds.tools.VOApp;
 
 
 /**
@@ -56,17 +66,20 @@ public final class PlanField extends Plan {
                                      "ESPADONS",};
 
    private int instr;		   // Instrument FoV code (CFH12K, EPICMOS...)
-   private boolean flagRoll=true;   // True if the Aperture is rollable   
+   private boolean flagRoll=true;   // True if the Aperture is rollable
+   private boolean flagCenterRoll=false; // true if the roll center is movable
    private boolean flagMove=true;   // True if the Aperture can be moved
    private double roll;		   // Current angle in degrees (if it is rollable)
    protected boolean needTarget;  // True si on attend la resolution du target
-   
+
+   private boolean almaFP = false; // True if the current instance is an ALMA footprint
+
    private FootprintBean fpBean;
 
    // Conventions for predefined instrument FoV which are rectangular arrays
    // of CCDs separated by gaps.
    //    XXX_RA : CCD width in degrees
-   //    XXX_DE : CCD height in degrees 
+   //    XXX_DE : CCD height in degrees
    //    XXX_GAPRA : RA gap between each CCD in arcsec
    //    XXX_GAPDE : DE gap between each CCD in arcsec
    //    XXX_DRA : offset factor in RA (0:no move, -1:at left with an offset of 1 CCD width+gapRA,+1:...)
@@ -85,7 +98,7 @@ public final class PlanField extends Plan {
    private static final double EPICPN_DE = 13.6/60.0;
    private static final double EPICPN_DRA[] =   {-3.,-2.,-1., 0., 1., 2., -3.,-2.,-1.,0.,1.,2.};
    private static final double EPICPN_DDE[] =   {-1.,-1.,-1.,-1.,-1.,-1.,  0., 0., 0.,0.,0.,0.};
- 
+
    private static final double CFH12K_RA = 2048*0.206/3600.;
    private static final double CFH12K_DE = 4096*0.206/3600.;
    private static final double CFH12K_DRA[] =   {  -3.,-2.,-1., 0., 1., 2., -3.,-2.,-1.,0.,1., 2.};
@@ -194,8 +207,8 @@ public final class PlanField extends Plan {
     private static final double MEGAGUI_GAPDE[] = {-1739.9,+1739.9};  // in arcsec
     // Nom des zones de guidage: S=South, N=North
     private static final String MEGAGUI_BOX[] =   {"S","N"};
-    
-    // Define WIRCAM field of view 
+
+    // Define WIRCAM field of view
     private static final double WIRCAM_RA = 2048*0.3/3600.;
     private static final double WIRCAM_DE = 2048*0.3/3600.;
 
@@ -210,7 +223,7 @@ public final class PlanField extends Plan {
 
     private static final String WIRCAM_CCD[] = {"52","54","77","60"};
     private static final double WIRCAM_RD = 0.;
-    
+
     //Define ESPADON field of view.
     private static final double ESPADONS_RA = 2/60.;
     private static final double ESPADONS_DE = 2/60.;
@@ -226,15 +239,13 @@ public final class PlanField extends Plan {
 
     private static final String ESPADONS_CCD[] = {""};
     private static final double ESPADONS_RD = 0.;
-     
 
-    /** Tan() in degres */
-   public static final double tand(double x) { return Math.tan( x*(Math.PI/180.0) ); }
+    public static final double tand(double x) { return Math.tan( x*(Math.PI/180.0) ); }
 
-  /** Cos() in degres */
-   public static final double cosd(double x) { return Math.cos( x*(Math.PI/180.0) ); }
+    private boolean showSubFPInProperties = true; // doit-on montrer les sous-parties du footprint dans les properties
 
-  /** Plan Field creation
+
+/** Plan Field creation
    * @param target target astronomical object or J2000 coordinates
    * @param roll roll angle
    * @param label Aladin plane label
@@ -259,7 +270,7 @@ public final class PlanField extends Plan {
       // de resolution Simbad pour le plan lui-meme, (objet renseigne)
       // si le target n'est pas mentionne, on n'attendra la resolutoin
       // Simbad du prochain plan.
-      
+
       // Target computing. In case of astronomical object name, the instrument FoV will
       // be built when the CDS sesame resolver will provide the corresponding coordinates
       // via the PlanField.setCenter() method
@@ -268,7 +279,7 @@ public final class PlanField extends Plan {
          setActivated(false);
          this.roll=roll;
          if( target.length()>0 ) objet=target;
-         
+
       // The FoV instrument can be immediately built
       } else {
          Coord co;
@@ -277,12 +288,44 @@ public final class PlanField extends Plan {
          needTarget=false;
          setActivated(true);
          make(co.al,co.del,roll);
-      } 
+      }
+   }
+
+   protected PlanField(Aladin aladin, String label,Coord center,double angle,boolean canbeRoll,boolean canbeMove) {
+      this.aladin= aladin;
+      type       = APERTURE;
+      c          = Couleur.getNextDefault(aladin.calque);
+      setLabel(label);
+      setOpacityLevel(Aladin.DEFAULT_FOOTPRINT_OPACITY_LEVEL);
+      pcat       = new Pcat(this,c,aladin.calque,aladin.status,aladin);
+      selected   = true;
+      flagOk = true;
+      askActive=true;
+      flagRoll=canbeRoll;
+      flagMove=canbeMove;
+      instr=-1;
+      roll=angle;
+      co= center!=null ? center : new Coord(0,0);
+
+      // Field of View projCenter
+      Repere projCenter = new Repere(this,co);
+      projCenter.setType(Repere.CENTER);
+
+      // Field of View rotCenter
+      Repere rotCenter = new Repere(this,co);
+      rotCenter.setRotCenterType(projCenter);
+
+      pcat.setObjetFast(rotCenter);
+      pcat.setObjetFast(projCenter);
+
+      needTarget=false;
+      make(co.al,co.del,roll);
+
    }
 
    /**
     * Constructor for PlanField
-    * 
+    *
     * @param aladin reference to aladin instance
     * @param xOffset array of array of ra offsets in the tangent plane
     * @param yOffset array of array of dec offsets in the tangent plane
@@ -296,16 +339,16 @@ public final class PlanField extends Plan {
 		pcat = new PlanObjet(this, c, aladin.calque, aladin.status, aladin);
 		aladin.calque.selectPlan(this);
 		objet = null;
-		
+
 		instr = -1;
 
 		setPolygons(xOffset, yOffset, boundary, names);
-		
-	} 
+
+	}
 	*/
-	
+
    /** Constructor for PlanField
-    * 
+    *
     * @param aladin reference to aladin instance
     * @param bean bean holding needed infos to build the PlanField
     * @param label label of the plane
@@ -318,13 +361,13 @@ public final class PlanField extends Plan {
       setOpacityLevel(Aladin.DEFAULT_FOOTPRINT_OPACITY_LEVEL);
       pcat = new Pcat(this, c, aladin.calque, aladin.status, aladin);
       aladin.calque.selectPlan(this);
-      objet = null;			
+      objet = null;
       instr = -1;
       this.fpBean = fpBean;
       setObjects(fpBean);
       needTarget=false;
-    } 
-	  
+    }
+
    protected PlanField(Aladin aladin,String target,FootprintBean fpBean,String label,double roll) {
       this.aladin = aladin;
       type = APERTURE;
@@ -334,18 +377,18 @@ public final class PlanField extends Plan {
       pcat = new Pcat(this, c, aladin.calque, aladin.status, aladin);
       aladin.calque.selectPlan(this);
       objet = null;
-      
+
       instr = -1;
       this.fpBean = fpBean;
       setObjects(fpBean);
-      
-      
+
+
       // Determination du target.
       // S'il s'agit d'un nom d'objet, il va y avoir une demande
       // de resolution Simbad pour le plan lui-meme, (objet renseigne)
       // si le target n'est pas mentionne, on n'attendra la resolutoin
       // Simbad du prochain plan.
-      
+
       // Target computing. In case of astronomical object name, the instrument FoV will
       // be built when the CDS sesame resolver will provide the corresponding coordinates
       // via the PlanField.setCenter() method
@@ -354,7 +397,7 @@ public final class PlanField extends Plan {
          setActivated(false);
          this.roll=roll;
          if( target.length()>0 ) objet=target;
-         
+
          // The FoV instrument can be immediately built
       } else {
          Coord co;
@@ -365,19 +408,19 @@ public final class PlanField extends Plan {
          make(co.al,co.del,roll);
       }
     }
-   
+
    protected void setLabel(String s) {
       if( s==null ) s="FoV";
       super.setLabel(s);
    }
-   
+
 	/** Constructeur par recopie
 	 * (marche pas très bien pour le moment)
 	 * @param aladin
 	 * @param pf
 	 * @param target
 	 * @param roll
-	 
+
 	protected PlanField(Aladin aladin,PlanField pf,String target,double roll,String label) {
 	      this.aladin= aladin;
 	      type       = APERTURE;
@@ -391,14 +434,14 @@ public final class PlanField extends Plan {
 	      this.instr = pf.instr;
 
 	      pcat = pf.pcat;
-	      
-	      
+
+
 	      // Determination du target.
 	      // S'il s'agit d'un nom d'objet, il va y avoir une demande
 	      // de resolution Simbad pour le plan lui-meme, (objet renseigne)
 	      // si le target n'est pas mentionne, on n'attendra la resolutoin
 	      // Simbad du prochain plan.
-	      
+
 	      // Target computing. In case of astronomical object name, the instrument FoV will
 	      // be built when the CDS sesame resolver will provide the corresponding coordinates
 	      // via the PlanField.setCenter() method
@@ -407,7 +450,7 @@ public final class PlanField extends Plan {
 	         flagOk=false;
 	         this.roll=roll;
 	         if( target.length()>0 ) objet=target;
-	         
+
 	      // The FoV instrument can be immediately built
 	      } else {
 	         Coord co;
@@ -416,7 +459,7 @@ public final class PlanField extends Plan {
 	         setActivated(true);
 	         flagOk     = true;
 	         make(co.al,co.del,roll);
-	      }            
+	      }
 	}
 	*/
 
@@ -428,13 +471,13 @@ public final class PlanField extends Plan {
     */
    protected boolean resolveTarget(double ra,double de) {
 //      if( flagOk ) return false;
-//System.out.println("setCenter for "+this+" ra="+ra+" de="+de);   
+//System.out.println("setCenter for "+this+" ra="+ra+" de="+de);
       needTarget=false;
       make(ra,de,roll);
       planReady(true);
       return true;
    }
-   
+
    // Lorsqu'on désactive un plan Field, on déselectionne automatiquement
    // tous ses objets.
    protected boolean setActivated() {
@@ -457,7 +500,7 @@ public final class PlanField extends Plan {
        projd = new Projection(null,Projection.SIMPLE,
                               ra,de,/*instr==WFPC2?5:*/instr==MEGACAM || instr==MEGAPRIME ?100:45,
                               250,250,500,
-                              0,false,Calib.TAN);
+                              0,false,Calib.TAN,Calib.FK5);
        switch(instr) {
           case MEGACAM:
              setRollable(false);
@@ -486,60 +529,27 @@ public final class PlanField extends Plan {
              makeCCDs(ESPADONS_ORA,ESPADONS_ODE,ESPADONS_RA,ESPADONS_DE,ESPADONS_DRA,
                 ESPADONS_DDE,ESPADONS_GAPRA,ESPADONS_GAPDE,ESPADONS_CCD);
              break;
-          case EPICMOS:  
+          case EPICMOS:
              setRollable(true);
              makeCCDs(0,0,EPICMOS_RA,EPICMOS_DE,EPICMOS_DRA,EPICMOS_DDE,null,null,null);
              break;
-          case EPICPN:   
+          case EPICPN:
              setRollable(true);
              makeCCDs(0,0,EPICPN_RA,EPICPN_DE,EPICPN_DRA,EPICPN_DDE,null,null,null);
              break;
 //          case WFPC2:
 //             setRollable(true);
-//             makeWFPC2(); 
+//             makeWFPC2();
 //             break;
        }
        setTarget(ra,de,raRot,deRot,roll);
     }
 
-    /**  WFPC2 instrument FoV creation */
-//    private void makeWFPC2() {
-//       pcat.o = new Obj[pcat.nb_o=11];
-//
-//       // Field of View projection center
-//       Repere projCenter = new Repere(this);
-//       projCenter.setType(Repere.CENTER);  // in x=0, y=0 position by default
-//       pcat.o[1] = projCenter;
-//       
-//       // Field of View rotation center
-//       Repere rotCenter = new Repere(this);
-//       rotCenter.setRotCenterType(projCenter);  // in x=0, y=0 position by default
-//       pcat.o[0] = rotCenter;
-//       
-//       for( int i=2; i<=10; i++ ) {
-//          Ligne p = new Ligne(this);
-//          pcat.o[i] = p;
-//
-//          if( i==2 || i==9 || i==10 ) p.x = tand( 67/3600.0);
-//          else if( i==3 || i==4 )    p.x = tand( -(151.5-67)/3600.0);
-//          else if( i==5 || i==6 )    p.x = tand( -44.5/3600.0);
-//          else if( i==7 || i==8 )    p.x = tand( -11/3600.0);
-//
-//          if( i==2 || i==3 || i==10 ) p.y = tand( -63/3600.0);
-//          else if( i==5 || i==4 )    p.y = tand( 11/3600.0);
-//          else if( i==7 || i==6 )    p.y = tand( 45/3600.0);
-//          else if( i==8 || i==9 )    p.y = tand( (150-63)/3600.0);
-//          
-//          if( i>2 ) p.debligne=(Ligne)pcat.o[i-1];
-//          if( i<10 ) p.finligne=(Ligne)pcat.o[i+1];
-//       }
-//    }
-
     /** Generic CCD instrument creation */
     private void makeCCDs(double ORA,double ODE, double RA,double DE,
     	       double DRA[],double DDE[],double GAPRA[],double GAPDE[],String CCD[]) {
         int j=0;		// current drawing object index in pcat.o[]
-        
+
        // pcat allocation or reallocation
        if( pcat.o!=null ) {
            Obj o[] = pcat.o;
@@ -554,7 +564,7 @@ public final class PlanField extends Plan {
           Repere center = new Repere(this); // in x=0, y=0 position by default
           center.setType(Repere.CENTER);
           pcat.o[1] = center;
-          
+
           // Field of View rotation center
           Repere rotCenter = new Repere(this); // in x=0, y=0 position by default
           rotCenter.setRotCenterType(center);
@@ -564,33 +574,33 @@ public final class PlanField extends Plan {
        // i: rectangle counter
        for( int i=0; i<DRA.length; i++ ) {  // i = compteur de rectangles
           Ligne p=null;
-          
+
           // k: rectangle side counter
           for( int k=0; k<5; k++, j++ ) {
              p = new Ligne(this);
              pcat.o[j] = p;
-             
+
              double gapra=(GAPRA==null)?0.:GAPRA[i]/3600.;
              double gapde=(GAPDE==null)?0.:GAPDE[i]/3600.;
-             
-             p.x = tand( (DRA[i]+((k==1||k==2)?1.0:0.0))*RA+gapra -ORA );
-             p.y = tand( (DDE[i]+((k==2||k==3)?1.0:0.0))*DE+gapde -ODE );
-                                     
+
+             p.x = Util.tand( (DRA[i]+((k==1||k==2)?1.0:0.0))*RA+gapra -ORA );
+             p.y = Util.tand( (DDE[i]+((k==2||k==3)?1.0:0.0))*DE+gapde -ODE );
+
              if( k>0 ) p.debligne=(Ligne)pcat.o[j-1];
              if( k<4 ) p.finligne=(Ligne)pcat.o[j+1];
           }
-          
+
           // CCD labels ?
           if( CCD!=null  ) {
              Tag t = new Tag(this,null,0,0,CCD[i]);
-             t.x = p.x + tand(RA/3 -ORA);
-             t.y = p.y + tand(60.0/3600.0 -ODE);               
-             pcat.o[j++] = t;             
+             t.x = p.x + Util.tand(RA/3 -ORA);
+             t.y = p.y + Util.tand(60.0/3600.0 -ODE);
+             pcat.o[j++] = t;
           }
 
        }
     }
-    
+
     /** Modifie le target, le centre de roatation et la rotation. Si la rotation ne peut être modifiée,
      * la précédente valeur sera conservée. Idem pour le centre
      * @param raProjCenter nouvelle ascension droite du centre de la projection
@@ -600,7 +610,7 @@ public final class PlanField extends Plan {
      * @param roll nouvelle rotation
      */
     protected void setParameters(double raProjCenter, double deProjCenter,
-          double raRotCenter, double deRotCenter, 
+          double raRotCenter, double deRotCenter,
           double roll) {
        Position p = getProjCenterObjet();
        if( !flagMove || Double.isNaN(raProjCenter) || Double.isNaN(deProjCenter) ) {
@@ -617,7 +627,7 @@ public final class PlanField extends Plan {
 
        setTarget(raProjCenter,deProjCenter,raRotCenter,deRotCenter,roll);
     }
-    
+
     synchronized private void setTarget(double raP,double deP,double raR, double deR,double roll) {
        double x,y;
        Proj3 a;
@@ -628,7 +638,7 @@ public final class PlanField extends Plan {
        if( co==null ) co=new Coord();
        co.al=raP; co.del=deP;
        objet=co.getSexa();
-       
+
        // Quelle était la position du centre de projection lorsque this.roll==0
        if( this.roll!=0 ) {
           a = new Proj3(Proj3.TAN,raR,deR);
@@ -642,9 +652,9 @@ public final class PlanField extends Plan {
           raP = a.getLon();
           deP = a.getLat();
        }
-       
+
        a = new Proj3(Proj3.TAN,raP,deP);
-       
+
        Position rot = getRotCenterObjet();
        a.computeXY(raR, deR);
        offsetX = a.getX();
@@ -653,19 +663,19 @@ public final class PlanField extends Plan {
        rot.y = offsetY;
        rot.raj=raR;
        rot.dej=deR;
-              
+
        this.roll = roll;
        if( roll!=0. ) { cosr=AstroMath.cosd(roll); sinr=AstroMath.sind(roll); }
-       
+
        for( int i=0; i<pcat.nb_o; i++ ) {
           Position p = (Position)pcat.o[i];
-          
+
           if( p instanceof Forme ) {
              Forme f = (Forme)p;
              for( int j=0; j<f.o.length; j++ ) {
                 p = f.o[j];
                 x = p.x;
-                y = p.y;          
+                y = p.y;
                 if( roll!=0. ) {
                    x-=offsetX;
                    y-=offsetY;
@@ -673,15 +683,15 @@ public final class PlanField extends Plan {
                    double yr = -x*sinr+y*cosr;
                    x=xr + offsetX;
                    y=yr + offsetY;
-                }          
+                }
                 a.computeAngles(x,y);
                 p.raj = a.getLon();
                 p.dej = a.getLat();
-                
+
              }
-          } else {          
+          } else {
              x = p.x;
-             y = p.y;          
+             y = p.y;
              if( roll!=0. ) {
                 x-=offsetX;
                 y-=offsetY;
@@ -689,18 +699,18 @@ public final class PlanField extends Plan {
                 double yr = -x*sinr+y*cosr;
                 x=xr + offsetX;
                 y=yr + offsetY;
-             }          
+             }
              a.computeAngles(x,y);
              p.raj = a.getLon();
              p.dej = a.getLat();
-          }          
-       }    
+          }
+       }
        
        // Mise à jour des propriétés si nécessaires
        Properties.majProp(this);
 
     }
-        
+
   /** Reset the FoV for recomputing all drawing objects (after a translation
     * or a rotation to avoid distortions and repaint it
     * @param flag ViewSimple.MOVE|ViewSimple.ROLL|ViewSimple.MOVECENTER
@@ -714,40 +724,40 @@ public final class PlanField extends Plan {
          if( (flag&ViewSimple.ROLL)!=0 )       sendRollObserver(false);
          if( (flag&ViewSimple.MOVECENTER)!=0 ) sendRotCenterObserver(false);
       }
-      aladin.view.newView();      
+      aladin.view.newView();
    }
 
    /** Changement de l'angle de rotation autour du centre de rotation
     * => altère le centre de projection */
    protected void changeRoll(double roll) {
-      Position c = getProjCenterObjet();      
-      Position cr = getRotCenterObjet();      
+      Position c = getProjCenterObjet();
+      Position cr = getRotCenterObjet();
       setTarget(c.raj,c.dej,cr.raj,cr.dej,roll);
    }
-   
+
    /** Déplacement du Target ce qui entraine le déplacement de tout
-    * le FoV, centre de rotation compris */ 
+    * le FoV, centre de rotation compris */
    protected void changeTarget(double raj,double dej) {
-      Position c = getProjCenterObjet();      
-      Position cr = getRotCenterObjet();      
+      Position c = getProjCenterObjet();
+      Position cr = getRotCenterObjet();
       if( Double.isNaN(raj) || Double.isNaN(dej) ) { raj=c.raj; dej=c.dej; }
       double deltaRa = raj-c.raj;
       double deltaDE = dej-c.dej;
       setTarget(raj,dej,cr.raj+deltaRa,cr.dej+deltaDE,roll);
    }
-   
+
    /** Déplacement du centre de rotation uniquement */
    protected void changeRotCenter(double raj,double dej) {
       Position c = getProjCenterObjet();
       if( Double.isNaN(raj) || Double.isNaN(dej) ) { raj=c.raj; dej=c.dej; }
       setTarget(c.raj,c.dej,raj,dej,roll);
    }
-   
+
    protected VOApp observer=null;// VOApp/ExtApp observer, null if there is no one
 
    /** Inscription d'un observer pour le Plan (compatible VOApp) */
    protected void addObserver(VOApp observer) { this.observer=observer; }
-   
+
    /** Transmission des infos de position à un éventuel observer
     * @param cont true si on doit préfixer de "..." pour indiquer un évènement transitoire
     */
@@ -756,7 +766,7 @@ public final class PlanField extends Plan {
       if( observer==null ) return;
       observer.execCommand("set "+Tok.quote(label)+" Target="+getTarget()+(cont?" ...":""));
    }
-   
+
    /** Transmission des infos de position du centre de rotation à un éventuel observe
     * @param cont true si on doit préfixer de "..." pour indiquer un évènement transitoire
     */
@@ -765,16 +775,16 @@ public final class PlanField extends Plan {
       if( observer==null ) return;
       observer.execCommand("set "+Tok.quote(label)+" RotCenter="+getRotCenter()+(cont?" ...":""));
    }
-   
+
    /** Transmission des infos de position et d'angle à un éventuel observer
     * @param cont true si on doit préfixer de "..." pour indiquer un évènement transitoire
     */
    protected void sendRollObserver(boolean cont) {
-//      System.out.println("set "+Tok.quote(label)+" Roll="+roll+(cont?" ...":""));      
+//      System.out.println("set "+Tok.quote(label)+" Roll="+roll+(cont?" ...":""));
       if( observer==null ) return;
-      observer.execCommand("set "+Tok.quote(label)+" Roll="+roll+(cont?" ...":""));      
+      observer.execCommand("set "+Tok.quote(label)+" Roll="+roll+(cont?" ...":""));
    }
-   
+
    /** Transmission des infos de changement d'état d'un subFoV à un éventuel observer */
    protected void sendSubFovObserver(String subFoVID,boolean visible) {
       if( observer==null ) return;
@@ -783,7 +793,7 @@ public final class PlanField extends Plan {
 
    /**
     * Create FoV objects on the basis of infos in the FootprintBean
-    * 
+    *
     * @param bean bean holding infos to build the corresponding FoV (PlanField)
     */
 	private void setObjects(FootprintBean bean) {
@@ -791,26 +801,26 @@ public final class PlanField extends Plan {
 		int nbO = 0;
 
 		int nbSubFov = fovParts.length;
-   	
+
 		Obj[][] o = new Obj[nbSubFov][];
 		for( int i=0; i<nbSubFov; i++ ) {
 			o[i] = fovParts[i].buildObjets(this);
 			nbO += o[i].length;
 		}
-		
+
 		pcat.o = new Obj[pcat.nb_o = nbO+2];
 //		System.out.println("nbO : "+nbO);
-		
+
         // Field of View center
         Repere projCenter = new Repere(this);
         projCenter.setType(Repere.CENTER);  // in x=0, y=0 position by default
         pcat.o[1] = projCenter;
-        
+
         // Field of View center
         Repere rotCenter = new Repere(this);
         rotCenter.setRotCenterType(projCenter);  // in x=0, y=0 position by default
         pcat.o[0] = rotCenter;
-        
+
 		int idxStart = 2;
 		for( int i=0; i<nbSubFov; i++ ) {
 			System.arraycopy(o[i], 0, pcat.o, idxStart, o[i].length);
@@ -820,37 +830,37 @@ public final class PlanField extends Plan {
 						  idxStart,idxStart+o[i].length-1,true,fovParts[i].getColor());
 			}
 			idxStart += o[i].length;
-		}		
+		}
 	}
-   
+
    /**
     * Create a FoV based on polygons
-    * 
+    *
     * @param xOffset
     *            arrays of x offsets of polygons
     * @param yOffset
     *            arrays of y offsets of polygons
    private void setPolygons(double[][] xOffset, double[][] yOffset, int[] boundary, String[] names) {
 
-   	
+
    	  int sizePcat = 0;
    	  for( int i=0; i<xOffset.length; i++ ) {
    	  	 sizePcat += xOffset[i].length;
    	  }
       pcat.o = new Objet[pcat.nb_o = sizePcat+1];
 //      System.out.println(pcat.nb_o);
-      
+
       // Field of View center
       Repere center = new Repere(this);
       center.setType(Repere.CENTER);  // in x=0, y=0 position by default
       pcat.o[0] = center;
-      
+
       int k=1;
       int nbPts;
       Ligne l,lMem;
       lMem = null;
       int currentBoundIdx = 0;
-      
+
       // Creation of polygons
       for( int i=0; i<xOffset.length; i++ ) {
       	 nbPts = xOffset[i].length;
@@ -860,24 +870,24 @@ public final class PlanField extends Plan {
 //      	 	System.out.println("j : "+j);
       	 	l = new Ligne(this);
       	 	pcat.o[k] = l;
-      	 	
+
       	 	l.setXYTan(tand(xOffset[i][j]), tand(yOffset[i][j]));
 //      	 	System.out.println("setXYTan : "+xOffset[i][j]+" "+yOffset[i][j]);
-      	 	
+
             if( j>0 ) l.debligne=(Ligne)pcat.o[k-1];
             if( j<nbPts-1 ) l.finligne=(Ligne)pcat.o[k+1];
             if( j==0 ) lMem = l;
             if( j==nbPts-1 ) lMem.debligne = l;
-            
+
             k++;
       	 }
       }
-      
+
       // Creation of sub-FOV
       addSubFoV(names[0],names[0],1,4,true,null);
    }
    */
-   
+
    /** Return instrument code, or -1 if not found */
    private void setInstr(String instrument) {
       for( int i=0; i<INSTR.length; i++) {
@@ -904,19 +914,19 @@ public final class PlanField extends Plan {
    	   }
    	   return rep;
     }
-    
+
    /** Modifie (si possible) une propriété du plan (dépend du type de plan) */
    protected void setPropertie(String prop,String specif,String value) throws Exception {
       if( prop.equalsIgnoreCase("Target") ) {
          if( !isMovable() ) throw new Exception("Not movable aperture");
          Coord co = new Coord(value);
          changeTarget(co.al,co.del);
-         
+
       } else if( prop.equalsIgnoreCase("Roll") ) {
          if( !isRollable() ) throw new Exception("Not rollable aperture");
          double roll = Double.valueOf(value).doubleValue();
          changeRoll(roll);
-         
+
       } else if( prop.equalsIgnoreCase("RotCenter") ) {
          if( !isRollable() ) throw new Exception("Not rollable aperture");
          Coord co;
@@ -927,17 +937,17 @@ public final class PlanField extends Plan {
             co = new Coord(value);
             changeRotCenter(co.al,co.del);
          }
-         
+
       } else if( prop.equalsIgnoreCase("Rollable") ) {
         if( value.equalsIgnoreCase("True") ) setRollable(true);
         else if( value.equalsIgnoreCase("False") ) setRollable(false);
         else throw new Exception("Rollable propertie should be \"true\" or \"false\" !");
-        
+
       } else if( prop.equalsIgnoreCase("Movable") ) {
         if( value.equalsIgnoreCase("True") ) setMovable(true);
         else if( value.equalsIgnoreCase("False") ) setMovable(false);
         else throw new Exception("Movable propertie should be \"true\" or \"false\" !");
-        
+
       } else if( prop.equalsIgnoreCase("Status") && specif!=null ) {
          int n [] = findSubFoVs(specif);
          if( n.length==0 ) throw new Exception("Unknown "+label+" FoV ["+specif+"]");
@@ -946,13 +956,13 @@ public final class PlanField extends Plan {
          else if( value.indexOf("hidden")>=0 ) flag=false;
          else throw new Exception("Unknown FoV status ["+value+"]");
          for( int i=0; i<n.length; i++ ) setVisibleSubFoV(n[i],flag);
-          
+
       } else super.setPropertie(prop,null,value);
-      
+
       if( observer!=null && !prop.equals("Status") ) {
          observer.execCommand("set " +Tok.quote(label)+" "+prop+"="+value);
       }
-      
+
       Properties.majProp(this);
       aladin.view.resetClip();
       aladin.view.newView(1);
@@ -971,24 +981,31 @@ public final class PlanField extends Plan {
 
    /** Return the FoV projection center as a Position java object, or null  */
    protected Position getRotCenterObjet() {
-      try { return (Position)pcat.o[0]; }
+      try { return (Position)pcat.o[ 0 ]; }
       catch( Exception e) { return null; }
+   }
+
+   /** Repositionne le centre de rotation du FOV sur le centre de projection */
+   protected void resetRotCenterObjet() {
+      try { pcat.o[0].raj = pcat.o[1].raj; pcat.o[0].dej = pcat.o[1].dej; }
+      catch( Exception e) { }
+
    }
 
    /** Return FoV projection center in the current Aladin coordinate frame */
    protected String getProjCenter() {
       Position c = getProjCenterObjet();
       if( c==null ) return "";
-      return aladin.localisation.J2000ToString(c.raj,c.dej);
+      return aladin.localisation.J2000ToString(c.raj,c.dej,Astrocoo.ARCSEC+3);
    }
-   
+
    /** Return FoV rotation center in the current Aladin coordinate frame */
    protected String getRotCenter() {
       Position c = getRotCenterObjet();
       if( c==null ) return "";
-      return aladin.localisation.J2000ToString(c.raj,c.dej);
+      return aladin.localisation.J2000ToString(c.raj,c.dej,Astrocoo.ARCSEC+3);
    }
-   
+
    private Astrocoo afs = new Astrocoo(new ICRS());    // Frame ICRS (la reference de base)
 
    /** Return the FoV center in J2000 sexagesimal coordinates */
@@ -1005,19 +1022,19 @@ public final class PlanField extends Plan {
 //      if( !flagRoll ) return "0.0";
       return ((int)Math.round(roll*10))/10.+"";
    }
-   
+
    /** Retourne true si l'angle de rotation va être modifiée */
    protected boolean isNewRoll(double x) {
       return roll!=angle(x);
    }
-      
+
    /** Angle entre 0 et 360° */
    private double angle(double x) {
       x = x%360.;
       if( x<0 ) x+=360.;
       return x;
    }
-   
+
    /** Modify rotation angle by incrementation */
    protected void deltaRoll(double x) {
       setRoll(this.roll+x);
@@ -1026,24 +1043,30 @@ public final class PlanField extends Plan {
    /** Modify rotation angle by incrementation */
    private void setRoll(double x) {
       if( !flagRoll ) return;
-      this.roll = angle(x);      
+      this.roll = angle(x);
    }
 
   /** Return true if the FoV is rollable */
    protected boolean isRollable() { return flagRoll; }
-      
+
    /** Positionne l'attibut Rollable pour l'Aperture */
    protected void setRollable(boolean b) { this.flagRoll = b; }
-   
+
+   /** Return true if the FoV is rollable and its roll center is movable */
+   protected boolean isCenterRollable() { return flagCenterRoll; }
+
+   /** Positionne l'attribut Roll center Movable */
+   protected void setCenterRollable(boolean b) { flagCenterRoll = b; }
+
    /** Positionne l'attibut Movable pour l'Aperture */
    protected void setMovable(boolean b) { this.flagMove = b; }
-      
+
    /** Return true if the FoV is movable */
    protected boolean isMovable() { return flagMove; }
-      
+
    protected Vector subFoV=null;		// Sub FoV list
    protected JCheckBox cbSubFoV[];		// Checkbox concerning each sub FoV (see getPanelSubFoV()
-   
+
    /**
     * Show/hide the sub FoV corresponding to the Checkbox (see getPanelSubFoV())
     * @param cb the checkbox which was pressed in the Properties frame
@@ -1059,12 +1082,12 @@ public final class PlanField extends Plan {
       }
       return false;
    }
-   
+
    /**
     * Build the JPanel allowing the user to select individual sub FoV
     */
    protected JPanel getPanelSubFov(ActionListener al) {
-      if( subFoV==null || subFoV.size()==0 ) return null;
+      if( subFoV==null || subFoV.size()==0 || isAlmaFP() ) return null;
       JPanel p = new JPanel();
       p.setLayout( new GridLayout(0,1));
 
@@ -1080,7 +1103,36 @@ public final class PlanField extends Plan {
 
       return p;
    }
-   
+
+   /**
+    * Export pointing centers, as a new catalogue plane (dedicated to ALMA footprints)
+    */
+   protected void exportAlmaPointings() {
+       List<Forme> pointings = new ArrayList<Forme>();
+       for (Obj obj: pcat.o) {
+           if (obj instanceof Cercle && ! (obj instanceof Pickle)) {
+               pointings.add((Forme)obj);
+           }
+       }
+
+       String vot = Util.createVOTable(pointings);
+
+        try {
+           aladin.calque.newPlanCatalog(new MyInputStream(new BufferedInputStream(
+                            new ByteArrayInputStream(vot.getBytes()))), "Pointings");
+        } catch (IOException e) {
+           e.printStackTrace();
+        }
+   }
+
+   protected boolean isAlmaFP() {
+       return almaFP;
+   }
+
+   protected void setIsAlmaFP(boolean b) {
+       this.almaFP = b;
+   }
+
    /**
     * Return the status of each individual sub FoV, or null
     */
@@ -1097,7 +1149,7 @@ public final class PlanField extends Plan {
 
       return res.toString();
    }
-   
+
    /**
     * Addition of a new Sub FoV specification
     * @param ID subFoV identification  eg: WFPC2
@@ -1112,7 +1164,7 @@ public final class PlanField extends Plan {
       if( subFoV==null ) subFoV = new Vector(10);
       subFoV.addElement(sfov);
    }
-   
+
    /**
     * Recherche des indices des subFoVs correspondants a un masque avec jokers
     * @param masq
@@ -1122,16 +1174,16 @@ public final class PlanField extends Plan {
       int n=subFoV.size();
       int res [] = new int[n];
       int j=0;
-      
+
       for( int i=0; i<n; i++) {
          if( Util.matchMask(masq,((PlanFieldSub)subFoV.elementAt(i)).ID) ) res[j++]=i;
       }
-      
+
       int r [] = new int[j];
       System.arraycopy(res,0,r,0,j);
       return r;
    }
-   
+
    /**
     * Find the sub FoV index in subFoV Vector
     * @param ID Identifaction
@@ -1142,7 +1194,7 @@ public final class PlanField extends Plan {
       for( int i=subFoV.size()-1; i>=0; i-- ) if( ((PlanFieldSub)subFoV.elementAt(i)).ID.equals(ID) ) return i;
       return -1;
    }
-   
+
    /** Find the sub FoV index in subFoV Vector by object index
     * @param index Index of object
     * @return index in subFoV Vector or -1 if not found
@@ -1155,16 +1207,16 @@ public final class PlanField extends Plan {
     }
     return -1;
    }
-   
+
    /**
-    * Return a sub FoV, or null 
+    * Return a sub FoV, or null
     * @param n index of sub FoV in subFoV Vector
     */
    protected PlanFieldSub getSubFoV(int n) {
 //      if( subFoV==null || n<0 || n>=subFoV.size() ) return null;
       return (PlanFieldSub)subFoV.elementAt(n);
    }
-   
+
    /**
     * Show or hide a sub FoV
     * @param n index of the sub FoV in the subFoV vector
@@ -1178,7 +1230,7 @@ public final class PlanField extends Plan {
       aladin.view.repaintAll();
       sendSubFovObserver(sfov.ID,visible);
    }
-   
+
    /** Return the drawing color of an object depending of sub FoV container */
    protected Color getColor(Obj o) {
       int i = pcat.getIndex(o);
@@ -1189,27 +1241,28 @@ public final class PlanField extends Plan {
 
       return x;
    }
-   
+
    protected String getInstrumentName() {
        if( fpBean!=null ) return fpBean.getInstrumentName();
        return "";
    }
-   
+
    protected String getInstrumentDesc() {
        if( fpBean!=null ) return fpBean.getInstrumentDesc();
        return "";
    }
-   
+
    protected String getTelescopeName() {
       if( fpBean!=null ) return fpBean.getTelescopeName();
       return "";
   }
-  
+
    protected String getOrigine() {
       if( fpBean!=null ) return fpBean.getOrigin();
       return "";
   }
-  
+
+
    /**
     * Sub Field of View structure
     */
@@ -1220,7 +1273,7 @@ public final class PlanField extends Plan {
       protected int last;    // Last concerned object index in PlanField.pcat.o[]
       protected boolean visible; // true if the subFoV is visible, hidden otherwise
       protected Color color;  // Coloror null for plan default color
-      
+
       private PlanFieldSub(String ID, String desc, int first, int last, boolean visible,Color color) {
          this.ID=ID.replace('/','.');
          this.desc=desc;
@@ -1228,7 +1281,7 @@ public final class PlanField extends Plan {
          this.last=last;
          this.visible=visible;
          this.color=color;
-      }  
+      }
    }
 }
 

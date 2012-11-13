@@ -42,6 +42,8 @@ import cds.tools.Util;
  */
 public class FootprintParser {
 
+    static private final String SPHERICAL_COORDS = "stc:AstroCoordSystem.CoordFrame.SPHERICAL";
+
 	private MyInputStream mis;
 	private byte[] beginStream;
 
@@ -51,6 +53,9 @@ public class FootprintParser {
 
 	// ensemble des resources à traiter
 	private SavotResource[] resources;
+
+	boolean sphericalCoordinates = false;
+
 
 	static private Hashtable<String, FootprintBean> footprintHash; // conserve la mémoire des footbeans créés
 
@@ -129,6 +134,8 @@ public class FootprintParser {
 	private void processFovResource(SavotResource res) {
 		FootprintBean fpBean = new FootprintBean();
 
+		sphericalCoordinates = false;
+
 		tabIndex = 0;
 
 		SubFootprintBean sub;
@@ -149,6 +156,10 @@ public class FootprintParser {
 		SavotParam param;
 		for( int i=0; i<nbParam; i++ ) {
 			param = (SavotParam)params.getItemAt(i);
+
+			if ( param.getUtype().trim().equalsIgnoreCase(SPHERICAL_COORDS)) {
+			    sphericalCoordinates = true;
+			}
 
 			// position RA du FoV
 			if( param.getUcd().equalsIgnoreCase("pos.eq.ra;meta.main") ) {
@@ -175,7 +186,10 @@ public class FootprintParser {
 				try {
 					d = Double.valueOf(param.getValue()).doubleValue();
 				}
-				catch( NumberFormatException e ) {continue;}
+				catch( NumberFormatException e ) {
+				    continue;
+//				    d = 0.;
+				}
 				fpBean.setPosAngle(d);
 			}
 
@@ -266,6 +280,7 @@ public class FootprintParser {
 	 */
 	private SubFootprintBean processResource(SavotResource res) {
 		SubFootprintBean subFpBean = new SubFootprintBean();
+		subFpBean.setInSphericalCoords(sphericalCoordinates);
 
 		TableSet tables = res.getTables();
 		int nbTab = tables.getItemCount();
@@ -462,6 +477,7 @@ public class FootprintParser {
 
 
 		String id = table.getId();
+		SubFootprintBean subFpBean = null;
 
 		if( type.equals("Polygon") ) {
 			FieldSet fields = table.getFields();
@@ -519,9 +535,13 @@ public class FootprintParser {
 				// TODO : vérifier unité et faire conversion en degrés
 				raOffset[i] = raOff/3600.;
 				deOffset[i] = deOff/3600.;
-			}
-			return new SubFootprintBean(raOffset, deOffset, id);
 
+			}
+
+			subFpBean = new SubFootprintBean(raOffset, deOffset, id);
+			subFpBean.setInSphericalCoords(sphericalCoordinates);
+
+			return subFpBean;
 		}
 
         // TODO : nouveau format
@@ -592,7 +612,9 @@ public class FootprintParser {
 				deOffset[i] = (ctrDEOffset+signDE*sizeDE*0.5)/3600.;
 			}
 
-			return new SubFootprintBean(raOffset, deOffset, id);
+			subFpBean = new SubFootprintBean(raOffset, deOffset, id);
+			subFpBean.setInSphericalCoords(sphericalCoordinates);
+			return subFpBean;
 
 		}
 
@@ -649,7 +671,9 @@ public class FootprintParser {
 			ctrYOffset = ctrYOffset/3600.0;
 			radius = radius/3600.0;
 
-			return new SubFootprintBean(ctrXOffset, ctrYOffset, radius, id);
+			subFpBean = new SubFootprintBean(ctrXOffset, ctrYOffset, radius, id);
+			subFpBean.setInSphericalCoords(sphericalCoordinates);
+			return subFpBean;
 		}
 
 		else if( type.equals("Pickle") ) {
@@ -734,7 +758,9 @@ public class FootprintParser {
 			internalRad = internalRad/3600.0;
 			externalRad = externalRad/3600.0;
 
-			return new SubFootprintBean(ctrXOffset, ctrYOffset, startAngle, angle, internalRad, externalRad, id);
+			subFpBean = new SubFootprintBean(ctrXOffset, ctrYOffset, startAngle, angle, internalRad, externalRad, id);
+			subFpBean.setInSphericalCoords(sphericalCoordinates);
+			return subFpBean;
 		}
 		else if( type.equals("String") ) {
 			ParamSet params= table.getParams();
@@ -778,7 +804,9 @@ public class FootprintParser {
 			ra = ra/3600.0;
 			dec = dec/3600.0;
 
-			return new SubFootprintBean(ra, dec, "center", contentParam.getValue());
+			subFpBean = new SubFootprintBean(ra, dec, "center", contentParam.getValue());
+			subFpBean.setInSphericalCoords(sphericalCoordinates);
+			return subFpBean;
 		}
 
 		return null;

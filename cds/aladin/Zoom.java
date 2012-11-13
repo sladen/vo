@@ -31,6 +31,8 @@ import java.io.*;
 import java.util.*;
 
 import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 
 /**
  * JPanel de gestion du Zoom et de la loupe
@@ -47,16 +49,23 @@ import javax.swing.*;
 public final class Zoom extends JPanel {
 
    // Les valeurs generiques
-   static int mzn[] = {    1,   1,   1,   1,  1,  1,  1,  1, 1, 1, 1, 2 }; // Valeur zoom < 1, Numerateur
-   static int mzd[] = { 2048,1024,512, 256,128, 64, 32, 16, 8, 4, 2, 3 }; // Valeur zoom < 1, Denominateur
+   static int mzn[] = {    1,  1,  1,  1, 1, 1, 1, 2 }; // Valeur zoom < 1, Numerateur
+   static int mzd[] = {  128, 64, 32, 16, 8, 4, 2, 3 }; // Valeur zoom < 1, Denominateur
    static final int MINZOOM=mzn.length; // Nombre de valeurs zoom <1
-   static final int MAXZOOM=12;   // en puissance de 2, valeur maximal du zoom
+   static final int MAXZOOM=25;   // en puissance de 2, valeur maximal du zoom
+   
+   static public final int MINSLIDER=2;
+   static public final int MAXSLIDER=18;
 
    // Les conposantes de l'objet
    ZoomView   zoomView;          // Le canvas associe au Zoom
    JComboBox   cZoom;               // Le Choice des differentes valeurs de zoom
-//   JPanel zoomChoicePanel;
    protected ZoomChoice zoomChoicePanel;
+   protected SliderSize sizeSlider;
+   protected SliderOpacity opacitySlider;
+   protected SliderZoom zoomSlider;
+   
+   static boolean SLIDER_LOOK = false;
 
    // Les references aux objets
 //   protected ViewSimple v;      // La vue associée au zoom
@@ -68,8 +77,10 @@ public final class Zoom extends JPanel {
    protected Zoom(Aladin aladin) {
       int i;
       this.aladin = aladin;
-//      setBackground(aladin.BKGD);
       zoomView = new ZoomView(aladin);
+     
+      SLIDER_LOOK = Aladin.NEWLOOK_V7;
+      setLayout( new BorderLayout(5,SLIDER_LOOK?10:0) );
 
       cZoom = new JComboBox();
       cZoom.setFont(cZoom.getFont().deriveFont(Font.PLAIN));
@@ -81,21 +92,23 @@ public final class Zoom extends JPanel {
          public void actionPerformed(ActionEvent e) { submit(); }
       });
       cZoom.addMouseWheelListener( zoomView );
-/*
-      zoomChoicePanel = new JPanel(new BorderLayout(0,0));
-      zoomChoicePanel.add(Aladin.createLabel("Zoom"),"West");
-      zoomChoicePanel.add(cZoom,"East");
-*/
-      // JPanel principal : contient les infos sur le zoom et le zoom lui-meme
-      setLayout( new BorderLayout(0,0) );
-      Aladin.makeAdd(this,zoomView,"East");
-/*
-      Aladin.makeAdd(this,p,"North");
-      Aladin.makeAdd(this,zoomView,"South");
-*/
-//      resize( preferredSize());
+      
+      if( SLIDER_LOOK ) {
+         /* if( Aladin.PROTO ) */sizeSlider = new SliderSize(aladin);
+         opacitySlider = new SliderOpacity(aladin);
+         zoomSlider = new SliderZoom(this);
+         
+         JPanel sliderPanel = new JPanel( new BorderLayout(2,2));
+         if( sizeSlider!=null ) sliderPanel.add(sizeSlider,BorderLayout.NORTH);
+         sliderPanel.add(opacitySlider,BorderLayout.CENTER);
+         sliderPanel.add(zoomSlider,BorderLayout.SOUTH);
+         
+         add(sliderPanel,BorderLayout.NORTH);
+      }
+      
+      Aladin.makeAdd(this,zoomView,SLIDER_LOOK?"Center" : "East");
    }
-
+   
    /** Retourne le JPanel contenant le menu déroulant du sélecteur
     *  du facteur du zoom
     */
@@ -150,6 +163,10 @@ public final class Zoom extends JPanel {
    * (x1/4,x1/3,x1/2,x1,x2,x4,x8...x32)
    */
    protected double getValue() {
+      if( zoomSlider!=null ) {
+         int n = zoomSlider.getValue();
+         cZoom.setSelectedIndex(n);
+      }
       return getValue(cZoom.getSelectedIndex());
    }
    protected double getValue(int i) {
@@ -178,7 +195,7 @@ public final class Zoom extends JPanel {
    protected int getIndex() {
       return cZoom.getSelectedIndex();
    }
-
+   
   /** Retourne la prochaine valeur du zoom.
    * @param sens Sens de la modif 1 -> plus grand,-1 -> plus petit.
    * @return le nouveau fct de zoom, ou -1 si problème
@@ -189,6 +206,7 @@ public final class Zoom extends JPanel {
       i=i+sens;
       return getValue(i);
    }
+
 
    /** Positionne le zoom à un facteur donné et demande un réaffichage
     *  Utilisé par Command
@@ -218,7 +236,7 @@ public final class Zoom extends JPanel {
       ViewSimple v = aladin.view.getCurrentView();
       if( v!=null ) zoomView.newZoom(v.xzoomView,v.yzoomView);
    }
-
+   
    /** Action à faire si le cZoom a été modifié
    protected void submit() {
       v.setZoom(getValue(),v.xzoomView,v.yzoomView);
@@ -254,6 +272,7 @@ public final class Zoom extends JPanel {
       if( i!=-1 && cZoom.getSelectedIndex()!=i ) {
          flagNoAction=true;
          cZoom.setSelectedIndex(i);
+         if( zoomSlider!=null ) zoomSlider.setValue(i);
          flagNoAction=false;
       }
   }
@@ -263,8 +282,15 @@ public final class Zoom extends JPanel {
    */
    private int getIndex(double z) {
       int n=cZoom.getItemCount();
-      for( int i=0; i<n; i++ ) if( z==getValue(i) ) return i;
+      
+      for( int i=0; i<n; i++ ) {
+         if( getValue(i)>=z ) return i;
+      }
       return -1;
+   }
+   
+   public void zoomSliderReset() {
+      if( zoomSlider!=null ) zoomSlider.setEnabled( !aladin.calque.isFree() );
    }
 
   /** Réinitialise le zoom
@@ -285,19 +311,19 @@ public final class Zoom extends JPanel {
    
   /** Activation de la loupe */
    protected void wenOn() {
-      if( aladin.toolbox.tool[ToolBox.WEN].mode==Tool.DOWN ) zoomView.wenOn();
+      if( aladin.toolBox.tool[ToolBox.WEN].mode==Tool.DOWN ) zoomView.wenOn();
    }
 
   /** Desactivation de la loupe */
    protected void wenOff() {
-      if( aladin.toolbox.tool[ToolBox.WEN].mode!=Tool.UP ) zoomView.wenOff();
+      if( aladin.toolBox.tool[ToolBox.WEN].mode!=Tool.UP ) zoomView.wenOff();
    }
 
   /** Mise a jour la loupe si necessaire.
    * @param x,y Centre courant
    */
    protected boolean redrawWen(double x, double y) {
-      if( aladin.toolbox.tool[ToolBox.WEN].mode==Tool.DOWN ) { zoomView.wen(x,y); return true; }
+      if( aladin.toolBox.tool[ToolBox.WEN].mode==Tool.DOWN ) { zoomView.wen(x,y); return true; }
       return false;
    }
    

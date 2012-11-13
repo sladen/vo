@@ -37,30 +37,48 @@ import cds.tools.pixtools.CDSHealpix;
  *
  */
 public class PlanHealpix extends PlanBG {
+   
+   static final public String PROPERTIES = "properties";
 
     // noms des clés utilisés dans le fichier properties
-    static final String KEY_ORIGINAL_PATH = "dataPath";
-    static final String KEY_LOCAL_DATA = "localData";
-    static final String KEY_GZ = "gzipped";
-    static final String KEY_OFFSET = "offset";
-    static final String KEY_SIZERECORD = "sizeRecord";
-    static final String KEY_PROCESSING_DATE = "processingDate";
-    static final String KEY_LAST_MODIFICATON_DATE = "lastModified";
-    static final String KEY_NSIDE_PIXEL = "nsidePixel";
-    static final String KEY_NSIDE_FILE = "nsideFile";
-    static final String KEY_ORDER_GENERATED_IMGS = "orderGeneratedImgs";
-    static final String KEY_TFIELDS = "tfields";
-    static final String KEY_TTYPES = "ttypes";
-    static final String KEY_LENHPX = "lenhpx";
-    static final String KEY_TYPEHPX = "typehpx";
-    static final String KEY_ISPARTIAL = "isPartial";
-    static final String KEY_ARGB = "ARGB";
-    static final String KEY_ORDERING = "ordering";
-    static final String KEY_NBPIXGENERATEDIMAGE = "nbPixGeneratedImage";
-    static final String KEY_CURTFORMBITPIX = "curTFormBitpix";
-    static final String KEY_COORDSYS = "coordsys";
-    // Aladin version used to generate the properties file
-    static final String KEY_ALADINVERSION = "aladinVersion";
+    static public final String KEY_ORIGINAL_PATH = "dataPath";
+    static public final String KEY_LOCAL_DATA = "localData";
+    static public final String KEY_GZ = "gzipped";
+    static public final String KEY_OFFSET = "offset";
+    static public final String KEY_SIZERECORD = "sizeRecord";
+    static public final String KEY_PROCESSING_DATE = "processingDate";
+    static public final String KEY_LAST_MODIFICATON_DATE = "lastModified";
+    static public final String KEY_NSIDE_PIXEL = "nsidePixel";
+    static public final String KEY_NSIDE_FILE = "nsideFile";
+    static public final String KEY_ORDER_GENERATED_IMGS = "orderGeneratedImgs";
+    static public final String KEY_TFIELDS = "tfields";
+    static public final String KEY_TTYPES = "ttypes";
+    static public final String KEY_LENHPX = "lenhpx";
+    static public final String KEY_TYPEHPX = "typehpx";
+    static public final String KEY_ISPARTIAL = "isPartial";
+    static public final String KEY_ARGB = "ARGB";
+    static public final String KEY_ORDERING = "ordering";
+    static public final String KEY_NBPIXGENERATEDIMAGE = "nbPixGeneratedImage";
+    static public final String KEY_CURTFORMBITPIX = "curTFormBitpix";
+    static public final String KEY_ALADINVERSION = "aladinVersion";
+    
+    static public final String KEY_COORDSYS = "coordsys";
+    static public final String KEY_ISCOLOR = "isColored";
+    static public final String KEY_ISCAT = "isCatalog";
+    static public final String KEY_MAXORDER = "maxOrder";
+    static public final String KEY_FORMAT = "format";
+    static public final String KEY_LABEL = "label";
+    static public final String KEY_DESCRIPTION = "description";
+    static public final String KEY_DESCRIPTION_VERBOSE = "descriptionVerbose";
+    static public final String KEY_COPYRIGHT = "copyright";
+    static public final String KEY_COPYRIGHT_URL = "copyrightUrl";
+    static public final String KEY_NSIDE = "nside";
+    static public final String KEY_TARGET = "target";
+    static public final String KEY_TARGETRADIUS = "targetRadius";
+    static public final String KEY_USECACHE = "useCache";
+    static public final String KEY_IMAGESOURCEPATH = "imageSourcePath";
+    static public final String KEY_SURVEY = "survey";
+    static public final String KEY_VERSION = "version";
 
     static final int POLA_SEGMENT_MAGIC_CODE = -42;
     static final int POLA_AMPLITUDE_MAGIC_CODE = -41;
@@ -109,7 +127,8 @@ public class PlanHealpix extends PlanBG {
 
     private boolean fromProperties; // true si la création du plan a été demandée depuis la fenetre des properties. Dans ce cas, on ne touche pas à idxTFormToRead, même pour les fichiers partiels
 
-	/** @param mode : DRAWPIXEL : les pixels, DRAWPOLARISATION : les segments de polarisation, DRAWANGLE : les angles sous forme d'une image */
+    
+    /** @param mode : DRAWPIXEL : les pixels, DRAWPOLARISATION : les segments de polarisation, DRAWANGLE : les angles sous forme d'une image */
     public PlanHealpix(Aladin aladin, String file, MyInputStream in, String label, int mode, int idxTFormToRead, boolean fromProperties) {
         super(aladin);
 
@@ -120,7 +139,24 @@ public class PlanHealpix extends PlanBG {
         threading();
     }
 
+    /** CONSTRUCTEUR TEMPORAIRE EN ATTENDANT QUE PlanHealpix SACHE TRAITER LES gluSky COMME LES AUTRES PlanBG */
+    public PlanHealpix(Aladin aladin, TreeNodeAllsky gluSky, String label, String startingTaskId) {
+       super(aladin);
 
+        this.startingTaskId=startingTaskId;
+        fromProperties = false;
+        
+        String file = gluSky.getUrl();
+        MyInputStream in = null;
+        try { in=Util.openAnyStream(file); } catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
+        if( label==null ) label = gluSky.label;
+        
+        init( file , in, label, 0);
+        setDrawMode(DRAWPIXEL);
+
+        threading();
+    }
+    
     // juste pour les classes derivees
     public PlanHealpix(Aladin aladin) {
         super(aladin);
@@ -273,30 +309,32 @@ public class PlanHealpix extends PlanBG {
 
     @Override
     protected boolean waitForPlan() {
-        try {
+       super.waitForPlan();
+       try {
 
-            boolean needProcessing = needProcessing(this.dirName, true);
-            if (needProcessing) { // pour eviter de charger un flux distant alors qu'on a deja les donnees
+          boolean needProcessing = needProcessing(this.dirName, true);
+          if (needProcessing) { // pour eviter de charger un flux distant alors qu'on a deja les donnees
 
-                try {
-                    this.isGZ = dis.isGZ();
-                    this.isARGB = (dis.getType() & MyInputStream.ARGB) != 0;
-                } catch (IOException e1) {
-                    // TODO Auto-generated catch block
-                    e1.printStackTrace();
-                }
-            }
-            setPixelPath();
+             try {
+                this.isGZ = dis.isGZ();
+                this.isARGB = (dis.getType() & MyInputStream.ARGB) != 0;
+             } catch (IOException e1) {
+                // TODO Auto-generated catch block
+                e1.printStackTrace();
+             }
+          }
+          setPixelPath();
 
-            startHealpixCreation();
-            if (needProcessing) writePropertiesFile(this.dirName);
+          startHealpixCreation();
+          if (needProcessing) writePropertiesFile(this.dirName);
 
-            suite();
-            return true;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
+          suiteSpecif();
+          return true;
+       } catch (Exception e) {
+          error = e.getMessage();
+          if( aladin.levelTrace>=3 ) e.printStackTrace();
+          return false;
+       }
     }
 
     // the properties file will be used to check the file modification date
@@ -358,7 +396,7 @@ public class PlanHealpix extends PlanBG {
         return true;
     }
 
-    private void suite() {
+    private void suiteSpecif() {
 
        url = getCacheDir()+Util.FS+survey;
        minOrder = 3;
@@ -374,8 +412,8 @@ public class PlanHealpix extends PlanBG {
        co = new Coord(0,0);
        Localisation.frameToFrame(co, Localisation.GAL, Localisation.ICRS);
        objet = co+"";
-       Projection p =new Projection("test",Projection.WCS,co.al,co.del,60*4,60*4,250,250,500,500,0,false, Calib.SIN);
-       p.frame = getFrame();
+       Projection p =new Projection("test",Projection.WCS,co.al,co.del,60*4,60*4,250,250,500,500,0,false,Calib.SIN,Calib.FK5);
+       p.frame = getCurrentFrameDrawing();
 
        setNewProjD(p);
        initZoom=1./ (Aladin.OUTREACH?64:32);
@@ -395,39 +433,18 @@ public class PlanHealpix extends PlanBG {
      *
      * @param in le flux du fichier Healpix
      */
-    private void startHealpixCreation() {
-        Aladin.trace(2,"Loading HEALPIX FITS image");
+    private void startHealpixCreation() throws Exception {
+       Aladin.trace(2,"Loading HEALPIX FITS image");
 
-        try {
-            File tmp = new File(getCacheDir()+Util.FS+this.dirName);
+       File tmp = new File(getCacheDir()+Util.FS+this.dirName);
 
-            if( ! needProcessing(this.dirName, true) ) {
-               return;
-            }
-            tmp.mkdir();
-        }
-        catch(Exception e) {
-            e.printStackTrace();
-        }
+       if( ! needProcessing(this.dirName, true) ) return;
+       tmp.mkdir();
 
+       double start = System.currentTimeMillis();
+       MyInputStream isTmp = isTmp = new MyInputStream(new FileInputStream(pixelPath));
 
-        double start = System.currentTimeMillis();
-        MyInputStream isTmp = null;
-        try {
-            isTmp = new MyInputStream(new FileInputStream(pixelPath));
-        } catch (FileNotFoundException e3) {
-            e3.printStackTrace();
-        } catch (IOException e3) {
-            e3.printStackTrace();
-        }
-
-        try {
-            headerFits = new FrameHeaderFits(isTmp);
-        } catch (Exception e2) {
-            // TODO Auto-generated catch block
-            e2.printStackTrace();
-            return;
-        }
+       headerFits = new FrameHeaderFits(isTmp);
 
         int naxis = headerFits.getIntFromHeader("NAXIS");
         // S'agit-il juste d'une entête FITS indiquant des EXTENSIONs
@@ -437,48 +454,41 @@ public class PlanHealpix extends PlanBG {
               naxis1 = headerFits.getIntFromHeader("NAXIS1");
               isTmp.skip(naxis1);
            } catch( Exception e) {}
-           try {
-              // On se cale sur le prochain segment de 2880
-              long pos = isTmp.getPos();
-              if( pos%2880!=0 ) {
-                 long offset = ((pos/2880)+1) *2880  -pos;
-                 isTmp.skip(offset);
-              }
-              headerFits = new FrameHeaderFits(isTmp);
-           } catch (Exception e) {
-               // TODO Auto-generated catch block
-               e.printStackTrace();
-               return;
-           }
+           
+           // On se cale sur le prochain segment de 2880
+           isTmp.skipOnNext2880();
+//           long pos = isTmp.getPos();
+//           if( pos%2880!=0 ) {
+//              long offset = ((pos/2880)+1) *2880  -pos;
+//              isTmp.skip(offset);
+//           }
+           
+           headerFits = new FrameHeaderFits(isTmp);
         }
 
         int nside=0;
         int nsideImage=0;
         int minLevel = 3; // Norder minimum désiré
         initialOffsetHpx = isTmp.getPos();
-        try {
-
-            nside = headerFits.getIntFromHeader("NSIDE");
-            int maxSizeGeneratedImage = 512;
-            if( nside<maxSizeGeneratedImage ) maxSizeGeneratedImage=nside;      // PF : Pour pouvoir charger des "petits cieux"
-            Aladin.trace(3, "maxSizeGeneratedImage: "+maxSizeGeneratedImage);
-            nbPixGeneratedImage = 2*maxSizeGeneratedImage;
-            nSideFile = nside;
-            double levelImage;
-            do {
-                nbPixGeneratedImage /= 2;
-                levelImage = getLevelImage(nside, nbPixGeneratedImage);
-            }
-            // TODO : à voir avec Pierre
-            while( levelImage<minLevel ); // niveau minimum : minLevel (=3)
-
-
-            nsideImage = (int)Math.pow(2, levelImage);
-            Aladin.trace(3, "NSIDE image: "+nsideImage);
-            Aladin.trace(3, "Level image : "+levelImage);
-            Aladin.trace(3, "nb pixels generated image : "+nbPixGeneratedImage);
+        nside = headerFits.getIntFromHeader("NSIDE");
+        int maxSizeGeneratedImage = 512;
+        if( nside<maxSizeGeneratedImage ) maxSizeGeneratedImage=nside;      // PF : Pour pouvoir charger des "petits cieux"
+        Aladin.trace(3, "maxSizeGeneratedImage: "+maxSizeGeneratedImage);
+        nbPixGeneratedImage = 2*maxSizeGeneratedImage;
+        nSideFile = nside;
+        double levelImage;
+        do {
+           nbPixGeneratedImage /= 2;
+           levelImage = getLevelImage(nside, nbPixGeneratedImage);
         }
-        catch(Exception e) {e.printStackTrace();}
+        // TODO : à voir avec Pierre
+        while( levelImage<minLevel ); // niveau minimum : minLevel (=3)
+
+
+        nsideImage = (int)CDSHealpix.pow2((long)levelImage);
+        Aladin.trace(3, "NSIDE image: "+nsideImage);
+        Aladin.trace(3, "Level image : "+levelImage);
+        Aladin.trace(3, "nb pixels generated image : "+nbPixGeneratedImage);
 
 
         naxis1 = sizeRecord = headerFits.getIntFromHeader("NAXIS1");
@@ -658,7 +668,7 @@ public class PlanHealpix extends PlanBG {
         // création des Norder de plus basse résolution jusqu'à 3
         for (int norder=curNorder-1; norder>=3 ; norder--) {
             // génération des fichiers de niveau norder
-            int nbPix = (int)(12*Math.pow(Math.pow(2, norder), 2));
+            int nbPix = (int)(12*Math.pow(CDSHealpix.pow2(norder), 2));
             for (long npix=0; npix<nbPix; npix++) {
                 for (int i=0; i<4; i++) {
                     try {
@@ -820,7 +830,7 @@ public class PlanHealpix extends PlanBG {
     }
 
     private File propertiesFile(String dir) {
-        return new File(getCacheDir()+Util.FS+dir+Util.FS+"properties");
+        return new File(getCacheDir()+Util.FS+dir+Util.FS+PROPERTIES);
     }
 
     private int getBitpixFromFormat(char t) {
@@ -828,7 +838,9 @@ public class PlanHealpix extends PlanBG {
         case 'I':
             return 16;
         case 'J':
-            return 32;
+           return 32;
+        case 'K':
+           return 64;
         case 'E':
             return -32;
         case 'D':
@@ -936,11 +948,15 @@ public class PlanHealpix extends PlanBG {
                 }
                 int totalOffset = offset+offsetField;
                 for( int k=0; k<lenHpx[idxField]; k++, resultIdx++ ) {
+                    int offsetc = Util.binSizeOf(typeHpx[idxField],k);
                     switch(typeHpx[idxField]) {
-                    case 'I': val = getShort(buf,totalOffset+Util.binSizeOf(typeHpx[idxField],k)); break;
-                    case 'J': val = getInt(buf,totalOffset+Util.binSizeOf(typeHpx[idxField],k)); break;
-                    case 'E': val = Float.intBitsToFloat( getInt(buf,totalOffset+Util.binSizeOf(typeHpx[idxField],k)) );  break;
-                    case 'D': long a = (((long)getInt(buf,totalOffset+Util.binSizeOf(typeHpx[idxField],k)))<<32) | (((long)getInt(buf,totalOffset+Util.binSizeOf(typeHpx[idxField],k)+4))&0xFFFF);
+                    case 'I': val = getShort(buf,totalOffset+offsetc); break;
+                    case 'J': val = getInt(buf,totalOffset+offsetc); break;
+                    case 'K': val = (((long)getInt(buf,totalOffset+offsetc))<<32) 
+                                             | (((long)getInt(buf,totalOffset+offsetc+4))& 0xFFFFFFFFL); break;
+                    case 'E': val = Float.intBitsToFloat( getInt(buf,totalOffset+offsetc) );  break;
+                    case 'D': long a = (((long)getInt(buf,totalOffset+offsetc))<<32) 
+                                             | (((long)getInt(buf,totalOffset+offsetc+4))& 0xFFFFFFFFL);
                               val = Double.longBitsToDouble(a); break;
                     default: val=-1;
                 }
@@ -959,17 +975,19 @@ public class PlanHealpix extends PlanBG {
             return n*(long)(Math.pow(4,(n2 - n1)/log2(2)));
     }
 
-    public static long log2 (long x) {
-        return (long) (Math.log(x)/Math.log(2));
-    }
+    public static long log2 (long x) { return CDSHealpix.log2(x); }
 
     /** Retourne le numéro du pixel père (pour l'order précédent) */
     static public long getFather(long npix) { return npix/4; }
 
 
-    private double[] partialValues;
+    // PF janv 2011 - remplacement par une Hashmap 
+    //pour ne plus faire exploser la mémoire en cas de grand NSIDE
+//    private double[] partialValues;
+    HashMap partialValues;
     private void fillPartialValues(long idxTForm) {
-        partialValues = new double[12*newNSideFile*newNSideFile];
+//        partialValues = new double[12*newNSideFile*newNSideFile];
+        partialValues = new HashMap();
         double[] values;
         if( ordering.equals("NESTED")) {
             values = getValuesNested(0, nbRecordsPartial, rafHpx, initialOffsetHpx, idxTForm);
@@ -978,13 +996,18 @@ public class PlanHealpix extends PlanBG {
             values = getValuesRing(0, nbRecordsPartial, newNSideFile);
         }
         // on initialize les valeurs à NaN
-        for (int i = 0; i < partialValues.length; i++) {
-            partialValues[i] = Double.NaN;
-        }
+//        for (int i = 0; i < partialValues.length; i++) {
+//            partialValues[i] = Double.NaN;
+//        }
+//        // on boucle sur les indices partiels
+//        for (int i = 0; i < partialHpxPixIdx.length; i++) {
+//            partialValues[(int)partialHpxPixIdx[i]] = values[i];
+//        }
         // on boucle sur les indices partiels
         for (int i = 0; i < partialHpxPixIdx.length; i++) {
-            partialValues[(int)partialHpxPixIdx[i]] = values[i];
+            partialValues.put((long)partialHpxPixIdx[i],values[i]);
         }
+
     }
 
     private double[] getValuesPartialRing(long low, long high) {
@@ -992,7 +1015,9 @@ public class PlanHealpix extends PlanBG {
        double[] ret = new double[nbVal];
        try {
           for (int i=0; i<nbVal; i++) {
-             ret[i] = partialValues[(int)CDSHealpix.nest2ring(nSideFile, low + i)];
+//             ret[i] = partialValues[(int)CDSHealpix.nest2ring(nSideFile, low + i)];
+             Double a = (Double)partialValues.get( CDSHealpix.nest2ring(nSideFile, low + i));
+             ret[i] = a==null ? Double.NaN : a.doubleValue();
           }
        } catch( Exception e ) { e.printStackTrace(); }
        return ret;
@@ -1002,9 +1027,10 @@ public class PlanHealpix extends PlanBG {
         int nbVal = (int)(high-low);
         double[] ret = new double[nbVal];
         for (int i=0; i<nbVal; i++) {
-            ret[i] = partialValues[(int)low+i];
+//            ret[i] = partialValues[(int)low+i];
+           Double a = (Double)partialValues.get( low+i );
+           ret[i] = a==null ? Double.NaN : a.doubleValue();
         }
-
 
         return ret;
     }
@@ -1170,6 +1196,8 @@ public class PlanHealpix extends PlanBG {
         return (l.contains("U-POLARISATION") || l.contains("U_POLARISATION"))
             && (l.contains("Q-POLARISATION") || l.contains("Q_POLARISATION"));
     }
+    
+    protected boolean isPartial() { return isPartial; }
 
     /**
      * Creation d'un nouveau plan avec infos de polarisation
@@ -1392,7 +1420,7 @@ public class PlanHealpix extends PlanBG {
 
                     for (int norder = 3; norder <= deepestNorder; norder++) {
                         int nbPix = (int) (12 * Math
-                                .pow(Math.pow(2, norder), 2));
+                                .pow(CDSHealpix.pow2(norder), 2));
                         for (int npix = 0; npix < nbPix; npix++) {
                             try {
                                 fitsU.loadFITS(getFilePath(idxPolaU, norder,
@@ -1410,7 +1438,7 @@ public class PlanHealpix extends PlanBG {
                                 if (fitsOut == null
                                         && idxTFormToRead != POLA_SEGMENT_MAGIC_CODE) {
                                     fitsOut = new Fits(fitsU.width,
-                                            fitsU.height, -32);
+                                            fitsU.heightCell, -32);
                                 }
                                 computePolarisation(fitsOut, fitsQ, fitsU,
                                         norder, npix, false, dataMinPola,
@@ -1622,7 +1650,7 @@ public class PlanHealpix extends PlanBG {
      */
     public void createAllSky(String path,String survey,int order,int outLosangeWidth, int mode) throws Exception {
        long t=System.currentTimeMillis();
-       int nside = (int)Math.pow(2,order);
+       int nside = (int)CDSHealpix.pow2(order);
        int n = 12*nside*nside;
        int nbOutLosangeWidth = (int)Math.sqrt(n);
        int nbOutLosangeHeight = (int)((double)n/nbOutLosangeWidth);
@@ -1667,7 +1695,7 @@ public class PlanHealpix extends PlanBG {
 
                     for( int y1=0; y1<gap; y1++ ) {
                        for( int x1=0; x1<gap; x1++) {
-                          int offsetY = isARGB ? y*gap+y1 : in.height-1-(y*gap+y1);
+                          int offsetY = isARGB ? y*gap+y1 : in.heightCell-1-(y*gap+y1);
                           pix = in.getPixelDouble(x*gap+x1,offsetY) ;
 
                           if( mode==FIRST ) break;
@@ -1709,7 +1737,7 @@ public class PlanHealpix extends PlanBG {
                    int xOut= xLosange*outLosangeWidth + x;
                    int yOut = yLosange*outLosangeWidth +y;
 
-                   out.setPixelDouble(xOut, out.height-1-yOut, pix);
+                   out.setPixelDouble(xOut, out.heightCell-1-yOut, pix);
                 }
              }
 

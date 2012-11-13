@@ -52,6 +52,8 @@ import java.util.zip.Inflater;
  */
 public class PlanImage extends Plan {
    static protected int LASTID=0;    // Dernier number d'image donné
+   
+   static private float DEFAULT_OPACITITY = 1f;
 
    //Le separateur du path / ou \
    static String DEFIMG,LOOKCALIB,INPROGRESS,OK,FAIL,IMGERR,ERROR,CALIBERR,
@@ -91,16 +93,16 @@ public class PlanImage extends Plan {
    protected static final int NATIVE = 7;  // Image couleur type JPEG/GIF/PNG...
    protected static final int PDS    = 8;  // Image PDS...
 
-   static final protected int ASINH  = 0;
-   static final protected int LOG    = 1;
-   static final protected int SQRT   = 2;
-   static final protected int LINEAR = 3;
-   static final protected int SQR    = 4;
-   static final protected int MULTFCT= 5;
-   static final protected String TRANSFERTFCT[] = { "Asinh", "Log","Sqrt","Linear","Pow2"," -- " };
+   public static final int ASINH  = 0;
+   public static final int LOG    = 1;
+   public static final int SQRT   = 2;
+   public static final int LINEAR = 3;
+   public static final int SQR    = 4;
+   public static final int MULTFCT= 5;
+   public static final String TRANSFERTFCT[] = { "Asinh", "Log","Sqrt","Linear","Pow2"," -- " };
 
    protected RandomAccessFile fCache; // L'accès au fichier cache
-   private byte [] pixels;		      // Tableau des pixels de l'image (sur 8 bits)
+   protected byte [] pixels;		  // Tableau des pixels de l'image (sur 8 bits)
    protected byte [] pixelsZoom;      // Tabluea des pixels de l'image vignette (8 bits) pour le ZoomView
    protected byte[] pixelsOrigin;     // Tableau des pixels d'origine (LIGNES NON INVERSEES - format FITS)
    protected ColorModel cm;			  // La table des couleurs associee a l'image
@@ -123,8 +125,8 @@ public class PlanImage extends Plan {
    protected double pixelMin,pixelMax;// Les min et max des cuts - sans prendre en compte BSACLE et BZERO
    protected boolean isBlank;         // True s'il y a une valeur consideree comme BLANK
    protected double blank;            // La valeur BLANK si elle existe
-   protected double bZero;            // La valeur BZERO si elle existe
-   protected double bScale=1.;        // La valeur BSCALE si elle existe
+   public double bZero;            // La valeur BZERO si elle existe
+   public double bScale=1.;        // La valeur BSCALE si elle existe
 
    // Les caracteristiques du plan Image
    Obj o=null;		   // La source associee a une image archive
@@ -223,13 +225,15 @@ public class PlanImage extends Plan {
     * @param imgNode noeud image décrivant l'image à charger
     */
     protected PlanImage(Aladin aladin, String file,MyInputStream inImg,String label,String from,
-          Obj o,ResourceNode imgNode,boolean skip,Plan forPourcent) {
+          Obj o,ResourceNode imgNode,boolean skip,boolean doClose,Plan forPourcent) {
+       this.doClose=doClose;
        int fmt= FITS;
 //       int res=UNDEF;
        this.imgNode = imgNode;
        flagSkip = skip;
        this.forPourcent = forPourcent;
-       if( forPourcent!=null ) isOldPlan=true;  // Subtilité pour éviter un Calque.bestPlacePost()
+//       if( forPourcent!=null ) isOldPlan=true;  // Subtilité pour éviter un Calque.bestPlacePost()
+       if( forPourcent!=null ) noBestPlacePost=true;
        flagWaitTarget=true;  // voir Command.waitingPlanInProgress
 
        // Recuperation du nom du plan a partir du nom du fichier
@@ -273,21 +277,21 @@ public class PlanImage extends Plan {
     }
     
     /** Creation d'un plan de type IMAGE synchrone à partir d'un fichier */
-    protected PlanImage(Aladin aladin, String fileName)  throws Exception {
-       this.aladin  = aladin;
-       setLogMode(false);
-       type         = IMAGE;
-       dis = new MyInputStream(new FileInputStream(fileName));
-       setLabel(fileName);
-       isBlank      = false;
-       video        = aladin.configuration.getCMVideo();
-       transfertFct = aladin.configuration.getCMFct();
-       typeCM       = aladin.configuration.getCMMap();
-       if( cmControl==null ) cmControl = new int[3];
-       cmControl[0] = 0; cmControl[1] = 128; cmControl[2] = 255;
-       setFmt();
-       waitForPlan();
-    }
+//    protected PlanImage(Aladin aladin, String fileName)  throws Exception {
+//       this.aladin  = aladin;
+//       setLogMode(false);
+//       type         = IMAGE;
+//       dis = new MyInputStream(new FileInputStream(fileName));
+//       setLabel(fileName);
+//       isBlank      = false;
+//       video        = aladin.configuration.getCMVideo();
+//       transfertFct = aladin.configuration.getCMFct();
+//       typeCM       = aladin.configuration.getCMMap();
+//       if( cmControl==null ) cmControl = new int[3];
+//       cmControl[0] = 0; cmControl[1] = 128; cmControl[2] = 255;
+//       setFmt();
+//       waitForPlan();
+//    }
 
     static protected void createChaine(Chaine chaine) {
 //       DEFIMG = chaine.getString("PIDEFIMG");
@@ -369,13 +373,12 @@ public class PlanImage extends Plan {
        this.aladin= aladin;
        type       = IMAGE;
        c          = Color.black;
-       flagOk     = true;
        askActive  = true;
        isOldPlan  = true;       // Pour éviter entre autre de trier la pile lorsque le plan est créé
        cmControl  = new int[3];
        cmControl[0] = 0; cmControl[1]=128; cmControl[2]=255;
        transfertFct = LINEAR;
-       opacityLevel=0.0f;
+       opacityLevel=DEFAULT_OPACITITY;
    }
 
    /** Duplication d'un plan */
@@ -406,7 +409,7 @@ public class PlanImage extends Plan {
       this.fmt     = fmt;
       this.res     = res;
       this.from    = from;
-      this.opacityLevel = 0.0f;
+      this.opacityLevel = DEFAULT_OPACITITY;
       type         = IMAGE;
       setLabel(label);
       c            = Color.black;
@@ -461,26 +464,16 @@ Aladin.trace(3,"Direct pixel file access ["+cacheID+"] pos="+cacheOffset);
        PlanImage p = (PlanImage)p1;
 
        // Attention, on ne duplique que les données 8 bits, les pixels originaux sont partagés
-       if( getBufPixels8()!=null  ) {
-          p.setBufPixels8(new byte[getBufPixels8().length]);
-          System.arraycopy(getBufPixels8(),0,p.getBufPixels8(),0,getBufPixels8().length);
-       } else setBufPixels8(null);
+       try {
+         if( pixels!=null  ) {
+             p.pixels = new byte[pixels.length];
+             System.arraycopy(pixels,0,p.pixels,0,pixels.length);
+          } else p.pixels = null;
+      } catch( Exception e ) { p.pixels = null; }
        p.pixelsOrigin=pixelsOrigin;
-
-       p.cm=cm;
-       p.typeCM=typeCM;
-       System.arraycopy(cmControl,0,p.cmControl,0,3);
-       p.projInit = projInit==null ? null : projInit.copy();
-       p.projd = projd==null ? null : projd.copy();
-       if( p.projD!=null ) {
-          p.projD = new Hashtable(projD.size());
-          Enumeration e = projD.keys();
-          while( e.hasMoreElements() ) {
-             Object key = e.nextElement();
-             Projection x = ((Projection)projD.get(key)).copy();
-             p.projD.put(key, x);
-          }
-       }
+       p.projD = null;
+       p.projd = p.projInit = null;
+       if( projd!=null ) p.setNewProjD(projd.copy());
        p.transfertFct=transfertFct;
        p.headerFits=headerFits;
        p.width=width;
@@ -508,6 +501,12 @@ Aladin.trace(3,"Direct pixel file access ["+cacheID+"] pos="+cacheOffset);
        p.fCache=null;    // Pour forcer la réouverture
        p.cacheOffset = cacheOffset;
        p.cacheFromOriginalFile = cacheFromOriginalFile;
+       p.typeCM=typeCM;
+       System.arraycopy(cmControl,0,p.cmControl,0,3);
+       p.cm = ColorMap.getCM(p.cmControl[0],p.cmControl[1],p.cmControl[2],
+             p.video==PlanImage.VIDEO_INVERSE,
+             p.typeCM, p.transfertFct);
+
    }
 
    /** Cropping de l'image sur la sous-image indiquée en paramètre et demande de réaffichage.
@@ -518,7 +517,6 @@ Aladin.trace(3,"Direct pixel file access ["+cacheID+"] pos="+cacheOffset);
     * @param repaint true pour demander les réaffichages nécessaires
     * @return false si de fait l'image n'a pas été croppée (zoom couvre toute l'image)
     */
-   protected boolean crop(double w, double h,boolean repaint) { return crop( (width-w)/2., (height-h)/2., w, h,repaint); }
    protected boolean crop(double x,double y, double w, double h,boolean repaint) {
 
       // En cas de hors image
@@ -531,10 +529,10 @@ Aladin.trace(3,"Direct pixel file access ["+cacheID+"] pos="+cacheOffset);
       // inutile, le zoom couvre toute l'image
       if( test==4 ) return false;
       
-      int wi = ViewSimple.top(w);
-      int hi = ViewSimple.top(h);
-      int xi = ViewSimple.floor(x);
-      int yi = ViewSimple.floor(y);
+      int wi = (int)Math.ceil(w);
+      int hi = (int)Math.ceil(h);
+      int xi = (int)Math.floor(x);
+      int yi = (int)Math.floor(y);
 
       // Crop des pixels 8 bits
       byte npixels[] = new byte[wi*hi];
@@ -564,10 +562,10 @@ Aladin.trace(3,"Direct pixel file access ["+cacheID+"] pos="+cacheOffset);
 
      double r = 256./(pixelMax - pixelMin);
      try {
-        int wi = ViewSimple.top(w);
-        int hi = ViewSimple.top(h);
-        int xi = ViewSimple.floor(x);
-        int yi = ViewSimple.floor(y);
+        int wi = (int)Math.ceil(w);
+        int hi = (int)Math.ceil(h);
+        int xi = (int)Math.floor(x);
+        int yi = (int)Math.floor(y);
         
         int size = wi*hi;
         setBufPixels8(new byte[size]);
@@ -588,7 +586,7 @@ Aladin.trace(3,"Direct pixel file access ["+cacheID+"] pos="+cacheOffset);
 
            for( int j=0; j<len; j++ ) {
               double c = getPixVal(buf,bitpix,j);
-              if( Double.isNaN(c) || isBlank && c==blank ) { getBufPixels8()[pos++] = 0; continue; }
+              if( Double.isNaN(c) ) { getBufPixels8()[pos++] = 0; continue; }
               getBufPixels8()[pos++] = (byte)( c<=pixelMin?0x00:c>=pixelMax?0xff
                     :(int)( ((c-pixelMin)*r) ) & 0xff);
            }
@@ -614,8 +612,8 @@ Aladin.trace(3,"Direct pixel file access ["+cacheID+"] pos="+cacheOffset);
      if( Projection.isOk(projd) ) projd.crop(x,y,w,h);
 
      // Validation du changement de taille
-     naxis1=width = ViewSimple.top(w);
-     naxis2=height = ViewSimple.top(h);
+     naxis1=width = (int)Math.ceil(w);
+     naxis2=height = (int)Math.ceil(h);
      setHasSpecificCalib();
 
      // Mise à jour des flags de recalcul et de retraçage
@@ -697,6 +695,23 @@ Aladin.trace(3,"Direct pixel file access ["+cacheID+"] pos="+cacheOffset);
       // Cas particulier d'aladin en JPEG
       if( isAladinJpeg() ) url=ServerAladin.change2FITS(url);
       return url;
+   }
+   
+   /** Retourne la couleur de fond du plan */
+   protected Color getBackGroundColor() {
+      if( colorBackground!=null)  return colorBackground;
+      return isPixel() &&active && video==PlanImage.VIDEO_NORMAL ? Color.black : Color.white;
+   }
+   
+   /** retourne la table des couleurs associée à l'image */
+   public ColorModel getCM() { return cm; }
+   
+   /** Restauration de la Colormap par défaut */
+   public void restoreCM() {
+      IndexColorModel  ic = ColorMap.getCM(cmControl[0],cmControl[1],cmControl[2],
+            video==PlanImage.VIDEO_INVERSE,
+            typeCM,transfertFct);
+      setCM(ic);
    }
    
    /** Retourne La taille angulaire du pixel (alpha, delta) en degrées, null si pas possible */
@@ -850,7 +865,15 @@ Aladin.trace(3,"Direct pixel file access ["+cacheID+"] pos="+cacheOffset);
          } catch( Exception e ) {}
          File f = new File(cacheID);
          RandomAccessFile rf = new RandomAccessFile(f,"rw");
-         rf.write(buf);
+         
+         //  Si on écrite d'un coup un trop grop fichier, ça explose la mémoire (pb précédure native !!)
+//         rf.write(buf);
+         int bloc=4*1024*1024;
+         for( int pos=0,len=0; pos<buf.length; pos+=len ) {
+            len = buf.length-pos<bloc ? buf.length-pos : bloc;
+            rf.write(buf,pos,len);
+         }
+
          aladin.setInCache(buf.length);
 Aladin.trace(3,"Original pixels saved in cache ["+cacheID+"]");
          return rf;
@@ -868,7 +891,14 @@ Aladin.trace(3,"Original pixels saved in cache ["+cacheID+"]");
          openCache();
          fCache.seek(cacheOffset);
          pixelsOrigin = new byte[width*height*npix];
-         fCache.readFully(pixelsOrigin);
+         
+         //  Si on lit d'un coup un trop grop fichier, ça explose la mémoire (pb précédure native !!)
+//         fCache.readFully(pixelsOrigin);  
+         int bloc=4*1024*1024;
+         for( int pos=0,len=0; pos<pixelsOrigin.length; pos+=len ) {
+            len = pixelsOrigin.length-pos<bloc ? pixelsOrigin.length-pos : bloc;
+            fCache.readFully(pixelsOrigin,pos,len);
+         }
       } catch( Exception e ) {
          if( Aladin.levelTrace>=3 ) e.printStackTrace();
 Aladin.trace(3,"Original pixels lost ["+cacheID+"]");
@@ -1050,8 +1080,10 @@ Aladin.trace(3,"Original pixels RAM free for "+label);
    protected int oImgID=-2;           // Numéro de l'image pour savoir s'il vaut en générer une nouvelle
 
    /** Return une Image (au sens Java). Mémorise cette image pour éviter de la reconstruire
-    * si ce n'est pas nécessaire */
-   protected Image getImage(ViewSimple v) {
+    * si ce n'est pas nécessaire 
+    * @param now paramètre ignoré, voir PlanBG
+    */
+   protected Image getImage(ViewSimple v,boolean now) {
       if( oImgID==imgID ) return image;
       image = Toolkit.getDefaultToolkit().createImage(
             new MemoryImageSource(width,height,cm, getBufPixels8(), 0, width));
@@ -1065,7 +1097,7 @@ Aladin.trace(3,"Original pixels RAM free for "+label);
    * @param x,y,w,h   Le rectangle de la zone a extraire
    */
    protected void getPixels(byte [] newpixels,int x,int y,int w,int h) {
-      getPixels(newpixels,getBufPixels8(),width,height,x,y,w,h);
+      getPixels(newpixels,pixels,width,height,x,y,w,h);
    }
    protected void getPixels(byte [] newpixels,byte[]pixels,int width,int height,
                             int x,int y,int w,int h) {
@@ -1600,11 +1632,11 @@ Aladin.trace(3,"Second try for opening the stream due to: "+e+"...");
                      // Cas où la calib se trouverait dans un commentaire de l'image JPEG ou PNG
                      if( dis.hasCommentCalib() ) {
                         try {
-                           headerFits=dis.createHeaderFitsFromCommentCalib();
+                           headerFits=dis.createFrameHeaderFitsFromCommentCalib();
                            c = new Calib(headerFits.getHeaderFits());
                         } catch( Exception e ) {
                            dis.jpegCalibAddNAXIS(width,height);   // Peut être une entete partielle à la Sloan
-                           headerFits=dis.createHeaderFitsFromCommentCalib();
+                           headerFits=dis.createFrameHeaderFitsFromCommentCalib();
                            c = new Calib(headerFits.getHeaderFits());
                         }
 if( c!=null ) Aladin.trace(3,"Reading FITS key words from JPEG comment");
@@ -1667,7 +1699,6 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
             setExtName();
             changeImgID();
             aladin.view.setRepere(this);
-            aladin.endMsg();
          }
 
 
@@ -1760,15 +1791,37 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
    // Conversion byte[] en entier 32
    // Recupere sous la forme d'un entier 32bits un nombre entier se trouvant
    // a l'emplacement i du tableau t[]
-   static final protected int getInt(byte[] t,int i) {
-      return (((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF);
-   }
-
+//   static final protected int getInt(byte[] t,int i) {
+//      return (((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF);
+//   }
    // Conversion byte[] en entier 16
    // Recupere sous la forme d'un entier 16bits un nombre entier se trouvant
    // a l'emplacement i du tableau t[]
-   static final protected int getShort(byte[] t,int i) {
-      return  (((t[i])&0xFF)<<8) | (t[i+1])&0xFF;
+//   static final protected int getShort(byte[] t,int i) {
+//      return  (((t[i])&0xFF)<<8) | (t[i+1])&0xFF;
+//   }
+   
+   static final protected int getByte (byte[] t, int i) {
+      return (int)(t[i]&0xFF);
+   }
+   static final protected int getShort(byte[] t, int i) { 
+      return (t[i]<<8) | t[i+1]&0xFF; 
+   }
+   static final protected int getInt(byte[] t, int i) {
+      return ((t[i]<<24) | ((t[i+1]&0xFF)<<16) | ((t[i+2]&0xFF)<<8) | t[i+3]&0xFF);
+   }
+   static final protected long getLong(byte[] t, int i) {
+      return (((long)((t[i]<<24) | ((t[i+1]&0xFF)<<16) | ((t[i+2]&0xFF)<<8) | t[i+3]&0xFF))<<32)
+      | ((((t[i+4]<<24) | ((t[i+5]&0xFF)<<16) | ((t[i+6]&0xFF)<<8) | t[i+7]&0xFF)) & 0xFFFFFFFFL);
+   }
+   static final protected double getFloat(byte[] t, int i) {
+      return Float.intBitsToFloat(((t[i]<<24) | ((t[i+1]&0xFF)<<16) 
+            | ((t[i+2]&0xFF)<<8) | t[i+3]&0xFF));
+   }
+   static final protected double getDouble(byte[] t, int i) {
+      long a = (((long)(((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF))<<32)
+      | (((((t[i+4])<<24) | (((t[i+5])&0xFF)<<16) | (((t[i+6])&0xFF)<<8) | (t[i+7])&0xFF)) & 0xFFFFFFFFL);
+      return Double.longBitsToDouble(a);
    }
 
    /**
@@ -1778,25 +1831,47 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
     * @param i la position du pixel (sans tenir compte de la taille du pixel)
     * @return
     */
-   static final protected double getPixVal(byte[] t,int bitpix,int i) {
+   static final protected double getPixVal1(byte[] t,int bitpix,int i) {
       try {
          switch(bitpix) {
-            case   8: return ((t[i])&0xFF);
-            case  16: i*=2; return ( ((t[i])<<8) | (t[i+1])&0xFF );
-            case  32: i*=4; return (((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF);
-            case  64: i*=8; 
-                      return (((long)(((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF))<<32)
-                             | (((((t[i+4])<<24) | (((t[i+5])&0xFF)<<16) | (((t[i+6])&0xFF)<<8) | (t[i+7])&0xFF)) & 0xFFFFFFFFL);
-            case -32: i*=4; return Float.intBitsToFloat((((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF));
-            case -64: i*=8;
-                      long a = (((long)(((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF))<<32)
-                            | (((((t[i+4])<<24) | (((t[i+5])&0xFF)<<16) | (((t[i+6])&0xFF)<<8) | (t[i+7])&0xFF)) & 0xFFFFFFFFL);
-                       return Double.longBitsToDouble(a);
+            case   8: return getByte(t,i);
+            case  16: return getShort(t,i*2);
+            case  32: return getInt(t,i*4);
+            case  64: return getLong(t,i*8);
+            case -32: return getFloat(t,i*4);
+            case -64: return getDouble(t,i*8);
          }
          return 0.;
       } catch( Exception e ) { return Double.NaN; }
 
    }
+   
+   final protected double getPixVal(byte[] t,int bitpix,int i) {
+      double pix = getPixVal1(t,bitpix,i);
+      if( isBlank && pix==blank ) return Double.NaN;
+      return pix;
+   }
+
+
+//   static final protected double getPixVal(byte[] t,int bitpix,int i) {
+//      try {
+//         switch(bitpix) {
+//            case   8: return ((t[i])&0xFF);
+//            case  16: i*=2; return ( ((t[i])<<8) | (t[i+1])&0xFF );
+//            case  32: i*=4; return (((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF);
+//            case  64: i*=8; 
+//                      return (((long)(((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF))<<32)
+//                             | (((((t[i+4])<<24) | (((t[i+5])&0xFF)<<16) | (((t[i+6])&0xFF)<<8) | (t[i+7])&0xFF)) & 0xFFFFFFFFL);
+//            case -32: i*=4; return Float.intBitsToFloat((((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF));
+//            case -64: i*=8;
+//                      long a = (((long)(((t[i])<<24) | (((t[i+1])&0xFF)<<16) | (((t[i+2])&0xFF)<<8) | (t[i+3])&0xFF))<<32)
+//                            | (((((t[i+4])<<24) | (((t[i+5])&0xFF)<<16) | (((t[i+6])&0xFF)<<8) | (t[i+7])&0xFF)) & 0xFFFFFFFFL);
+//                       return Double.longBitsToDouble(a);
+//         }
+//         return 0.;
+//      } catch( Exception e ) { return Double.NaN; }
+//
+//   }
 
    // Conversion entier 32 en byte dans le tableau t[] à partir de l'emplacement i
    static final protected void setInt(byte[] t,int i,int val) {
@@ -1947,9 +2022,15 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
       int npix = Math.abs(bitpix/8);
 
       // Passage en 8 bits
-      to8bits(pOut,0,pIn,pIn.length/npix,bitpix,isBlank,blank,pixelMin,pixelMax,true);
+      to8bits(pOut,0,pIn,pIn.length/npix,bitpix,/*isBlank,blank,*/pixelMin,pixelMax,true);
       return pOut;
    }
+   
+   protected boolean isBlank(int pixel) { return isBlank && pixel==blank; }
+   protected boolean isBlank(double pixel) { return isBlank && pixel==blank || Double.isNaN(pixel); }
+   
+   /** True si la coordonnée x,y se trouve dans l'image */
+   protected boolean isInside(int x,int y) { return x>=0 && x<naxis1 && y>=0 && y<naxis2; }
 
    /**
     * Détermination du min et max des pixels passés en paramètre
@@ -1968,16 +2049,8 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
       int i,j,k;
       boolean flagCut=(ntest>0 || minCut!=0. && maxCut!=0.);
 
-
-//    Juste pour que le message n'apparaisse que pour les images normales ou le
-//    premier plan d'une cube
-      if( Aladin.levelTrace>=3 && (!(this instanceof PlanImageCube) || autocut) ) {
-         Aladin.trace(3,"findMinMax ("+ntest+"): bitpix="+bitpix+" size=("
-               +width+","+height+") ["+minCut+".."+maxCut+"] transfertFct="+TRANSFERTFCT[transfertFct]+(autocut?" autocut":" no_autocut"));
-      }
-
 //    Recherche du min et du max
-      if( !(this instanceof PlanImageCube) ) setPourcent(75);
+      if( !(this instanceof PlanImageCube) && !(this instanceof PlanImageRGB) ) setPourcent(75);
       double max = 0, max1 = 0;
       double min = 0, min1 = 0;
 
@@ -1985,6 +2058,7 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
 //    enlevant éventuellement un peu de bord
       int MARGEW=(int)(width*0.05);
       int MARGEH=(int)(height*0.05);
+      
 
 //    LES DEUX LIGNES QUI SUIVENT SONT A COMMENTER SI ON VEUT ETRE SUR DE NE PAS LOUPER
 //    DES PARTICULARITES LOCALES SUR LES GROSSES IMAGES.
@@ -2005,7 +2079,7 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
                c = getPixVal(pIn,bitpix,i*width+j);
 
 //             On ecarte les valeurs sans signification
-               if( Double.isNaN(c) || isBlank && c==blank ) continue;
+               if( Double.isNaN(c) ) continue;
 
                if( flagCut ) {
                   if( c<minCut || c>maxCut ) continue;
@@ -2025,25 +2099,26 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
             }
          }
 
-         Aladin.trace(3,"Min/Max detect. on "+(width-2*MARGEW)+"x"+(height-2*MARGEH)+" pix => ["+min+"("+nmin+"x)/"+min1+" .. "+max1+"/"+max+"("+nmax+"x)]");
+//         Aladin.trace(4,"Min/Max detect. on "+(width-2*MARGEW)+"x"+(height-2*MARGEH)+" pix => ["+min+"("+nmin+"x)/"+min1+" .. "+max1+"/"+max+"("+nmax+"x)]");
 
          if( autocut && max-min>256 ) {
             if( min1-min>max1-min1 && min1!=Double.MAX_VALUE && min1!=max ) min=min1;
-            if( max-max1>max1-min1 && max1!=Double.MIN_VALUE && max1!=min  ) max=max1;
+            if( max-max1>max1-min1 && max1!=-Double.MAX_VALUE && max1!=min  ) max=max1;
          }
       }
 
       if( autocut ) {
-         if( !(this instanceof PlanImageCube || this instanceof PlanImageHuge) ) setPourcent(80);
+         if( !(this instanceof PlanImageCube || this instanceof PlanImageHuge || this instanceof PlanImageRGB) ) setPourcent(80);
 
 //       Histogramme
          int nbean = 10000;
          double l = (max-min)/nbean;
-         Aladin.trace(3,"image autocut for: min="+min+" max="+max+" nbean="+nbean+" beansize="+l);
+//         Aladin.trace(3,"image autocut for: min="+min+" max="+max+" nbean="+nbean+" beansize="+l);
          int[] bean = new int[nbean];
          for( i=MARGEH; i<height-MARGEH; i++ ) {
             for( k=MARGEW; k<width-MARGEW; k++) {
                c = getPixVal(pIn,bitpix,i*width+k);
+               if( Double.isNaN(c)) continue;
 
                j = (int)((c-min)/l);
                if( j==bean.length ) j--;
@@ -2059,12 +2134,12 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
 //       Verification que tout s'est bien passe
          if( mmBean[0]==-1 || mmBean[1]==-1 ) {
             min1=dataMinFits; max1=dataMaxFits;
-            Aladin.trace(3,"Image autocut problem => no autocut applied => min="+min1+" max="+max1);
+//            Aladin.trace(3,"Image autocut problem => no autocut applied => min="+min1+" max="+max1);
          } else {
             min1=min;
             max1 = mmBean[1]*l+min1;
             min1 += mmBean[0]*l;
-            Aladin.trace(3,"image autocut("+ntest+"): beanMin="+ mmBean[0]+" beanMax="+mmBean[1]+" => min="+min+" max="+max);
+//            Aladin.trace(3,"image autocut("+ntest+"): beanMin="+ mmBean[0]+" beanMax="+mmBean[1]+" => min="+min+" max="+max);
          }
 
          if( mmBean[0]!=-1 && mmBean[0]>mmBean[1]-5 && ntest<3 ) {
@@ -2076,6 +2151,14 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
 
          min=min1; max=max1;
       }
+      
+//    Juste pour que le message n'apparaisse que pour les images normales ou le
+//    premier plan d'une cube
+      if( Aladin.levelTrace>=4 && (!(this instanceof PlanImageCube) || autocut) ) {
+         Aladin.trace(4,"PlanImage.findMinMax(minCut="+minCut+",maxCut"+maxCut
+               +",autocut="+autocut+",ntest="+ntest+") => min="+min+" max="+max);
+      }
+
 
 //    Memorisation des parametres de l'autocut
       pixelMin=min;
@@ -2093,19 +2176,19 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
     * @param bitpix codage FITS du tableau d'origine
     * @param transfertFct fonction de transfert
     * @param isBlank true si une valeur NULL est définie
-    * @param blank valeur des valeur non définies si isBlank==true
+    * @param blankOrig valeur des valeur non définies si isBlank==true
     * @param min valeur min pour la normalisation (avant application fct de transfert)
     * @param max valeur max pour la normalisation (avant application fct de transfert)
     */
    final protected void to8bits(byte [] pOut, int offsetOut, byte [] pIn, int len, int bitpix,
-         boolean isBlank, double blank, double min, double max,boolean memoMinMax) {
+         /* boolean isBlank, double blank, */ double min, double max,boolean memoMinMax) {
 
       // Simple cut du min et du max, puis extension/reduction sur les 8 bits
       double r = 256./(max - min);
       for( int i = 0; i < len; i++) {
          double c = getPixVal(pIn,bitpix,i);
 
-         if( Double.isNaN(c) || isBlank && c==blank ) { pOut[i+offsetOut] = 0; continue; }
+         if( Double.isNaN(c) ) { pOut[i+offsetOut] = 0; continue; }
 
          // Pour info dans les properties
          if( memoMinMax ) {
@@ -2121,6 +2204,7 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
     * Calcul les pixels de l'imagette pour le ZoomView en prenant le pixel au plus proche
     * C'est très rapide et le rendu visuel est quasi le même que par interpolation
     */
+   protected void calculPixelsZoom() { calculPixelsZoom( getBufPixels8() ); }
    protected void calculPixelsZoom(byte pixels[]) {
       
       // calcul du rapport Largeur/Hauteur de l'image
@@ -2166,21 +2250,17 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
 
    /** Retourne la chaine d'explication du mode de codage des pixels d'origine */
    protected String getPixelCodingInfo(int bitpix) {
-      switch(bitpix) {
-         case 8:   return "(byte - 8bits)";
-         case 16:  return "(short - 16bits)";
-         case 32:  return "(integer - 32bits)";
-         case 64:  return "(integer - 64bits)";
-         case -32: return "(float - 32 bits)";
-         case -64: return "(double - 64 bits)";
-      }
-      return "(pixel coding unknown ["+bitpix+"])";
+      String s = bitpix==-64?"double" : bitpix==-32?"real"
+            :bitpix==64?"long" :bitpix==32?"integer"
+                  :bitpix==16?"short" : bitpix==8?"byte" : "unknown";
+      return s+" (bitpix="+bitpix+")";
    }
 
    /** Retourne la chaine d'explication de la taille et du codage de l'image
     * d'origine */
    protected String getSizeInfo() {
-      return naxis1 + "x" + naxis2 +" pixels "+getPixelCodingInfo(bitpix);
+      return naxis1 + "x" + naxis2 +" / encoding:"+getPixelCodingInfo(bitpix)+" / "
+      + Util.getUnitDisk(naxis1*naxis2*npix);
    }
 
    // Pour pouvoir charger juste un pixel d'origine
@@ -2193,6 +2273,7 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
     */
    protected String getPixelInfo(int x,int y,int mode) {
       if( !flagOk || y<0 || y>=height || x<0 || x>=width ) return "";
+      
       switch(mode) {
           case View.LEVEL:
              return Util.align3(getBufPixels8()[y*width+x] & 0xFF)/*+" / 255"*/;
@@ -2202,12 +2283,20 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
           case View.REAL:
              if( fmt==JPEG ) return UNK;
              if( type!=ALLSKYIMG && pixelsOrigin!=null ) {
-                return Y(getPixVal(pixelsOrigin,bitpix,(height-y-1)*width+x)*bScale+bZero);
+                double val = getPixVal(pixelsOrigin,bitpix,(height-y-1)*width+x)*bScale+bZero;
+                if( aladin.levelTrace<4 ) return Y(val);
+                
+                double infileVal=getPixVal1(pixelsOrigin,bitpix,(height-y-1)*width+x);
+                return Y(val)+(Double.isNaN(infileVal) || val!=infileVal?"("+infileVal+")":"")+(isBlank && infileVal==blank ? " BLANK":"");
              }
              if( !pixelsOriginFromDisk() ) return UNK;
              if( onePixelOrigin==null ) onePixelOrigin = new byte[npix];
              if( !getOnePixelFromCache(onePixelOrigin,npix,x,y) ) return UNK;
-             return Y(getPixVal(onePixelOrigin,bitpix,0)*bScale+bZero);
+             double val = getPixVal(onePixelOrigin,bitpix,0)*bScale+bZero;
+             if( aladin.levelTrace<4 ) return Y(val);
+             
+             double infileVal=getPixVal1(onePixelOrigin,bitpix,0);
+             return Y(val)+(Double.isNaN(infileVal) || val!=infileVal?"("+infileVal+")":"")+(isBlank && infileVal==blank ? " BLANK":"");
       }
       return null;
    }
@@ -2223,11 +2312,11 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
             || fmt==JPEG ) return (getBufPixels8()[(height-y-1)*width+x] & 0xFF);
 
       try {
-         return getPixVal(pixelsOrigin,bitpix,y*width+x)*bScale+bZero;
+         double pix = getPixVal(pixelsOrigin,bitpix,y*width+x);
+         if( Double.isNaN(pix) ) return Double.NaN;
+         return pix*bScale+bZero;
       } catch( Exception e ) { return Double.NaN; }
    }
-
-
    
    /**
     *   [0] => x,
@@ -2309,14 +2398,14 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
    }
    
    /** Retourne le nom de la fonction de transition (asinh, log, sqrt, linear ou sqr) */
-   protected String getTransfertFctInfo() { return TRANSFERTFCT[transfertFct]; }
+   public String getTransfertFctInfo() { return TRANSFERTFCT[transfertFct]; }
 
    /** Retourne les valeurs de pixel qui ont été mémorisées soit dans
     *  l'unité du fichier (INFILE) sinon en niveau d'énergie (REAL) */
-   protected String getDataMinInfo()  { return getSpecialPixel(dataMin); }
-   protected String getDataMaxInfo()  { return getSpecialPixel(dataMax); }
-   protected String getPixelMinInfo() { return getSpecialPixel(pixelMin); }
-   protected String getPixelMaxInfo() { return getSpecialPixel(pixelMax); }
+   public String getDataMinInfo()  { return getSpecialPixel(dataMin); }
+   public String getDataMaxInfo()  { return getSpecialPixel(dataMax); }
+   public String getPixelMinInfo() { return getSpecialPixel(pixelMin); }
+   public String getPixelMaxInfo() { return getSpecialPixel(pixelMax); }
    
    private String getSpecialPixel(double x) {
       if( aladin.view.getPixelMode()==View.INFILE ) return X(x);
@@ -2332,14 +2421,21 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
    /** Retourne la valeur du pixel maximale pour le cut (bcale et bzero ont été déjà appliqué) */
    public double getPixelMax() { return pixelMax*bScale + bZero; }
 
-   /** Retourne la plus petite valeur de pixel dans le fichier (bcale et bzero ont été déjà appliqué) */
-   public double getDataMin() { return dataMin*bScale + bZero; }
-
-   /** Retourne la plus grande valeur de pixel dans le fichier (bcale et bzero ont été déjà appliqué) */
-   public double getDataMax() { return dataMax*bScale + bZero; }
-   
    /** Retourne le bitpix */
    protected int getBitpix() { return bitpix; }
+   
+   /** Retourne la valeur du cut min, sans appliquer le BSCALE et BZERO */
+   public double getCutMin() {return pixelMin; }
+
+   /** Retourne la valeur du cut max, sans appliquer le BSCALE et BZERO */
+   public double getCutMax() {return pixelMax; }
+   
+   /** Retourne la plus petite valeur de pixel dans le fichier, sans appliquer le BSCALE et BZERO */
+   public double getDataMin() { return dataMin; }
+
+   /** Retourne la plus grande valeur de pixel dans le fichier, sans appliquer le BSCALE et BZERO */
+   public double getDataMax() { return dataMax; }
+
 
    /** Retourne sous forme d'une chaine editable
     *  la valeur du pixel dans le mode courant en fonction
@@ -2372,9 +2468,16 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
    }
 
    /** Retourne la valeur 8 bits du pixel indiqué en coordonnées image*/
-   protected int getPixel8(int x,int y) {
-      return (getBufPixels8()[y*width+x] & 0xFF);
+   public int getPixel8(int x,int y) {
+      return (pixels[y*width+x] & 0xFF);
    }
+
+   
+   /** Retourne la valeur 8 bits du pixel indiqué en coordonnées image*/
+   protected byte getPixel8Byte(int x,int y) {
+      return pixels[y*width+x];
+   }
+
 
 /** INUTILE POUR LE MOMENT
    protected double getPixelValue(int x,int y,int mode) {
@@ -2460,7 +2563,7 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
          setInCache(1,pixelsOrigin);
       }
 
-      calculPixelsZoom(getBufPixels8());
+      calculPixelsZoom();
       aladin.calque.zoom.zoomView.repaint();
 
       if( Projection.isOk(projd) )  projd.flip(methode);
@@ -2519,7 +2622,7 @@ Aladin.trace(3,"Creating calibration from hhh additional file");
    // afin d'eviter d'avoir systematiquement recours a l'URL
    // pour toutes les manipulations de cette image
    // On lui associe une table de couleurs (256 niveaux de gris)
-   synchronized protected boolean cacheImageNatif(MyInputStream dis) {
+   protected boolean cacheImageNatif(MyInputStream dis) {
       ImageProducer source=null;
 
       // Pour des stats
@@ -2566,7 +2669,7 @@ Aladin.trace(3," => Autocutting in "+temps+" ms");
       setPourcent(99);
 
       // On calcule l'imagette du zoom
-      calculPixelsZoom(getBufPixels8());
+      calculPixelsZoom();
 
       return true;
    }
@@ -2696,7 +2799,7 @@ Aladin.trace(3," => Waiting for server during "+temps+" ms");
 
                 // Normalisation de la tranche
                 to8bits(getBufPixels8(),offsetLoad/npix,buf,len/npix,bitpix,
-                      isBlank,blank,min,max,false);
+                      /*isBlank,blank,*/min,max,false);
 
                 offsetLoad+=len;
                 setPourcent(offsetLoad*100./taille);
@@ -2752,12 +2855,17 @@ Aladin.trace(3," => Waiting for server during "+temps+" ms");
 Aladin.trace(3," => BLANK value = "+blank);
       } catch( Exception eblank ) { isBlank=false; }
 
-      // Y a-t-il des valeurs BZERO et BSCALE
+      // Y a-t-il un BZERO
       try {
          bZero  =  headerFits.getDoubleFromHeader("BZERO");
+Aladin.trace(3," => BZERO = "+bZero);
+      } catch( Exception ebzero ) { bZero=0.;}
+      
+      // Y a-t-il un BSCALE
+      try {
          bScale =  headerFits.getDoubleFromHeader("BSCALE");
 Aladin.trace(3," => BZERO = "+bZero+" BSCALE = "+bScale);
-      } catch( Exception ebzero ) { bZero=0.; bScale=1.; }
+      } catch( Exception ebscale ) { bScale=1.; }
 
 //      // Y a-t-il des valeurs DATAMIN et DATAMAX
 //      try {
@@ -2846,6 +2954,12 @@ Aladin.trace(2,"Loading FITS image");
          close();
          return false;
       }
+      if (bitpix==0) {
+         error=aladin.error="FITS format error: BITPIX=0 !";
+         Aladin.warning(error,1);
+         close();
+         return false;
+      }
 
       npix = n = Math.abs(bitpix)/8;	// Nombre d'octets par valeur
       taille=width*height*n;	// Nombre d'octets
@@ -2870,7 +2984,7 @@ Aladin.trace(3," => NAXIS1="+width+" NAXIS2="+height+" BITPIX="+bitpix+" => size
       setBufPixels8(new byte[width*height]);
 
       // Lecture HCompress
-      if( headerFits.isHCOMP() ) {
+      if( (dis.getType() & MyInputStream.HCOMP) !=0 ) {
 Aladin.trace(2,"Hdecompressing");
          fmt=HFITS;			// On force le format
          pixelsOrigin=Hdecomp.decomp(dis);
@@ -2878,7 +2992,7 @@ Aladin.trace(2,"Hdecompressing");
 Aladin.trace(3," => Hdecompressing in "+temps+" ms");
          findMinMax(pixelsOrigin,bitpix,width,height,dataMinFits,dataMaxFits,cut,0);
          to8bits(getBufPixels8(),offsetLoad/npix,pixelsOrigin,width*height,bitpix,
-               isBlank,blank,pixelMin,pixelMax,true);
+               /*isBlank,blank,*/pixelMin,pixelMax,true);
 
       // Il s'agit d'une image MEF que l'on ne va pas garder, on se contente de skipper l'image
       } else if( flagSkip ) { dis.skip( taille );
@@ -2910,7 +3024,7 @@ Aladin.trace(3," => Hdecompressing in "+temps+" ms");
 
                // Normalisation de la tranche
                to8bits(getBufPixels8(),offsetLoad/npix,buf,len/npix,bitpix,
-                     isBlank,blank,pixelMin,pixelMax,true);
+                     /*isBlank,blank,*/pixelMin,pixelMax,true);
 
                offsetLoad+=len;
                setPourcent(offsetLoad*99./taille);
@@ -2942,7 +3056,7 @@ Aladin.trace(3," => Hdecompressing in "+temps+" ms");
 
             findMinMax(pixelsOrigin,bitpix,width,height,dataMinFits,dataMaxFits,cut,0);
             to8bits(getBufPixels8(),0,pixelsOrigin,width*height,bitpix,
-                  isBlank,blank,pixelMin,pixelMax,true);
+                  /*isBlank,blank,*/pixelMin,pixelMax,true);
          }
       }
 
@@ -3079,7 +3193,7 @@ Aladin.trace(2,"Loading PDS image");
       
       findMinMax(pixelsOrigin,bitpix,width,height,dataMinFits,dataMaxFits,cut,0);
       to8bits(getBufPixels8(),0,pixelsOrigin,width*height,bitpix,
-            isBlank,blank,pixelMin,pixelMax,true);
+            /*isBlank,blank,*/pixelMin,pixelMax,true);
       
       // Retournement de l'image (les lignes ne sont pas rangees dans le meme ordre
       // en PDS et en JAVA
@@ -3411,10 +3525,8 @@ Aladin.trace(2,"Loading PDS image");
 //   }
 
 
-
-
    /** Dessin de l'image par transformée affine
-    * @param opacity niveau d'opacité forcé, -1 si prendre celui du plan
+    * @param op niveau d'opacité forcé, -1 si prendre celui du plan
     */
    protected void draw(Graphics g,ViewSimple v,int dx, int dy,float op) {
       if( v==null ) return;
@@ -3444,7 +3556,7 @@ Aladin.trace(2,"Loading PDS image");
          }
 
          g2d.setTransform(tr);
-         g2d.drawImage(getImage(v),dx,dy,null);
+         g2d.drawImage(getImage(v,false),dx,dy,aladin);
          g2d.setComposite(saveComposite);
          g2d.setTransform(saveTransform);
 
@@ -3568,7 +3680,9 @@ Aladin.trace(2,"Loading PDS image");
       return (byte) ( red*0.299  + green*0.587 + blue*0.114 );
    }
    
-
+   public void setBitpix(int b) {
+	   bitpix = b;
+   }
 
 }
 

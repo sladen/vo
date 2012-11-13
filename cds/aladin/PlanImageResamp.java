@@ -235,7 +235,7 @@ public class PlanImageResamp extends PlanImage {
 
       Aladin.trace(3,"Resampling achieved...");
       flagProcessing=false;
-      calculPixelsZoom(getBufPixels8());
+      calculPixelsZoom();
       changeImgID();
       aladin.view.repaintAll();
       aladin.calque.zoom.zoomView.repaint();

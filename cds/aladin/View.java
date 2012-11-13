@@ -21,14 +21,11 @@
 package cds.aladin;
 
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.AdjustmentEvent;
-import java.awt.event.AdjustmentListener;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
-import java.net.*;
-import java.io.*;
+import java.awt.event.*;
+import java.awt.image.ColorModel;
+import java.io.DataInputStream;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.*;
 
 import javax.swing.JComponent;
@@ -36,8 +33,9 @@ import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.KeyStroke;
 
-import cds.tools.Util;
+import cds.aladin.prop.Propable;
 import cds.tools.UrlLoader;
+import cds.tools.Util;
 
 /**
  * Gestionnaire des vues. Il s'agit d'afficher les plans actifs (voir
@@ -124,7 +122,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
    Calque calque;
    ZoomView zoomview;
    Status status;
-   
+
    // Différents mode d'affichage de la valeur du pixel
    static final int LEVEL   = 0;
    static final int REAL    = 1;
@@ -230,7 +228,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
       // Création du repère
       createRepere();
-      
+
       // Création des éléments gérant le multiview
       viewMemo = new ViewMemo();
       viewSticked = new ViewMemo();
@@ -350,7 +348,29 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
        }
     }
 
+    /** Active un Rainbow en superpostion de la vue courante
+     * @param cm la table des couleurs à visualiser
+     * @param min la valeur correspondante au 0 de la cm
+     * @param max la valeur correspondante au 255 de la cm
+     */
+    public Rainbow showRainbowFilter(ColorModel cm,double min, double max) {
+       getCurrentView().rainbowF = new Rainbow(aladin,cm,min,max);
+       return getCurrentView().rainbowF;
+    }
 
+    public void showRainbow(boolean active) {
+       ViewSimple v = getCurrentView();
+       if( active && v.rainbow==null ) v.rainbow = new RainbowPixel(aladin,v);
+       else v.rainbow.setVisible(active);
+    }
+
+    public boolean hasRainbow() {
+       return getCurrentView().hasRainbow();
+    }
+
+    public boolean rainbowAvailable() {
+       return getCurrentView().rainbowAvailable();
+    }
 
     // Valeurs des zoom des vues sélectionnées par selectCompatibleViews(), -1 sinon
 //    private ViewMemo cpView = new ViewMemo();
@@ -560,7 +580,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
    protected boolean stopMegaDrag(Object target,int x, int y,boolean ctrlPressed) {
       boolean rep=true;
 
-      aladin.makeCursor(aladin.toolbox,Aladin.DEFAULT);
+      aladin.makeCursor(aladin.toolBox,Aladin.DEFAULT);
       setMyCursor(Aladin.DEFAULT);
 
       // Détermination de la vue de destination
@@ -603,7 +623,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
             return rep;
          }
       }
-         
+
       // Création ou ajout d'un plan catalogue à une vue Plot
       else if( rep && (ctrlPressed && megaDragViewTarget.isFree() || megaDragViewTarget.isPlotView() )
             && megaDragPlanSource!=null && megaDragPlanSource.isSimpleCatalog() ) {
@@ -710,7 +730,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       int x=0, y=0;   // Position de l'évènement par rapport à View
       if( target instanceof Select ) {
          if( origX>=0 ) return -1;  // On est resté dans la pile
-         x = getSize().width + aladin.toolbox.getSize().width +10 + origX;
+         x = getSize().width + aladin.toolBox.getSize().width +10 + origX;
          y = origY;
       } else if( target instanceof ViewSimple ) {
          int currentView = ((ViewSimple)target).isProjSync() ?((ViewSimple)target).n
@@ -865,7 +885,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       for( int j=0; j<src.length; j++ ) {
          Position o = src[j];
 //System.out.println("Source "+o.id);
-         
+
          for( int i=0; i<vca.length; i++ ) {
             ViewSimple v;
             ViewSimple vc=vca[i];
@@ -887,13 +907,18 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
             vc.copyIn(v);
             int width = isMultiView() ? v.rv.width : v.rv.width/3;
-            v.setZoomByRadius(tailleRadius,width);
             v.setCenter(o.raj,o.dej);
+            v.setZoomByRadius(tailleRadius,width);
             if( !(v.pref instanceof PlanBG) ) v.locked= true;
+            else {
+//               v.setZoomXY(v.zoom,-1,-1);
+               // IL FAUT ENCORE Y REFLECHIR
+               System.out.println("zoom="+v.zoom+" v.rzoom="+v.rzoom);
+               v.pref=v.cropAreaBG(v.rzoom,Coord.getSexa(o.raj, o.dej),v.zoom,1,false);
+            }
 
             if( n==-1 ) {
-               n=viewMemo.setAfter(previousScrollGetValue+modeView-1
-                         -getNbStickedView(),v);
+               n=viewMemo.setAfter(previousScrollGetValue+modeView-1 -getNbStickedView(),v);
             }
             if( first==-1 ) first=n;
 
@@ -938,7 +963,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       if( !v.isFree() ) v.pref.selected=true;
       aladin.calque.zoom.reset();
       aladin.calque.select.repaint();
-      if( v.isFree() || aladin.toolbox.tool[ToolBox.SELECT].mode==Tool.UNAVAIL ) aladin.toolbox.toolMode();
+      if( v.isFree() || aladin.toolBox.tool[ToolBox.SELECT].mode==Tool.UNAVAIL ) aladin.toolBox.toolMode();
       if( !v.isFree() && !(v.pref instanceof PlanBG) ) aladin.dialog.setDefaultParameters(aladin.dialog.getCurrent(),4);
       return true;
    }
@@ -959,7 +984,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
     /** Positionne le curseur en fonction de l'outil courant */
     protected void setDefaultCursor() {
-       int tool=aladin.toolbox.getTool();
+       int tool=aladin.toolBox.getTool();
        for( int i=0; i<modeView; i++ ) viewSimple[i].setDefaultCursor(tool,false);
     }
 
@@ -969,7 +994,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
           ViewSimple v = getCurrentView();
           Coord c = v.getCooCentre();
           if( c!=null ) setRepere(c);
-       } catch( Exception e ) { e.printStackTrace(); }
+       } catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
 
     }
 
@@ -1008,11 +1033,8 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
           // Si le repère n'a jamais été initialisé, je vais
           // le faire au centre de la vue
           if( repere.raj==Double.NaN ) {
-             try {
-                Coord c = p.projd.c.getImgCenter();
-                repere.raj=c.al;
-                repere.dej=c.del;
-             } catch( Exception e ) {}
+             try { moveRepere( p.projd.c.getImgCenter() ); }
+             catch( Exception e ) {}
           }
 
           // plan correspondant déjà sélectionné alors rien à faire
@@ -1020,7 +1042,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
           // On sélectionne le plan tout comme il faut
           aladin.calque.setPlanRef(p,currentView);
-          
+
           return;
        }
 
@@ -1051,16 +1073,16 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
        // y a-t-il tout de même un catalogue qui pourrait
        // servir de référence par défaut
        if( j!=-1 ) {
-//System.out.println("Le plan "+plan[j]+" va être choisi comme réf");
+//System.out.println("Le plan "+allPlans[j]+" va être choisi comme réf");
        	 aladin.calque.setPlanRef(allPlans[j]);
        }
-       
+
        currentView=0;
 //System.out.println("Je n'ai rien à prendre comme défaut !");
 //       aladin.calque.zoom.reset();
        aladin.calque.zoom.zoomView.repaint();
     }
-    
+
    /** Sélection des vues dont le plan de référence est sélectionné.
     *  Si la vue courante n'est plus sélectionné, on resélectionnera automatiquement
     *  la première vue qui a le plan p comme référence.
@@ -1130,12 +1152,12 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       return viewMemo.getLastUsed();
    }
 
-   
+
    /** Retourne true s'il y a un fond de ciel actif */
 //   protected boolean hasBackGround() {
 //      return calque.planBG!=null && calque.planBG.active;
 //   }
-   
+
    /** Retourne true s'il y a au-moins une vue stickée (un sauvegarde() doit avoir été
     * opéré au préalable) */
    protected boolean hasStickedView() { return viewSticked.getNbUsed()>0; }
@@ -1211,16 +1233,29 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
    	  // S'il s'agit d'une case contenant un catalogue compatible
    	  // avec la nouvelle image, on remplace
-      if( v!=null && !v.isFree() && p.isImage() && !v.pref.isImage()
+      if( v!=null && !v.isFree() && p.isImage() && v.pref.isCatalog() /* !v.pref.isImage() */
             && (!Projection.isOk(p.projd) || p.projd.agree(v.pref.projd,null)) ) return getCurrentNumView();
 
    	  // Sinon on retourne la prochaine case libre
       int n = getNextNumView();
 
+      // Si ce n'est pas possible, on prend la dernière case qui n'est pas un scatter plot
+      if( n==-1 ) {
+         for( int i=modeView-1; i>=0; i--) if( !viewSimple[i].isPlotView() ) { n=i; break; }
+      }
+
       // Si c'est pas possible, on écrase la dernière case
       if( n==-1 ) return modeView-1;
 
       return n;
+   }
+   
+   /** true s'il y a une vue encore libre */
+   public boolean hasFreeView() {
+      for( int i=0; i<modeView; i++ ) {
+         if( viewSimple[i].isFree() ) return true;
+      }
+      return false;
    }
 
    /** Retourne vrai si on est en mode multivues */
@@ -1296,8 +1331,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       for( int i=0; i<allPlans.length; i++ ) {
          Plan p = allPlans[i];
          p.reallocObjetCache();
-         // thomas, pour affichage FoVs associés --> ne marche pas correctement
-         // TODO : le faire fonctionner !!
+
          if( p instanceof PlanCatalog ) ((PlanCatalog)p).reallocFootprintCache();
       }
       newView(1);
@@ -1305,13 +1339,13 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
    /** Retourne le plan de référence de la vue nview */
    protected Plan getPlanRef(int nview) { return viewSimple[nview].pref; }
-   
+
    /** Positionne le plan de référence de la vue nview */
    protected void setPlanRef(int nview,Plan p) {
       viewSimple[nview].setPlanRef(p,true);
       viewMemo.set(previousScrollGetValue+nview,viewSimple[nview]);
       setCurrentView(viewSimple[nview]);
-      
+
       // Juste pour faire un test
 //      if( p.type==Plan.CATALOG ) viewSimple[nview].addPlotTable(null, p, 0, 1);
    }
@@ -1584,7 +1618,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
        if( taquinP.hasNoReduction() ) {
           taquinP.projd = new Projection("taquin",Projection.SIMPLE,
                 0,0,15,15,taquinP.width/2,taquinP.height/2,
-                taquinP.width,taquinP.height,0,false,Calib.TAN);
+                taquinP.width,taquinP.height,0,false,Calib.TAN,Calib.FK5);
        }
        int niveau=2;
        try { niveau=Integer.parseInt(s); } catch( Exception e) { niveau=3; }
@@ -1651,7 +1685,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
        return aladin.frameNewCalib!=null
        && aladin.frameNewCalib.isShowing()
        && aladin.frameNewCalib.getModeCalib()==FrameNewCalib.QUADRUPLET
-       && aladin.toolbox.getTool()==ToolBox.SELECT;
+       && aladin.toolBox.getTool()==ToolBox.SELECT;
     }
 
     protected boolean syncSimple(Source o) {
@@ -1671,34 +1705,34 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
           aladin.calque.zoom.zoomView.repaint();
        }
        memoUndo(v,c,o);
-       setRepere1(c);
+       moveRepere(c);
        showSource(o,false,false);
        resetBlinkSource();
        return rep;
     }
-    
-    private void resetBlinkSource() {
+
+    protected void resetBlinkSource() {
        for( int i=0; i<modeView; i++ ) viewSimple[i].resetBlinkSource();
     }
-    
+
     /** Synchronisation sur le plan pour la vue courante
      *  @param p le plan à montrer
      */
-     protected void syncPlan(Plan p) { gotoThere(p.co); }
-     
+     protected boolean  syncPlan(Plan p) { return gotoThere(p.co); }
+
      /** Va montrer la position repéree par son identificateur ou sa coordonnée J2000
       * @param target Identificateur valide, ou coordonnées J2000
       * @return true si ok
       */
      public  boolean gotoThere(String target) {
-        try { 
+        try {
            Coord c = sesame(target);
            return gotoThere(c);
         } catch( Exception e ) { }
         return false;
      }
-     
-     /** Va montrer la source 
+
+     /** Va montrer la source
       * @param s la source à montrer
       * @return true si ok
       */
@@ -1708,7 +1742,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
         showSource(s,false,false); // pour blinker la source   CA FAIT TOUT DE MEME UN CALLBACK EN BOULCE AVEC SAMP
         return rep;
      }
-     
+
      /** Va montrer la coordonnée indiquée.
       * @param c la coordonnée en J2000
       * @param zoom le facteur de zoom souhaitée, 0 si on ne le modifie pas
@@ -1757,7 +1791,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
             if( v==vOrig && !(v.pref instanceof PlanBG) ) continue;
             if( !v.shouldMove(c.al,c.del) ) continue;
          }
-         
+
          if( v.pref instanceof PlanBG ) {
             v.getProj().setProjCenter(c.al,c.del);
             v.newView(1);
@@ -1772,14 +1806,14 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       else setRepere(coo);
 
       showSource();  // On force le réaffichage de la source blink en cas de vues bougées
-      
+
       aladin.calque.zoom.newZoom();
       aladin.view.zoomview.repaint();
    }
-     
+
      /** Mémorise la valeur du pixel courante dans chaque ViewSimple pour la coordonnée indiquée
       * afin 'être affichée en surimpression de l'image */
-      protected void setPixel(Coord coo) {
+      protected void setPixelInfo(Coord coo) {
          String s;
          for( int i=0; i<aladin.view.modeView; i++ ) {
             ViewSimple v = aladin.view.viewSimple[i];
@@ -1790,17 +1824,14 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
                if( !Double.isNaN(coo.x) /* && v.isInView(coo.al, coo.del) */) {
                   PointD p = new PointD(coo.x,coo.y);
                   if( v.pref instanceof PlanBG ) s = ((PlanBG)v.pref).getPixelInfo(p.x, p.y,getPixelMode());
-                  else s = ((PlanImage)v.pref).getPixelInfo( floor(p.x), floor(p.y),getPixelMode());
+                  else s = ((PlanImage)v.pref).getPixelInfo( (int)Math.floor(p.x), (int)Math.floor(p.y),getPixelMode());
                   if( s==PlanImage.UNK ) s="";
                }
             }
-            if( v.lastPixel!=null && v.lastPixel.equals(s) ) continue;  // pas de changement
-            v.lastPixel=s;
-            v.quickInfo=true;
-            v.repaint();
+            v.setPixelInfo(s);
          }
       }
-      
+
       /** Retourne le mode courant d'affichage de la valeur du pixel */
       protected int getPixelMode() { return REAL; }
 
@@ -1809,7 +1840,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
     * Le recentrage ne fonctionne que s'il y a calibration */
    protected void flip(PlanImage p,int methode) throws Exception {
       Coord centre[] =null;
-      
+
       if( p.type==Plan.IMAGECUBE || p.type==Plan.ALLSKYIMG ) throw new Exception("Flip not available for this kind of plane");
 
 //      if( !Projection.isOk(p.projd) ) {
@@ -1858,10 +1889,9 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       double size=-1;
       double cSize;
       double nz;
-      
 
       suspendQuickSimbad();
-      
+
       if( vc==null ) vc = getCurrentView();
 
       // Récupération de la taille du pixel de la vue courante afin de déterminer
@@ -1870,7 +1900,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
          size = vc.pref.projd.c.getImgWidth()
                  /vc.pref.projd.c.getImgSize().width;
          if( vc.pref.type==Plan.IMAGEHUGE ) size *= ((PlanImageHuge)vc.pref).getStep();
-      } catch( Exception e) { };
+      } catch( Exception e) {  };
 
       for( int i=0; i<modeView; i++ ) {
          ViewSimple v = viewSimple[i];
@@ -1903,7 +1933,6 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
             }
             flag=v.setZoomRaDec(nz,coo.al,coo.del);
 
-
             // Si impossible d'atteindre la position demandée,
             // on effectue un simple zoom si pas de calibration, sinon on déselectionne
             // la vue
@@ -1916,15 +1945,19 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
          v.repaint();
       }
       if( crop!=null && crop.isVisible() ) coo=null;  // pour éviter le déplacement du repère
-      
+
       // Réaffichages nécessaires
       if( coo==null ) repaintAll();
-      else setRepere1(coo);
+       else moveRepere(coo);
+      
+      aladin.dialog.adjustParameters();
 
       if( zoomRepaint ) {
          aladin.calque.zoom.newZoom();
-         aladin.view.zoomview.repaint();
+//         aladin.view.zoomview.repaint();
+         aladin.calque.repaintAll();
       }
+      
    }
 
    /** Force le recalcul de la grille de coordonnées */
@@ -2000,10 +2033,35 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       return sources;
    }
 
+   private Propable getLastPropableObj() {
+      Obj rep=null;
+      Enumeration<Obj> e = vselobj.elements();
+      while( e.hasMoreElements() ) {
+         Obj obj = e.nextElement();
+         if( obj.hasProp() ) rep=obj;
+      }
+      return rep;
+   }
+   
+   /** Indique s'il y a au-moins à objet sélectionné susceptible d'avoir des propriétés */
+    protected boolean isPropObjet() { return selectFromView && getLastPropableObj()!=null; }
+    
+    protected void propResume() { 
+       if( aladin.frameProp==null ) return;
+       aladin.frameProp.resume(); 
+    }
+    protected void propSelectedObj() {
+       Propable obj = getLastPropableObj();
+       if( obj==null ) return;
+       if( aladin.frameProp==null ) aladin.frameProp = new FrameProp(aladin,obj);
+       else aladin.frameProp.updateAndShow(obj);
+    }
+
   /** Indique s'il y a au-moins une suppression effective a faire
    * @return <I>true</I> s'il y a des objets a supprimer, <I>false</I> sinon
    */
    protected boolean isDelSelObjet() {
+      if( !selectFromView ) return false;
       Enumeration<Obj> e = vselobj.elements();
 
       while( e.hasMoreElements() ) {
@@ -2028,9 +2086,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
    /** Extension des clips de chaque vue pour contenir l'objet o */
    protected void extendClip(Obj o) {
-      if( true ) return;
-      for( int i=0; i<modeView; i++ ) viewSimple[i].extendClip(o);
-//      for( int i=0; i<modeView; i++ ) viewSimple[i].extendClip(o.getClip(viewSimple[i]));
+//      for( int i=0; i<modeView; i++ ) viewSimple[i].extendClip(o);
    }
 
   /** Supprime les objets selectionnes.
@@ -2157,6 +2213,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       }
       vselobj.removeAllElements();
       aladin.mesure.removeAllElements();
+      
       return true;
    }
 
@@ -2259,7 +2316,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       }
       o.setSelect(mode);
    }
-   
+
    /** highlight ou non d'un objet (Source uniquement)
     * (Utilisé par les plugins)
     * @param src la source
@@ -2358,7 +2415,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
       // et affichage
       repaintAll();
-      aladin.toolbox.toolMode();
+      aladin.toolBox.toolMode();
       aladin.mesure.mcanvas.repaint();
       return true;
    }
@@ -2716,7 +2773,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
       //long end = System.currentTimeMillis();
       //System.out.println(end-b);
-      aladin.toolbox.toolMode();
+      aladin.toolBox.toolMode();
       aladin.mesure.mcanvas.repaint();
 
       // Callback adequat pour la liste des sources que les applications cooperatives
@@ -2739,7 +2796,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
    }
 
    /** Modification du texte associé au repère */
-   protected void setRepereId(String s) { 
+   protected void setRepereId(String s) {
       repere.setId("");
 //      repere.setId("Reticle location => "+s);
    }
@@ -2890,10 +2947,10 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
       aladin.calque.unSelectAllPlan();
       setSelect(u.vn);
+
       currentView=-1;   // Pour contourner le test dans setCurrentView()
       setCurrentView(viewSimple[u.vn]);
-      repere.raj=u.ra;
-      repere.dej=u.de;
+      moveRepere(u.ra,u.de);
       if( v.pref instanceof PlanBG ) setRepere(new Coord(u.ra,u.de));
       else v.setZoomXY(u.zoom,u.xzoomView,u.yzoomView);
 
@@ -2902,7 +2959,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       aladin.calque.repaintAll();
       aladin.log("Undo","");
    }
-   
+
    /** Déplacement du repere courant sur la source passée en paramètre et réaffichage
     *  @param coo on utilise les champs ra,dec uniquement
     *  @return true si le repère a pu être bougé au moins une fois
@@ -2918,13 +2975,13 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       }
       return rep;
    }
-   
+
    /** Déplacement du repere courant et réaffichage
     *  @param coo on utilise les champs ra,dec uniquement
     *  @return true si le repère a pu être bougé au moins une fois
     */
    protected boolean setRepere(Coord coo) {
-      setRepere1(coo);
+      moveRepere(coo);
       syncView(1,null,null);
       boolean rep=false;
       for( int i=0; i<modeView; i++ ) {
@@ -2935,16 +2992,35 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
    }
 
    /** Nouvelle position du repere courant (sans réaffichage) */
-   protected void setRepere1(Coord coo) {
-      repere.raj=coo.al;
-      repere.dej=coo.del;
-//      aladin.sendObserver();
+   protected void moveRepere(Coord coo) { moveRepere(coo.al,coo.del); }
+   protected void moveRepere(double ra, double dec) {
+      repere.raj=ra;
+      repere.dej=dec;
+      
+      // TEST : mise à jour des champs des formulaires de saisie en fonction de la position du repère
+//      aladin.dialog.adjustParameters();
    }
-   
+
+
    /** Indique que les vues doivent être tracées le plus vite possible */
    protected boolean mustDrawFast() {
       ViewSimple v = getCurrentView();
+//      System.out.println("mustDrawFast: v.flagScrolling="+v.flagScrolling+" zoomView.flagdrag="+aladin.calque.zoom.zoomView.flagdrag);
       return v.flagScrolling || aladin.calque.zoom.zoomView.flagdrag;
+   }
+
+   private long lastRepaint=0;
+
+   /** Positionne la date du dernier repaint */
+   protected void setPaintTimer() {
+      lastRepaint = Util.getTime();
+   }
+
+   /** Indique qu'il est possible de prendre son temps pour tracer */
+   protected boolean canDrawAll() {
+      if( mustDrawFast() ) return false;
+      long lastDelai = Util.getTime() - lastRepaint;
+      return lastDelai > 500;
    }
 
   /** Action sur le ENTER dans la boite de localisation */
@@ -2958,29 +3034,126 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
          coord = aladin.localisation.getICRSCoord(coord);
 
          if( notCoord(coord) ) {
-            setSesameInProgress(true);
+            
+            // resolution synchrone
             if( flagNow ) {
-               _saisie=saisie;
-               result=runB();
+               result=(new SesameThread(saisie,null)).resolveSourceName();
+               
+            // resolution a-synchrone
             } else {
-               waitLockSesame();
-               _saisie=saisie;
-               _flagSesameResolve=true;
-               Thread t = new Thread(this,"AladinSesame");
-               Util.decreasePriority(Thread.currentThread(), t);
-//               t.setPriority( Thread.NORM_PRIORITY -1);
-               t.start();
+               String sesameSyncID = sesameSynchro.start("sesame/"+coord,5000);
+               SesameThread sesameThread = new  SesameThread(saisie, sesameSyncID);
+               Util.decreasePriority(Thread.currentThread(), sesameThread);
+               sesameThread.start();
                return null;
             }
          }
+
+//         if( notCoord(coord) ) {
+//            if( flagNow ) {
+//               _saisie=saisie;
+//               result=runB();
+//            } else {
+//               _sesameTaskId = sesameSynchro.start("sesame/"+coord,5000);
+//               waitLockSesame();
+//               _saisie=saisie;
+//               _flagSesameResolve=true;
+//               Thread t = new Thread(this,"AladinSesame");
+//               Util.decreasePriority(Thread.currentThread(), t);
+//               t.start();
+//               return null;
+//            }
+//         }
          if( result ) setRepereByString();
       }
       return result ? saisie : null;
    }
+   
+   /** Thread de résolution Sésame */
+   class SesameThread extends Thread {
+      private Plan planObj=null;
+      private String sourceName=null; 
+      private String sesameTaskId;
+      
+      /** Constructeur pour une résolution par nom de source
+       * @param sourceName Nom de la source à résoudre
+       * @param sesameTaskId ID du gestionnaire de task (voir synchroSesame)
+       */
+      SesameThread(String sourceName,String sesameTaskId){
+         super("AladinSesameSourceName");
+         this.sourceName=sourceName;
+         this.sesameTaskId=sesameTaskId;
+      }
+      
+      /** Constructeur pour une résolution d'un nom d'objet attaché à un plan
+       * @param plan pour lequel il faut résoudre le nom d'objet
+       * @param sesameTaskId ID du gestionnaire de task (voir synchroSesame)
+       */
+      SesameThread(Plan plan,String sesameTaskId){
+         super("AladinSesamePlan");
+         this.planObj=plan;
+         this.sesameTaskId=sesameTaskId;
+      }
+      
+      public void run() { 
+         if( sourceName!=null ) resolveSourceName(); 
+         else if( planObj!=null ) resolvePlan();
+         else System.out.println("SesameThread error, no plane, no planObj !");
+      }
+      
+      /** Résolution Sésame de l'objet central du plan passé au constructeur du Thread (Sésame) */
+      void resolvePlan() {
+         try {
+            Coord c=null;
+            try { c = sesame(planObj.objet); }
+            catch( Exception e) { System.err.println(e.getMessage()); }
+            if( c!=null ) {
+               planObj.co=c;
+               suiteSetRepere(planObj.co);
+               repaintAll();
+            }
+         } finally{ sesameSynchro.stop(sesameTaskId); }
+      }
+      
+      /** résolution Sésame d'une source passée au constructeur du Thread (sourceName) */
+      boolean resolveSourceName() {
+         try {
+            boolean rep=true;
+            aladin.localisation.setTextSaisie(sourceName+" ...resolving...");
+
+            Coord c=null;
+            try { c = sesame(sourceName); }
+            catch( Exception e) {
+               if( Aladin.levelTrace>=3 ) e.printStackTrace();
+               System.err.println(e.getMessage());
+            }
+            if( c==null ) {
+               if( sourceName.length()>0 ) aladin.command.printConsole("!!! Command or object identifier unknown ("+sourceName+") !");
+               saisie=sourceName;
+               rep=false;
+            } else {
+               saisie=aladin.localisation.J2000ToString(c.al,c.del);
+               aladin.console.setInPad(sourceName+" => ("+aladin.localisation.getFrameName()+") "+saisie+"\n");
+               if( !setRepereByString() && !aladin.NOGUI ) {
+                  Vector<Plan> v = aladin.calque.getPlanBG();
+                  if( v!=null && v.size()>0 ) {
+                     for( Plan p : v ) p.startCheckBoxBlink();
+                     aladin.calque.select.setLastMessage(aladin.getChaine().getString("TARGETNOTVISIBLE"));
+                     aladin.calque.select.repaint();
+                  }
+               }
+            }
+            if( isFree() ) aladin.command.syncNeedRepaint=false;  // patch nécessaire dans le cas où la pile est vide - sinon blocage
+            aladin.localisation.setSesameResult(saisie);
+            return rep;
+         } finally { sesameSynchro.stop(sesameTaskId); }
+      }
+   }
 
 
-   private String _saisie;
-   private Plan _planWaitSimbad=null;
+//   private String _sesameTaskId=null;
+//   private String _saisie;
+//   private Plan _planWaitSimbad=null;
    static Coord oco=null;
    static String oobjet=null;
 
@@ -2993,37 +3166,42 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
          return true;
       }
 
-      // Lancement du Thread de resolution Simbad pour le plan indique
-      setSesameInProgress(true);
-      waitLockSesame();
-      _planWaitSimbad = p;
-      Thread sr = new Thread(this,"AladinSesameBis");
-      Util.decreasePriority(Thread.currentThread(), sr);
-//      sr.setPriority( Thread.NORM_PRIORITY -1);
-      sr.start();
+      String sesameTaskId = sesameSynchro.start("sesameResolveForPlan/"+p);
+      SesameThread sesameThread = new SesameThread(p, sesameTaskId);
+      Util.decreasePriority(Thread.currentThread(), sesameThread);
+      sesameThread.start();
+      
+//      // Lancement du Thread de resolution Simbad pour le plan indique
+////      setSesameInProgress(true);
+//      waitLockSesame();
+//      _planWaitSimbad = p;
+//      _sesameTaskId = sesameSynchro.start("sesameResolveForPlan/"+p);
+//      Thread sr = new Thread(this,"AladinSesameBis");
+//      Util.decreasePriority(Thread.currentThread(), sr);
+////      sr.setPriority( Thread.NORM_PRIORITY -1);
+//      sr.start();
       return false;
    }
 
-   private boolean lock=false;
-
-   /** Attente sur le lock pour passage de paramètre à Sesame */
-   private void waitLockSesame() {
-      while( !getLockSesame() ) { 
-         Util.pause(10);
-         System.out.println("View.waitlock...");
-      }
+//   private boolean lock=false;
+//
+//   /** Attente sur le lock pour passage de paramètre à Sesame */
+//   private void waitLockSesame() {
+//      while( !getLockSesame() ) {
+//         Util.pause(10);
+//         System.out.println("View.waitlockSesame...");
+//      }
+//   }
+//
+//   /** Tentative de récupération du lock */
+//   synchronized private boolean getLockSesame() {
+//      if( lock ) return false;
 //      lock=true;
-   }
-
-   /** Tentative de récupération du lock */
-   synchronized private boolean getLockSesame() {
-      if( lock ) return false;
-      lock=true;
-      return true;
-   }
-
-   /** Libération du lock */
-   synchronized private void unlockSesame() { lock=false; }
+//      return true;
+//   }
+//
+//   /** Libération du lock */
+//   synchronized private void unlockSesame() { lock=false; }
 
 
    /**
@@ -3052,33 +3230,39 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
     * Si la vue courante dispose d'une astrométrie, les coordonnées ra,dec
     * sont calculées en fonction, sinon elles sont laissées à 0
     */
-   private Coord coordXY(String s) throws Exception {
+   private Coord coordXY(String s) throws Exception { return coordXY1(s,true); }
+   private Coord coordXYNat(String s) throws Exception {return coordXY1(s,false); }
+   private Coord coordXY1(String s,boolean modeFits) throws Exception {
       StringTokenizer st = new StringTokenizer(s," :,");
       Coord c = new Coord();
-      c.x = Double.parseDouble( st.nextToken() )-0.5;
-      c.y = Double.parseDouble( st.nextToken() )-0.5;
+      c.x = Double.parseDouble( st.nextToken() )- (modeFits?0.5:0);
+      c.y = Double.parseDouble( st.nextToken() )- (modeFits?0.5:0);
       ViewSimple v = getCurrentView();
-      if( v.pref.isImage() ) c.y = ((PlanImage)v.pref).naxis2 - c.y;
+      if( v.pref.isImage() && modeFits ) c.y = ((PlanImage)v.pref).naxis2 - c.y;
       if( Projection.isOk(v.pref.projd) ) {
          v.pref.projd.getCoord(c);
       }
 
-      if( Aladin.levelTrace>=3 ) {
-         System.out.println("["+s+"] calibration : "+v.pref.projd.getName());
-         System.out.println("   XY=>RADEC : c.x="+c.x+" c.y="+c.y+" => "+Coord.getSexa(c.al,c.del)+" ("+c.al+","+c.del+")");
-         double x1=c.x,y1=c.y;
-         v.pref.projd.getXY(c);
-         System.out.println("   RADEC=>XY : "+Coord.getSexa(c.al,c.del)+" ("+c.al+","+c.del+") => c.x="+c.x+" c.y="+c.y);
-         System.out.println("   décalage en X="+(c.x-x1)+" en Y="+(c.y-y1));
-      }
+//      if( Aladin.levelTrace>=3 ) {
+//         System.out.println("["+s+"] calibration : "+v.pref.projd.getName());
+//         System.out.println("   XY=>RADEC : c.x="+c.x+" c.y="+c.y+" => "+Coord.getSexa(c.al,c.del)+" ("+c.al+","+c.del+")");
+//         double x1=c.x,y1=c.y;
+//         v.pref.projd.getXY(c);
+//         System.out.println("   RADEC=>XY : "+Coord.getSexa(c.al,c.del)+" ("+c.al+","+c.del+") => c.x="+c.x+" c.y="+c.y);
+//         System.out.println("   décalage en X="+(c.x-x1)+" en Y="+(c.y-y1));
+//      }
       return c;
    }
 
   /** Positionnement du repere en fonction des coordonnees de la chaine "saisie" */
-   protected void setRepereByString() {
+   protected boolean setRepereByString() {
+      boolean rep=false;
       try {
          Coord c=null;
          switch( aladin.localisation.getFrame() ) {
+            case Localisation.XYNAT:
+               c = coordXYNat(saisie);
+               break;
             case Localisation.XY:
                c = coordXY(saisie);
                break;
@@ -3088,13 +3272,14 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
             default:
                c = new Coord(aladin.localisation.getICRSCoord(saisie));
          }
-         setRepere(c);
+         rep = setRepere(c);
          aladin.sendObserver();
       } catch( Exception e) {
          aladin.warning("New reticle position error ("+saisie+")",1);
          if( aladin.levelTrace>=3 ) System.err.println(e.getMessage());
       }
       nextSaisie=true;
+      return rep;
    }
 
 
@@ -3128,9 +3313,9 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
     */
    public void run() {
 //System.out.println("run: flagBlink="+flagBlink);
-         if( _flagSesameResolve ) { _flagSesameResolve=false; runB(); }
-         else if( _flagTimer ) runC();
-         else if( _planWaitSimbad!=null ) runA();
+         /* if( _flagSesameResolve ) { _flagSesameResolve=false; runB(); }
+         else */ if( _flagTimer ) runC();
+//         else if( _planWaitSimbad!=null ) runA();
    }
 
    /** Zoom sur la source passée en paramètre */
@@ -3150,7 +3335,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
    protected void showSource() { if( lastShowSource!=null ) showSource(lastShowSource,true,false); }
    protected void showSource(Source o) { showSource(o,false,true); }
 
-   private void showSource(Source o,boolean force,boolean callback) {
+   protected void showSource(Source o,boolean force,boolean callback) {
       if( !force && lastShowSource==o ) return;   // déjà fait
       lastShowSource=o;
 
@@ -3170,7 +3355,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
        // Test si cette source provient d'une application cooperative
        // type VOPlot, et si oui, fait le callBack adequat
        if( callback && aladin.hasExtApp() ) {
-          String oid = o==null ? null : ((Source)o).getOID();
+          String oid = o==null ? null : (o).getOID();
           aladin.callbackShowVOApp(oid);
        }
 
@@ -3219,7 +3404,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 //System.out.println("stopTimer");
       setFlagTimer(false);
    }
-   
+
    /** Retourne true si on est en train d'éditer un tag/label */
    private boolean isTagEditing() {
       return newobj instanceof Tag && ((Tag)newobj).isEditing();
@@ -3330,9 +3515,13 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 //System.out.println("stop blink thread");
    }
 
-   private int sesameInProgress=0;  // Nombre de sésames en attente de résolution
-   synchronized protected boolean isSesameInProgress() { return sesameInProgress>0; }
-   synchronized private void setSesameInProgress(boolean flag) { if( flag ) sesameInProgress++; else sesameInProgress--; }
+//   private int sesameInProgress=0;  // Nombre de sésames en attente de résolution
+//   synchronized protected boolean isSesameInProgress() { return sesameInProgress>0; }
+//   synchronized private void setSesameInProgress(boolean flag) { if( flag ) sesameInProgress++; else sesameInProgress--; }
+   
+   // Synchro sur les résolutions de sésame
+   protected Synchro sesameSynchro = new Synchro(10000);
+   protected boolean isSesameInProgress() { return !sesameSynchro.isReady(); }
 
   /** Resolution Sesame a proprement parle
    * @param objet le nom d'objet
@@ -3350,7 +3539,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
       try {
          url = aladin.glu.getURL("Sesame",URLEncoder.encode(objet),true);
-         
+
          UrlLoader urlLoader = new UrlLoader(url,5000);
          String res = urlLoader.getData();
          StringTokenizer st = new StringTokenizer(res,"\n");
@@ -3366,7 +3555,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
                return oco;
             }
          }
-         
+
 //         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 //         conn.setConnectTimeout(3000);
 //         InputStream is = conn.getInputStream();
@@ -3390,57 +3579,64 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       }
       return oco;
    }
-   
 
-  /** Resolution Sesame par Thread independant pour un plan */
-   void runA() {
-      Plan planWaitSimbad = _planWaitSimbad;
-      unlockSesame();
-      Coord c=null;
-      try { c = sesame(planWaitSimbad.objet); }
-      catch( Exception e) { System.err.println(e.getMessage()); }
-      if( c!=null ) {
-         planWaitSimbad.co=c;
-         suiteSetRepere(planWaitSimbad.co);
-         repaintAll();
-      }
-      setSesameInProgress(false);
-   }
 
-   /** Resolution Sesame par Thread independant pour un objet particulier */
-   public boolean runB() {
-      String memo=_saisie;
-      unlockSesame();
-      boolean rep=true;
+//  /** Resolution Sesame par Thread independant pour un plan */
+//   void runA() {
+//      Plan planWaitSimbad = _planWaitSimbad;
+//      String sesameTaskId = _sesameTaskId;
+//      unlockSesame();
+//      try {
+//         Coord c=null;
+//         try { c = sesame(planWaitSimbad.objet); }
+//         catch( Exception e) { System.err.println(e.getMessage()); }
+//         if( c!=null ) {
+//            planWaitSimbad.co=c;
+//            suiteSetRepere(planWaitSimbad.co);
+//            repaintAll();
+//         }
+////         setSesameInProgress(false);
+//      }finally{ sesameSynchro.stop(sesameTaskId); }
+//   }
 
-      saisie=memo+" ...resolving...";
-      aladin.localisation.setTextSaisie(saisie);
-
-      Coord c=null;
-      try { c = sesame(memo); }
-      catch( Exception e) {
-         if( Aladin.levelTrace>=3 ) e.printStackTrace();
-         System.err.println(e.getMessage());
-      }
-      if( c==null ) {
-         if( memo.length()>0 ) aladin.command.toStdoutAndConsole("!!! Command or object identifier unknown ("+memo+") !");
-         saisie=memo;
-         rep=false;
-      } else {
-         saisie=aladin.localisation.J2000ToString(c.al,c.del);
-//         aladin.command.toStdoutAndConsole("\""+memo+"\" resolved as "+saisie+"\n");
-         aladin.console.setInPad(memo+" => ("+aladin.localisation.getFrameName()+") "+saisie+"\n");
-         setRepereByString();
-      }
-      aladin.localisation.setSesameResult(saisie);
-      setSesameInProgress(false);
-      return rep;
-   }
+//   /** Resolution Sesame par Thread independant pour un objet particulier */
+//   public boolean runB() {
+//      String memo=_saisie;
+//      String sesameTaskId=_sesameTaskId;
+//      unlockSesame();
+//      try {
+//         boolean rep=true;
+//
+//         saisie=memo+" ...resolving...";
+//         aladin.localisation.setTextSaisie(saisie);
+//
+//         Coord c=null;
+//         try { c = sesame(memo); }
+//         catch( Exception e) {
+//            if( Aladin.levelTrace>=3 ) e.printStackTrace();
+//            System.err.println(e.getMessage());
+//         }
+//         if( c==null ) {
+//            if( memo.length()>0 ) aladin.command.printConsole("!!! Command or object identifier unknown ("+memo+") !");
+//            saisie=memo;
+//            rep=false;
+//         } else {
+//            saisie=aladin.localisation.J2000ToString(c.al,c.del);
+////          aladin.command.toStdoutAndConsole("\""+memo+"\" resolved as "+saisie+"\n");
+//            aladin.console.setInPad(memo+" => ("+aladin.localisation.getFrameName()+") "+saisie+"\n");
+//            setRepereByString();
+//         }
+//         if( isFree() ) aladin.command.syncNeedRepaint=false;  // patch nécessaire dans le cas où la pile est vide - sinon blocage
+//         aladin.localisation.setSesameResult(saisie);
+////       setSesameInProgress(false);
+//         return rep;
+//      } finally { sesameSynchro.stop(sesameTaskId); }
+//   }
 
    protected Repere simRep = null;
    private long startQuickSimbad=0L;
    private double ox=0, oy=0;		// Pour vérifier qu'on déplace suffisemment
-   
+
    /** Ouverture de la page simbad pour l'objet indiqué par le repere SimRep */
    protected void showSimRep() {
 //      System.out.println("showSimRep pour "+simRep.id);
@@ -3453,7 +3649,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
 
    /** Arrêt de la procédure Quick Simbad */
    synchronized protected void suspendQuickSimbad(){ startQuickSimbad=0L; simRep=null; }
-   
+
    static final int TAILLEARROW = 15;
 
    /** (Re)démarrage du compteur en attendant une requête quickSimbad */
@@ -3462,7 +3658,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       if( !Projection.isOk(v.pref.projd) /* || v.getTaille()>1 */ ) return;
       if( Math.abs(ox-v.lastMove.x)<TAILLEARROW/v.zoom && Math.abs(oy-v.lastMove.y)<TAILLEARROW/v.zoom ) return;
       if( simRep!=null && simRep.inLabel(v, v.lastView.x, v.lastView.y) ) return;
-      
+
       startQuickSimbad = System.currentTimeMillis();
       if( simRep!=null ) {
          extendClip(simRep);
@@ -3471,14 +3667,14 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       }
       startTimer();
    }
-   
+
    /** Resolution d'une requête quickSimbad sur la position courante
     * afin de récupérer les informations de base sur l'objet sous
     * la souris */
    protected void quickSimbad() {
       ViewSimple v = getMouseView();
       Coord coo = new Coord();
-      if( v==null || v.pref==null 
+      if( v==null || v.pref==null
             || v.pref.projd==null
             || v.lastMove==null ) return;
 
@@ -3490,7 +3686,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       v.getProj().getCoord(coo);
       if( Double.isNaN(coo.al) ) return;
       String target = coo.getSexa(":");
-      
+
       // Quelle est le rayon de l'interrogation (15 pixels écran au dessus) Max 1°
       double d = coo.del;
       PointD p = v.getViewCoordDble(coo.x, coo.y);
@@ -3499,7 +3695,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       v.getProj().getCoord(coo);
       double radius = Util.round(Math.abs(coo.del-d),7);
 //      if( radius>1 ) radius=1;
-      
+
       try {
          aladin.status.setText("Querying Simbad...");
          URL url = aladin.glu.getURL("SimbadQuick","\""+target+"\" "+radius,false);
@@ -3564,7 +3760,6 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
    /** Dans le cas où il existe déjà une vue du plan mais non visible
     *  on va la rendre visible  */
    protected boolean tryToShow(Plan p) {
-      
       int debut=previousScrollGetValue;
       int fin = debut+modeView;
 
@@ -3616,7 +3811,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       for( int i=0; i<n; i++ ) if( viewSimple[i].sticked ) nbStick++;
       return nbStick;
    }
-
+   
    /**
     * Positionne le nombre de vues visiblement simultanément.
     * @param m nombre de vues (ViewControl.MVIEW1, MVIEW4, MVIEW9, VIEW16)
@@ -3624,13 +3819,12 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
    protected void setModeView(int m) {
       if( aladin.viewControl.modeView!=m ) aladin.viewControl.setModeView(m);
       if( modeView==m ) return;
-
+      
       // Peut être faut-il générer quelques vues ??
       // AVEC LES TRASNPARENCE DES IMAGES, JE TROUVE QUE CA COMPLIQUE PLUS QUE CA NE SIMPLIFIE
 //      autoSimpleViewGenerator();
-
       Point pos=null;
-
+      
       // Sauvegarde des vues de la configuration d'affichage actuelle
       sauvegarde();
 
@@ -3697,13 +3891,6 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
          if( viewSimple[j].sticked ) continue;
          rechargeFromMemo(i++,j);
        }
-      
-      // Dans le cas d'un fond de ciel actif
-//      if( hasBackGround() ) {
-//         for( int i=0; i<m; i++ ) {
-//            if( viewSimple[i].isFree() ) viewSimple[i].setPlanRef(aladin.calque.planBG, false);
-//         }
-//      }
 
       previousScrollGetValue=pos.x;
       setCurrentNumView(pos.y);
@@ -3738,7 +3925,7 @@ public final class View extends JPanel implements Runnable,AdjustmentListener {
       if( prefix==null || prefix.trim().length()==0 ) prefix="ROI";
       ViewSimple v = new ViewSimple(aladin,aladin.view,0,0,0);
       sauvegarde();	// pour être sûr que tout est dans viewMemo
-      Save save = (Save)( aladin.save!=null ? aladin.save : new Save(aladin) );
+      Save save = ( aladin.save!=null ? aladin.save : new Save(aladin) );
 
 Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
                        "Saving locked views in "+(fmt==Save.BMP?"BMP":"JPEG")+" "+w+"x"+h)
@@ -3756,8 +3943,8 @@ Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
          v.pref.copy(p);
          v.pref = p;
 
-         ((PlanImage)v.pref).crop(floor(v.rzoom.x),floor(v.rzoom.y),
-               top(v.rzoom.width),top(v.rzoom.height),false);
+         ((PlanImage)v.pref).crop((int)Math.floor(v.rzoom.x),(int)Math.floor(v.rzoom.y),
+               (int)Math.ceil(v.rzoom.width),(int)Math.ceil(v.rzoom.height),false);
          m++;
          String name = prefix+Util.align3(m);
          if( mode==0 ) save.saveImage(name+".fits",v.pref,0);
@@ -3934,7 +4121,7 @@ Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
    protected void scrollOn(int n,int current,int mode) {
       scrollV.setValue(n/aladin.viewControl.getNbCol(modeView));
       if( mode!=1 ) sauvegarde();
-//System.out.println("Je recharge "+modeView+" vues à partir de "+n);
+//System.out.println("Je recharge "+modeView+" vues à partir de "+n+" current="+current);
 
       // D'abord les vues stickées
       int nbStick=0;
@@ -3963,7 +4150,7 @@ Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
       try { return scrollV.getValue()*aladin.viewControl.getNbCol(modeView); }
       catch( Exception e ) { return 1; }
    }
-   
+
    public JPanel getPlotControlPanelForPlan(Plan plan) {
       JPanel p1 = null;
       int n=0;
@@ -3981,7 +4168,7 @@ Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
       JPanel p = new JPanel();
       p.add(tab);
       return p;
-      
+
    }
 
    /** Niveau d'opacité des FoV des plans*/
@@ -4050,7 +4237,10 @@ Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
     * de chaque vue. Cela dit, c'est le seul moyen que j'ai trouvé qui semble
     * fonctionner correctement.
     */
-   public void repaintAll()      { repaintAll1(0); }
+   public void repaintAll()      {
+      propResume();
+      repaintAll1(0);
+   }
    public void updateAll()       {
       if( aladin.isFullScreen() ) { aladin.fullScreen.repaint(); return; }
       repaintAll1(2);
@@ -4065,7 +4255,7 @@ Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
     * @param mode 0 repaintAll, 1 - quickRepaintAll, 2- updateAll
     */
    private void repaintAll1(int mode) {
-      
+
       if( aladin.NOGUI ) mode=1;        // Pour forcer le réaffichage car sinon pas d'appel à ViewSimple.paintComponent()
 
       // On réaffiche 2-3 petits trucs
@@ -4074,6 +4264,7 @@ Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
          aladin.grid.repaint();
          aladin.sync.repaint();
          aladin.northup.repaint();
+         aladin.oeil.repaint();
 
          // Ajustement de la configuration d'affichage en fonction de la position
          // de la scrollbar verticale si elle a changé.
@@ -4082,12 +4273,18 @@ Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
          // Insertion ou suppression de la scrollbar verticale
          boolean hideScroll = getLastUsedView()< modeView && !hasStickedView();
          if( scrollV.isShowing() && hideScroll  ) { remove(scrollV); validate(); }
-         else if( !scrollV.isShowing() && !hideScroll  ) { add(scrollV,"East"); validate(); }
+         else if( !scrollV.isShowing() && !hideScroll  ) { add(scrollV,Aladin.NEWLOOK_V7 ? "West" : "East"); validate(); }
 //System.out.println("getLastUsedView="+getLastUsedView()+" hasSticked="+hasStickedView()+" => hideScroll="+hideScroll);
 
+         
          // Repaint avec Scroll
          if( n!=previousScrollGetValue ) {
-            scrollOn(n,getCurrentNumView() - (n-previousScrollGetValue),0);
+            int newCurrent = getCurrentNumView() - (n-previousScrollGetValue);
+            if( newCurrent<0 ) {
+               if( aladin.levelTrace>3 ) System.err.println("View.repaintAll1(): There is a problem with the scroll value ("+newCurrent+") => I assume 0 !");
+               newCurrent=1; 
+            }
+            scrollOn(n,newCurrent,0);
 
             // Simple repaint
          } else {
@@ -4107,14 +4304,9 @@ Aladin.trace(1,(mode==0?"Exporting locked images in FITS":
          aladin.calque.freeUnusedPixelsOrigin();
 
          // Ajustement de la taille du scrollV
-         scrollV.setMaximum((int)(viewMemo.size()/aladin.viewControl.getNbCol(modeView)));
+         scrollV.setMaximum((viewMemo.size()/aladin.viewControl.getNbCol(modeView)));
       } catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
    }
-
-   // Arrondi plus facile à écrire que (int)Math.round()
-   static protected int round(double x) { return (int)(x+0.5); }
-   static protected int floor(double x) { return (int)x; }
-   static protected int top(double x) { return (int)x==x ? (int)x : (int)(x+1); }
 
    public void adjustmentValueChanged(AdjustmentEvent e) {
       repaintAll();

@@ -23,11 +23,7 @@ package cds.aladin;
 import cds.tools.Util;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.*;
-
-import com.sun.media.sound.Toolkit;
 
 /**
  * Gestion d'un plan image Blink
@@ -87,8 +83,8 @@ public class PlanImageBlink extends PlanImage {
    }
    
    protected PlanImageBlink(Aladin aladin,String file,MyInputStream in,String label,String from,
-         Obj o,ResourceNode imgNode,boolean skip,Plan forPourcent) {
-      super(aladin,file,in,label,from,o,imgNode,skip,forPourcent);
+         Obj o,ResourceNode imgNode,boolean skip,boolean doClose,Plan forPourcent) {
+      super(aladin,file,in,label,from,o,imgNode,skip,doClose,forPourcent);
    }
    
    /** Nettoyage du plan pour aider le GC
@@ -631,7 +627,8 @@ public class PlanImageBlink extends PlanImage {
       PlanImageBlinkItem pbi = vFrames.elementAt(oLastFrame);
       setBufPixels8(pbi.pixels);
       pixelsOrigin=pbi.pixelsOrigin;
-      calculPixelsZoom(getBufPixels8());
+      if( type==IMAGECUBERGB ) ((PlanRGBInterface)this).calculPixelsZoomRGB();
+      else calculPixelsZoom();
       aladin.calque.zoom.zoomView.resetImgID();
       aladin.calque.zoom.zoomView.repaint();
    }

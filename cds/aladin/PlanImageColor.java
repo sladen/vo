@@ -20,17 +20,16 @@
 
 package cds.aladin;
 
-import cds.image.*;
 
 import java.awt.*;
 import java.awt.image.*;
 import java.net.*;
-import java.io.*;
 import java.util.*;
-import java.util.zip.*;
 
 import javax.imageio.ImageIO;
-
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 /**
 * Gestion d'un plan image Couleur
@@ -66,72 +65,122 @@ public class PlanImageColor extends PlanImageRGB {
       Date d1;
       int temps;
 
-setPourcent(1);
-Aladin.trace(2,"Loading colored image isSync()="+isSync());
-long t1,t=System.currentTimeMillis();
+      setPourcent(1);
+      Aladin.trace(2,"Loading colored image isSync()="+isSync());
+      long t1,t=System.currentTimeMillis();
 
       // Recuperation de l'image 3x8 bits
       BufferedImage buf;
       
       try {
+         // 4EME METHODE POUR EVITER LE DOUBLEMENT DU BUFFER
+            long type = dis.getType();
+            String fmt = (type & MyInputStream.JPEG) != 0 ? "jpeg" :
+               (type & MyInputStream.PNG) != 0 ? "png" : "gif";
+               
+            Iterator readers = ImageIO.getImageReadersByFormatName(fmt);
+            ImageReader reader = (ImageReader)readers.next();
+            ImageInputStream iis = ImageIO.createImageInputStream(dis);
+            reader.setInput(iis,true);
+            naxis1=width = reader.getWidth(0);
+            naxis2=height = reader.getHeight(0);
 
-         // TROISIEME METHODE, DE FAIT C'EST PLUS LENT
-         // (SANS DOUTE PARCE QUE UNE GRANDE PARTIE EN PURE JAVA)
-         //    buf = ImageIO.read(dis);
-         //    naxis1=width=buf.getWidth();
-         //    naxis2=height=buf.getHeight();
-         //    t1 = System.currentTimeMillis();
-         //    Aladin.trace(3,"imageIO read in "+(t1-t)+"ms"); t=t1;    
+            t1 = System.currentTimeMillis();
+            Aladin.trace(3,"image ("+fmt+") "+width+"x"+height+" created&loaded in "+(t1-t)+" ms"); t=t1;
+
+            ImageReadParam param = reader.getDefaultReadParam();
+            
+            double mem = aladin.getMem();
+            double taille=(width*height*4.)/(1024.*1024);
+            Aladin.trace(4,"PlanImageColor.cacheImageNatif()... RAM="+mem+"MB imageSize="+taille+"MB");
+            if( mem<taille ) throw new Exception("Not enough memory for this image => required "+taille+"MB !");
+            
+            if( true || mem<2*taille ) {
+               Aladin.trace(4,"PlanImageColor.cacheImageNatif()... loading huge image piece by piece...");
+
+               buf = new BufferedImage(width, height,BufferedImage.TYPE_INT_ARGB);
+               Graphics g = buf.getGraphics();
+
+               int size=1024;
+               double incrPourcent = 98./((double)width*height/(size*size));
+               double pourcent=0;
+               BufferedImage itmp;
+               for( int y=0; y<height; y+=size) {
+                  for( int x=0; x<width; x+=size) {
+                     setPourcent(pourcent+=incrPourcent);
+                     int w = x+size>width ? width-x : size;
+                     int h = y+size>height ? height-y : size; 
+                     Rectangle r = new Rectangle(x,y,w,h);
+                     param.setSourceRegion(r);
+                     itmp = reader.read(0,param);
+                     g.drawImage(itmp,x,y,aladin);
+                  }
+               }
+
+               g.finalize(); g=null;
+               pixelsRGB = ((DataBufferInt)buf.getRaster().getDataBuffer()).getData();
+               
+            } else {
+               Aladin.trace(4,"PlanImageColor.cacheImageNatif()... loading image in one fast step...");
+               setPourcent(10);
+               buf = reader.read(0,param);
+               pixelsRGB = new int[width*height*4];
+               buf.getRGB(0, 0, width, height, pixelsRGB, 0, width);
+            }
+            
 
 
-         // DEUXIEME METHODE EN DEUX ETAPES
-         Image itmp = aladin.getToolkit().createImage(dis.readFully());    
-         
-         aladin.waitImage(itmp);
-         naxis1=width=itmp.getWidth(aladin);
-         naxis2=height=itmp.getHeight(aladin);
+////          TROISIEME METHODE, DE FAIT C'EST PLUS LENT
+////          (SANS DOUTE PARCE QUE UNE GRANDE PARTIE EN PURE JAVA)
+//             buf = ImageIO.read(dis);
+//             naxis1=width=buf.getWidth();
+//             naxis2=height=buf.getHeight();
+//             t1 = System.currentTimeMillis();
+//             Aladin.trace(3,"imageIO read in "+(t1-t)+"ms"); t=t1;    
+//             
+//             byte x [] = ((DataBufferByte)buf.getRaster().getDataBuffer()).getData();
+//             
+//             System.out.println("naxis1="+naxis1+" naxis2="+naxis2+" size="+(naxis1*naxis2*4)+" x.length="+x.length);
+//             
+//             
+//             System.out.println("J'y suis");
+//             
+//             
+////             pixelsRGB = new int[naxis1*naxis2*4];
+////             buf.getRGB(0, 0, naxis1, naxis2, pixelsRGB, 0, naxis1);
+//
 
-         setPourcent(10);
-         t1 = System.currentTimeMillis();
-         Aladin.trace(3,"image "+width+"x"+height+" created&loaded in "+(t1-t)+" ms"); t=t1;
-
-         // PREMIERE METHODE TRES LENTE APRES JVM 1.3
-         //      setPourcent(45);
-         //	  PixelGrabber pg = new PixelGrabber(itmp,0,0,width,height,pixelsRGB,0,width);
-         //	  try { pg.grabPixels(); }
-         //	  catch (Exception e) { return false; }
-         //	  if( (pg.getStatus() & ImageObserver.ABORT) != 0 ) { return false; }
-         //
-
-         // A EVITER CAR RISQUE DE CONVERSION DES PIXELS SI MODE PAR DEFAUT NON ARGB
-         //      BufferedImage buf = aladin.getGraphicsConfiguration().createCompatibleImage(width, height);
-         buf = new BufferedImage(width, height,BufferedImage.TYPE_INT_ARGB);
-         Graphics g = buf.getGraphics();
-         g.drawImage(itmp,0,0,aladin);
-         g.finalize(); g=null;
-         itmp.flush(); itmp=null; 
-
-         pixelsRGB = new int[width*height];
-
-         // Pour faire avancer le % de lecture
-         if( height>1000 ) {
-            int pasY = height/89;
-            int startY=0;
-            int i=0;
-            do {
-               setPourcent(10+i);
-               if( startY+pasY>height ) pasY= height-startY;
-               pixelsRGB=buf.getRGB(0,startY,width,pasY,pixelsRGB,startY*width,width);
-               startY+=pasY;
-               i++;
-            } while( startY<height );
-
-            // Si trop petit, lecture d'un coup !
-         } else {
-            pixelsRGB=buf.getRGB(0,0,width,height,pixelsRGB,0,width);
-         }
+//            // DEUXIEME METHODE EN DEUX ETAPES
+//            Image itmp = aladin.getToolkit().createImage(dis.readFully());    
+//            
+//            aladin.waitImage(itmp);
+//            naxis1=width=itmp.getWidth(aladin);
+//            naxis2=height=itmp.getHeight(aladin);
+//
+//            setPourcent(10);
+//            t1 = System.currentTimeMillis();
+//            Aladin.trace(3,"image "+width+"x"+height+" created&loaded in "+(t1-t)+" ms"); t=t1;
+//
+//            // PREMIERE METHODE TRES LENTE APRES JVM 1.3
+//            //      setPourcent(45);
+//            //	  PixelGrabber pg = new PixelGrabber(itmp,0,0,width,height,pixelsRGB,0,width);
+//            //	  try { pg.grabPixels(); }
+//            //	  catch (Exception e) { return false; }
+//            //	  if( (pg.getStatus() & ImageObserver.ABORT) != 0 ) { return false; }
+//            //
+//
+//            // A EVITER CAR RISQUE DE CONVERSION DES PIXELS SI MODE PAR DEFAUT NON ARGB
+//            //      BufferedImage buf = aladin.getGraphicsConfiguration().createCompatibleImage(width, height);
+//            buf = new BufferedImage(width, height,BufferedImage.TYPE_INT_ARGB);
+//            Graphics g = buf.getGraphics();
+//            g.drawImage(itmp,0,0,aladin);
+//            g.finalize(); g=null;
+//            itmp.flush(); itmp=null; 
+//            
+//            pixelsRGB = ((DataBufferInt)buf.getRaster().getDataBuffer()).getData();
+            
          buf.flush();  buf=null;
-
+      
          t1 = System.currentTimeMillis();
          Aladin.trace(3,"RGB pixels extracted in "+(t1-t)+" ms"); t=t1;
 

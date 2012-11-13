@@ -28,6 +28,7 @@ public class PlanImageBlinkItem {
    protected String label;
    protected byte [] pixels;
    protected byte [] pixelsOrigin;
+   protected int [] pixelsRGB;
    protected boolean cacheFromOriginalFile;
    protected String cacheID;
    protected long cacheOffset;
@@ -46,4 +47,10 @@ public class PlanImageBlinkItem {
       this.cacheID=cacheID;
       this.cacheOffset=cacheOffset;         
    }
+   
+   protected PlanImageBlinkItem(String label, int [] pixelsRGB ) {
+      this.label=label;
+      this.pixelsRGB=pixelsRGB;
+   }
+
 }

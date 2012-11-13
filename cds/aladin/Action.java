@@ -17,17 +17,9 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Point;
-import java.awt.Toolkit;
+import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.text.ParseException;
@@ -381,7 +373,6 @@ public class Action {
 					texte = texte.substring(0, end);
 					if( expIndex>=0 ) texte += saveText.substring(expIndex);
 				}
-
 			}
 
 			// the text is constant
@@ -394,13 +385,17 @@ public class Action {
 				else texte = textToDisp;
 			}
 
-			FontMetrics m = Toolkit.getDefaultToolkit().getFontMetrics(FONT);
+			// Prise en compte du scaling facteur - PF fev 2012 (pas certain que ce soit une bonne idée)
+			float scalingFactor = s.plan.getScalingFactor();
+			Font font = scalingFactor==1f ? FONT : FONT.deriveFont(FONT.getSize()*(2*scalingFactor/3));
+			FontMetrics m = Toolkit.getDefaultToolkit().getFontMetrics(font);
       		wTexte = m.stringWidth(texte)/2;
-      		hTexte = FONT_SIZE/2;
+//            hTexte = FONT_SIZE/2;
+            hTexte = m.getHeight()/2;
 
-			g.setFont(FONT);
+			g.setFont(font);
 			g.setColor(theColor);
-			g.drawString(texte,p.x-wTexte,p.y+hTexte);
+			g.drawString(texte,p.x-wTexte,p.y+hTexte-8);  // Offset vers le haut de qq pixels
             return;
 		}
 
@@ -1096,8 +1091,8 @@ public class Action {
 				// in this case, the user has given minRadius and maxRadius values
 				if( st.hasMoreTokens() ) {
 					try {
-						minRadius = Integer.valueOf(st.nextToken()).intValue();
-						maxRadius = Integer.valueOf(st.nextToken()).intValue();
+						minRadius = Integer.valueOf(st.nextToken().trim()).intValue();
+						maxRadius = Integer.valueOf(st.nextToken().trim()).intValue();
 					}
 					catch(NumberFormatException e) {
 						Aladin.warning(ERR20,1);
@@ -1109,8 +1104,8 @@ public class Action {
 				// in this case, the user forces values of minValue and maxValue
 				if( st.hasMoreTokens() ) {
 					try {
-						minValue = Integer.valueOf(st.nextToken()).intValue();
-						maxValue = Integer.valueOf(st.nextToken()).intValue();
+						minValue = Integer.valueOf(st.nextToken().trim()).intValue();
+						maxValue = Integer.valueOf(st.nextToken().trim()).intValue();
 					}
 					catch(NumberFormatException e) {
 						Aladin.warning(ERR21,1);
@@ -1361,12 +1356,12 @@ public class Action {
     	for( i=plans.length-1; i>=0; i-- ) {
     	    p = plans[i];
     	    if( !p.isCatalog() ) continue;
-    	    Iterator<Obj> it = ((PlanCatalog)p).iterator();
+    	    Iterator<Obj> it = p.iterator();
     	    for( j=0; it.hasNext(); j++ ) {
     	         Obj o = it.next();
     	         if( !(o instanceof Source) ) continue;
     	         Source s = (Source)o;
-                
+
                 // Pour laisser la main aux autres threads
                 if( Aladin.isSlow && j%50==0 ) Util.pause(10);
 
@@ -1388,6 +1383,7 @@ public class Action {
     	}
 
 		if( hue == rainbowMaxValue ) {rainbowMinValue = 0;}
+
 	}
 
 	/** compute {red,green,blue}{Min,Max}Value */
@@ -1572,7 +1568,7 @@ public class Action {
     private void drawPM(Source s, Graphics g, ViewSimple v, Point p, Color c, int numero, int index, int dx, int dy) {
     	double factor = 1000.0; // par combien on multiplie pour voir qqch ?
     	factor *= s.plan.getScalingFactor();
-    	
+
     	// un déplacement de 1 arcsec/yr est représenté par une flèche de 1*factor mas
     	// prendre les valeurs en mas/yr, et multiplier d'office par 1000
 		double pmRA = s.values[numero][index][0];
@@ -1587,7 +1583,7 @@ public class Action {
 		// fixe un bug qui faisait bouger les sources quand on switchait de vue
 		Plan base = v.pref;
 		if(base==null) base = s.plan;
-		
+
 		Projection proj =  v.getProj();
 
     	Coord coord = new Coord();
@@ -1599,7 +1595,7 @@ public class Action {
 
 		double orgX = coord.x;
 		double orgY = coord.y;
-		
+
 		// multiplication par le facteur pour y voir qqch
 		pmRA *= factor;
 		pmDec *= factor;
@@ -1616,7 +1612,7 @@ public class Action {
 		Point p2 = v.getViewCoord(coord.x,coord.y);
 		if( p1==null || p2==null ) return;
 		double dist = Math.sqrt(Math.pow(p1.x-p2.x, 2)+Math.pow(p1.y-p2.y, 2));
-		
+
 		// Passe-t-on de l'autre côté du ciel ?
 		// Méthode : on teste la symétrie. Si la distance projetée varie trop, on ne trace pas
 		if( proj.t==Calib.AIT || proj.t==Calib.MOL ) {
@@ -1976,14 +1972,14 @@ public class Action {
 		if( p1==null || p2==null ) return;
 
 		double gdAxe = Math.sqrt(Math.pow(p2.x-p1.x,2)+Math.pow(p2.y-p1.y,2));
-		
+
 		// calcul du petit axe
 		p1 = v.getViewCoord(coord2.x,coord2.y);
 		p2 = v.getViewCoord(coord2.x-2*(coord2.x-orgX),coord2.y-2*(coord2.y-orgY));
         if( p1==null || p2==null ) return;
 
 		double petitAxe = Math.sqrt(Math.pow(p2.x-p1.x,2)+Math.pow(p2.y-p1.y,2));
-		
+
 	      // Ne passe-t-on pas "derrière le ciel" - Modif PF déc 2010
         if( proj.t==Calib.AIT || proj.t==Calib.MOL ) {
            Coord coordBis = new Coord(s.raj,s.dej);
@@ -2008,7 +2004,7 @@ public class Action {
               p1 = p1Bis;
            }
        }
-		
+
 		Point centre = new Point(((p1.x+p2.x)/2),((p1.y+p2.y)/2));
 
 		// de combien faut il tourner l ellipse dans le contexte graphique courant
@@ -2064,12 +2060,6 @@ public class Action {
 		g.drawLine(p[4-1].x,p[4-1].y,p[0].x,p[0].y);
 	}
 
-    /** Draw an ellipse in an EPS graphics context (PF March 2007) */
-    private void doDrawEllipseEPS(Graphics g, Color c, Point center, double semiMA, double semiMI, double angle, int dx, int dy) {
-       g.setColor(c);
-       ((EPSGraphics)g).drawEllipse(center.x+dx,center.y+dy,semiMA,semiMI,angle);
-    }
-
 	/** draws an ellipse which can be rotated
 	 *	@param g - the graphic context we draw on
 	 *	@param c - color of the ellipse
@@ -2081,80 +2071,37 @@ public class Action {
 	private void doDrawEllipse(Graphics g, Source s,Color c, Point center, double semiMA, double semiMI,
 	        double angle, int dx, int dy, boolean transparency) {
 
-        if( g instanceof EPSGraphics ) {
-           doDrawEllipseEPS(g,c,center,semiMA,semiMI,angle,dx,dy); return;
-        }
+	   g.setColor(c);
+	   if( g instanceof EPSGraphics || !(g instanceof Graphics2D) ) {
+	      Util.drawEllipse(g,center.x+dx,center.y+dy,semiMA,semiMI,angle);
+	      return;
+	   }
 
-		try {
-		    boolean drawInTransparency = transparency && Aladin.ENABLE_FOOTPRINT_OPACITY;
-			Graphics2D g2d = (Graphics2D)g;
-			g2d.setColor(c);
-			AffineTransform saveTransform = g2d.getTransform();
-			Composite saveComposite = null;
-			if (drawInTransparency) {
-			    saveComposite = g2d.getComposite();
-                float opacityLevel = Aladin.DEFAULT_FOOTPRINT_OPACITY_LEVEL*s.plan.getOpacityLevel();
-                Composite myComposite = Util.getImageComposite(opacityLevel);
-                g2d.setComposite(myComposite);
-			}
-			// convert the angle into radians
-			angle = angle*Math.PI/180.0;
-			g2d.rotate(angle, center.x+dx, center.y+dy);
-			if (drawInTransparency) {
-			    g2d.fill(new Ellipse2D.Double(center.x+dx-semiMA,center.y+dy-semiMI,semiMA*2,semiMI*2));
-			}
-			else {
-			    g2d.draw(new Ellipse2D.Double(center.x+dx-semiMA,center.y+dy-semiMI,semiMA*2,semiMI*2));
-			}
-			g2d.setTransform(saveTransform);
-			if (drawInTransparency) {
-			    g2d.setComposite(saveComposite);
-			}
-		}
-		catch(ClassCastException cce) {
-			// in this case, we draw the ellipse the old way
-			doDrawEllipseOld(g, c, center, semiMA, semiMI, angle, dx, dy);
-		}
-		catch(Exception e) {e.printStackTrace();}
+	   boolean drawInTransparency = transparency && Aladin.ENABLE_FOOTPRINT_OPACITY;
+	   Graphics2D g2d = (Graphics2D)g;
+	   g2d.setColor(c);
+	   AffineTransform saveTransform = g2d.getTransform();
+	   Composite saveComposite = null;
+	   if (drawInTransparency) {
+	      saveComposite = g2d.getComposite();
+	      float opacityLevel = Aladin.DEFAULT_FOOTPRINT_OPACITY_LEVEL*s.plan.getOpacityLevel();
+	      Composite myComposite = Util.getImageComposite(opacityLevel);
+	      g2d.setComposite(myComposite);
+	   }
+	   // convert the angle into radians
+	   angle = angle*Math.PI/180.0;
+	   g2d.rotate(angle, center.x+dx, center.y+dy);
+	   if (drawInTransparency) {
+	      g2d.fill(new Ellipse2D.Double(center.x+dx-semiMA,center.y+dy-semiMI,semiMA*2,semiMI*2));
+	   }
+	   else {
+	      g2d.draw(new Ellipse2D.Double(center.x+dx-semiMA,center.y+dy-semiMI,semiMA*2,semiMI*2));
+	   }
+	   g2d.setTransform(saveTransform);
+	   if (drawInTransparency) {
+	      g2d.setComposite(saveComposite);
+	   }
 	}
-
-	private void doDrawEllipseOld(Graphics g, Color c, Point center, double semiMA, double semiMI, double angle, int dx, int dy) {
-		// convert the angle into radians
-		angle = angle*Math.PI/180.0;
-
-		// number of iterations
-		int nbIt = 30;
-		Point[] p = new Point[nbIt];
-		double x,y,tmpX,tmpY;
-		double curAngle;
-
-		// first, we fill the array
-		for(int i=0; i<nbIt; i++) {
-			curAngle = 2.0*i/nbIt*Math.PI;
-			tmpX = semiMA*Math.cos(curAngle);
-			tmpY = semiMI*Math.sin(curAngle);
-			// rotation
-			x = tmpX*Math.cos(angle)-tmpY*Math.sin(angle)+center.x;
-			y = tmpX*Math.sin(angle)+tmpY*Math.cos(angle)+center.y;
-
-			// prise en compte du décalage dx, dy (pour l'impression)
-			x += dx;
-			y += dy;
-
-			//System.out.println(x+" "+y);
-			p[i] = new Point((int)x,(int)y);
-		}
-
-		g.setColor(c);
-		// then we draw
-		for(int i=0; i<nbIt-1; i++) {
-			g.drawLine(p[i].x,p[i].y,p[i+1].x,p[i+1].y);
-		}
-		// complete the ellipse
-		g.drawLine(p[nbIt-1].x,p[nbIt-1].y,p[0].x,p[0].y);
-	}
-
-
 
     /** counts the number of occurences of a char in a string
      *	@param c - the char

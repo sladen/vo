@@ -126,7 +126,7 @@ public class PlanImageMosaic extends PlanImage {
     protected boolean waitForPlan() {
        try {
           addFrame(tmpP);
-          calculPixelsZoom(getBufPixels8());
+          calculPixelsZoom();
        } catch( Exception e ) {
           e.printStackTrace();
           return false;
@@ -317,7 +317,7 @@ Aladin.trace(3,"Mosaic bounding box pos="+box.x+","+box.y+" size="+box.width+"x"
         Aladin.trace(3,"Mosaic achieved...");
         
         // Personnalisation des parametres
-        calculPixelsZoom(getBufPixels8());
+        calculPixelsZoom();
         changeImgID();
         aladin.view.repaintAll();
         aladin.calque.zoom.zoomView.repaint();

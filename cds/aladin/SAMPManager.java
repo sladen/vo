@@ -37,9 +37,8 @@ import org.apache.xmlrpc.WebServer;
 import org.apache.xmlrpc.XmlRpcClient;
 import org.apache.xmlrpc.XmlRpcException;
 import org.apache.xmlrpc.XmlRpcHandler;
-import org.astrogrid.samp.hub.BasicHubService;
-import org.astrogrid.samp.xmlrpc.HubRunner;
-import org.astrogrid.samp.xmlrpc.XmlRpcKit;
+import org.astrogrid.samp.hub.Hub;
+import org.astrogrid.samp.hub.HubServiceMode;
 
 import cds.tools.Util;
 
@@ -351,10 +350,10 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         return true;
     }
 
-    public Object execute(String method, Vector params) throws XmlRpcException {
+    // TODO : faut il la synchronizer ??? SAMP4IDL ne fonctionnait plus bien avec les commandes script
+    public synchronized Object execute(String method, Vector params) throws XmlRpcException {
         trace("Receiving XML request :\nmethod="+method+"\nparams="+params);
 
-        // TODO : pouvoir débuguer les messages : affichage des params, etc
 
         // TODO : définir des objets messages qui gèrent tout : message.process(params)
 
@@ -362,8 +361,6 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         if( method.equals(METHOD_RECEIVE_NOTIFICATION) || method.equals(METHOD_RECEIVE_CALL) ) {
             Object retValue = TRUE;
             String senderId = (String)params.get(1);
-            // TODO : ceci doit etre fait en dehors de la méthode execute, sinon on perd des messages !!
-            // TODO : en fait, on peut récupérer cette liste juste en écoutant les messages SAMP !!
 
             boolean responseNeeded = method.equals(METHOD_RECEIVE_CALL);
             String msgId = null;
@@ -522,17 +519,11 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
 
                     //PF - sept 2010 - pour éviter le bug dans le cas où le frame n'est pas en ICRS
                     a.view.gotoThere( new Coord(ra,dec) );
-//                    if( a.view.getCurrentView().isFree() || a.isFullScreen() ) {
-//                       a.execCommand(Coord.getSexa(ra, dec));
-//                    }
-//                    else {
-//                       a.view.sesameResolve(Coord.getSexa(ra, dec));
-//                    }
                 }
                 catch(Exception e) {
                     String errorMsg = "Error while processing SAMP message "+MSG_POINT_AT_COORDS+":"
                     +"Missing 'ra' or 'dec' parameter or incorrect type for params";
-                    a.command.toStdoutln(errorMsg);
+                    a.command.println(errorMsg);
                     retValue = FALSE;
                     e.printStackTrace();
                     if( responseNeeded ) {
@@ -721,7 +712,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
     }
 
     // référence au hub interne
-    private HubRunner internalHub;
+    private Hub internalHub;
 
     public static final String LOCALHOST_PROP = "samp.localhost";
     // if the user has not specified the localhost IP through the samp.localhost system property, force it to 127.0.0.1
@@ -743,8 +734,6 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
             // by default, no message logging
             Logger.getLogger("org.astrogrid.samp").setLevel(Level.OFF);
 
-            XmlRpcKit xmlrpc = XmlRpcKit.getInstance();
-
             String localhost = getLocalhost();
             // set samp.localhost property, so that the JSAMP toolkit use this URL for its hub
             System.setProperty(LOCALHOST_PROP, localhost);
@@ -752,9 +741,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
             trace("Hub IP set to "+localhost);
 
 
-            internalHub = new HubRunner(xmlrpc.getClientFactory(), xmlrpc.getServerFactory(),
-                               new BasicHubService(new Random()),  getLockFile());
-            internalHub.start();
+            internalHub = Hub.runHub(HubServiceMode.NO_GUI);
         }
         catch(Exception e) {
             e.printStackTrace();
@@ -1023,8 +1010,17 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         return null;
     }
 
+    /**
+     * Renvoie les applications pouvant lire du VOTable ET celles pouvant lire des tables FITS
+     */
+    public ArrayList<String> getAppsSupportingTables() {
+        ArrayList<String> tableApps = getAppsSupporting(MSG_LOAD_VOT_FROM_URL);
+        tableApps.addAll(getAppsSupporting(MSG_LOAD_FITS_TABLE_FROM_URL));
 
-    public synchronized String[] getAppsSupporting(AppMessagingInterface.AbstractMessage abstractMsg) {
+        return tableApps;
+    }
+
+    public synchronized ArrayList<String> getAppsSupporting(AppMessagingInterface.AbstractMessage abstractMsg) {
         String implMsg = getMessage(abstractMsg);
         return getAppsSupporting(implMsg);
     }
@@ -1034,13 +1030,13 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
      * @param message un message SAMP
      * @return la liste des noms des applications supportant le message passé en param
      */
-    private synchronized String[] getAppsSupporting(String message) {
-        String[] retObj = new String[] {};
+    private synchronized ArrayList<String> getAppsSupporting(String message) {
+        ArrayList<String> apps = new ArrayList<String>();
 
-        if( message==null ) return retObj;
+        if( message==null ) return apps;
 
         if( !isRegistered() || message==null ) {
-            return retObj;
+            return apps;
         }
 
         Vector params = new Vector();
@@ -1052,24 +1048,20 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         }
         catch(Exception e) {
             e.printStackTrace();
-            return retObj;
+            return apps;
         }
 
-        // pas besoin de -1, car dans SAMP on ne se renvoie pas soi même
-        String[] apps = new String[appsMap.size()];
-
-        if( apps.length==0 ) return new String[] {};
+        if( appsMap.size()==0 ) return apps;
 
         if( appNamesToURI==null ) appNamesToURI = new Hashtable();
         if( appNames==null ) appNames = new Vector();
 
-        int j = 0;
         String name;
         String appId;
-        Iterator it = appsMap.keySet().iterator();
+        Iterator<String> it = appsMap.keySet().iterator();
         while( it.hasNext() ) {
 //        for( int i=0; i<listApps.length; i++ ) {
-            appId = (String)it.next();
+            appId = it.next();
 
             // on ne retourne pas son propre ID
             if( appId.equals(selfId) ) continue;
@@ -1101,10 +1093,11 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
                 appNamesToURI.put(name, appId);
             }
 
-            apps[j++] = name;
+            apps.add(name);
         }
 
-        Arrays.sort(apps);
+        Collections.sort(apps);
+
         return apps;
     }
 
@@ -1327,10 +1320,13 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
 
         InputStream is;
         try {
-            is = url.openStream();
+            is = Util.openStream(url);
         }
         catch(IOException e) {
             trace("IOException occured when getting stream from VOTable URL, loading is aborted");
+            return null;
+        } catch (Exception e) {
+            trace("Exception occured when getting stream from VOTable URL, loading is aborted");
             return null;
         }
         String planeName = name==null?"SAMP":name;
@@ -1490,7 +1486,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
      * @param recipients tableau des destinataires. Si null, on envoie à tout le monde
      *
      */
-    public boolean broadcastTable(final PlanCatalog pc, final String[] recipients) {
+    public boolean broadcastTable(final Plan pc, final String[] recipients) {
         Aladin.trace(3, "Broadcasting table "+pc.getLabel()+" to "+((recipients==null)?"everyone":(recipients.length+" applications")));
 
         if( widget!=null ) widget.animateWidgetSend();
@@ -1567,8 +1563,12 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
      * @param pi le PlanImage à broadcaster
      * @param recipients tableau des destinataires. Si null, on envoie à tout le monde
      */
-    public boolean broadcastImage(final PlanImage pi, final String[] recipients) {
+    public boolean broadcastImage(final Plan pi, final String[] recipients) {
         Aladin.trace(3, "Broadcasting image "+pi.getLabel()+" to "+((recipients==null)?"everyone":(recipients.length+" applications")));
+
+        if (pi==null || ! (pi instanceof PlanImage) ) {
+            return false;
+        }
 
         if( widget!=null ) widget.animateWidgetSend();
 
@@ -1585,7 +1585,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         new Thread("AladinSAMPSendImage") {
             public void run() {
                 if( a.save==null ) a.save = new Save(a);
-                (a.save).saveImageFITS(tmpFile, pi);
+                (a.save).saveImageFITS(tmpFile, (PlanImage)pi);
                 URL url = SAMPUtil.getURLForFile(tmpFile);
                 String urlStr = url.toString();
                 String id = pi.getPlasticID();
@@ -1776,7 +1776,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
 
                 a.glu.vGluServer = new Vector(50);
                 // ajout des resources sélectionnées
-                a.glu.loadGluDic(new DataInputStream(bas.getInputStream()),true);
+                a.glu.loadGluDic(new DataInputStream(bas.getInputStream()),true,false);
 
                 int n = a.glu.vGluServer.size();
                 if( n == 0 ) return;
@@ -1860,8 +1860,8 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
                 if( sources==null ) return;
 
                 // on n'envoie aucun message si auune appli ne peut recevoir le message MSG_SELECT_OBJECTS
-                String[] apps = getAppsSupporting(MSG_SELECT_OBJECTS);
-                if( apps==null || apps.length==0 ) {
+                ArrayList<String> apps = getAppsSupporting(MSG_SELECT_OBJECTS);
+                if( apps==null || apps.size()==0 ) {
                     trace("None of the connected applications supports the 'select objects' message");
                     return;
                 }
@@ -1913,7 +1913,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
                         idx = (Integer)e.nextElement();
                     }
                     catch(ClassCastException cce) {
-                        a.command.toStdoutln("Encountered bad format for SAMP int");
+                        a.command.println("Encountered bad format for SAMP int");
                         cce.printStackTrace();
                         continue;
                     }
@@ -2280,4 +2280,5 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         planesToMsgIds.remove(ple.plane);
 
     }
+
 }

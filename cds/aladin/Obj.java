@@ -21,12 +21,26 @@
 package cds.aladin;
 
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Vector;
+
+import javax.swing.JLabel;
+import javax.swing.JTextField;
+
+import cds.aladin.prop.Prop;
+import cds.aladin.prop.PropAction;
+import cds.aladin.prop.Propable;
+import cds.tools.pixtools.CDSHealpix;
 
 /**
  * Interface pour la manipulation d'un objet graphique affichable dans la vue
@@ -36,7 +50,7 @@ import java.io.OutputStream;
  * @version 1.0 : (5 mai 99) Toilettage du code
  * @version 0.9 : (??) creation
  */
-public abstract class Obj {
+public abstract class Obj implements Propable{
    
    // Les différentes formes (pour les Sources uniquement)
    public static final int OVAL     = 0;
@@ -71,9 +85,52 @@ public abstract class Obj {
 
    /** J2000 DEC coordinate */
    public double dej;
-
+   
    public String id;         // Object id
    protected byte flags = VISIBLE;  // Le tableau de flags
+   
+   public boolean hasProp() { return plan!=null && plan.type!=Plan.APERTURE; }
+   public Vector<Prop> getProp() {
+      Vector<Prop> propList = new Vector<Prop>();
+      JLabel l = new JLabel("\""+getObjType()+"\" object in plane: \""+plan.getLabel()+"\"");
+      l.setFont(l.getFont().deriveFont(Font.BOLD));
+      l.setFont(l.getFont().deriveFont(14f));
+      propList.add( Prop.propFactory("object","",null,l,null,null) );
+     
+      final Obj myself = this;
+      final JTextField pos = new JTextField(20);
+      PropAction updatePos = new PropAction() {
+         public int action() { pos.setText( plan.aladin.localisation.getLocalisation(myself) ); return PropAction.SUCCESS;}
+      };
+      PropAction changePos = new PropAction() {
+         public int action() { 
+            pos.setForeground(Color.black);
+            String opos = plan.aladin.localisation.getLocalisation(myself);
+            try {
+               String npos = pos.getText();
+               if( npos.equals(opos) ) return PropAction.NOTHING;
+               Coord c1 = new Coord(pos.getText());
+               if( (""+c1).indexOf("--")>=0 ) throw new Exception();
+               c1 = plan.aladin.localisation.frameToICRS(c1);
+               setRaDec(c1.al, c1.del);
+               return PropAction.SUCCESS;
+           } catch( Exception e1 ) { 
+               pos.setForeground(Color.red);
+               pos.setText(opos); 
+           }
+           return PropAction.FAILED;
+         }
+      };
+      propList.add( Prop.propFactory("coord","Coord","Object position",pos,updatePos,changePos) );
+      if( id!=null && id.length()>0 ) {
+         final JLabel idL = new JLabel(id);
+         PropAction updateId = new PropAction() {
+            public int action() { idL.setText(id); return PropAction.SUCCESS; }
+         };
+         propList.add( Prop.propFactory("id","Info","associated information",idL,updateId,null) );
+      }
+      return propList;
+   }
 
    /** Positionne le flag select */
    protected void setSelect(boolean select) {
@@ -81,6 +138,11 @@ public abstract class Obj {
       else flags &= ~SELECT;
    }
    
+   /** Return the Obj color, by default the Plane color */
+   public Color getColor() { return plan.c; }
+   
+   /** Set the Obj color (if possible => depending of the nature of Obj) */
+   public void setColor() throws Exception { throw new Exception("Not specifical color property"); }
 
    /** Retourne true si l'objet contient des informations de photométrie  */
    public boolean hasPhot() { return false; }
@@ -97,6 +159,28 @@ public abstract class Obj {
    /** Provide attache info (generally its name) */
    public String getInfo() { return id; }
    
+   /** Provide script command associated to this object */
+   public String getCommand() { return null; }
+   
+   /** Return true if this object can be used for getting photometrical statistics (first segment of a polygon, or circle) */
+   public boolean hasSurface() { return false; }
+   
+   /** Provide photometric statistics for the area described by the object (only for circle and polygon)
+    * @param ad AladinData describing an image with valid pixels
+    * @return { cnt,sum,sigma,surface_in_square_deg }
+    * @throws Exception
+    */
+   public double[] getStatistics(AladinData ad) throws Exception {
+      return getStatistics(ad.plan);
+   }
+   
+   /** Provide photometric statistics for the area described by the object (only for circle and polygon)
+    * @param p Plan describing an image with valid pixels
+    * @return { cnt,sum,sigma,surface_in_square_deg }
+    * @throws Exception
+    */
+   protected double[] getStatistics(Plan p) throws Exception { throw new Exception("no statistics available"); }
+   
    /** Provide radius (in degrees) for photometry measure tags */
    public double getRadius() { return 0.; }
 
@@ -107,6 +191,11 @@ public abstract class Obj {
       return Coord.getDist(ca,cb);
    }
    static private Coord ca=new Coord(), cb=new Coord();
+
+   /** Return XML meta information associated to this object (GROUP meta definitions)
+    * @return XML string, or null
+    */
+   public String getXMLMetaData() { return null; }
 
    /** Return the values associated to the object (Source object)
     * @return String array containing each field value
@@ -212,6 +301,7 @@ public abstract class Obj {
    protected abstract void setPosition(ViewSimple v,double x, double y);
    protected abstract void deltaPosition(ViewSimple v,double x, double y);
    protected abstract void deltaRaDec(double dra, double dde);
+   protected void setRaDec(double ra, double de) { raj=ra; dej=de; }
    protected abstract void setText(String id);
    protected abstract Point getViewCoord(ViewSimple v,int dw, int dh);
    protected abstract boolean inside(ViewSimple v,double x, double y);
@@ -244,6 +334,19 @@ public abstract class Obj {
       double z = v.getZoom();
       return z>0 ? 2/z : 1+6/z;
    }
+   
+   // Pixel Healpix order max (29)
+//   public long hpxPos=-1;
+//   static final long MAXNSIDE = CDSHealpix.pow2(CDSHealpix.MAXORDER);
+//
+//   public long getHpxPos() {
+//      if( hpxPos==-1 ) {
+//         double polar[] = CDSHealpix.radecToPolar(new double[]{raj,dej});
+//         try { hpxPos = CDSHealpix.ang2pix_nest(MAXNSIDE, polar[0], polar[1]); } 
+//         catch( Exception e ) { }
+//      }
+//      return hpxPos;
+//   }
 
    // Extension d'un rectangle, création si nécessaire
    static final protected Rectangle unionRect(Rectangle r,Rectangle r1) {

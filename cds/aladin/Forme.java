@@ -20,11 +20,15 @@
 
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.image.*;
-import java.net.*;
-import java.io.*;
-import java.util.*;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.util.Vector;
+
+import cds.aladin.prop.Prop;
+import cds.aladin.prop.PropAction;
+import cds.astro.Proj3;
 
 /**
  * Forme composée de plusieurs objets
@@ -33,9 +37,10 @@ import java.util.*;
  * @version 1.0 : (déc 2005) création
  */
 public class Forme extends Position {
-   
-   protected Position o[];		// Liste des objets qui compose la forme
-   
+
+   protected Color couleur=null; // Couleur alternative
+   public Position o[];		 // Liste des objets qui compose la forme
+
    protected void createCacheXYVP() {
       if( o==null ) return;
       for( int i=0; i<o.length; i++ ) o[i].createCacheXYVP();
@@ -52,12 +57,42 @@ public class Forme extends Position {
       super(plan);
       this.o=o;
    }
-   
+
+   public Vector getProp() {
+      Vector propList = super.getProp();
+
+      final Couleur col = new Couleur(couleur,true);
+      PropAction changeCouleur = new PropAction() {
+         public int action() {
+            Color c= col.getCouleur();
+            if( c==couleur ) return PropAction.NOTHING;
+            setColor(c);
+            return PropAction.SUCCESS;
+         }
+      };
+      propList.add( Prop.propFactory("color","Color","Alternative color",col,null,changeCouleur) );
+      return propList;
+  }
+
+   /** Provide RA J2000 position */
+   public double getRa() { return o[0].getRa(); }
+
+   /** Provide DEC J2000 position */
+   public double getDec() { return o[0].getDec(); }
+
+   public void setColor(Color c) { couleur=c; }
+
+   protected void setRaDec(double ra, double de) {
+      double dra = o[0].getRa()-ra;
+      double dde = o[0].getDec()-de;
+      for( int i=0; i<o.length; i++ ) o[i].deltaRaDec(dra, dde);
+   }
+
    /** Retourne le type d'objet */
    public String getObjType() { return "ComposedObject"; }
-   
+
    protected void setObjet(Position o[]) { this.o = o; }
-   
+
    protected void setCoord(ViewSimple v) {
       for( int i=0; i<o.length; i++ ) o[i].setCoord(v);
    }
@@ -69,6 +104,9 @@ public class Forme extends Position {
    }
    protected void setXYTan(double x, double y) {
       for( int i=0; i<o.length; i++ ) o[i].setXYTan(x,y);
+   }
+   protected void setXYTan(Coord center) {
+      for( int i=0; i<o.length; i++ ) o[i].setXYTan(center);
    }
    protected void projection(ViewSimple v) {
       for( int i=0; i<o.length; i++ ) o[i].projection(v);
@@ -112,11 +150,42 @@ public class Forme extends Position {
    }
    protected void setVisibleGenerique(boolean flag) {
       super.setVisibleGenerique(flag);
-      for( int i=0; i<o.length; i++ ) o[i].setVisibleGenerique(flag);      
+      for( int i=0; i<o.length; i++ ) o[i].setVisibleGenerique(flag);
    }
    protected void switchSelect(){
       super.switchSelect();
-      for( int i=0; i<o.length; i++ ) o[i].switchSelect();      
+      for( int i=0; i<o.length; i++ ) o[i].switchSelect();
    }
+
+   /** Détermination de la couleur de l'objet */
+   public Color getColor() {
+      if( couleur!=null ) return couleur;
+      if( plan!=null && plan.type==Plan.APERTURE ) {
+         couleur = ((PlanField)plan).getColor(this);
+         if( couleur==null ) return plan.c;
+         return couleur;
+      }
+      if( plan!=null ) return plan.c;
+      return Color.black;
+   }
+
+   /** Rotation en coordonnées sphériques (via le plan tangentiel)
+    * @param c Le centre de rotation
+    * @param radius le rayon
+    * @param angle l'angle en degrés par rapport au Nord dans le sens trigo
+    * @return le point au bout du vecteur en coordonnées sphériques
+    */
+   protected Coord applySphereRot(Coord c, double radius, double angle) {
+      if( angle/360.==Math.round(angle/360.) ) return c;
+      Proj3 a = new Proj3(Proj3.TAN,c.al,c.del);
+      double tanr = Math.tan(Math.PI*radius/180.);
+      double cost = Math.cos( Math.PI*angle/180.);
+      double sint = Math.sin( Math.PI*angle/180.);
+      double x =  tanr*sint;
+      double y =  tanr*cost;
+      a.computeAngles(x,y);
+      return new Coord(a.getLon(),a.getLat());
+   }
+
 //   void debug();
 }

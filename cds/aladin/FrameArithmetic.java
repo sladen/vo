@@ -91,14 +91,13 @@ protected String getLabelSelector(int i) {
 
    /** Recupere la liste des plans images valides */
    @Override
-protected PlanImage[] getPlan() {
+protected Plan[] getPlan() {
       Vector<Plan> v  =a.calque.getPlans(Plan.IMAGE);
       if( v==null ) return new PlanImage[0];
-      PlanImage pi [] = new PlanImage[v.size()];
+      Plan pi [] = new PlanImage[v.size()];
       v.copyInto(pi);
       return pi;
    }
-
 
 
    @Override
@@ -166,7 +165,7 @@ protected JPanel getAddPanel() {
    @Override
 protected void submit() {
       try {
-         PlanImage p1=getPlan(ch[0]), p2=getPlan(ch[1]);
+         PlanImage p1=(PlanImage)getPlan(ch[0]), p2=(PlanImage)getPlan(ch[1]);
 
          double coef=0;
          if( p2==null ) {

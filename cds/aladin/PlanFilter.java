@@ -19,8 +19,11 @@
 
 package cds.aladin;
 
-import java.awt.*;
-import java.util.*;
+import java.awt.Color;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.Vector;
 
 import cds.tools.Util;
 
@@ -137,8 +140,10 @@ public final class PlanFilter extends Plan {
    // objet qui effectue reellement le filtrage
    private UCDFilter filter;
 
-   // objets mémorisant les plans influencés par le filtre
-   private Vector memPlan, omemPlan;
+
+
+// objets mémorisant les plans influencés par le filtre
+   private Vector<Plan> memPlan, omemPlan;
 
    // true si il faut reappliquer le filtre (changement au niveau
    // des sources sur lesquellles le filtre s'applique)
@@ -349,7 +354,7 @@ public final class PlanFilter extends Plan {
 	   if( runme==null ) return;
 
 	   Thread oldThread = runme;
-	   // en settant runme à null, on va forcer le thread à s'arreter
+	   // en settant runme à null, on va forcer le thread à s'arreter --> TODO : vraiment ?
 	   runme = null;
 	   // anciene méthode --> beurk !!
 //	   oldThread.stop();
@@ -368,7 +373,45 @@ public final class PlanFilter extends Plan {
 //	   System.out.println("stop filter thread !");
    }
    
+   
+   private long lastFilterLock=-1; // Date du dernier test de isSync() sur le filtre. Si on dépasse 4s, on relance
+   private boolean relaunchDone=false; // true si on vient de relancer manuellement un filtre (sur un isSync() bloquant)
+   
+   /** retourne true si le filtre a été appliqué. Sinon mémorise la date, et si la durée du blocage dépasse 4s, 
+    * on relance manuellement le filtre (PF. janvier 2011)
+    * Nécessaire dans le cas de script, on peut se retrouver dans un cas où Command. attend indéfiniment la synchronisation
+    * du plan filtre, mais celui-là n'est jamais relancé.
+    */
    protected boolean isSync() {
+      if( isSync1() ) {
+         lastFilterLock=-1;
+         return true;
+      }
+
+      long time = System.currentTimeMillis();
+      
+      if( lastFilterLock==-1 ) lastFilterLock=time;
+      
+      // Ca fait longtemps que ça bloque ?!
+      else if( time-lastFilterLock>4000 ) {
+
+         // déjà relancé une fois, tant pis on dit que c'est bon
+         if( relaunchDone ) {
+            if( aladin.levelTrace>=3 ) System.err.println("PlanFilter.isSync()=false, last manual relaunch did not work => assume isSync()=true");
+            lastFilterLock=-1; relaunchDone=false;
+            return true;
+         }
+
+         // On tente de relancer une fois manuellement
+         if( aladin.levelTrace>=3 ) System.err.println("PlanFilter.isSync()=false but delay exceed 4s => relaunch filter manually...");
+         relaunchDone=true;
+         doApplyFilter();
+         lastFilterLock=time;
+      }
+      return false;
+   }
+
+   private boolean isSync1() {
       return flagOk && !(error==null && mustUpdate);
    }
 
@@ -402,6 +445,7 @@ public final class PlanFilter extends Plan {
          }
       }
       mustUpdate = false;
+
    }
 
    protected void doApplyFilter() {
@@ -470,15 +514,16 @@ public final class PlanFilter extends Plan {
       return null;
    }
 
-   /** retourne tous les plans d'un folder donne (plans des sous-folders inclus) */
-   private Vector getAllPlansOfFolder(Plan folder) {
-      Vector vec = new Vector(10);
+
+/** retourne tous les plans d'un folder donne (plans des sous-folders inclus) */
+   private Vector<Plan> getAllPlansOfFolder(Plan folder) {
+      Vector<Plan> vec = new Vector<Plan>(10);
       getAllPlansOfFolder(folder,vec);
       return vec;
    }
 
    /** Methode recursive utilisee par getAllPlansOfFolder(Plan folder) */
-   private void getAllPlansOfFolder(Plan folder, Vector vec) {
+   private void getAllPlansOfFolder(Plan folder, Vector<Plan> vec) {
       Plan curPlan;
       Plan[] plans = aladin.calque.getFolderPlan(folder);
       for( int i=0;i<plans.length;i++ ) {
@@ -511,7 +556,7 @@ public final class PlanFilter extends Plan {
    private void setPlanMemory() {
       Plan[] plans = getConcernedPlans();
       omemPlan = memPlan;
-      memPlan = new Vector();
+      memPlan = new Vector<Plan>();
       for( int i=0; i<plans.length; i++ ) {
          memPlan.addElement(plans[i]);
       }
@@ -529,7 +574,7 @@ public final class PlanFilter extends Plan {
          filter.resetActions();
       }
    }
-   
+
    /** met à jour les influences
        PREconditions : memPlan est à jour
    */
@@ -696,7 +741,7 @@ public final class PlanFilter extends Plan {
                Obj o = it.next();
                if( !(o instanceof Source) ) continue;
                s = (Source)o;
-               
+
                // realloc de isSelected
                boolean[] tmp = new boolean[LIMIT];
                if( s.isSelected==null ) s.isSelected = new boolean[PlanFilter.LIMIT];
@@ -732,6 +777,11 @@ public final class PlanFilter extends Plan {
       tmp = new String[LIMIT];
       System.arraycopy(saveLabels,0,tmp,0,saveLabels.length);
       saveLabels = tmp;
+   }
+
+
+   public UCDFilter getUCDFilter() {
+       return filter;
    }
 
    // met a jour le tableau allFilters
@@ -875,7 +925,7 @@ public final class PlanFilter extends Plan {
          if( pf.isOn() ) pf.applyFilter();
       }
    }
-   
+
    /** Test Pierre pour PlanBGCat */
    static void updateNow() {
       PlanFilter pf = null;

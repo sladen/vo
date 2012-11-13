@@ -21,16 +21,18 @@
 package cds.aladin;
 
 import cds.tools.Util;
+import cds.tools.pixtools.Hpix;
 
 class HealpixAllskyPol extends HealpixKeyPol {
    
    protected int nbPix;       // Nombre de losanges
    protected HealpixKey [] pixList;  // Liste des losanges
+   protected int order;
 
    protected HealpixAllskyPol(PlanBG planBG,int order) {
       this.planBG = planBG;
       this.order=order;
-      this.pixid=-1;
+      this.npix=-1;
       allSky=true;
       resetTimer();
       String nameNet = "Norder"+order+"/Allsky";
@@ -51,8 +53,9 @@ class HealpixAllskyPol extends HealpixKeyPol {
       HealpixKeyPol h = new HealpixKeyPol();
       h.planBG=planBG;
       h.order=order;
-      h.pixid=npix;
-      h.corners = h.computeCorners();
+      h.npix=npix;
+      h.hpix = new Hpix(order,npix,planBG.frameOrigin);
+//      h.corners = h.computeCorners();
       h.resetTimer();
       h.width=h.height=width;
       h.pixels=null;
@@ -66,6 +69,9 @@ class HealpixAllskyPol extends HealpixKeyPol {
       return h;
    }
    
+   public int getOrder1() { return order; }
+   public long getNpix() { return -1; }
+   
    /** Création de tous les losanges individuels à partir d'un HealpixAllSky */
    protected void createPixList() {
       if( getStatus()!=READY ) return;
@@ -74,7 +80,6 @@ class HealpixAllskyPol extends HealpixKeyPol {
       int nbLosangeHeight = nbPix/nbLosangeWidth;
       if( nbPix/nbLosangeWidth!=(double)nbPix/nbLosangeWidth ) nbLosangeHeight++;
       int w = width/nbLosangeWidth;
-System.out.println("Génération de la liste des "+nbLosangeWidth+"x"+nbLosangeHeight+" losanges "+w+"x"+w+" pour AllSky "+(pixelsOrigin2!=null?"polarisation":"")+"...");      
       
       pixList = new HealpixKey[nbPix];
       for( int i=0; i<nbPix; i++ ) {

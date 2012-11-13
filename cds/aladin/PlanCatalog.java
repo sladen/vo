@@ -19,10 +19,10 @@
 
 package cds.aladin;
 
-import java.net.*;
+import java.io.File;
+import java.net.URL;
 import java.util.Iterator;
 import java.util.Vector;
-import java.io.*;
 
 import cds.tools.Util;
 
@@ -34,14 +34,13 @@ import cds.tools.Util;
  * @version 0.9 : (??) creation
  */
 public class PlanCatalog extends Plan {
-    
-    
    URL url = null;
 
   /** Creation d'un plan de type CATALOG (via une fichier)
    * @param file  Le nom du fichier
    */
-   protected PlanCatalog(Aladin aladin, String file, MyInputStream in,boolean skip) {
+   protected PlanCatalog(Aladin aladin, String file, MyInputStream in,boolean skip,boolean doClose) {
+      this.doClose=doClose;
       flagSkip = skip;
       String label = "Cat";
       this.dis=in;
@@ -89,7 +88,7 @@ public class PlanCatalog extends Plan {
     pcat       = new Pcat(this,c,aladin.calque,aladin.status,aladin);
     flagOk=true;
   }
-  
+
   public PlanCatalog() {}
 
   /** Creation d'un plan de type CATALOG via une URL
@@ -140,13 +139,42 @@ public class PlanCatalog extends Plan {
       threading();
    }
    
-   protected boolean isSync() {
-      boolean hasSource = hasSources();
-      return  (flagOk && error==null
-            || flagOk && pcat!=null && (hasSource || error!=null && !hasSource)
-            || pcat!=null && error!=null && !hasSource);
+   /** retourne le nom de la table associée à une source */
+   protected String getTableName(Source o) {
+      String s = o.leg==null ? null : o.leg.name;
+      if( s==null ) {
+         if( o.info==null ) return "Table";
+         int i = o.info.indexOf('|');
+         int j = o.info.indexOf('>');
+         if( i==-1 || j==-1 ) return "Table";
+         s = o.info.substring(i+1,j);
+      }
+      if( s.endsWith("/out") ) s=s.substring(0,s.length()-4);
+      return s;
+   }
+
+   /** retourne le nom de la première table */
+   protected String getFirstTableName() {
+      Iterator<Obj> it = iterator();
+      while( it.hasNext() ) {
+         Obj o = it.next();
+         if( !(o instanceof Source) ) continue;
+         return getTableName( (Source)o );
+      }
+      return null;
    }
    
+   private long lastFilterLock = -1;
+
+   protected boolean isSync() {
+      boolean hasSource = hasSources();
+      boolean isSync = (flagOk && error==null
+            || flagOk && pcat!=null && (hasSource || error!=null && !hasSource)
+            || pcat!=null && error!=null && !hasSource);
+      isSync = isSync && (planFilter==null || planFilter.isSync() );
+      return  isSync;
+   }
+
   /** Libere le plan.
    * cad met toutes ses variables a <I>null</I> ou a <I>false</I>
    */
@@ -168,11 +196,11 @@ public class PlanCatalog extends Plan {
 
    /** Retourne le nombre d'objects */
    protected int getCounts() { return pcat==null ? 0 : pcat.getCounts(); }
-   
+
    protected Obj [] getObj() {
       return pcat.o;
    }
-   
+
    /** Modifie (si possible) une propriété du plan */
    protected void setPropertie(String prop,String specif,String value) throws Exception {
       if( prop.equalsIgnoreCase("Shape") ) {
@@ -223,8 +251,6 @@ public class PlanCatalog extends Plan {
          setFilter(filterIndex);
       }
 
-      aladin.endMsg();
-      
       if( getNbTable()>1 ) aladin.calque.splitCatalog(this);
 
      callAllListeners(new PlaneLoadEvent(this, PlaneLoadEvent.SUCCESS, null));
@@ -244,6 +270,16 @@ public class PlanCatalog extends Plan {
    /** Retourne le nombre de tables qui composent le catalogue */
    protected int getNbTable() { return pcat.nbTable; }
    
+   /** Accroit ou décroit la taille du type de source */
+   void increaseSourceSize(int sens) { 
+      Iterator<Obj> it = iterator();
+      while( it.hasNext() ) {
+         Obj o = it.next();
+         if( !(o instanceof Source) ) continue;
+         ((Source)o).increaseSourceSize(sens);
+      }
+   }
+
    /** Retourne la liste des légendes des tables qui composent le catalogue */
    protected Vector<Legende> getLegende() {
       Vector<Legende> leg = new Vector(10);
@@ -257,7 +293,7 @@ public class PlanCatalog extends Plan {
       }
       return leg;
    }
-   
+
    /** Retourne la première légende trouvée dans la liste des sources */
    protected Legende getFirstLegende() {
       Iterator<Obj> it = iterator();
@@ -318,16 +354,21 @@ public class PlanCatalog extends Plan {
           Obj o = it.next();
           if( !(o instanceof Source) ) continue;
           Source s = (Source)o;
-	      if( s.getFootprint()!=null ) s.getFootprint().pcat.reallocObjetCache();
+	      if( s.getFootprint()!=null ) {
+	          PlanField pf = s.getFootprint().getFootprint();
+	          if (pf != null) {
+	              pf.pcat.reallocObjetCache();
+	          }
+	      }
 	   }
 
 	}
-	
+
 	 /** retourne true si le plan a des sources */
 	 protected boolean hasSources() { return pcat!=null && pcat.hasObj(); }
-	 
+
 	 /******************************************************** QUELQUES TESTS UNITAIRES *******************************************************/
-	   
+
 	 static private boolean test1(Aladin aladin,String t,String s, String r) {
 	    System.out.print("> PlanCatalog test : "+t+"...");
 	    int trace=aladin.levelTrace;
@@ -343,6 +384,7 @@ public class PlanCatalog extends Plan {
 	       String r1="row="+p.getCounts()+" col="+p.getFirstLegende().getSize()+" ra="+o.raj+" de="+o.dej+" id="+o.id;
 	       if( !r1.equals(r) ) throw new Exception("respond test ["+r1+"] should be ["+r+"]");
 	    } catch( Exception e ) {
+	       e.printStackTrace();
 	       aladin.levelTrace=trace;
 	       System.out.println(" Error: "+e.getMessage());
 	       return false;
@@ -351,7 +393,7 @@ public class PlanCatalog extends Plan {
 	    System.out.println(" OK");
 	    return true;
 	 }
-	 
+
 	 static String TEST_TSV_TITLE = "TSV/1_header_line";
 	 static String TEST_TSV_RESULT = "row=1 col=18 ra=77.405544 de=-63.777272 id=J050937.33-634638.1";
 	 static String TEST_TSV = "globalSourceID\tsourceCatalog\tepoch\tdesignation\ttmass_designation\tra\tdec\tmagJ\tmagH\tmagK\tmag3_6\tdmag3_6\tmag4_5\tdmag4_5\tmag5_8\tdmag5_8\tmag8_0\tdmag8_0\n"+
@@ -456,13 +498,13 @@ public class PlanCatalog extends Plan {
         rep &= test1(aladin,TEST_VOTABLE_TITLE,TEST_VOTABLE,TEST_VOTABLE_RESULT);
         return rep;
 	 }
-	 
+
 //	 @Test
 	 public void test() throws Exception {
         Aladin.NOGUI=Aladin.STANDALONE=true;
         Aladin aladin = new Aladin();
         Aladin.startInFrame(aladin);
-        
+
         assert test(aladin);
 	 }
 }

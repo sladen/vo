@@ -22,16 +22,17 @@ package cds.aladin;
 
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.event.*;
-import java.net.*;
-import java.util.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
 import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.util.StringTokenizer;
 
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
+import javax.swing.*;
 import javax.swing.border.TitledBorder;
 
 
@@ -48,7 +49,7 @@ import javax.swing.border.TitledBorder;
 public final class TreeView extends JFrame implements WindowListener, ActionListener {
 
    static String NOM,SUBMIT,RESET,CLOSE,CLEAR,WERR,UNKNOWNOBJ,NODATA;
-   
+
    //private static final String SAVE = "Save";
 
    MetaDataTree mTree;		// l'arbre des resources
@@ -64,7 +65,7 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
 
    // référence à aladin
    Aladin aladin;
-   
+
    protected void createChaine() {
       NOM = aladin.chaine.getString("TREETITLE");
       UNKNOWNOBJ = aladin.chaine.getString("UNKNOWNOBJ");
@@ -98,7 +99,7 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
 	  // on ajoute un component pour gérer le click pour fermer la fenêtre
 	  addWindowListener(this);
 
-      
+
 
 
       // Creation noeud racine
@@ -108,7 +109,7 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
       mTree = new MetaDataTree(root,aladin,null,true);
       mTree.setAllowSortByFields(false);
       mTree.setFullExpandAtStart(false);
-      
+
       // Le panel de l'arbre hierarchique
       scrollTree = new JScrollPane(mTree,JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
       scrollTree.setSize(SCROLL_TREE_WIDTH,getSize().height-70);
@@ -140,7 +141,7 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
     private JButton createButton(String s) {
     	JButton b = new JButton(s);
     	b.addActionListener(this);
-    	
+
     	return b;
     }
 
@@ -167,13 +168,13 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
         // on affiche une eventuelle erreur
         if( error!=null ) {
             Aladin.warning(tree, error);
-            return false; 
+            return false;
         //  patch pour Pierre, au cas où on a zéro resource retournée
         } else if( newBranch.nbChildren<=0 ) {
             Aladin.warning(tree, NODATA);
             return false;
         }
-        
+
 	    // si on n'a pas le target, TreeBuilder l'a p-e trouvé dans le stream
         if( (target==null || target.length()==0) && targetFound!=null ) {
             target = targetFound;
@@ -198,12 +199,12 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
         // RAZ
         targetFound = null;
         error = null;
-        
+
         return true;
 	}
 
 	/** ajoute une nouvelle branche à tree (utilisé par DiscoveryServer)
-	 *  En cas d'erreur ou de zéro résultat retourné, on écrit le message uniquement 
+	 *  En cas d'erreur ou de zéro résultat retourné, on écrit le message uniquement
 	 *  sur STDIN, le popup n'est pas affiché
 	 */
 	// TODO : cette histoire de requestedPos, c'est pas tres beau, il faudrait rationaliser en se servant de target
@@ -211,12 +212,12 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
         if( server!=null && server.target!=null && (target==null || target.length()==0) ) {
             target = server.target.getText();
         }
-        
+
         ResourceNode newBranch = createNewBranch(null,is,target,null,server,null,requestedPos);
 
         // on affiche une eventuelle erreur
         if( error!=null ) {
-            aladin.command.toStdoutln("!!! "+error);
+            aladin.command.println("!!! "+error);
             return false;
         }
         //  patch pour Pierre, au cas où on a zéro resource retournée
@@ -247,7 +248,7 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
         // RAZ
         targetFound = null;
         error = null;
-        
+
         return true;
     }
 
@@ -276,7 +277,7 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
 
 		return c.getSexa(":");
 	}
-	
+
 	   protected static Coord resolveTargetCoo(String s, Aladin a) {
 	        Coord c=null;
 	        try {
@@ -334,7 +335,14 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
           else if( server instanceof ServerVizieR )
               serverName = "VizieR";
           else {
-              if( url==null ) serverName=server.aladinLabel;
+              if( url==null ) {
+                  if (server==null) {
+                      serverName = null;
+                  }
+                  else {
+                      serverName=server.aladinLabel;
+                  }
+              }
               else {
                   serverName = url.toString();
                   serverName = "..."+serverName.substring(Math.max(0,serverName.length()-20));
@@ -452,7 +460,7 @@ public final class TreeView extends JFrame implements WindowListener, ActionList
         	ret = tb.build();
         	targetFound = tb.getTarget();
             error = tb.getError();
-            
+
             if( ret!=null ) ret.hide = false;  // test null: PF - 18 nov 05
         }
         catch(Exception e) {

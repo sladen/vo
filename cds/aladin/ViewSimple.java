@@ -20,56 +20,15 @@
 
 package cds.aladin;
 
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Composite;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Image;
-import java.awt.Point;
-import java.awt.Polygon;
-import java.awt.Rectangle;
-import java.awt.RenderingHints;
-import java.awt.Shape;
-import java.awt.Stroke;
-import java.awt.dnd.DnDConstants;
-import java.awt.dnd.DragGestureEvent;
-import java.awt.dnd.DragGestureListener;
-import java.awt.dnd.DragSource;
-import java.awt.dnd.DragSourceDragEvent;
-import java.awt.dnd.DragSourceDropEvent;
-import java.awt.dnd.DragSourceEvent;
-import java.awt.dnd.DragSourceListener;
-import java.awt.dnd.DropTarget;
-import java.awt.dnd.DropTargetDragEvent;
-import java.awt.dnd.DropTargetDropEvent;
-import java.awt.dnd.DropTargetEvent;
-import java.awt.dnd.DropTargetListener;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.MouseWheelListener;
+import java.awt.*;
+import java.awt.dnd.*;
+import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.IndexColorModel;
 import java.awt.image.MemoryImageSource;
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.Iterator;
-import java.util.StringTokenizer;
-import java.util.Vector;
+import java.util.*;
 
 import javax.swing.JComponent;
 import javax.swing.JMenuItem;
@@ -139,6 +98,8 @@ public class ViewSimple extends JComponent
    byte [] pixels;               // Pixels de la portion de l'image visible
    int [] pixelsRGB;             // Pixels de la portion de l'image visible
    int [] tmpRGB;                // Pixels de la portion de l'image visible
+   protected RainbowPixel rainbow;    // Un Rainbow en superposition de la vue pour les pixels
+   protected Rainbow rainbowF;    // Un Rainbow en superposition de la vue pour les filtres
    BlinkControl blinkControl=null; // En cas d'image Blink, le controleur associé
    protected boolean flagHuge;   // true: Cette vue affiche une image HUGE en pleine résolution
    int xHuge,yHuge,wHuge,hHuge;  // Position de la zone Haute définition si image Huge (coord dans l'image sous-échantillonnée)
@@ -243,7 +204,7 @@ public class ViewSimple extends JComponent
       addKeyListener(this);
 
       setOpaque(true);
-      setDoubleBuffered(false);
+//      setDoubleBuffered(false);
 
       setFocusTraversalKeysEnabled(false);
 
@@ -269,7 +230,6 @@ public class ViewSimple extends JComponent
    public synchronized void drop(DropTargetDropEvent dropTargetDropEvent) {
       aladin.drop(dropTargetDropEvent);
       aladin.view.setMouseView(this);
-
    }
 
    public void mouseWheelMoved(MouseWheelEvent e) {
@@ -296,7 +256,7 @@ public class ViewSimple extends JComponent
             aladin.view.repaintAll();
             return;
          }
-      }catch( Exception e1) {}
+      }catch( Exception e1) { if( Aladin.levelTrace>=3 ) e1.printStackTrace(); }
 
       try {
          
@@ -310,8 +270,8 @@ public class ViewSimple extends JComponent
          }
      
          // Si le repere n'existe pas ou qu'il n'est pas dans la vue, on zoom au centre
-         // ou qu'on est en train de faire un crop
-         else if( !isPlotView() &&  ( aladin.toolbox.getTool()==ToolBox.PHOT ||
+         // (ou qu'on est en train de faire un crop)
+         else if( !isPlotView() &&  ( aladin.toolBox.getTool()==ToolBox.PHOT ||
                view.repere==null || view.repere.getViewCoord(vs,0,0)==null || hasCrop() ) ) {
             if( hasCrop() ) p = view.crop.getFocusPos();
 //            else p = vs.getPosition((double)e.getX(),(double)e.getY());
@@ -319,8 +279,8 @@ public class ViewSimple extends JComponent
             coo.x=p.x; coo.y=p.y;
             vs.getProj().getCoord(coo);
          }
-      } catch( Exception e1 ) { coo=null; }
-      if( aladin.toolbox.getTool()==ToolBox.ZOOM ) { flagDrag=false; rselect = null; }
+      } catch( Exception e1 ) { coo=null; if( aladin.levelTrace>=3 ) e1.printStackTrace(); }
+      if( aladin.toolBox.getTool()==ToolBox.ZOOM ) { flagDrag=false; rselect = null; }
       if( e.isShiftDown() ) aladin.view.selectCompatibleViews();
 
       vs.syncZoom(-e.getWheelRotation(),coo);
@@ -334,6 +294,7 @@ public class ViewSimple extends JComponent
    private void syncZoom(int sens,Coord coo) {
       if( isFree() ) return;
       double nz = aladin.calque.zoom.getNextValue(zoom,sens);
+//      aladin.trace(4,"ViewSimple.syncZoom("+sens+","+(coo==null?null:aladin.localisation.frameToString(coo.al, coo.del))+") zoom="+zoom+" => nz="+nz);
       if( nz==-1 ) return;
 
       if( !selected ) {
@@ -430,17 +391,22 @@ public class ViewSimple extends JComponent
     
     /** True si le plan de référence de cette vue peut être forcée Nord en haut */
     protected boolean canBeNorthUp() {
-       return !isFree() && Projection.isOk(pref.projd) && pref.isImage()
-           && !(pref instanceof PlanBG) && !isProjSync();
+       return !isFree() && Projection.isOk(pref.projd) /* && pref.isImage() */
+           && (!(pref instanceof PlanBG) || pref instanceof PlanBG && pref.projd.rot!=0 )
+           && !isProjSync();
     }
 
     /** Permute l'état northUp de la vue */
     protected boolean switchNorthUp() {
        if( !canBeNorthUp() ) return false;
-       Coord coo = getCooCentre();
-       northUp=!northUp;       
-       setZoomRaDec(0,coo.al,coo.del);
-       if( pref.isImage() ) ((PlanImage)pref).changeImgID();
+       if( pref instanceof PlanBG ) {
+          pref.projd.setProjRot(0);
+       } else {
+          Coord coo = getCooCentre();
+          northUp=!northUp;       
+          setZoomRaDec(0,coo.al,coo.del);
+          if( pref.isImage() ) ((PlanImage)pref).changeImgID();
+       }
        newView(1);
        aladin.view.repaintAll();
        return true;
@@ -466,15 +432,25 @@ public class ViewSimple extends JComponent
    /** Retourne true si la vue n'est pas utilisée */
    protected boolean isFree() { return pref==null || pref.type==Plan.NO || pref.type==Plan.X; }
    
-   /** Retourne true si la vue est syncronisée */
-   protected boolean isSync() {
-      if( isFree() || !(pref instanceof PlanBG) ) return true;
-      return ovizBG==iz;
-   }
+   /** Retourne true si la vue est synchronisée */
+//   protected boolean isSync() {
+//      if( isFree() || !(pref.type==Plan.ALLSKYIMG) ) return true;
+////      System.out.println("ViewSimple="+this+" ovizBG="+ovizBG+" iz="+iz);
+//      return ovizBG==iz;
+//   }
+   
+   /** Attend que la vue soit synchronisée - pour les PlanBG */
+//   protected void sync() {
+//      if( isSync() ) return;
+//      while( !isSync() ) {
+//         Util.pause(25);
+//         aladin.trace(4,Thread.currentThread().getName()+": ViewSimple.sync() waiting image PlanBG buffer...");
+//      }
+//   }
 
    /** Libère la vue  */
    protected void free() {
-      unlockRepaint("free");
+//      unlockRepaint("free");
       sticked=selected=locked=northUp=false;
       pref=null;
       memImgCM=null;
@@ -537,73 +513,108 @@ public class ViewSimple extends JComponent
 //      } catch( Exception e ) {}
 //   }
    
+   /** Génération d'un plan à partir des pixels repérés par le rectangle crop pour un plan allsky */
+   protected PlanImage cropAreaBG(RectangleD rcrop,String label,double zoom,double resMult,boolean fullRes) {
+      PlanImage pi=null;
+      PlanBG pref = (PlanBG)this.pref;
+      
+      try {
+         if( label==null ) label = pref.label;
+         pi = (PlanImage)aladin.calque.dupPlan(pref, null,pref.type,false);
+         pi.flagOk=false;
+         pi.setLabel(label);
+         pi.pourcent=1;
+         pi.type=Plan.IMAGE;
+         boolean cropped;
+         
+         double zoomFct = zoom*resMult;
+         
+         pi.width = pi.naxis1 = (int)Math.round(rcrop.width*zoomFct);
+         pi.height = pi.naxis2 = (int)Math.round(rcrop.height*zoomFct);
+         pi.initZoom=1;
+
+         // Conversion dans les coord. de la vue
+         PointD p = getViewCoordDble(rcrop.x, rcrop.y);
+         RectangleD rview = new RectangleD(p.x,p.y,pi.width,pi.height);
+
+         if( pref.hasOriginalPixels() ) {
+           pref.getCurrentBufPixels(pi,rcrop,zoomFct,resMult,fullRes);
+            
+         } else if( (pref).color ) {
+            pi.type=Plan.IMAGERGB;
+            pi.bitpix=8;
+            ((PlanImageRGB)pi).pixelsRGB = pref.getPixelsRGBArea(this,rview,true);
+            pi.cm = IndexColorModel.getRGBdefault();
+            ((PlanImageRGB)pi).initCMControl();
+            ((PlanImageRGB)pi).flagRed=((PlanImageRGB)pi).flagGreen=((PlanImageRGB)pi).flagBlue=true;
+            
+         } else {
+            pi.pixels = pref.getPixels8Area(this,rview,true);
+            pi.bitpix=8;
+            pi.cm = ColorMap.getCM(0,128,255,false,pi.typeCM,PlanImage.LINEAR);
+            pi.setTransfertFct(PlanImage.LINEAR);
+            pi.cmControl[0]=0; pi.cmControl[1]=128; pi.cmControl[2]=255;
+         }
+         
+         pi.projd.cropAndZoom(rcrop.x,rcrop.y,rcrop.width,rcrop.height, zoomFct);
+         
+         PointD pA = getPosition(getWidth()/2.,getHeight()/2);
+         double deltaX = (pA.x-Math.floor(pA.x))*zoomFct;
+         double deltaY = (pA.y-Math.floor(pA.y))*zoomFct;
+         pi.projd.deltaProjXYCenter(-deltaX,-deltaY);
+         
+         // Beurk !! en attendant BOF
+         try { pi.projd = Projection.getEquivalentProj(pi.projd); }
+         catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
+
+         pi.noCacheFromOriginalFile();
+         cropped=true;
+
+         pi.from = "Dumped from "+pref.label
+            + (cropped?" cropped ("+rcrop+")":"");
+         
+         pi.setHasSpecificCalib();
+         pi.pourcent=-1;
+         pi.isOldPlan=false;
+         pi.ref=false;
+         pi.selected=false;
+         pi.setOpacityLevel(1f);
+         pi.changeImgID();
+         pi.resetProj();
+         pi.reverse();
+         pi.flagOk=true;
+
+      } catch( Exception e ) { if( pi!=null ) pi.error=e.getMessage(); e.printStackTrace(); }
+      return pi;
+   }
+   
+   
    /** Génération d'un plan à partir des pixels repérés par le rectangle crop (éventuellement extraction de la frame
     * courante dans le cas d'un plan Blink et possibilité de recadrage sur la portion visible
     */
-   protected PlanImage cropArea(RectangleD rcrop,String label,double zoom,double resMult,boolean verbose) {
+   protected PlanImage cropArea(RectangleD rcrop,String label,double zoom,double resMult,boolean fullRes,boolean verbose) {
       PlanImage pi=null;
+      
+      if( pref.type==Plan.ALLSKYIMG ) return cropAreaBG(rcrop,label,zoom,resMult,fullRes);
       
       try {
          int frame=0;
          if( label==null ) label = pref.label;
          pi = (PlanImage)aladin.calque.dupPlan((PlanImage)pref, null,pref.type,false);
+         pi.flagOk=false;
          pi.setLabel(label);
          pi.pourcent=1;
-         pi.flagOk=false;
-         pi.type=Plan.IMAGE;
+         if( !(pref instanceof PlanImageRGB) ) pi.type=Plan.IMAGE;
          boolean picked= pref instanceof PlanImageBlink;
          if( picked ) ((PlanImageBlink)pref).activePixelsOrigin(this,pi);
          boolean cropped;
          double x=0,y=0,w=0,h=0;
          
-         if( pref.type==Plan.ALLSKYIMG ) {
-            pi.width = pi.naxis1 = top(rcrop.width*zoom*resMult);
-            pi.height = pi.naxis2 = top(rcrop.height*zoom*resMult);
-            pi.initZoom=1;
-            Projection proj = getProj();
-            pi.projd = proj.copy();      
-            
-            // Conversion dans les coord. de la vue
-            PointD p = getViewCoordDble(rcrop.x, rcrop.y);
-            RectangleD rview = new RectangleD(p.x,p.y,rcrop.width*zoom*resMult,rcrop.height*zoom*resMult);
-            
-            if( pref instanceof PlanBG && ((PlanBG)pref).hasOriginalPixels() ) {
-               pi.pixelsOrigin = ((PlanBG)pref).getCurrentBufPixels((Plan)pi,rcrop,zoom*resMult);
-               pi.setBufPixels8(pi.getPix8Bits(null,pi.pixelsOrigin,pi.bitpix,pi.width,pi.height,pi.pixelMin,pi.pixelMax,false));
-               pi.invImageLine(pi.width,pi.height,pi.getBufPixels8());
-               pi.colorBackground=Color.white;
-            } else if( ((PlanBG)pref).color ) {
-               pi.type=Plan.IMAGERGB;
-               ((PlanImageRGB)pi).pixelsRGB = ((PlanBG)pref).getPixelsRGBArea(this,rview);
-               pi.cm = IndexColorModel.getRGBdefault();
-               ((PlanImageRGB)pi).initCMControl();
-               ((PlanImageRGB)pi).flagRed=((PlanImageRGB)pi).flagGreen=((PlanImageRGB)pi).flagBlue=true;
-            } else {
-               pi.setBufPixels8(((PlanBG)pref).getPixels8Area(this,rview));
-               pi.bitpix=8;
-               pi.cm = ColorMap.getCM(0,128,255,false,pi.typeCM,PlanImage.LINEAR);
-               pi.setTransfertFct(PlanImage.LINEAR);
-               pi.cmControl[0]=0; pi.cmControl[1]=128; pi.cmControl[2]=255;
-            }
-           
-            pi.projd.cropAndZoom(rcrop.x,rcrop.y,rcrop.width,rcrop.height, zoom*resMult);
-            
-            PointD pA = getPosition(getWidth()/2.,getHeight()/2);
-            double deltaX = (pA.x-(int)pA.x)*zoom*resMult;
-            double deltaY = (pA.y-(int)pA.y)*zoom*resMult;
-            pi.projd.deltaProjXYCenter(-deltaX,-deltaY);
-            
-            pi.noCacheFromOriginalFile();
-            cropped=true;
-           
-         } else {
-            x=floor(rcrop.x);     y=floor(rcrop.y);
-            w=top(rcrop.width);   h=top(rcrop.height);
-            if( verbose ) aladin.console.setCommand("crop "+D(x)+","+D( ((PlanImage)pref).naxis2-(y+h))+" "+D(w)+"x"+D(h));
-            if( pref.type==Plan.IMAGEHUGE ) cropped = pi.cropHuge(x,y,w,h,false);
-            else cropped = pi.crop(x,y,w,h,false);
-         }
-
+         x=(int)Math.floor(rcrop.x);     y=(int)Math.floor(rcrop.y);
+         w=(int)Math.ceil(rcrop.width);   h=(int)Math.ceil(rcrop.height);
+         if( verbose ) aladin.console.setCommand("crop "+D(x)+","+D( ((PlanImage)pref).naxis2-(y+h))+" "+D(w)+"x"+D(h));
+         if( pref.type==Plan.IMAGEHUGE ) cropped = pi.cropHuge(x,y,w,h,false);
+         else cropped = pi.crop(x,y,w,h,false);
 
          if( picked ) frame = blinkControl.lastFrame+1;
 
@@ -618,7 +629,7 @@ public class ViewSimple extends JComponent
          pi.ref=false;
          pi.selected=false;
          pi.setOpacityLevel(1f);
-         pi.reverse();
+         if( !(pref instanceof PlanImageRGB) ) pi.reverse();
          
 
       } catch( Exception e ) { if( pi!=null ) pi.error=e.getMessage(); e.printStackTrace(); }
@@ -629,14 +640,6 @@ public class ViewSimple extends JComponent
    private String D(double x) {
       if( x==(int)x ) return (int)x+"";
       else return x+"";
-   }
-
-   protected void crop() {
-      crop((PlanImage)pref);
-   }
-
-   protected void crop(PlanImage pref) {
-      pref.crop(floor(rzoom.x),floor(rzoom.y),top(rzoom.width),top(rzoom.height),true);
    }
 
    /** Convertit des coordonnées de l'imagette du zoomview
@@ -664,7 +667,7 @@ public class ViewSimple extends JComponent
    */
    protected Point getPosition(int xview, int yview) {
       PointD p = getPosition((double)xview,(double)yview);
-      return new Point(floor(p.x),floor(p.y));
+      return new Point((int)Math.floor(p.x),(int)Math.floor(p.y));
    }
    
   /** Convertion de coordonnees.
@@ -806,13 +809,13 @@ public class ViewSimple extends JComponent
        }
 
        if( rzoom==null ) {
-          newx = round(x);
-          newy = round(y);
+          newx = (int)Math.round(x);
+          newy = (int)Math.round(y);
        } else {
-          newx = round( (x - rzoom.x)*zoom );
-          newy = round( (y - rzoom.y)*zoom );
+          newx = (int)Math.round( (x - rzoom.x)*zoom );
+          newy = (int)Math.round( (y - rzoom.y)*zoom );
        }
-
+       
        // Petite correction due à une éventuelle marge sur le bord
        // de l'image (pixel partiel)
        if( this.dx>=0 ) newx-=ddx;
@@ -833,8 +836,8 @@ public class ViewSimple extends JComponent
 	* @param x,y Point dans l'image courante EN DOUBLES
 	* @return  Retourne la position dans les coordonnees de la vue en DOUBLES (View Frame)
 	*/
-    protected PointD getViewCoordDble(double x, double y) { return getViewCoordDble(null,x,y); }
-    protected PointD getViewCoordDble(PointD p, double x, double y) {
+    public PointD getViewCoordDble(double x, double y) { return getViewCoordDble(null,x,y); }
+    public PointD getViewCoordDble(PointD p, double x, double y) {
 	   double newx,newy;
 
 	   // Juste pour accélérer (profiling)
@@ -857,6 +860,7 @@ public class ViewSimple extends JComponent
        else newx++;
        if( this.dy>=0 ) newy-=ddy;
        else newy++;
+       
        p.x=newx; p.y=newy;
 	   return p;
 	}
@@ -953,8 +957,6 @@ public class ViewSimple extends JComponent
       setZoomXY(fct,this.xzoomView,this.yzoomView);
     }
 
-   private boolean flagClickOutside=false;
-
    /** Scrolling par un clic and drag souris */
    protected void scroll(MouseEvent e) {
       if( locked ) return;
@@ -963,25 +965,31 @@ public class ViewSimple extends JComponent
       
       Plan pref = getProjSyncView().pref;
 
+      int dxView = x-scrollX;
+      int dyView = y-scrollY;
+      
+      // Rotation libre soit en appuyant CTRL, soit en pivotant la rose des vents
+      int W=getNESize();
+      boolean inNE = inNE(x,y);
+      if(  inNE || e.isControlDown() && pref instanceof PlanBG ) {
+         int xc = inNE ? rv.width-W/2 : rv.width/2;;
+         int yc = inNE ? rv.height-W/2 : rv.height/2;
+         double a1 = Math.atan2(scrollY-yc,scrollX-xc);
+         double a2 = Math.atan2(y-yc,x-xc);
+         getProj().deltaProjRot( Math.toDegrees( a1-a2 ) );
+         flagMoveRepere=false;
+         aladin.view.newView(1);
+         aladin.view.repaintAll();
+         return;
+      }
+      
+      // Déplacement par changement de centre de projection
       if( pref instanceof PlanBG && !(e.isControlDown() || getTaille()<30)  ) {
 
          Point ps = getPosition(scrollX, scrollY);
          Point pt = getPosition(x, y);
 
          Projection proj = getProj();
-         
-//         if( e.isShiftDown() || (flagClickOutside && proj.t!=3) ) {
-//            int w = getWidth();
-//            int h = getHeight();
-//            double a1 = Math.toDegrees( Math.atan2(scrollY-h/2,scrollX-w/2) );
-//            double a2 = Math.toDegrees( Math.atan2(y-h/2,x-w/2) );
-////System.out.println("Rotation "+(a1-a2));
-//            proj.deltaProjRot(a1-a2);
-//            aladin.view.newView(1);
-//            aladin.view.repaintAll();
-//            return;
-//         }
-
          Projection proj1 = proj.copy();
          proj1.frame=0;
          proj1.setProjCenter(90, 0);
@@ -993,18 +1001,16 @@ public class ViewSimple extends JComponent
          ct.y = cs.y+(pt.y-ps.y);
          proj1.getCoord(ct);
          if( Double.isNaN(ct.al) ) return;
-         double deltaRA = cs.al-ct.al;
-         double deltaDE = cs.del-ct.del;
-//System.out.println("Changement de centre delta="+Coord.getUnit(deltaRA)+","+Coord.getUnit(deltaDE)  );
-         proj.deltaProjCenter(deltaRA,deltaDE);
-//         newView(1);
-//         repaint();
+         double deltaRa = cs.al-ct.al;
+         double deltaDe = cs.del-ct.del;
+//System.out.println("Changement de centre delta="+Coord.getUnit(deltaRa)+","+Coord.getUnit(deltaDe)  );
+         proj.deltaProjCenter(deltaRa,deltaDe);
+         
          aladin.view.newView(1);
-         aladin.view.setRepere(proj.getProjCenter());
+         aladin.view.setRepere(proj.getProjCenter());                  
       }
-
-      int dxView = x-scrollX;
-      int dyView = y-scrollY;
+      
+      if( pref instanceof PlanBG && aladin.view.crop!=null ) aladin.view.crop.deltaXY(dxView/zoom,dyView/zoom);
 
       if( e!=null ) {
          if( Math.abs(dxView)>Math.abs(dxScroll) || dxView*dxScroll<0 ) dxScroll = dxView;
@@ -1025,11 +1031,11 @@ public class ViewSimple extends JComponent
       if( pref instanceof PlanBG
             && !(e.isControlDown() || e.isShiftDown())) {
          double taille = getPixelSize()*1.5;
-         getProj().deltaProjCenter(dxView*taille,dyView*taille);
+         double deltaRa=dxView*taille, deltaDec=dyView*taille;
+         getProj().deltaProjCenter(deltaRa,deltaDec);
          aladin.view.newView(1);
+         if( aladin.view.crop!=null ) aladin.view.crop.deltaXY(dxView/zoom,dyView/zoom);
          aladin.view.repaintAll();
-//         newView(1);
-//         repaint();
          return;
       }
 
@@ -1059,10 +1065,6 @@ public class ViewSimple extends JComponent
    
    protected void goToAllSky(Coord c) {
       aladin.view.setRepere(c);
-//      getProj().setProjCenter(c.al,c.del);
-//      newView(1);
-//      aladin.calque.zoom.zoomView.repaint();
-//      repaint();
       aladin.view.showSource(); 
    }
 
@@ -1164,15 +1166,6 @@ public class ViewSimple extends JComponent
       double dW = ((W/imgW)*rv.width )/zoom;
       double dH = ((H/imgH)*rv.height )/zoom;
 
-      // Recentrage automatique en cas de dépassement
-//           if( dW>W ) xc = W/2;
-//      else if( xc+dW/2>W ) xc = W-dW/2;
-//      else if( xc-dW/2<0 ) xc = dW/2;
-//
-//           if( dH>H ) yc = H/2;
-//      else if( yc+dH/2>H ) yc = H-dH/2;
-//      else if( yc-dH/2<0 ) yc = dH/2;
-
       // Memorisation du rectangle du zoom dans les coord. de l'image courante
       double xzImg = (imgW/W)*xc;
       double yzImg = (imgH/H)*yc;
@@ -1190,6 +1183,7 @@ public class ViewSimple extends JComponent
          this.yzoomView=yc;
          this.HView = H;
          this.WView = W;
+         
          return rzoom;
       }
 
@@ -1342,7 +1336,7 @@ public class ViewSimple extends JComponent
 //         return true;
       }
       if(  isFree() || 
-            (aladin.toolbox.getTool()!=ToolBox.SELECT && aladin.toolbox.getTool()!=ToolBox.PAN)
+            (aladin.toolBox.getTool()!=ToolBox.SELECT && aladin.toolBox.getTool()!=ToolBox.PAN)
                    || aladin.calque.zoom.zoomView.flagdrag) return false;
       return isInImage(ra,dec);
    }
@@ -1394,10 +1388,13 @@ public class ViewSimple extends JComponent
       if( aladin.NOGUI ) {
          PlanImage pi = (PlanImage)( (!isFree() && pref.isImage() ) ? pref : null );
          getImgView(g,pi);
-      }
+      } 
       fillBackground(g);
-      paintOverlays(g,null,0,0);
-      if( aladin.NOGUI ) aladin.command.syncNeedRepaint=false;
+      paintOverlays(g,null,0,0,true);
+      drawCredit(g, 0, 0);
+      aladin.waitImage(img);
+//      System.out.println("ViewSimple.getImage("+w+","+h+") => paintOverlays done on "+img);
+//      if( aladin.NOGUI ) aladin.command.syncNeedRepaint=false;
       return img;
    }
 
@@ -1423,49 +1420,54 @@ public class ViewSimple extends JComponent
 //      return img;
 //   }
 
-   private boolean flagLockRepaint=false;   // voir waitLockReapaint() et unlockRepaint()
-   private Object lockRepaint = new Object();
-   private int threadIDlock=0;             // ID du thread ui dispose du lock            
-
-   protected void unlockRepaint(String orig) {
+//   private boolean flagLockRepaint=false;   // voir waitLockReapaint() et unlockRepaint()
+//   private Object lockRepaint = new Object();
+//   private int threadIDlock=0;             // ID du thread qui dispose du lock            
+//
+//   protected void unlockRepaint(String orig) {
+//      if( true ) return;
 //      aladin.trace(4,"ViewSimple.unlockRepaint("+orig+")...");
-      synchronized( lockRepaint ) {
-         flagLockRepaint=false;
-         threadIDlock=0;
-      }
-   }
-   
-   // Si l'attente du lock du repaint dépasse 4 secondes, on libère le lock
-   static final int ITSTIME = 4000;
-   
-   /** Attente du lock pour effectuer un paintComponent()
-    * Si le thread dispose déjà du lock, retourne immédiatement (évite un deadlock)
-    * @param orig Origine de l'appel (pour debugging)
-    */
-   protected void waitLockRepaint(String orig) {
-      long t1 = System.currentTimeMillis();
-      while( true )  {
-         try {
-            synchronized( lockRepaint ) {
-               int threadID = Thread.currentThread().hashCode();
-               if( threadIDlock==threadID ) return;
-               if( !flagLockRepaint ) {
-                  flagLockRepaint=true;
-                  threadIDlock=threadID;
-                  return;
-               }
-            }
-            Util.pause(50);
-            if( System.currentTimeMillis()-t1 > ITSTIME ) {
-               System.err.println("ViewSimple.getLockRepaint("+orig+") too long... force unlock !");
-               flagLockRepaint=false;
-               threadIDlock=0;
-               return;
-            }
-            aladin.trace(4,"ViewSimple.getLockRepaint("+orig+")...");
-         } catch( Exception e ) { }
-      }
-   }
+//      synchronized( lockRepaint ) {
+//         flagLockRepaint=false;
+//         threadIDlock=0;
+//      }
+//   }
+//   
+//   // Si l'attente du lock du repaint dépasse 8 secondes, on libère le lock
+//   static final int ITSTIME = 8000;
+//   
+//   /** Attente du lock pour effectuer un paintComponent()
+//    * Si le thread dispose déjà du lock, retourne immédiatement (évite un deadlock)
+//    * @param orig Origine de l'appel (pour debugging)
+//    */
+//   protected void waitLockRepaint(String orig) {
+//      long t1 = System.currentTimeMillis();
+//      while( true )  {
+//         try {
+//            synchronized( lockRepaint ) {
+//               int threadID = Thread.currentThread().hashCode();
+//               if( threadIDlock==threadID ) {
+//                  System.out.println("waitLockRepaint() même threadID="+threadID+" => "+Thread.currentThread().getName());
+//                  return;
+//               }
+//               if( !flagLockRepaint ) {
+//                  threadIDlock=threadID;
+//                  flagLockRepaint=true;
+//                  aladin.trace(4,Thread.currentThread().getName()+": ViewSimple.waitLockRepaint("+orig+") yes ! by "+threadID);
+//                  return;
+//               }
+//            }
+//            Util.pause(50);
+//            if( System.currentTimeMillis()-t1 > ITSTIME ) {
+//               System.err.println(Thread.currentThread().getName()+": ViewSimple.getLockRepaint("+orig+") too long... force unlock !");
+//               flagLockRepaint=false;
+//               threadIDlock=0;
+//               return;
+//            }
+//            aladin.trace(4,"ViewSimple.waitLockRepaint("+orig+") waiting...");
+//         } catch( Exception e ) { if( aladin.levelTrace>=3  ) e.printStackTrace(); }
+//      }
+//   }
 
    /** Force la regeneration de la vue (projections comprises)
     * si methode==1, force le recalcul des projections, -1 uniquement les projections
@@ -1531,9 +1533,12 @@ public class ViewSimple extends JComponent
    /** Fin de saisie d'un objet */
    protected void finNewObjet() {
       if( view.newobj==null ) return;
-      setNewObjet();
+      calque.setObjet(view.newobj);
       if( view.newobj instanceof Ligne && !(view.newobj instanceof Cote) ) ((Ligne)view.newobj).getFirstBout().bout=0;
       if( view.newobj instanceof Tag ) ((Tag)view.newobj).setDistAngulaireOrig(getProjSyncView());
+      view.extendClip(view.newobj);
+      aladin.console.setCommand(view.newobj.getCommand());
+      view.setSelectFromView(true);
       view.newobj=null;
       aladin.calque.repaintAll();
    }
@@ -1692,7 +1697,7 @@ public class ViewSimple extends JComponent
    /** Retourne le Tool courant avec la possibilité de passer directement
     * en PAN avec la touche ALT enfoncée    */
    private int getTool(InputEvent e) {
-      int tool = aladin.toolbox.getTool();
+      int tool = aladin.toolBox.getTool();
       if( (e.getModifiers() & java.awt.event.InputEvent.BUTTON3_MASK) !=0 || e.isAltDown() ) tool=ToolBox.PAN;
       return tool;
    }
@@ -1702,6 +1707,7 @@ public class ViewSimple extends JComponent
    public void mousePressed(MouseEvent e) { mousePressed1(e.getX(),e.getY(),e); }
    
    private int xDrag=-1,yDrag=-1;
+   private boolean rainbowUsed=false;
 
    protected void mousePressed1(double x, double y,MouseEvent e) {
 
@@ -1716,8 +1722,8 @@ public class ViewSimple extends JComponent
       // Pour prendre en compte un ajustement de l'histogramme directement par déplacement
       // de la souris dans la vue (à la DS9)
       if( (e.getModifiers() & java.awt.event.InputEvent.BUTTON3_MASK) !=0 ) {
-         xDrag=(int)e.getX();
-         yDrag=(int)e.getY();
+         xDrag=e.getX();
+         yDrag=e.getY();
       }
 
       boolean boutonDroit = (e.getModifiers() & java.awt.event.InputEvent.BUTTON3_MASK) !=0 && fullScreen; 
@@ -1735,10 +1741,30 @@ public class ViewSimple extends JComponent
 
       aladin.calque.zoom.zoomView.stopDrag();
       
+      // Gestion de l'outil de rainbow pixel
+      rainbowUsed = rainbowUsed();
+      if( hasRainbow() && rainbow.isInside(x,y) ) {
+         if( !rainbow.submit(vs) ) {
+            rainbow.reset();
+            rainbow.startDrag(x,y);
+         }
+         repaint(); 
+      }
+
+      // Gestion de l'outil de rainbow filter
+      if( rainbowF!=null && rainbowF.isInside(x,y) ) {
+         if( !rainbowF.submit(vs) ) {
+            rainbowF.reset();
+            rainbowF.startDrag(x,y);
+         }
+         repaint(); 
+      }
+      if( rainbowUsed ) return;
+
       if( tool==ToolBox.SELECT  || tool==-1  || tool==ToolBox.PAN  || tool==ToolBox.CROP ) {
 
          if( !isProjSync ) {
-            if( !flagshift && !selected  ) {
+            if( !flagshift && (!selected || !view.isMultiView()) ) {
                aladin.calque.unSelectAllPlan();
                aladin.view.unSelectAllView();
             }
@@ -1770,30 +1796,29 @@ public class ViewSimple extends JComponent
       
       // Gestion de l'outil de cropping
       if( tool==ToolBox.CROP ) {
-         PointD p1 = vs.getPosition(x,y);
-         if( view.crop==null ) view.crop = new CropTool(aladin, p1,pref instanceof PlanBG && pref.hasAvailablePixels());
+         if( view.crop==null ) view.crop = new CropTool(aladin, vs, x, y, pref instanceof PlanBG && pref.hasAvailablePixels());
          else {
             if( view.crop.submit(vs,x,y) ) {
                view.crop=null;
-               aladin.toolbox.setMode(ToolBox.CROP, Tool.UP);
+               aladin.toolBox.setMode(ToolBox.CROP, Tool.UP);
             }
             else {
                view.crop.reset();
-               view.crop.startDrag(p1,vs);
+               view.crop.startDrag(vs,x,y);
             }
          }
          repaint(); 
          return; 
       }
-
+      
       // Si on est sur le blinkControl..
       int r;
       if( isPlanBlink()
-            && (r=blinkControl.setMouseDown(round(x),round(y)))>BlinkControl.NOTHING ) {
+            && (r=blinkControl.setMouseDown((int)Math.round(x),(int)Math.round(y)))>BlinkControl.NOTHING ) {
          flagCube=true;
          if( r==BlinkControl.IN ) return;
          if( r==BlinkControl.SLIDE )
-            aladin.view.setFrame(this, blinkControl.getFrameLevel(round(x)),e.isShiftDown());
+            aladin.view.setFrame(this, blinkControl.getFrameLevel((int)Math.round(x)),e.isShiftDown());
          aladin.view.repaintAll();
          return;
       }
@@ -1816,8 +1841,7 @@ public class ViewSimple extends JComponent
             cs.x=fixe.x;
             cs.y=fixe.y;
             proj.getCoord(cs);
-            if( Double.isNaN(cs.al ) ) { cs=null; flagClickOutside=true; }
-            else flagClickOutside=false;
+            if( Double.isNaN(cs.al ) ) cs=null;
          }
 //      }
 
@@ -1834,7 +1858,7 @@ public class ViewSimple extends JComponent
       // Initialisation d'un clic-and-drag de la vue
       if( tool==ToolBox.PAN
             || (fullScreen && !flagOnMovableObj && tool==ToolBox.SELECT) ) {
-         vs.scrollX=round(x); vs.scrollY=round(y);
+         vs.scrollX=(int)Math.round(x); vs.scrollY=(int)Math.round(y);
          setScrollable(true);
          wasScrolling = vs.isScrolling();
          vs.initScroll();
@@ -1844,7 +1868,7 @@ public class ViewSimple extends JComponent
       // Création automatique d'une vue associé au plan Draw ?
       if( isFree() ) {
          Plan pc = aladin.calque.getFirstSelectedPlan();
-         if( !aladin.toolbox.isForTool(tool) || pc==null || pc.type!=Plan.TOOL ) return/* false*/;
+         if( !aladin.toolBox.isForTool(tool) || pc==null || pc.type!=Plan.TOOL ) return/* false*/;
 //System.out.println("J'affecte à la vue "+this+" le plan TOOL "+pc);
          aladin.calque.setPlanRef(pc,vs.n);
       }
@@ -1895,8 +1919,8 @@ public class ViewSimple extends JComponent
       // oublié de rebasculer en SELECT
       if( tool==ToolBox.PHOT && testPhot(p.x,p.y,false)!=null ) {
          tool = ToolBox.SELECT;
-         aladin.toolbox.setMode(ToolBox.PHOT,Tool.UP);
-         aladin.toolbox.setMode(ToolBox.SELECT,Tool.DOWN);
+         aladin.toolBox.setMode(ToolBox.PHOT,Tool.UP);
+         aladin.toolBox.setMode(ToolBox.SELECT,Tool.DOWN);
       }
       
       // Dans le cas de l'outil de selection
@@ -1926,7 +1950,7 @@ public class ViewSimple extends JComponent
 
             // On recommence une selection multiple
             if( v.size()==0 ) {
-               rselect = new Rectangle(round(x),round(y),1,1);
+               rselect = new Rectangle((int)Math.round(x),(int)Math.round(y),1,1);
                return;
             }
 
@@ -2003,7 +2027,7 @@ public class ViewSimple extends JComponent
                repereshow=aladin.mesure.mcanvas.show(o,2);
             } catch( Exception ec ) {}
 
-         } else rselect = new Rectangle(round(x),round(y),1,1);
+         } else rselect = new Rectangle((int)Math.round(x),(int)Math.round(y),1,1);
 
          return;
       }
@@ -2014,11 +2038,12 @@ public class ViewSimple extends JComponent
 
          // Fin d'un texte
          if( view.newobj instanceof Tag ) {
-            setNewObjet();
+            finNewObjet();
 
          // Traitement d'une polyligne en mode clic, un simple clic on cree
          // un nouveau sommet, un double clic (ou cote) =>  on a fini
          } else if( view.newobj instanceof Ligne && flagLigneClic ) {
+            boolean finObj=false;
             Obj suivant=null;
             boolean cote = (view.newobj instanceof Cote);
             view.extendClip(view.newobj);
@@ -2030,16 +2055,19 @@ public class ViewSimple extends JComponent
             setNewObjet();
 
             // Bouclage d'un polygone
-            if( flagOnFirstLine && pref.hasAvailablePixels() ) {
+            if( flagOnFirstLine ) {   
                if( e.getClickCount()>1 )view.newobj = ((Ligne)view.newobj).debligne;  // On efface le sommet en doublon
-               ((Ligne)view.newobj).makeLastLigneForPolygone(this);
+               ((Ligne)view.newobj).makeLastLigneForPolygone(this,true);
                addObjSurfMove(((Ligne)view.newobj).getFirstBout());
+               finObj=true;
             }
-            if( e.getClickCount()<2 && !cote ) {
-
+            if( e.getClickCount()<2 && !cote && !finObj) {
                view.newobj = suivant;
                view.extendClip(view.newobj);
-            }
+            } else finObj=true;
+            
+            if( finObj ) finNewObjet();
+            
             view.repaintAll();
             return;
          }
@@ -2048,7 +2076,7 @@ public class ViewSimple extends JComponent
 
       // Creation d'un nouvel objet
       Plan plan = aladin.calque.selectPlanTool();
-      view.newobj = aladin.toolbox.newTool( plan ,vs,p.x,p.y);
+      view.newobj = aladin.toolBox.newTool( plan ,vs,p.x,p.y);
 
 
       // Le debut d'une cote est insere immediatement
@@ -2140,10 +2168,16 @@ public class ViewSimple extends JComponent
 
 //      if( Aladin.levelTrace>=3 ) testConvertion(x,y);
       
+      if( pref!=null && pref instanceof PlanBG ) ((PlanBG)pref).resetDrawFastDetection();
+      
       if( hasCrop() ) {
-         view.crop.endDrag();
+         view.crop.endDrag(this);
          repaint();
       }
+      
+      if( hasRainbow() && rainbow.endDrag() ) repaint();
+      if( rainbowF!=null && rainbowF.endDrag() ) repaint();
+      if( rainbowUsed ) return;
       
       if( flagSimRepClic )  {
          flagSimRepClic=false;
@@ -2160,11 +2194,13 @@ public class ViewSimple extends JComponent
       }
 
       int tool = getTool(e);
-      boolean boutonDroit = (e.getModifiers() & java.awt.event.InputEvent.BUTTON3_MASK) !=0;
+      boolean boutonMilieu = (e.getModifiers() & java.awt.event.InputEvent.BUTTON3_MASK) !=0;
 
       boolean fullScreen = isFullScreen();
+      
       //Menu Popup
-      if( boutonDroit ) {
+      if( boutonMilieu ) {
+         setScrollable(false);
          
          // Fin d'ajustement du contraste par le bouton droit
          if( xDrag!=-1 && Math.abs(xDrag-x)>2 && Math.abs(yDrag-y)>2 ) { xDrag=yDrag=-1; repaint(); return; }
@@ -2225,7 +2261,7 @@ public class ViewSimple extends JComponent
          // le scrolling automatique
          if( vs.isScrolling() ) {
             rselect=null;
-            vs.scroll(e,round(x-vs.scrollX),round(y-vs.scrollY));
+            vs.scroll(e,(int)Math.round(x-vs.scrollX),(int)Math.round(y-vs.scrollY));
             vs.startAutomaticScroll();
          }
 
@@ -2264,7 +2300,7 @@ public class ViewSimple extends JComponent
       if( fullScreen ) aladin.endMsg();
 
       // Fin d'un megaDrag ?
-      if( tool==ToolBox.SELECT && aladin.view.stopMegaDrag(this,round(x),round(y),e.isControlDown()) ) return;
+      if( tool==ToolBox.SELECT && aladin.view.stopMegaDrag(this,(int)Math.round(x),(int)Math.round(y),e.isControlDown()) ) return;
 
       boolean flagPlastic = false;
 
@@ -2307,8 +2343,6 @@ public class ViewSimple extends JComponent
          } else if( rselect==null || rselect.width==1 && rselect.height==1) {
             aladin.localisation.setPos(vs,x,y,1,flagPlastic);
             updateInfo();
-//            if( isProjSync ) aladin.pixel.setUndef();
-//            else aladin.pixel.setPixel(this,x,y,1);
          }
       }
 
@@ -2322,7 +2356,8 @@ public class ViewSimple extends JComponent
          Point p = getPosition((int)x,(int)y);
          PointD pp = getPosition(x,y);
          
-         if( !((Repere)view.newobj).hasRayon() && !(pref instanceof PlanImageBlink) ) {
+         // Extraction d'une source par méthode IQE
+         if( !((Repere)view.newobj).hasRayon() && !(pref instanceof PlanImageBlink || pref instanceof PlanBG) ) {
             double [] iqe = ((PlanImage)pref).getPixelStats(p);
             if( iqe!=null ) {
                pp.x = iqe[0]; pp.y = iqe[2];
@@ -2334,62 +2369,32 @@ public class ViewSimple extends JComponent
             view.newobj = null;
          }
 
-         // Calcul par centroides
-//         if( aladin.CENTEREDTAG!=e.isShiftDown() && !isProjSync ) {
-//
-//             double [] pix=null;
-//             int w = FrameNewCalib.W;
-//             Point p = getPosition((int)x,(int)y);
-//             PointD pp = getPosition(x,y);
-//             
-//             if( pref.hasAvailablePixels() ) {
-//                PlanImage pi = (PlanImage)pref;
-//                p.y = pi.height - p.y;
-//                pix = new double[w*w];
-//                pi.getPixelsCentroid(pix,p,w);
-//                p.y = pi.height - p.y;
-//             }
-//             try {
-//                PointD pCorr[] = FrameNewCalib.bestPoint(pix,pref);
-//                pp = new PointD( p.x+pCorr[0].x, p.y-pCorr[0].y);
-//             } catch( Exception e1 ) {
-//                pp = getPosition(x,y);
-//                aladin.warning(e1.getMessage());
-//             }
-//             view.extendClip(view.newobj);
-//             view.newobj.setPosition(this,pp.x,pp.y);
-//             view.repaintAll();
-//             rselect=null;
-//          }
-         
          if( view.newobj!=null ) {
-//            aladin.localisation.seeCoord((Position)view.newobj,1);
 
             // Juste pour le spectre localisé pour un cube via un repere
             if( pref instanceof PlanImageBlink && !view.hasSelectedObj() ) {
-               aladin.toolbox.setMode(ToolBox.PHOT,Tool.UP);
-               aladin.toolbox.setMode(ToolBox.SELECT,Tool.DOWN);
+               aladin.toolBox.setMode(ToolBox.PHOT,Tool.UP);
+               aladin.toolBox.setMode(ToolBox.SELECT,Tool.DOWN);
                view.selectCote(view.newobj);
                view.extendClip(view.newobj);
             }
-
-            setNewObjet();
 
             // Insertion d'un repère avec mesure de surface
             if( ((Repere)view.newobj).hasRayon() ) {
                view.newobj.setSelected(true);
                addObjSurfMove(view.newobj);
             }
+            finNewObjet();
          }
 
          view.newobj=null;
       }
-
+      
       // Traitement de la fin d'une selection multiple
       if( rselect!=null ) {
          if( rselect.width>1 && rselect.height>1 ) {
             flagDrag=false;
-            extendSelect(round(x),round(y));
+            extendSelect((int)Math.round(x),(int)Math.round(y));
             PointD p1 = vs.getPosition((double)rselect.x,(double)rselect.y);
             PointD p2 = vs.getPosition((double)rselect.x+rselect.width,
                   (double)rselect.y+rselect.height);
@@ -2415,12 +2420,11 @@ public class ViewSimple extends JComponent
             else { withForCDSTeam=false; aladin.calque.forCDSTeam(aladin.view.vselobj); }
 
             aladin.view.setMesure();
-//            aladin.sendSelectionObserver();
             rselect=null;
             resetClip();
             aladin.view.repaintAll();
             return;
-         } else { /*orselect=*/rselect=null; resetClip(); }
+         } else { rselect=null; resetClip(); }
       }
 
       // Traitement pour la Ligne et Cote
@@ -2434,6 +2438,11 @@ public class ViewSimple extends JComponent
          // Je selectionne la cote
          if( view.newobj instanceof Cote ) {
             aladin.view.selectCote(view.newobj);
+            
+            // Pour éviter de faire 2 cotes de suite
+            aladin.toolBox.setMode(ToolBox.DIST,Tool.UP);
+            aladin.toolBox.setMode(ToolBox.SELECT,Tool.DOWN);
+
          }
 
          // Rien a faire si je suis une ligne en mode Clic, le mouseDown s'est charge
@@ -2459,11 +2468,13 @@ public class ViewSimple extends JComponent
          view.extendClip(view.newobj);
          view.newobj.setPosition(vs,p.x,p.y);
          view.extendClip(view.newobj);
-         setNewObjet(withForCDSTeam);
+         if( view.newobj instanceof Cote ) finNewObjet();
+         else setNewObjet(withForCDSTeam);
          view.newobj=null;
       }      
       
-      
+      if(  view.newobj!=null && view.newobj instanceof Tag ) ((Tag)view.newobj).setEditing(true);
+
       /** Traitement d'éventuellement déplacement (ou création) d'objet de surface 
        * à transmettre à des observers */
       if( objSurfMove!=null ) {
@@ -2492,6 +2503,7 @@ public class ViewSimple extends JComponent
    
    /** Modification de la colormap par déplacement direct dans la vue - à la  DS9 */
    private void setCMByMouse(int x, int y) {
+      Plan pref = aladin.calque.getFirstSelectedPlanImage();
       if(  !(pref.isImage() || pref.type==Plan.ALLSKYIMG )  ) return;
       if( pref.type==Plan.ALLSKYIMG && ((PlanBG)pref).color ) return;
       y=getHeight()-y;
@@ -2563,7 +2575,19 @@ public class ViewSimple extends JComponent
    // Retourne true si cette vue a l'outil crop
    private boolean hasCrop() {
       return view.getCurrentView()==this && view.crop!=null && view.crop.isVisible();
-
+   }
+   
+   // Retourne true si le rainbow associée à la table des couleurs existe et est visible
+   protected boolean hasRainbow() { return rainbow!=null && rainbow.isVisible(); }
+   
+   // Retourne true si le rainbow associée au filtre existe et est visible
+   protected boolean hasRainbowF() { return rainbowF!=null && rainbowF.isVisible(); }
+   
+   protected boolean rainbowAvailable() { return pref!=null && pref.hasAvailablePixels(); }
+   
+   protected boolean rainbowUsed() {
+      return hasRainbow() && rainbow.isUsed() 
+              || hasRainbowF() && rainbowF.isUsed();
    }
    
    public void mouseDragged(MouseEvent e) {
@@ -2575,8 +2599,8 @@ public class ViewSimple extends JComponent
       // On cache le simbad tooltip
       aladin.view.suspendQuickSimbad();
       
-      boolean boutonDroit = (e.getModifiers() & java.awt.event.InputEvent.BUTTON3_MASK) !=0;
-      if( boutonDroit ) {
+      boolean boutonMilieu = (e.getModifiers() & java.awt.event.InputEvent.BUTTON3_MASK) !=0;
+      if( boutonMilieu ) {
          if( Math.abs(xDrag-x)>1 || Math.abs(yDrag-y)>1 ) {
          try { setCMByMouse(x,y); } catch( Exception e1 ) {}
          return;
@@ -2598,7 +2622,7 @@ public class ViewSimple extends JComponent
       }
 
       // Scrolling de la vue par la souris
-      if( flagScrolling ) {
+      if( flagScrolling || inNE(x,y) ) {
          aladin.calque.zoom.zoomView.startDrag();
          lastWhenDrag = e.getWhen();
          vs.scroll(e);
@@ -2627,10 +2651,14 @@ public class ViewSimple extends JComponent
       
       // Extension d'un rectangle de cropping
       if( hasCrop() ) {
-         view.crop.mouseDrag( vs.getPosition((double)x,(double)y), e.isShiftDown() );
+         view.crop.mouseDrag( vs, x,y, e.isShiftDown() );
          repaint();
          return;
       }
+      
+   // Extension d'un rectangle de rainbow
+      if( hasRainbow() && rainbow.mouseDrag( vs, x,y, e.isShiftDown() ) ) { repaint(); return; }
+      if( rainbowF!=null && rainbowF.mouseDrag( vs, x,y, e.isShiftDown() ) ) { repaint(); return; }
 
       if( planRecalibrating==null ) {
 
@@ -2757,8 +2785,7 @@ public class ViewSimple extends JComponent
                ((Position)o).rotatePosition(vs,angle,centerX,centerY);
 
            // Deplacement soit en ra,dec si possible, soit en xy
-            } else if( ((Position)o).plan.type!=Plan.APERTURE
-            		  || ((PlanField)((Position)o).plan).isMovable()) {
+            } else if( ((Position)o).plan.type!=Plan.APERTURE || ((PlanField)((Position)o).plan).isMovable()) {
                if( flagDepRaDec
                      && !((Position)o).plan.recalibrating
                      && flagDragField==0 ) o.deltaRaDec(dra,dde);
@@ -2793,12 +2820,14 @@ public class ViewSimple extends JComponent
       if( poigneePhot!=null || view.newobj!=null && view.newobj instanceof Repere ) {
          Repere t = poigneePhot!=null ? poigneePhot : (Repere)view.newobj;
          view.extendClip(t);
-         PointD p = vs.getPosition((double)x,(double)y);
-         double deltaX = Math.abs(t.xv[vs.n]-p.x);
-         double deltaY = Math.abs(t.yv[vs.n]-p.y);
+         PointD p = getPosition((double)x,(double)y);
+         double rayonView = Math.sqrt( Math.pow(fixev.x-x,2) + Math.pow(fixev.y-y,2) );
+         double deltaX = Math.abs(t.xv[n]-p.x);
+         double deltaY = Math.abs(t.yv[n]-p.y);
          double rayon = Math.sqrt( deltaX*deltaX + deltaY*deltaY);
-         if( rayon>0.5 ) {
+         if( rayonView>3 ) {
             t.setRayon(this,rayon);
+            t.setSelected(true);
             if( poigneePhot==null ) view.setSelected(t,true);
             view.extendClip(t);
             if( view.newobj!=null ) {
@@ -2859,6 +2888,7 @@ public class ViewSimple extends JComponent
 
 //      reloadPixelsOriginIfRequired();
       aladin.localisation.setPos(vs,x,y);
+      
       updateInfo();
 //      if( isProjSync ) aladin.pixel.setUndef();
 //      else aladin.pixel.setPixel(vs,x,y);
@@ -2866,6 +2896,7 @@ public class ViewSimple extends JComponent
       // affichage de la loupe ou d'une coupe si necessaire
       if( !calque.zoom.redrawWen(x,y) ) calque.zoom.redrawCut();
       
+      view.propResume();
       return;
    }
 
@@ -2882,7 +2913,7 @@ public class ViewSimple extends JComponent
       if( ((PlanImage)pref).pixelsOriginFromDisk() ) return false;
       return ((PlanImage)pref).pixelsOriginFromCache();
    }
-
+   
    private int oc=Aladin.DEFAULT;
 
    public void mouseMoved(MouseEvent e) { mouseMoved1(e.getX(),e.getY(),e); }
@@ -2923,6 +2954,10 @@ public class ViewSimple extends JComponent
       // Gestion du rectangle de crop
       if( hasCrop() ) view.crop.mouseMove(x,y,vs );
 
+      // Gestion du rectangle de rainbow
+      if( hasRainbow() && rainbow.mouseMove(x,y)
+         || rainbowF!=null && rainbowF.mouseMove(x,y) ) { repaint(); return; }
+      
       // rechargement des pixels d'origine si nécessaire (obligatoire pour les cubes)
       reloadPixelsOriginIfRequired();
 
@@ -2932,26 +2967,22 @@ public class ViewSimple extends JComponent
 
       // Affichage de la position et de la valeur du pixel
       aladin.localisation.setPos(vs,x,y);
-      
-// JE PREFERE UN VRAI REPAINT SINON CA CLIGNOTE UN MAX
       Projection proj = vs.getProj();
-      if( aladin.calque.hasPixel() && Projection.isOk(proj) ) {
-//         Projection proj = getProj();
-//         if( /* !view.isMultiView() || */ !Projection.isOk(proj) ) {
-//            if( aladin.pixel.setPixel(this,x,y) ) {
-//               quickInfo=true;
-//               repaint();
-//            }
-//         } else {
-            PointD p = lastMove;
+      if( aladin.calque.hasPixel() ) {
+         if( Projection.isOk(proj) ) {
             Coord coo = new Coord();
-            coo.x = p.x; coo.y=p.y;
+            coo.x = lastMove.x; coo.y=lastMove.y;
             proj.getCoord(coo);
-            aladin.view.setPixel(coo);
-//         }
+            aladin.view.setPixelInfo(coo);
+         } else {
+            if( pref instanceof PlanImage ) {
+               String s = ((PlanImage)pref).getPixelInfo( (int)Math.floor(lastMove.x), (int)Math.floor(lastMove.y), view.getPixelMode());
+               if( s==PlanImage.UNK ) s="";
+               setPixelInfo(s);
+            }
+         }
       }
-//      updateInfo();
-      
+
 
       // (thomas) affichage dans l'arbre des images disponibles
       if( tool==ToolBox.SELECT ) vs.showAvailableImages(x,y);
@@ -2960,7 +2991,7 @@ public class ViewSimple extends JComponent
       // le réafficher immédiatement pour que le REWIND/PLAY/FORWARD soit
       // tracé dans la bonne couleur
       if( isPlanBlink() && blinkControl!=null ) {
-         int m = blinkControl.setMouseMove(vs,round(x),round(y));
+         int m = blinkControl.setMouseMove(vs,(int)Math.round(x),(int)Math.round(y));
          if( m!=BlinkControl.NOTHING ) {
            flagBlinkControl=true;
            update(getGraphics());
@@ -2969,11 +3000,11 @@ public class ViewSimple extends JComponent
       }
 
       // Juste pour éviter de le faire 2x
-      boolean isSelectOrTool = tool==ToolBox.SELECT || ToolBox.isForTool(tool);
+      boolean isSelectOrTool = tool==ToolBox.SELECT || tool==ToolBox.PAN ||ToolBox.isForTool(tool);
       
       // Affichage du rectangle du zoom
       if( tool==ToolBox.ZOOM && !isScrolling() ) {
-         rselect = new Rectangle(round(x)-rv.width/4,round(y)-rv.height/4,rv.width/2,rv.height/2);
+         rselect = new Rectangle((int)Math.round(x)-rv.width/4,(int)Math.round(y)-rv.height/4,rv.width/2,rv.height/2);
          flagDrag=true;        // Pour un affichage rapide
          repaint();
 
@@ -3010,7 +3041,7 @@ public class ViewSimple extends JComponent
                                      || plan.type==Plan.TOOL);
 
             // Determination du nombre d'objet sous la souris
-            Iterator<Obj> it = plan.iterator();
+            Iterator<Obj> it = plan.iterator(this);
             for( int j=0; it!=null && it.hasNext(); j++ ) {
                Obj o = it.next();
                if( o.in(vs,p.x,p.y) ) {
@@ -3018,7 +3049,7 @@ public class ViewSimple extends JComponent
                   if( testOnMovable ) flagOnMovableObj=true;
 
                   // Objets rollables (APERTURE)
-                  if( allPlans[i].type==Plan.APERTURE  && j>1  /* Pour eviter de prendre le Repere central et le centre de roatation*/
+                  if( allPlans[i].type==Plan.APERTURE  && j>1  /* Pour eviter de prendre le Repere central et le centre de rotation*/
                   		&& ((PlanField)allPlans[i]).isRollable() ) {
                     if( ((Position)o).inBout(vs,p.x,p.y) ) {
                        flagRollable=true;
@@ -3092,7 +3123,7 @@ public class ViewSimple extends JComponent
             resetDefaultCursor(tool, e.isShiftDown() );
             if( flagOnFirstLine ) {
                if( oc!=Aladin.JOINDRECURSOR ) Aladin.makeCursor(this,(oc=Aladin.JOINDRECURSOR));
-            } else if( flagRollable ) {
+            } else if( flagRollable || inNE((int)x,(int)y) ) {
                if( oc!=Aladin.TURNCURSOR ) Aladin.makeCursor(this,(oc=Aladin.TURNCURSOR));
             } else if( trouve ) {
                if( oc!=Aladin.HANDCURSOR ) Aladin.makeCursor(this,(oc=Aladin.HANDCURSOR));
@@ -3134,7 +3165,8 @@ public class ViewSimple extends JComponent
 //      calque.zoom.redraw((int)(x),(int)(y+0.5));
       calque.zoom.redrawWen(x,y);
       
-      if( flagHealpixMouse )  repaint();
+      // Pour desssiner le losange de controle Healpix sous la souris
+      if( aladin.getOrder()>=0 ) repaint();
 
       return;
    }
@@ -3148,7 +3180,7 @@ public class ViewSimple extends JComponent
       int a=imgbuf.getWidth(this)-w;
       g.setClip(a,3,w-20,13);
       g.drawImage(imgbuf,0,0,this);
-      drawPixelAndPos(g);
+      drawPixelInfo(g);
       g.dispose();
    }
 
@@ -3159,7 +3191,9 @@ public class ViewSimple extends JComponent
       aladin.setMemory();
       
       if( aladin.menuActivated() ) return;
-
+      if( hasRainbow() && rainbow.isDragging() ) return;
+      if( rainbowF!=null && rainbowF.isDragging( ) ) return;
+      
       // Arrêt de la procédure QuickSimbad si nécessaire
       if( aladin.calque.flagSimbad ) aladin.view.suspendQuickSimbad();
 
@@ -3209,7 +3243,7 @@ public class ViewSimple extends JComponent
       aladin.localisation.setUndef();
       
       // Arrêt de l'affichage du pixel
-      aladin.view.setPixel(null);
+      aladin.view.setPixelInfo(null);
    }
 
    public String toString() {
@@ -3232,13 +3266,13 @@ public class ViewSimple extends JComponent
 
       // Recuperation du Focus dans le cas d'un WEN actif pour pouvoir
       // effectuer un ajustement fin
-      if( aladin.toolbox.tool[ToolBox.WEN].mode==Tool.DOWN ) requestFocusInWindow();
+      if( aladin.toolBox.tool[ToolBox.WEN].mode==Tool.DOWN ) requestFocusInWindow();
 
       // Curseur pour le déplacement d'un plan
       if( aladin.view.isMegaDrag() ) Aladin.makeCursor(this,Aladin.PLANCURSOR);
 
       // Modification du curseur en fonction de l'outil
-      else setDefaultCursor(aladin.toolbox.getTool(),e.isShiftDown());
+      else setDefaultCursor(aladin.toolBox.getTool(),e.isShiftDown());
    }
 
    /** Positionnement du curseur par défaut en fonction de l'outil courant et
@@ -3258,6 +3292,8 @@ public class ViewSimple extends JComponent
 
    /** Positionnement du cureseur par défaut en fonction de l'outil courant */
    private void resetDefaultCursor(int tool,boolean isShift) {
+      if( hasRainbow() && rainbow.isSelected() ) return;
+      if( rainbowF!=null && rainbowF.isSelected() ) return;
       if( aladin.lockCursor ) return;
       oc=-1;
       currentCursor = tool==ToolBox.PHOT || aladin.view.isRecalibrating() ? (isTagCentered(isShift) ? Aladin.TAGCURSOR : Aladin.CROSSHAIRCURSOR) :
@@ -3300,12 +3336,14 @@ public class ViewSimple extends JComponent
       aladin.view.setRepereId(s);
       aladin.view.memoUndo(this,repCoord,null);
       if( flagSync ) aladin.view.syncView(1,repCoord,this);
-      else { aladin.view.setRepere1(repCoord); aladin.view.repaintAll(); }
-      if( pref instanceof PlanBG ) {
-//         aladin.dialog.setDefaultTarget(repCoord+"");
-         aladin.dialog.setDefaultTarget(s);
-         aladin.dialog.setDefaultParameters(Aladin.aladin.dialog.current,0);
-      }
+      else { aladin.view.moveRepere(repCoord); aladin.view.repaintAll(); }
+      
+      /* if( pref instanceof PlanBG ) */ aladin.dialog.adjustParameters();
+//      if( pref instanceof PlanBG ) {
+////         aladin.dialog.setDefaultTarget(repCoord+"");
+//         aladin.dialog.setDefaultTarget(s);
+//         aladin.dialog.setDefaultParameters(Aladin.aladin.dialog.current,0);
+//      }
       aladin.sendObserver();
    }
 
@@ -3331,7 +3369,7 @@ public class ViewSimple extends JComponent
       char k = e.getKeyChar();
       
       // Suppression de l'objet selectionne
-      if(  key==KeyEvent.VK_DELETE && aladin.toolbox.getTool()==ToolBox.SELECT ) {
+      if(  key==KeyEvent.VK_DELETE && aladin.toolBox.getTool()==ToolBox.SELECT ) {
 //         aladin.view.delSelObjet();   // Ca sera effectué par aladin.delete()
          return;
       }
@@ -3367,7 +3405,7 @@ public class ViewSimple extends JComponent
 
       // Peut etre un ajustement fin par les fleches
       else {
-         if( aladin.toolbox.tool[ToolBox.WEN].mode==Tool.DOWN &&
+         if( aladin.toolBox.tool[ToolBox.WEN].mode==Tool.DOWN &&
                  (key==KeyEvent.VK_UP || key==KeyEvent.VK_DOWN
                     || key==KeyEvent.VK_LEFT || key==KeyEvent.VK_RIGHT
                     || k=='+' || k=='-' ||
@@ -3400,6 +3438,9 @@ public class ViewSimple extends JComponent
        markAvailableImages(x,y,aladin.treeView.mTree,shiftDown);
 
        showAvailableImages(x,y);
+       
+       // Idem pour les progeniteurs
+       if( aladin.frameProgen!=null ) aladin.frameProgen.updateCheckByMouse(this, (int)x, (int)y);
    }
 
    /**
@@ -3554,17 +3595,23 @@ public class ViewSimple extends JComponent
 
       return flagchange;
   }
+    
+    private int[] createZoomPixelsRGB(PlanImage p,int [] oldPixelsRGB) { return createZoomPixelsRGB(p,oldPixelsRGB,-1); }
+    private int[] createZoomPixelsRGB(PlanImage p,int [] oldPixelsRGB, double frame) {
 
-    private int[] createZoomPixelsRGB(PlanImageRGB p) {
-       // A tout hasard
-       int [] pixelsRGB = p.pixelsRGB;
-       w = top(rzoom.width+1);
-       h = top(rzoom.height+1);
+       
+       // A tout hasard => NE MARCHE PAS APRES UN CROP ?? => voir COMMENTAIRE "CROP" ci-dessous
+       int [] newPixelsRGB = null;
+//       int [] newPixelsRGB = frame==-1 ? ((PlanRGBInterface)p).getPixelsRGB()
+//             : ((PlanImageCubeRGB)p).getFrameRGB((int)frame) ;
+
+       w = (int)Math.ceil(rzoom.width+1);
+       h = (int)Math.ceil(rzoom.height+1);
 
        // Extraction de la portion visible avec reajustement de l'image si
        // necessaire (presence de bords partiels)
-       int x1 = floor(rzoom.x);
-       int y1 = floor(rzoom.y);
+       int x1 = (int)Math.floor(rzoom.x);
+       int y1 = (int)Math.floor(rzoom.y);
        if( x1<0 ) {w+=x1; x1=0; }
        if( y1<0 ) {h+=y1; y1=0; }
        if( x1+w>p.width ) w=p.width-x1;
@@ -3572,42 +3619,79 @@ public class ViewSimple extends JComponent
 
        if( w<0 || h<0 ) return new int[0];
 
-       if( !(x1==0 && y1==0 && w==p.width && h==p.height) ) {
-          pixelsRGB = new int[w*h];
-          p.getPixels(pixelsRGB,x1,y1,w,h);
-       }
+//CROP  if( !(x1==0 && y1==0 && w==p.width && h==p.height) ) {
+          newPixelsRGB = new int[w*h];
+          if( frame==-1) ((PlanRGBInterface)p).getPixels(newPixelsRGB,x1,y1,w,h);
+          else ((PlanImageCubeRGB)p).getPixels(newPixelsRGB,x1,y1,w,h,(int)frame) ;
+//     }
 
        // Zoom en agrandissement
        if( zoom>1 ) {
-          int [] scalepixelsRGB;
 
+          int [] scalePixelsRGB;
           int z1 = (int) zoom;   // Casting
+          int ddx = rzoom.x<=0 ? 0 : (int)Math.floor( (rzoom.x-Math.floor(rzoom.x))*zoom );
+          int ddy = rzoom.y<=0 ? 0 : (int)Math.floor( (rzoom.y-Math.floor(rzoom.y))*zoom );
+          int wDst=Math.min(w*z1-ddx,getWidth());
+          int hDst=Math.min(h*z1-ddy,getHeight());
+          int taille = wDst*hDst;
+          scalePixelsRGB = oldPixelsRGB!=null && oldPixelsRGB.length==taille ? oldPixelsRGB : new int [taille];
 
-          // Agrandissement
-          int i,j,k,d;
-          d=0;
-          scalepixelsRGB = new int [w*h*z1*z1];
-          for( i=0; i<h; i++ ) {
-             int orig=d;
-             for( k=0; k<w; k++) {
-                int c = pixelsRGB[i*w+k];
-//                bytefill(scalepixelsRGB,d,z1,c);   // N'est plus aussi rentable qu'avant - sans doute JIT)
-                for( int m=0; m<z1; m++ ) scalepixelsRGB[d+m]=c;
-                
-                d+=z1;
+          int yDeb=ddy;         // On commence sur une fraction de pixel (ordonnée)
+          int yFin = z1;
+
+          int lig=0;          // numéro ligne target
+          for( int y=0; y<h && lig<hDst; y++ ) {
+             int col=0;       // numero de colonne target
+             int xDeb = ddx;   // On commence sur une fraction de pixel (abcisse)
+             int xFin = z1;
+
+             for( int x=0; x<w; x++ ) {
+                int c = newPixelsRGB[y*w+x];
+
+                for( int i=xDeb; i<xFin && col<wDst; i++, col++ ) scalePixelsRGB[lig*wDst + col]=c;
+                xDeb=xFin;
+                xFin+=z1;
              }
-             for( j=1; j<z1; j+=j ) {
-                System.arraycopy(scalepixelsRGB,orig, scalepixelsRGB,orig+j*w*z1,j*z1*w);
+             lig++;
+
+             for( int i=yDeb+1; i<yFin && lig<hDst; i++, lig++) {
+                System.arraycopy(scalePixelsRGB, (lig-1)*wDst, scalePixelsRGB, lig*wDst, wDst);
              }
-             d+=(z1-1)*z1*w;
+             yDeb=yFin;
+             yFin+=z1;
+
           }
-          pixelsRGB = scalepixelsRGB;
-          w *= z1;
-          h *= z1;
+          newPixelsRGB = scalePixelsRGB;
+          w=wDst;
+          h=hDst;
 
-       // Zoom reduction
+
+          //          int i,j,k,d;
+          //          d=0;
+          //          int taille = w*h*z1*z1;
+          //          scalepixelsRGB = oldPixelsRGB!=null && oldPixelsRGB.length==taille ? oldPixelsRGB : new int [taille];
+          //          for( i=0; i<h; i++ ) {
+          //             int orig=d;
+          //             for( k=0; k<w; k++) {
+          //                int c = pixelsRGB[i*w+k];
+          ////                bytefill(scalepixelsRGB,d,z1,c);   // N'est plus aussi rentable qu'avant - sans doute JIT)
+          //                for( int m=0; m<z1; m++ ) scalepixelsRGB[d+m]=c;
+          //                
+          //                d+=z1;
+          //             }
+          //             for( j=1; j<z1; j+=j ) {
+          //                System.arraycopy(scalepixelsRGB,orig, scalepixelsRGB,orig+j*w*z1,j*z1*w);
+          //             }
+          //             d+=(z1-1)*z1*w;
+          //          }
+          //          pixelsRGB = scalepixelsRGB;
+          //          w *= z1;
+          //          h *= z1;
+
+          // Zoom reduction
        } else if( zoom<1 ) {
-          int [] reducepixelsRGB;
+          int [] reducePixelsRGB;
           int  src=0;      // Nombre de pixels sources
           int  dst=0;      // Nombre de pixels destinations
           int  i,j,k,l,m;   // increments de balayage de l'image source
@@ -3629,76 +3713,77 @@ public class ViewSimple extends JComponent
           dw = Math.round(maxw*dst/src);
           dh = Math.round(maxh*dst/src);
 
-          reducepixelsRGB = new int[dw*dh];
+          int taille = dw*dh;
+          reducePixelsRGB = oldPixelsRGB!=null && oldPixelsRGB.length==taille ? oldPixelsRGB : new int[taille];
 
           // cas 1/x
           if( dst==1  ) {
              for( di=i=0; i<maxh; i+=src, di+=dw ) {
                 for( dj=j=0; j<maxw; j+=src, dj++ ) {
-                  for( c1=c2=c3=l=0; l<src; l++ ) {
-                     for( k=0, m=(i+l)*w+j; k<src; k++, m++ ) {
-                        c1+= ((pixelsRGB[m] & 0x00FF0000)>>16);
-                        c2+= ((pixelsRGB[m] & 0x0000FF00)>>8);
-                        c3+= ((pixelsRGB[m] & 0x000000FF));
-                     }
+                   for( c1=c2=c3=l=0; l<src; l++ ) {
+                      for( k=0, m=(i+l)*w+j; k<src; k++, m++ ) {
+                         c1+= ((newPixelsRGB[m] & 0x00FF0000)>>16);
+                         c2+= ((newPixelsRGB[m] & 0x0000FF00)>>8);
+                         c3+= ((newPixelsRGB[m] & 0x000000FF));
+                      }
                    }
                    c1/=srcX; c2/=srcX; c3/=srcX;
-                   reducepixelsRGB[di+dj] = ( ( 0xFF ) << 24 ) |
-                   		           ( (c1 & 0xFF ) << 16 ) |
-                                   ( (c2 & 0xFF ) << 8 ) |
-                                     (c3 & 0xFF );
+                   reducePixelsRGB[di+dj] = ( ( 0xFF ) << 24 ) |
+                   ( (c1 & 0xFF ) << 16 ) |
+                   ( (c2 & 0xFF ) << 8 ) |
+                   (c3 & 0xFF );
                 }
              }
 
-          // Cas 2/3
+             // Cas 2/3
           } else {
              int c;
              for( di=i=0; i<maxh; i+=src, di+=dst ) {
                 for( dj=j=0; j<maxw; j+=src, dj+=dst ) {
-                  for( c=l=0; l<src; l++ ) {
-                     for( k=0, m=(i+l)*w+j; k<src; k++, m++, c++ ) {
-                        pk1[c]=((pixelsRGB[m] & 0x00FF0000)>>17);
-                        pk2[c]=((pixelsRGB[m] & 0x0000FF00)>>9);
-                        pk3[c]=((pixelsRGB[m] & 0x000000FF)>>1);
-                     }
+                   for( c=l=0; l<src; l++ ) {
+                      for( k=0, m=(i+l)*w+j; k<src; k++, m++, c++ ) {
+                         pk1[c]=((newPixelsRGB[m] & 0x00FF0000)>>17);
+                         pk2[c]=((newPixelsRGB[m] & 0x0000FF00)>>9);
+                         pk3[c]=((newPixelsRGB[m] & 0x000000FF)>>1);
+                      }
                    }
                    c=di*dw;
-                   reducepixelsRGB[c+=dj]  =
-                   ( ( 0xFF ) << 24 ) |
-                   ( ((pk1[0]+pk1[1]) & 0xFF ) << 16 ) |
-                   ( ((pk2[0]+pk2[1]) & 0xFF ) << 8 ) |
-                     ((pk3[0]+pk3[1]) & 0xFF ) ;
+                   reducePixelsRGB[c+=dj]  =
+                      ( ( 0xFF ) << 24 ) |
+                      ( ((pk1[0]+pk1[1]) & 0xFF ) << 16 ) |
+                      ( ((pk2[0]+pk2[1]) & 0xFF ) << 8 ) |
+                      ((pk3[0]+pk3[1]) & 0xFF ) ;
 
-                   reducepixelsRGB[c+1]    =
-                   ( ( 0xFF ) << 24 ) |
-                   ( ((pk1[2]+pk1[5]) & 0xFF ) << 16 ) |
-                   ( ((pk2[2]+pk2[5]) & 0xFF ) << 8 ) |
-                     ((pk3[2]+pk3[5]) & 0xFF ) ;
+                   reducePixelsRGB[c+1]    =
+                      ( ( 0xFF ) << 24 ) |
+                      ( ((pk1[2]+pk1[5]) & 0xFF ) << 16 ) |
+                      ( ((pk2[2]+pk2[5]) & 0xFF ) << 8 ) |
+                      ((pk3[2]+pk3[5]) & 0xFF ) ;
 
                    c=(di+1)*dw;
 
-                   reducepixelsRGB[c+=dj]  =
-                   ( ( 0xFF ) << 24 ) |
-                   ( ((pk1[3]+pk1[6]) & 0xFF ) << 16 ) |
-                   ( ((pk2[3]+pk2[6]) & 0xFF ) << 8 ) |
-                     ((pk3[3]+pk3[6]) & 0xFF ) ;
+                   reducePixelsRGB[c+=dj]  =
+                      ( ( 0xFF ) << 24 ) |
+                      ( ((pk1[3]+pk1[6]) & 0xFF ) << 16 ) |
+                      ( ((pk2[3]+pk2[6]) & 0xFF ) << 8 ) |
+                      ((pk3[3]+pk3[6]) & 0xFF ) ;
 
-                   reducepixelsRGB[c+1]    =
-                   ( ( 0xFF ) << 24 ) |
-                   ( ((pk1[7]+pk1[8]) & 0xFF ) << 16 ) |
-                   ( ((pk2[7]+pk2[8]) & 0xFF ) << 8 ) |
-                     ((pk3[7]+pk3[8]) & 0xFF ) ;
+                   reducePixelsRGB[c+1]    =
+                      ( ( 0xFF ) << 24 ) |
+                      ( ((pk1[7]+pk1[8]) & 0xFF ) << 16 ) |
+                      ( ((pk2[7]+pk2[8]) & 0xFF ) << 8 ) |
+                      ((pk3[7]+pk3[8]) & 0xFF ) ;
                 }
              }
           }
 
-          pixelsRGB = reducepixelsRGB;
+          newPixelsRGB = reducePixelsRGB;
           w=dw;
           h=dh;
        }
 
-    return pixelsRGB;
- }
+       return newPixelsRGB;
+    }
 
 
    /**
@@ -3708,22 +3793,23 @@ public class ViewSimple extends JComponent
     *         peut comporter une partie décimale qui représente le niveau de transparence
     *         entre la frame courante et la suivante (ou la première si fin de série)
     */
-   private byte[] createZoomPixels(PlanImage p) { return createZoomPixels(p,-1); }
-   private byte[] createZoomPixels(PlanImage p,double frameLevel) {
+   private byte[] createZoomPixels(PlanImage p,byte [] oldPixels) { return createZoomPixels(p,oldPixels,-1); }
+   private byte[] createZoomPixels(PlanImage p,byte [] oldPixels, double frameLevel) {
 
       int frame =(int)frameLevel;
       double transparency = frameLevel - frame;   // La partie décimale représente la transparence
 
-      // A tout hasard
-      byte [] pixels = frame==-1 ? p.getBufPixels8()
-                     : ((PlanImageBlink)p).getFrame(frame) ;
-      w = top(rzoom.width+1);
-      h = top(rzoom.height+1);
+      // A tout hasard => NE MARCHE PAS APRES UN CROP ?? => voir COMMENTAIRE "CROP" ci-dessous
+//      byte [] pixels = frame==-1 ? p.pixels : ((PlanImageBlink)p).getFrame(frame) ;
+      byte [] pixels =null;
+      
+      w = (int)Math.ceil(rzoom.width+1);
+      h = (int)Math.ceil(rzoom.height+1);
 
       double zoom = this.zoom;
 
-      int x1 = floor(rzoom.x);
-      int y1 = floor(rzoom.y);
+      int x1 = (int)Math.floor(rzoom.x);
+      int y1 = (int)Math.floor(rzoom.y);
       if( x1<0 ) {w+=x1; x1=0; }
       if( y1<0 ) {h+=y1; y1=0; }
       if( x1+w>p.width ) w=p.width-x1;
@@ -3751,50 +3837,86 @@ public class ViewSimple extends JComponent
       if( !flagHuge ) {
          // Extraction de la portion visible avec reajustement de l'image si
          // necessaire (presence de bords partiels)
-         if( !(x1==0 && y1==0 && w==p.width && h==p.height) || transparency!=0 ) {
-
-            // thomas 30/03/2005 : je ne suis pas tout à fait sur de mon coup
-            // les valeurs de w et h pouvant changer, on cherche parfois à accéder à des indices
-            // de pixels trop élevés !
-//            if( zoom>1 && flagBord ) { w=imgW;h=imgH; }
+// CROP  if( !(x1==0 && y1==0 && w==p.width && h==p.height) || transparency!=0 ) {
 
             pixels = new byte[w*h];
 //System.out.println("* J'extrait les pixels ("+x1+","+y1+") sur "+w+"x"+h+" pour "+this);
             if( frame==-1 ) p.getPixels(pixels,x1,y1,w,h);
             else ((PlanImageBlink)p).getPixels(pixels,x1,y1,w,h,frame,transparency);
-         }
+//         }
       }
-
+      
       // Pour les tests unitaires
 testx1=x1; testy1=y1; testw=w; testh=h;
 
       // Zoom en agrandissement
       if( zoom>1 ) {
          byte [] scalepixels;
-
          int z1 = (int) zoom;   // Casting
+         
+         // Voir commentaire au else
+         if( !flagHuge ) {
+            int ddx = rzoom.x<=0 ? 0 : (int)Math.floor( (rzoom.x-Math.floor(rzoom.x))*zoom );
+            int ddy = rzoom.y<=0 ? 0 : (int)Math.floor( (rzoom.y-Math.floor(rzoom.y))*zoom );
+            int wDst=Math.min(w*z1-ddx,getWidth());
+            int hDst=Math.min(h*z1-ddy,getHeight());
+            int taille = wDst*hDst;
+            scalepixels = oldPixels!=null && oldPixels.length==taille ? oldPixels : new byte [taille];
 
-         // Simple Agrandissement
-         int i,j,k,d;
-         d=0;
-         scalepixels = new byte [w*h*z1*z1];
-         for( i=0; i<h; i++ ) {
-            int orig=d;
-            for( k=0; k<w; k++) {
-               byte c = pixels[i*w+k];
-//               bytefill(scalepixels,d,z1,c);
-               for( int m=0; m<z1; m++ ) scalepixels[d+m]=c;
-               
-               d+=z1;
+            int yDeb=ddy;         // On commence sur une fraction de pixel (ordonnée)
+            int yFin = z1;
+
+            int lig=0;          // numéro ligne target
+            for( int y=0; y<h && lig<hDst; y++ ) {
+               int col=0;       // numero de colonne target
+               int xDeb = ddx;   // On commence sur une fraction de pixel (abcisse)
+               int xFin = z1;
+
+               for( int x=0; x<w; x++ ) {
+                  byte c = pixels[y*w+x];
+
+                  for( int i=xDeb; i<xFin && col<wDst; i++, col++ ) scalepixels[lig*wDst + col]=c;
+                  xDeb=xFin;
+                  xFin+=z1;
+               }
+               lig++;
+
+               for( int i=yDeb+1; i<yFin && lig<hDst; i++, lig++) {
+                  System.arraycopy(scalepixels, (lig-1)*wDst, scalepixels, lig*wDst, wDst);
+               }
+               yDeb=yFin;
+               yFin+=z1;
+
             }
-            for( j=1; j<z1; j+=j ) {
-               System.arraycopy(scalepixels,orig, scalepixels,orig+j*w*z1,j*z1*w);
+            pixels = scalepixels;
+            w=wDst;
+            h=hDst;
+
+         // ANCIENNE METHODE PLUS GOURMANDE EN MEMOIRE => PIXELS DEBORDANT SUR LES BORDS, AJUSTEMENT PAR ddx ET ddy
+         // J'AI DU LA GARDER POUR LES IMAGES HUGE => TROP COMPLIQUE/RISQUE A VIRER voir PlanImageHuge.getSubImage()
+         } else {
+            int i,j,k,d;
+            d=0;
+            int taille = w*h*z1*z1;
+            scalepixels = oldPixels!=null && oldPixels.length>=taille ? oldPixels : new byte [taille];
+            for( i=0; i<h; i++ ) {
+               int orig=d;
+               for( k=0; k<w; k++) {
+                  byte c = pixels[i*w+k];
+                  //               bytefill(scalepixels,d,z1,c);
+                  for( int m=0; m<z1; m++ ) scalepixels[d+m]=c;
+
+                  d+=z1;
+               }
+               for( j=1; j<z1; j+=j ) {
+                  System.arraycopy(scalepixels,orig, scalepixels,orig+j*w*z1,j*z1*w);
+               }
+               d+=(z1-1)*z1*w;
             }
-            d+=(z1-1)*z1*w;
+            pixels = scalepixels;
+            w *= z1;
+            h *= z1;
          }
-         pixels = scalepixels;
-         w *= z1;
-         h *= z1;
 
          // Zoom reduction
       } else if( zoom<1 ) {
@@ -3820,7 +3942,8 @@ testx1=x1; testy1=y1; testw=w; testh=h;
 //       System.out.println("image src = ("+w+","+h+") --> ("+maxw+","+maxh+")");
 //       System.out.println("image dst = ("+dw+","+dh+")");
 
-         reducepixels = new byte[dw*dh];
+         int taille=dw*dh;
+         reducepixels = oldPixels!=null && oldPixels.length==taille ? oldPixels : new byte [taille];
          
          // Cas 1/x avec x>4 => Au plus proche
          if( src>4 ) {
@@ -3877,6 +4000,7 @@ testx1=x1; testy1=y1; testw=w; testh=h;
    int otype=-1;
    int oh=-1;
    int ow=-1;
+   ColorModel ocm=null;
 
   /** Preparation de l'image.
    * Prepare l'image de la vue courante en fonction du plan
@@ -3888,6 +4012,9 @@ testx1=x1; testy1=y1; testw=w; testh=h;
    */
    protected boolean getImgView(Graphics gr,PlanImage p) {
       try {
+         int [] nPixelsRGB=null;
+         byte [] nPixels=null;
+         
          boolean flagchange;         // Vrai s'il faut reextraire une vue
          flagBord=false;   // true s'il y a une marge autour de l'image
          
@@ -3917,15 +4044,20 @@ testx1=x1; testy1=y1; testw=w; testh=h;
             if( gr!=null && Aladin.isSlow ) waitImg(gr);      // message pour patienter
 
             // Zoom des pixels
-            if( p.type!=Plan.IMAGEBLINK && p.type!=Plan.IMAGECUBE
+            if( !(p instanceof PlanImageBlink)
                   && !(aladin.frameCM!=null && aladin.frameCM.isDragging()) ) {
                try {
-                  if( p.type==Plan.IMAGERGB ) pixelsRGB = createZoomPixelsRGB((PlanImageRGB)p);
-                  else pixels = createZoomPixels(p);
-               } catch( Exception e ) { return true; }
+                  if( p.type==Plan.IMAGERGB ) {
+                     nPixelsRGB = createZoomPixelsRGB(p,pixelsRGB);
+                     if( nPixelsRGB!=pixelsRGB ) { memImg=null; pixelsRGB=nPixelsRGB; }
+                  } else {
+                     nPixels = createZoomPixels(p,pixels);
+                     if( nPixels!=pixels ) { memImg=null; pixels=nPixels; }
+                  }
+               } catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); return true; }
 
                // Totalement en dehors de l'image
-               if( pixels!=null && pixels.length==0 ) { imgFlagDraw=false; return true; }
+               if( pixels!=null && pixels.length==0 ) { imgFlagDraw=false;  return true;}
                else imgFlagDraw=true;
             }
 
@@ -3933,9 +4065,9 @@ testx1=x1; testy1=y1; testw=w; testh=h;
             // ATTENTION: LE TEST SUR LE pHashCode SERT A CONTOURNER UN BUG SOUS LINUX POUR FORCER
             // LA RECREATION DU MEMORYIMAGESOURCE
             if( memImg==null || otype!=p.type || oh!=h || ow!=w || pHashCode!=p.hashCode() ) memImg=null;
-
+            
             // Construction de l'image Blink (elle sera faite après)
-            if( p.type==Plan.IMAGEBLINK || p.type==Plan.IMAGECUBE ) {
+            if( p instanceof PlanImageBlink ) {
                memImg=null;
                previousFrameLevel=-1;
 
@@ -3943,15 +4075,22 @@ testx1=x1; testy1=y1; testw=w; testh=h;
             } else {
                if( memImg!=null ) {
                   try {
-                     if( p.type==Plan.IMAGERGB ) memImg.newPixels(pixelsRGB,p.cm,0,w);
-                     else memImg.newPixels(pixels,p.cm,0,w);
-                  } catch(Exception e) { memImg=null; }
+                      
+                     if( ocm==p.cm ) memImg.newPixels(); 
+                     else {
+                        if( p.type==Plan.IMAGERGB ) memImg.newPixels(pixelsRGB,p.cm,0,w);
+                        else memImg.newPixels(pixels,p.cm,0,w);
+                        ocm=p.cm;
+                     }
+                  } catch(Exception e) { if( Aladin.levelTrace>+3 ) e.printStackTrace(); memImg=null; }
                }
                if( memImg==null  ) {
                   if( p.type==Plan.IMAGERGB ) memImg = new MemoryImageSource(w,h,p.cm, pixelsRGB, 0,w);
                   else memImg = new MemoryImageSource(w,h,p.cm, pixels, 0,w);
+                  
                   memImg.setAnimated(true);
-                  try { memImg.setFullBufferUpdates(true); } catch( Exception e) { }
+                  try { memImg.setFullBufferUpdates(false); } catch( Exception e) { }
+                  if( imgprep!=null ) imgprep.flush();
                   imgprep = getToolkit().createImage(memImg);
                }
             }
@@ -3963,31 +4102,45 @@ testx1=x1; testy1=y1; testw=w; testh=h;
             lastImgID = imgID;
          }
 
-         if( p.type==Plan.IMAGEBLINK || p.type==Plan.IMAGECUBE ) {
+         if( p instanceof PlanImageBlink ) {
             double currentFrameLevel = getCurrentFrameLevel();
             if( currentFrameLevel!=previousFrameLevel ) {
 
-              // Extraction de la prochaine tranche
+               // Extraction de la prochaine tranche
                previousFrameLevel=currentFrameLevel;
-               pixels = createZoomPixels(p,currentFrameLevel);
-               if( pixels==null ) return false;  // Cas ImageHuge non encore prête
-               if( pixels.length==0 ) return true; // En dehors de l'image
 
-               // PROBLEME DE SYNCHRONISATION, ON RETENTE UN COUP (Pas fantastique je sais !!)
-               if( w*h!=pixels.length  ) {
-                  if( Aladin.isSlow ) waitImg(gr);
-                  resetImgID();
-                  return false;
+               if( p.type==Plan.IMAGECUBERGB ) {
+                  nPixelsRGB=createZoomPixelsRGB(p,pixelsRGB,currentFrameLevel);
+                  if( nPixelsRGB!=pixelsRGB ) { memImg=null; pixelsRGB=nPixelsRGB; }
+               } else {
+                  nPixels = createZoomPixels(p,pixels,currentFrameLevel);
+                  if( nPixels!=pixels ) { memImg=null; pixels=nPixels; }
+                  if( nPixels==null ) return false;  // Cas ImageHuge non encore prête
+                  if( nPixels.length==0 ) return true; // En dehors de l'image
+
+                  // PROBLEME DE SYNCHRONISATION, ON RETENTE UN COUP (Pas fantastique je sais !!)
+                  if( w*h!=nPixels.length  ) {
+                     if( Aladin.isSlow ) waitImg(gr);
+                     resetImgID();
+                     return false;
+                  }
                }
 
                // Génération de la tranche
                if( memImg==null  ) {
-                  memImg = new MemoryImageSource(w,h,p.cm,pixels, 0, w);
+                  if( p.type==Plan.IMAGECUBERGB ) memImg = new MemoryImageSource(w,h,p.cm, pixelsRGB, 0,w);
+                  else memImg = new MemoryImageSource(w,h,p.cm,pixels, 0, w);
+//System.out.println("PlanImageBlink create new memImg "+memImg);
                   memImg.setAnimated(true);
-                  imgprep = getToolkit().createImage(memImg);
-               } else memImg.newPixels(pixels,p.cm,0,w);
-
+               } else {
+//                  memImg.newPixels();
+                  if( p.type==Plan.IMAGECUBERGB ) memImg.newPixels(pixelsRGB,p.cm,0,w);
+                  else memImg.newPixels(pixels,p.cm,0,w);
+               }
+               if( imgprep!=null ) imgprep.flush();
+               imgprep = getToolkit().createImage(memImg);
                // On va libérer l'histogramme des pixels
+//System.out.println("PlanImageBlink update memImg "+memImg+" mem="+aladin.getMem());
                if( aladin.frameCM!=null  ) aladin.frameCM.blinkUpdate(pref);
             }
          }
@@ -4010,20 +4163,23 @@ testx1=x1; testy1=y1; testw=w; testh=h;
 
          if( pref.active ) {
             // Ajustements négatifs de la première colonne et ligne de pixel (pixel partiel)
-            if( zoom>=1 ) {
-               if( rzoom.x>=0 ) ddx = floor( (rzoom.x - floor(rzoom.x))*zoom);
-               else ddx=0;
-
-               if( rzoom.y>=0 ) ddy = floor( (rzoom.y - floor(rzoom.y))*zoom);
-               else ddy=0;
-
-               imgDx-=ddx;
-               imgDy-=ddy;
-            } else ddx=ddy=0;
+// A DECOMMENTER SI UTILISATION ANCIENNE METHODE DANS createZoomView()
+//            if( zoom>=1 ) {
+//               if( rzoom.x>=0 ) ddx = floor( (rzoom.x - floor(rzoom.x))*zoom);
+//               else ddx=0;
+//
+//               if( rzoom.y>=0 ) ddy = floor( (rzoom.y - floor(rzoom.y))*zoom);
+//               else ddy=0;
+//
+//               imgDx-=ddx;
+//               imgDy-=ddy;
+//            } else ddx=ddy=0;
+            
+            ddx=ddy=0;
          }
 
-         this.dx = floor(imgDx);
-         this.dy = floor(imgDy);
+         this.dx = (int)Math.floor(imgDx);
+         this.dy = (int)Math.floor(imgDy);
          
          return true;
          
@@ -4090,13 +4246,12 @@ testx1=x1; testy1=y1; testw=w; testh=h;
    }
 
    /** Spécification du crédit */
-//   protected void drawCredit(Graphics g, int dx, int dy ) { drawCredit(g,dx,dy,true); }
-//   protected void drawCredit(Graphics g, int dx, int dy,boolean withTest) {
-//      if( withTest && !aladin.calque.flagCredit ) return;
-//      g.setColor(Color.magenta);
-//      g.setFont(Aladin.SITALIC);
-//      g.drawString(CREDIT,dx+4, dy+rv.height-2);
-//   }
+   protected void drawCredit(Graphics g, int dx, int dy ) { 
+      if( !aladin.CREDIT ) return;
+      g.setColor(Aladin.GREEN);
+      g.setFont(Aladin.SITALIC);
+      g.drawString(CREDIT,dx+4, dy+rv.height-2);
+   }
 
    /** Dessin du repère  */
    protected void drawRepere(Graphics g, int dx, int dy) {
@@ -4175,6 +4330,25 @@ testx1=x1; testy1=y1; testw=w; testh=h;
 
    }
    
+   /** Retourne les coordonnées des 4 coins dans le sens HG,HD,BD,BG */
+  protected Coord [] getCooCorners() {
+     Projection proj=null;
+     if( isFree() || !Projection.isOk(proj=pref.projd) ) return null;
+     Coord coo[] = new Coord[4];
+     for( int i=0; i<4;i++ ) {
+        double x = i==0 || i==3 ? 0 : rv.width;
+        double y = i<2 ? 0 : rv.height;
+        PointD p = getPosition(x,y);
+        coo[i] = new Coord();
+        coo[i].x = p.x;
+        coo[i].y = p.y;
+        proj.getCoord(coo[i]);
+     }
+     return coo;
+
+  }
+  
+
    private Coord [] couverture = null;
    private short oCouverture = -1;
    
@@ -4271,9 +4445,8 @@ testx1=x1; testy1=y1; testw=w; testh=h;
 //   boolean flagAllSky=false;
 
    /** Retourne true si on affiche la totalité du ciel */
-   protected boolean isAllSky() {
+   public  boolean isAllSky() {
       Projection proj;
-//      if( flagAllSky ) return true;
       if( pref==null || !Projection.isOk(proj=getProj()) ) return false;
       return getTailleDE()==proj.getDeMax()
                || getTailleRA()==proj.getRaMax();
@@ -4285,14 +4458,14 @@ testx1=x1; testy1=y1; testw=w; testh=h;
    }
 
    /* Retourne la taille angulaire (en deg) d'un pixel de la vue */
-   protected double getPixelSize() {
+   public double getPixelSize() {
       return getTailleDE()/rv.height;
    }
 
   /** Retourne la taille de la vue courante
    *  @param mode 0 - RA x DE (defaut)
    *              1 - max(RA,DE)
-   *              2 - sqrt(RA*RA+DE*DE)
+   *              2 - sqrt(RA*RA+DE*DE) majoré par 180°
    */
    protected String getTaille(int mode) {
       if( isFree() || !Projection.isOk(getProj()) ) return null;
@@ -4303,7 +4476,8 @@ testx1=x1; testy1=y1; testw=w; testh=h;
       switch(mode) {
          case 0: return Coord.getUnit(RAw) +" x "+Coord.getUnit(DEw);
          case 1: return Coord.getUnit( Math.max(RAw,DEw) );
-         case 2: return Coord.getUnit( Math.sqrt(RAw*RAw+DEw*DEw) );
+         case 2: double t = Math.sqrt(RAw*RAw+DEw*DEw);
+                 return Coord.getUnit( Math.min(t, 180) );
       }
       return "";
    }
@@ -4381,8 +4555,8 @@ testx1=x1; testy1=y1; testw=w; testh=h;
 
    /** Retourne une couleur bleutée qui se voit sur le rectangle indiqué */
    protected Color getGoodColor(int x1,int y1, int w, int h ) {
-      int x = x1-round(imgDx);
-      int y = y1-round(imgDy);
+      int x = x1-(int)Math.round(imgDx);
+      int y = y1-(int)Math.round(imgDy);
       try {
          if( pref.type==Plan.ALLSKYIMG && pref.active && !isAllSky() ) return Color.cyan;
          if( isFree()
@@ -4393,7 +4567,7 @@ testx1=x1; testy1=y1; testw=w; testh=h;
             for( int i=x; i<x+w; i++ ) {
                int offset = j*this.w + i;
                if( offset<0 || offset>=pixels.length ) continue;
-               pix += (double)(pixels[offset] & 0xFF);
+               pix += (pixels[offset] & 0xFF);
             }
          }
          pix /=w*h;
@@ -4462,7 +4636,9 @@ testx1=x1; testy1=y1; testw=w; testh=h;
       int x=getMarge()+dx;
       int y=5+getMarge()+dy;
 
-      int len=g.getFontMetrics().stringWidth(s);
+      int len;
+      FontMetrics fm = g.getFontMetrics();
+      for( len=fm.stringWidth(s); s.length()>4 && len>rv.width-100; s=s.substring(0,s.length()-2), len=fm.stringWidth(s) );
       
       Util.drawCartouche(g, x, y-11, len, 15, 0.6f, null, Color.white);
       g.setColor( locked ? Color.red : Color.blue );
@@ -4495,6 +4671,7 @@ testx1=x1; testy1=y1; testw=w; testh=h;
     * est la 5 et qu'elle représente le 1/3 de la contribution avec la frame suivante pour
     * un fondu enchainé */
    protected double getCurrentFrameLevel() {
+      if( blinkControl==null ) return 1;
       double frame = blinkControl.getCurrentFrameIndex();
       double transparency = blinkControl.getTransparency();
       if( transparency==-1 || transparency==0 ) return frame;
@@ -4553,6 +4730,22 @@ testx1=x1; testy1=y1; testw=w; testh=h;
      return coo;
 
   }
+  
+  // Retourne la taille de la rose des vents
+  private int getNESize() {
+     int L = rv.width/20;
+     if( L>50 ) L=50;
+     else if( L<16 ) L=16;
+     return L*2;
+  }
+  
+  // Retourne true si la coordonnée se trouve dans la rose des vents
+  private boolean inNE(int x,int y) { 
+     if( !(pref instanceof PlanBG) ) return false;
+     if( aladin.toolBox.getTool()!=ToolBox.PAN ) return false;
+     int L = (int)(getNESize()*1.5);
+     return x>rv.width-L && y>rv.height-L;
+  }
 
    /** Positionnement d'un repere Nord et Est */
    private void drawNE(Graphics g,Projection proj,int dx,int dy) {
@@ -4564,9 +4757,7 @@ testx1=x1; testy1=y1; testw=w; testh=h;
       Coord c1,c;
       double delta = 1/60.;
       
-      double L = rv.width/20;
-      if( L>50 ) L=50;
-      else if( L<15 ) L=15;
+      double L = getNESize()/2.;
       
       boolean flagBG = pref instanceof PlanBG;
       
@@ -4877,7 +5068,7 @@ testx1=x1; testy1=y1; testw=w; testh=h;
          c.al = proj.raj;
          c.del = proj.dej;
          c = aladin.localisation.ICRSToFrame(c);
-         try { cosd = Math.cos(c.del*Math.PI/180.); }
+         try { cosd = Util.cosd(c.del); }
          catch(Exception e) { cosd=1.; }
 
          boolean fullScreen = isFullScreen();
@@ -4887,7 +5078,7 @@ testx1=x1; testy1=y1; testw=w; testh=h;
          double rd = getTailleDE()*60.;
          if( rd==0. || Double.isNaN(rd) ) rd=60*360.;
          double pasd = goodPas(rd/nb,PASD)/60.;
-         double ra=rd;
+         double ra=getTailleRA()*60.;
          if( Math.abs(cosd)<0.000001 ) ra=360*60;
          else ra = rd/cosd;
          
@@ -5044,6 +5235,9 @@ testx1=x1; testy1=y1; testw=w; testh=h;
          g.drawOval(x+dx,y+dy,rayon*2,rayon*2);
       } else if( proj.t==Calib.AIT || proj.t==Calib.MOL ) {
          Projection p =  proj.copy();
+         double angle = -p.c.getProjRot();
+         p.setProjRot(0);
+
          p.frame=Localisation.ICRS;
          p.setProjCenter(0,0.1);
          Coord c =p.c.getProjCenter();
@@ -5063,7 +5257,8 @@ testx1=x1; testy1=y1; testw=w; testh=h;
          int grandAxe = (int)(droit.x-center.x)+1;
          int x = (int)(center.x-grandAxe);
          int y = (int)(center.y-petitAxe);
-         g.drawOval(x+dx,y+dy,grandAxe*2,petitAxe*2);
+         if( angle==0 ) g.drawOval(x+dx,y+dy,grandAxe*2,petitAxe*2);
+         else Util.drawEllipse(g, x+dx+grandAxe, y+dy+petitAxe, grandAxe, petitAxe, angle);
       }
    }
 
@@ -5151,7 +5346,7 @@ testx1=x1; testy1=y1; testw=w; testh=h;
       // Logo pour les plans ré-échantillonés
       if( pref instanceof PlanImageResamp
             && ((PlanImageResamp)pref).isResample() ) {
-         aladin.toolbox.tool[0].drawRsampIcon(g,Color.red,x,y,false);
+         aladin.toolBox.tool[0].drawRsampIcon(g,Color.red,x,y,false);
          x+=15;
       }
       g.setColor(c);
@@ -5172,8 +5367,8 @@ testx1=x1; testy1=y1; testw=w; testh=h;
 
   /** Dessin de la surface couverte par le Grabit */
    private void drawGrabIt(Graphics g,double x1,double y1, double x2, double y2) {
-      g.drawLine(round(x1-5),round(y1),round(x1+5),round(y1));
-      g.drawLine(round(x1),round(y1-5),round(x1),round(y1+5));
+      g.drawLine((int)Math.round(x1-5),(int)Math.round(y1),(int)Math.round(x1+5),(int)Math.round(y1));
+      g.drawLine((int)Math.round(x1),(int)Math.round(y1-5),(int)Math.round(x1),(int)Math.round(y1+5));
       double dx = x1-x2;
       double dy = y1-y2;
       double r = Math.sqrt(dx*dx+dy*dy);
@@ -5211,7 +5406,7 @@ testx1=x1; testy1=y1; testw=w; testh=h;
       
 //      if( isLockRepaint() ) return;   // Pas de repaint() pendant un saveView()
       
-      waitLockRepaint("update");
+//      waitLockRepaint("update");
       try {
          // Affichage rapide des bordures
          if( quickBordure ) { drawBordure(gr); quickBordure=false; }
@@ -5240,7 +5435,7 @@ testx1=x1; testy1=y1; testw=w; testh=h;
          
       } catch( Exception e ) { }
 
-      unlockRepaint("update");
+//      unlockRepaint("update");
       resetClip();
    }
 
@@ -5264,47 +5459,16 @@ testx1=x1; testy1=y1; testw=w; testh=h;
       if( aladin.getOrder()>=0 ) drawHealpixMouse(g);
    }
 
-   /** Dessin du background (Méthode un plan BG dans la pile) */
-//   protected void paintBackGround(Graphics g) { paintBackGround1(g,0); }
-//   protected void paintBackGroundInImage(Graphics2D g) { paintBackGround1(g,1); }
-//   private void paintBackGround1(Graphics g,int mode) {
-//      
-//      Plan folder=null;
-//      
-//      if( isFree() || !Projection.isOk(getProj()) ) return;
-//      int n = calque.getIndex(pref);
-//      if( n==-1 ) return;
-//      int debut = pref.type==Plan.ALLSKYIMG ? n : calque.plan.length-1;
-//      
-//      boolean first=true;
-//
-//      for( int i=debut; i>=0; i--) {
-//         Plan p = calque.plan[i];
-//         if( p.type!=Plan.ALLSKYIMG ) continue;
-//         if( !p.active || (!first && p.getOpacityLevel()<0.1) ) continue;
-//
-//         if( folder==null ) folder = calque.getMyScopeFolder(pref);
-//         if( calque.getMyScopeFolder(p)!=folder ) continue;
-//
-//         float op = p==pref ? 1 : -1;
-//         if( p==pref || p!=pref && !p.isRefForVisibleView() ) {
-//            if( mode==0 ) ((PlanBG)p).draw(g, getProjSyncView(),op);
-//            else ((PlanBG)p).drawInImage((Graphics2D)g, getProjSyncView(),op);
-//            first=false;
-//         }
-//      }
-//
-//   }
-   
    protected boolean flagPhotometry=false;
    
   /** Tracage des overlays graphiques
    * @param g le contexte graphique concerne
    * @param clip le cliprect s'il existe, sinon null
    * @param dx,dy l'offset d'affichage uniquement utilise pour les impressions
+   * @param now true pour avoir immédiatement un affichage complet (mode allsky notamment)
    * @return true si au moins un plan a ete affiche
    */
-   protected boolean paintOverlays(Graphics g,Rectangle clip,int dx,int dy) {
+   protected boolean paintOverlays(Graphics g,Rectangle clip,int dx,int dy,boolean now) {
       boolean fullScreen = isFullScreen();
       if( isFree() ) {
          drawFovs(g,this,dx,dy);
@@ -5349,27 +5513,33 @@ testx1=x1; testy1=y1; testw=w; testh=h;
          if( p.type==Plan.NO || !p.flagOk ) continue;
          
          // Seuls les catalogues (et éventuellement les surcharges graphiques) sont traçables dans un plot
-         if( isPlotView() && !p.isCatalog() && p.type!=Plan.TOOL ) continue;
+         if( isPlotView() && !p.isCatalog() && !p.isTool() ) continue;
          
          // Repérage d'un éventuel plan sous la souris dans le stack
          if( p.underMouse && p.isImage() ) planUnderMouse = (PlanImage)p;
 
-         // Le plan image de référence
+         // Le plan image de référence (le cas allsky est traité après)
          if( p==pref && p.isImage() ) {
             if( p.active ) {
                if( northUp || isProjSync()) ((PlanImage)p).draw(g,vs,dx,dy,1); 
                else {
-                  if( imgFlagDraw ) g.drawImage(imgprep,dx+round(imgDx),dy+round(imgDy),this);
+                  double offsetX = imgDx;
+                  double offsetY = imgDy;
+                  if( pref.type == Plan.IMAGEHUGE ) {
+                      if( rzoom.x>=0 ) offsetX -= (int)Math.floor( (rzoom.x - (int)Math.floor(rzoom.x))*zoom);
+                      if( rzoom.y>=0 ) offsetY -= (int)Math.floor( (rzoom.y - (int)Math.floor(rzoom.y))*zoom);
+                  }
+                  if( imgFlagDraw ) g.drawImage(imgprep,dx+(int)Math.round(offsetX),dy+(int)Math.round(offsetY),this);
                }
             }
             continue;
          }
          
          if( p==pref && p instanceof PlanBG ) {
-            if( p.active) ((PlanBG)p).draw(g,vs,dx,dy,1);
+            if( p.active ) ((PlanBG)p).draw(g,vs,dx,dy, 1,now);
             continue;
          }
-
+         
          // Même scope que le plan de référence ?
          boolean flagDraw;
          // Dans le cas d'un plan de polarisation, il faut qu'il soit hors tout ou
@@ -5383,18 +5553,23 @@ testx1=x1; testy1=y1; testw=w; testh=h;
          // Activé ?
          boolean flagActive = flagDraw && p.active;
          
-         if( (p.isImage() || p instanceof PlanBG) && Projection.isOk(p.projd) ) {
+         // Cas d'un image ou d'un plan BG
+         if( (p.isImage() || p instanceof PlanBG ) && Projection.isOk(p.projd) ) {
             if( flagActive && !p.isRefForVisibleView() ) ((PlanImage)p).draw(g,vs,dx,dy,-1);
+            if( fullScreen &&  p.hasObj() && p.isOverlay() ) {
+               aladin.fullScreen.setCheck(p);
+            }
+
 
             // Cas des plans TOOL et CATALOG
          } else {
             if( fullScreen ) {
-               if( p.pcat!=null && p.pcat.computeAndTestDraw(this,flagDraw) ) {
+               if( p.hasObj() && p.pcat.computeAndTestDraw(this,flagDraw) ) {
                   aladin.fullScreen.setCheck(p);
                }
             }
             
-            if( p.pcat==null || !p.active ) continue;
+            if( !(p instanceof PlanMoc) && p.pcat==null || !p.active ) continue;
             float opacity = p.getOpacityLevel();
             if( opacity >0.05 ) {
                if( p.getOpacityLevel()<0.9 && g instanceof Graphics2D
@@ -5442,7 +5617,6 @@ testx1=x1; testy1=y1; testw=w; testh=h;
       else if( calque.hasGrid() && !proj.isXYLinear() ) vs.drawGrid(g,clip,dx,dy);
       
       if( dx==0 ) drawBlinkControl(g);      // Il ne s'agit pas d'une impression
-//      drawCredit(g,dx,dy);
 
       if( fullScreen ) g.setFont( Aladin.BOLD);
       else if( rv.width>200 ) g.setFont(Aladin.SBOLD);
@@ -5480,6 +5654,10 @@ testx1=x1; testy1=y1; testw=w; testh=h;
             aladin.view.simRep.draw(g,this,dx,dy);
          }
       }
+      
+      // Tracé du rainbow
+      if( hasRainbow() ) rainbow.draw(g,this,dx,dy);
+      if( rainbowF!=null ) rainbowF.draw(g,this,dx,dy);
 
       return flagDisplay;
    }
@@ -5591,7 +5769,7 @@ g.drawString(s,10,100);
 
    /** Retourne true si le plan de référence est un plan Blink */
    protected boolean isPlanBlink() {
-     return pref!=null && (pref.type==Plan.IMAGEBLINK || pref.type==Plan.IMAGECUBE);
+     return pref!=null && (pref instanceof PlanImageBlink );
    }
 
    /** Retourne true si il y a au moins un objet blink à montrer
@@ -5611,10 +5789,15 @@ g.drawString(s,10,100);
    private int oizAngle=-1;
    
    
+   /** Retourne un identificateur unique de la vue et de son état. Si celui-ci a changé,
+    * il est nécessaire de recalculer les projections dans cette vue */
+   public long getIZ() { return ( ((long)hashCode()<<31) | (long)iz<<16); }
+   
+   
    /** Retourne la projection courante pour la vue.
     * Par défaut il s'agit de pref.projd, mais si on est en mode Nord vers le haut,
     * retourne la projection dont la rotation oriente le Nord du système de référence vers le haut */
-   protected Projection getProj() {
+   public Projection getProj() {
       Projection proj;
       if( pref==null ) return null;
       
@@ -5743,16 +5926,23 @@ g.drawString(s,10,100);
    }
 
    public void paintComponent(Graphics gr) { 
-      waitLockRepaint("paintComponent");
-      try { paintComponent1(gr); }
-      catch( Exception e ) {}
-      unlockRepaint("paintComponent");
-      resetClip();
-      aladin.command.syncNeedRepaint=false;
+//      waitLockRepaint("paintComponent");
+//      try {
+         try { paintComponent1(gr); }
+         catch( Exception e ) {
+            if( aladin.levelTrace>3 ) e.printStackTrace();
+            fillBackground(gr);
+            drawBordure(gr);
+            gr.setColor(Color.red);
+            gr.drawString("Repaint error ("+e.getMessage()+")",10,15);
+         }
+         resetClip();
+         aladin.view.setPaintTimer();
+         aladin.command.syncNeedRepaint=false;
+//      } finally { unlockRepaint("paintComponent"); }
    }
    
    private void paintComponent1(Graphics gr) { 
-      
       long t = Util.getTime();
       
       // Pour forcer le réaffichage total (dans le cas d'un save ou d'un print)
@@ -5814,7 +6004,7 @@ g.drawString(s,10,100);
       if( !(flagDrag || quickInfo || quickBlink || modeGrabIt || flagBlinkControl || quickBordure || 
             view.newobj!=null && view.newobj instanceof Cote  ) ) {
          fillBackground(gbuf);
-         paintOverlays(gbuf,clip,0,0);
+         paintOverlays(gbuf,clip,0,0,false);
 //System.out.println("paint");
       }
       
@@ -5851,7 +6041,7 @@ g.drawString(s,10,100);
       
       // tracé du rectangle de crop
       if( view.crop!=null && isFree() 
-            || aladin.toolbox.tool[ToolBox.CROP].mode!=Tool.DOWN ) view.crop=null;
+            || aladin.toolBox.tool[ToolBox.CROP].mode!=Tool.DOWN ) view.crop=null;
       else if( hasCrop() ) view.crop.draw(g,this);
       
       // Dessin des bordures
@@ -5861,16 +6051,19 @@ g.drawString(s,10,100);
       resetClip();
       
       // Dessin de la colormap
-      if( xDrag!=-1 ) drawColorMap(g);
+      if( xDrag!=-1 && !hasRainbow() ) drawColorMap(g);
+      
+      if( !rainbowUsed()  ) {
 
-      // Dessin en sur impression de la valeur de pixel, et de la position pour FullScreen
-      if( pref!=null && aladin.calque.hasPixel() ) drawPixelAndPos(g);
-      quickInfo=false;
+         // Dessin en sur impression de la valeur de pixel, et de la position pour FullScreen
+         if( pref!=null && aladin.calque.hasPixel() ) drawPixelInfo(g);
+         quickInfo=false;
+      }
 
       if( fullScreen )  {
          aladin.fullScreen.drawMesures(g);
          aladin.fullScreen.drawIcons(g);
-//         drawOverlayControls(g);
+//                  drawOverlayControls(g);
       }
 
       // Affichage du buffer
@@ -5880,8 +6073,6 @@ g.drawString(s,10,100);
       timeForPaint  = (Util.getTime() - t);
 //      System.out.println("ViewSimple paint "+timeForPaint+"ms");
    }
-   
-   boolean flagHealpixMouse=true;
    
    private void drawHealpixMouse(Graphics g) {
       if( !(pref instanceof PlanBG) ) return;
@@ -5901,8 +6092,8 @@ g.drawString(s,10,100);
       g2d.setComposite(myComposite);
       
       g2d.translate(0,50);
-      aladin.toolbox.setSize(200,280);
-      aladin.toolbox.paintComponent(g2d);
+      aladin.toolBox.setSize(200,280);
+      aladin.toolBox.paintComponent(g2d);
       g2d.setTransform(saveTransform);
       g2d.setClip(saveClip);
       
@@ -5922,9 +6113,17 @@ g.drawString(s,10,100);
    
    protected String lastPixel="";
    
+   /** Passage de la valeur du pixel qu'il faut afficher en surimpression de l'image */
+   protected void setPixelInfo(String s) {
+      if( lastPixel!=null && lastPixel.equals(s) ) return;  // pas de changement
+      lastPixel=s;
+      quickInfo=true;
+      repaint();
+   }
+   
    /** Affichage en surimpression en haut à droite de la coordonnée
     * et de la valeur du pixel sous la souris */
-   protected void drawPixelAndPos(Graphics g) {
+   protected void drawPixelInfo(Graphics g) {
       try {
          //      if( !isFullScreen() ) return;
 //         if( aladin.view.getMouseView()!=this || ) return;
@@ -6009,11 +6208,6 @@ g.drawString(s,10,100);
       return x;
    }
 
-   // Arrondi plus facile à écrire que (int)Math.round()
-   static protected int round(double x) { return (int)(x+0.5); }
-   static protected int floor(double x) { return (int)x; }
-   static protected int top(double x) { return (int)x==x ? (int)x : (int)(x+1); }
-   
    
    /************************  Gestion du plot de nuages de points ***********************/
    

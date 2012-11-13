@@ -20,7 +20,7 @@
 /*
  * Created on 15-Apr-2005
  *
- * To change this generated comment go to 
+ * To change this generated comment go to
  * Window>Preferences>Java>Code Generation>Code Template
  */
 package cds.aladin;
@@ -31,43 +31,43 @@ import cds.savot.model.*;
 import cds.savot.pull.*;
 
 /** Cette classe permet le parsing propre des extensions SIAP
- * Une attention toute particulière a été portée à 
+ * Une attention toute particulière a été portée à
  * être le plus générique et tolérant aux erreurs possible
- * 
+ *
  * @author Thomas Boch [CDS]
  * (kickoff : 15/04/2005)
  */
 public class SIAPExtBuilder extends TreeBuilder {
-	
+
 	// les utypes sur lesquels on se base pour prendre des décisions
 	static final String UT_SIMPLEQUERY = "dal:SimpleQueryResponse";
 	static final String UT_DALEXTENSIONS = "dal:QueryResponseExtensions";
-	
+
 	static final String UT_GENFEATURES = "Observation.DataID.Collection";
 	static final String UT_GENFEATURES_DEPRECATED = "Observation/DataCollection";
-	
+
 	static final String UT_CHARACTERIZATION = "Observation/ivoa:Characterization";
-	
+
 	static final String UT_DATAACCESS = "Observation.Provenance.DataViewsAndAccess";
 	static final String UT_DATAACCESS_DEPRECATED = "Observation/DataViewsAndAccess";
-	
+
 	static final String UT_COMPOSITION = "Observation/Provenance/Processing/Composition";
-	
+
 	static final String UT_RADEC = "ivoa:Characterization[ucd=pos]/Coverage/Location";
 	static final String UT_MINRADEC = "ivoa:Characterization[ucd=pos]/Coverage/Bounds/min";
 	static final String UT_MAXRADEC = "ivoa:Characterization[ucd=pos]/Coverage/Bounds/max";
-	
+
 	static final String UT_OBS_DATASET_ID = "Observation.DataID.DatasetID";
 	static final String UT_OBS_DATASET_ID_DEPRECATED = "Observation/Identifier";
-	
+
 	// pour trouver l'angle de position
 	static final String FOV_POS_ANGLE = "stc:AstroCoordSystem.CoordFrame.Cart2DRefFrame.Transform2.PosAngle";
-	
+
 	// parser à utiliser
 	private SavotPullParser parser;
-	
+
 	private SavotVOTable votable;
-	
+
 	// variables de travail
 	SavotResource orgSiapRes; // resource SIAP "originelle"
 	SavotResource dalExtRes; // DAL extensions
@@ -80,54 +80,54 @@ public class SIAPExtBuilder extends TreeBuilder {
     private int obsRefIndex;
     private int idxRefRelObs;
     private Vector alreadyAdded;
-	
+
     private Vector otherTabs;
-    
+
     // s'agit-il d'un document avec des footprints attachés
     private boolean isFootprintDoc = false;
-    
+
     // clés possibles
     private Vector potentialKeys;
-    
+
     // fait le lien keyID+"__"+keyVal --> noeud
     private Hashtable keyToNodes;
-    
-    
+
+
     private String obsRefID, obsNameID;
-	
+
 	SIAPExtBuilder(Aladin aladin, String target) {
 		super(aladin, target);
 	}
-	
+
 	/**
 	 * construit l'arbre correspondant à un document SIAP Extensions
-	 * @param parser parser VOT déja initialisé 
+	 * @param parser parser VOT déja initialisé
 	 * @return le noeud racine de l'arbre correpsondant au document
 	 */
 	protected ResourceNode build(SavotPullParser p) throws Exception {
 		Aladin.trace(3, "Begin parsing of SIAP extensions document");
-		
+
 		// raz des variables membres utilisées pour le parsing
 		reset();
 
 		parser = p;
-		
+
 		if( parser==null ) throw new Exception("Null parser passed to SIAPExtBuilder class");
-		
+
 		votable = parser.getVOTable();
-		
+
 		// on remplit les références aux tables et resources
 		preCheck();
-		
+
 		// on cherche une éventuelle indication du tri à appliquer
 		searchSortOrder(votable);
-		
+
 		// si la resource siap originelle est manquante, on ne peut pas faire grand chose !
 		if( orgSiapRes==null )
 			throw new Exception("Could not find SIAP results section, parsing aborted !");
-		
+
 		// traitement section "dal/SimpleQueryResponse"
-		
+
 		// création du noeud racine
         ResourceNode root = new ResourceNode(aladin, "root");
         root.type = ResourceNode.VOID;
@@ -145,38 +145,38 @@ public class SIAPExtBuilder extends TreeBuilder {
 				potentialKeys.addElement(initFields[i].getId());
 			}
 		}
-	
+
         obsRefID = getObsRefID(initFields);
         obsNameID = getObsNameID(initFields);
-        
+
         int bandPassIdx =  findFieldByUCD(SIAP_BANDPASS_ID, initFields);
-        
+
         // TODO : à supprimer ?
         Aladin.trace(3, "obsRefID : "+obsRefID);
         Aladin.trace(3, "obsNameID : "+obsNameID);
-        
+
         obsRefIndex = findValIndex(idFields, obsRefID);
         idxRefRelObs = findValIndex(idFields, obsNameID);
         // les descriptions disponibles
         Vector desc = new Vector();
 
-        
-        
+
+
         namesToNodes = new Hashtable();
         altNamesToNodes = new Hashtable();
         // on récupère tous les enregistrements de la resource SIAP de base
         ResourceNode[] siapRes = processSIAPEvolResource(orgSiapRes);
-        
+
         // on garde en mémoire les clé+"__+valeur
         registerKeyVal(initFields, siapRes);
-        
+
         if( siapRes.length>0 ) {
         	root.siapSortFields = siapRes[0].description;
 
         	ResourceNode n = siapRes[0];
 
         	for( int i=0; i<n.description.length; i++ ) desc.addElement(n.description[i]);
-        	
+
         	// TEST
 //        	if( couldBeSSA(votable) ) {
 //        	    for( int i=0; i<siapRes.length; i++ ) {
@@ -185,48 +185,48 @@ public class SIAPExtBuilder extends TreeBuilder {
 //        	}
         }
 
-        
+
 		// dans le cas d'un SIAP de base, avec uniquement la première section
 		if( isOnlyOrgSiap() ) {
 			Aladin.trace(3, "Processed as basic SIAP");
 //        if( true){
 		    for( int i=0; i<siapRes.length; i++ )
 		        root.addChild(siapRes[i]);
-		    
+
 		}
-		
+
 
 		// traitement de genFeatTab
 		if( dalExtRes!=null ) {
 			Aladin.trace(3, "Entering processing of gen feat tab");
 		    processGenFeatTab(siapRes, desc);
 		}
-        
+
 		alreadyAdded = new Vector();
         // traitement de characTab
 		if( characTab!=null ) {
 			Aladin.trace(3, "Entering processing of charac");
 		    processCharac();
 		}
-		
+
 		// traitement de compositionTab
 		if( compositionTab!=null ) {
 			Aladin.trace(3, "Entering processing of composition table");
 		    processCompositionTab();
 		}
-		
+
 		// traitement de dataAccessTab
 		if( dataAccessTab!=null ) {
 			Aladin.trace(3, "Entering processing of dataaccess table");
 		    processDataAccessTab();
 		}
-		
+
 		// traitement des tables génériques
 		Enumeration eGenTab = otherTabs.elements();
 		while( eGenTab.hasMoreElements() ) {
 			processGenericTable((SavotTable)eGenTab.nextElement());
 		}
-		
+
 		// au final, on boucle pour rattacher les obs restantes au noeud racine
 		if( !isOnlyOrgSiap() ) {
 			for( int i=0; i<siapRes.length; i++ ) {
@@ -236,13 +236,13 @@ public class SIAPExtBuilder extends TreeBuilder {
 			        else siapRes[i].isLeaf = true;
 			        alreadyAdded.addElement(siapRes[i]);
 			    }
-			        
+
 			}
 		}
-		
+
         Enumeration e = root.getChildren();
         while( e.hasMoreElements() ) ((ResourceNode)e.nextElement()).isObs = true;
-		
+
         // tri par bandpass par défaut
         if( /*isFootprintDoc &&*/ sortItems==null && bandPassIdx>=0 ) {
                 sortItems = new String[1];
@@ -256,16 +256,16 @@ public class SIAPExtBuilder extends TreeBuilder {
                     sortItems = null;
                 }
         }
-        
-        
+
+
         // finalement, on effectue le tri
         if( sortItems!=null ) MetaDataTree.doSortSiapEvol(sortItems, root);
-        
+
         reset();
-        
+
 		return root;
 	}
-	
+
 	/** traitement d'une table "générique":
 	 * ajout d'un noeud avec le nom de la table, puis ajout dans ce nouveau noeud des éléments
 	 * @param table
@@ -273,16 +273,16 @@ public class SIAPExtBuilder extends TreeBuilder {
 	private void processGenericTable(SavotTable table) {
 		String tabName = table.getId();
 		Hashtable keyToTabRes = new Hashtable();
-		
+
 		SavotField[] fields = createDescription(table.getFields());
-		
+
 		int obsRefIndex = findKey(fields);
-		
+
 		if( obsRefIndex<0 ) {
 			Aladin.trace(3, "Could not find key field when processing generic table");
 			return;
 		}
-		
+
 		// TODO : à supprimer ?
 		Aladin.trace(3, tabName);
 		Aladin.trace(3, "+++ : "+obsRefIndex);
@@ -291,16 +291,16 @@ public class SIAPExtBuilder extends TreeBuilder {
 		SavotTR tr;
 
 		if( trs.getItemCount()==0 ) return;
-		
+
 		Enumeration e = trs.getItems().elements();
 		String keyVal;
 		ResourceNode node, parentNode;
-		
+
 	    // boucle sur les TR
 	    while( e.hasMoreElements() ) {
 	        tr = (SavotTR)e.nextElement();
 	        tds = tr.getTDs();
-	        
+
 	        keyVal = tds.getContent(obsRefIndex);
 //	        node = (ResourceNode)namesToNodes.get(key);
 	        node = getNodeFromKey(fields[obsRefIndex], keyVal);
@@ -318,25 +318,25 @@ public class SIAPExtBuilder extends TreeBuilder {
 	        	keyToTabRes.put(node, child);
 	        }
 	        parentNode = (ResourceNode)keyToTabRes.get(node);
-	        // n = nouvau noeud correspondant au TR courant 
+	        // n = nouvau noeud correspondant au TR courant
 	        ResourceNode n = createSIAPNode(tr, fields);
-	        
+
 	        parentNode.addChild(n);
-	        
+
 	        setDatasetType(n);
 
 	        // TODO : à supprimer ?
 	        Aladin.trace(3, "key : "+keyVal);
 	        Aladin.trace(3, "***"+namesToNodes.get(keyVal));
-	        
-	    }
-		
-	}
-	
 
-	
+	    }
+
+	}
+
+
+
 	/** on s'occupe des data views and access
-	 * 
+	 *
 	 */
 	private void processDataAccessTab() {
 	    SavotField[] fields = createDescription(dataAccessTab.getFields());
@@ -344,12 +344,12 @@ public class SIAPExtBuilder extends TreeBuilder {
 
 	    // fait le lien nom-->noeud "Data Access"
 	    Hashtable namesToDataAccess = new Hashtable();
-	    
+
 	    TRSet trSet = dataAccessTab.getData().getTableData().getTRs();
 	    if( trSet.getItems()==null ) return;
-	    
+
 	    Enumeration e = trSet.getItems().elements();
-	    
+
 	    String obsRef, relatedObs;
 	    ResourceNode parent;
 	    Vector children;
@@ -357,25 +357,25 @@ public class SIAPExtBuilder extends TreeBuilder {
 
 //        System.out.println("obsRefId is "+obsRefID);
 	    int obsRefIndex = findFieldByID(obsRefID, fields);
-	    
+
 	    int locationIndex = findFieldByUtype("Observation.Provenance.DataViewsAndAccess.AccessReference", fields);
 	    if( locationIndex<0 ) locationIndex = findFieldByID("LinktoPixels", fields);
-	    
+
         int dataOrgaIndex = findFieldByUtype("Observation.Provenance.DataViewsAndAccess.ViewType", fields);
         if( dataOrgaIndex<0 ) dataOrgaIndex = findFieldByID("DataOrganisation", fields);
-        
+
         int descIndex = findFieldByUtype("Observation.Provenance.DataViewsAndAccess.ViewDescription", fields);
         if( descIndex<0 ) descIndex = findFieldByID("desc", fields);
-        
+
         int numberIndex = findFieldByID(NB_OF_PATCHES, fields);
         int mapParamIndex = findFieldByID(MAPPARAM, fields);
         boolean cutout;
-        
+
         String locationStr, dataOrgaStr, descStr;
         locationStr=dataOrgaStr=descStr=null;
         TDSet tds;
         SavotTR tr;
-        
+
 	    // boucle sur les TR
 	    while( e.hasMoreElements() ) {
 	        tr = (SavotTR)e.nextElement();
@@ -384,9 +384,9 @@ public class SIAPExtBuilder extends TreeBuilder {
 //	        System.out.println("obsref : "+obsRef);
 	        parent = (ResourceNode)namesToNodes.get(obsRef);
 //	        System.out.println("parent.name : "+parent.name);
-	        
+
 	        if( parent!=null ) {
-	            // on cherche le noeud data views 
+	            // on cherche le noeud data views
 	            // s'il n'existe pas encore, on le crée
 	            curDataAccessNode = (ResourceNode)namesToDataAccess.get(obsRef);
 	            if( curDataAccessNode==null ) {
@@ -396,31 +396,31 @@ public class SIAPExtBuilder extends TreeBuilder {
 //	                System.out.println("ajout de "+parent.name+" --> "+curDataAccessNode.name);
 	                parent.isLeaf = false;
 	            }
-	    
+
 	            String nbPatch = "";
 	            if( numberIndex>=0 ) nbPatch = tds.getContent(numberIndex).trim();
 	            String mapParam = "";
 	            if( mapParamIndex>=0 ) mapParam = tds.getContent(mapParamIndex).trim();
-	            
+
 	            cutout = false;
 	            if( locationIndex>=0 ) locationStr = tds.getContent(locationIndex);
 	            if( dataOrgaIndex>=0 ) dataOrgaStr = tds.getContent(dataOrgaIndex);
 	            if( descIndex>=0 ) descStr = tds.getContent(descIndex);
-	            
-	            
+
+
 	            cutout = dataOrgaStr!=null && dataOrgaStr.equalsIgnoreCase("CUTOUTS");
-	            
+
 	            ResourceNode newNode = new ResourceNode(aladin, parent);
 	            newNode.name = "View";
 	            newNode.isLeaf = true;
 	            newNode.cutout = cutout;
 	            newNode.location = locationStr;
-	            
+
 	            if( newNode.cutout ) {
 	            	String cutoutCenter = getRequestedPos()!=null?getRequestedPos():newNode.explanation[newNode.ra]+" "+newNode.explanation[newNode.de];
 	            	newNode.setCutoutTarget(cutoutCenter, false);
 	            }
-	            
+
 	            // traitement du mode RETRIEVAL
 	            if( dataOrgaStr.equals("RETRIEVAL") ) newNode.indexing = "HTML";
 
@@ -429,12 +429,12 @@ public class SIAPExtBuilder extends TreeBuilder {
 	    		if( descStr!=null && descStr.indexOf("characterization XML")>=0 ) {
 	    			newNode.type = ResourceNode.CHARAC;
 	    		}
-	            
-	            
+
+
 	            // parametres associés au slice
 	            // nb of patches
 	            if( nbPatch.length()>0 ) newNode.maxImgNumber = nbPatch;
-	              
+
 	            if( mapParam.length()>0 ) {
 	            	String[] params = split(mapParam,",");
 	            	if( params.length==2 ) {
@@ -445,22 +445,22 @@ public class SIAPExtBuilder extends TreeBuilder {
 	            		catch( NumberFormatException nfe ) {}
 	            	}
 	            }
-	            
+
 	            newNode.dataOrga = dataOrgaStr.trim();
-	            
+
 	            // on met un nom plus sympathique !
 	            if( descStr!=null && descStr.length()>0 ) newNode.name = descStr.trim();
 	            else if( dataOrgaStr!=null && dataOrgaStr.length()>0 ) newNode.name = dataOrgaStr.trim();
-	            
+
 	            setDatasetType(newNode);
-	            
+
 	            curDataAccessNode.addChild(newNode);
 	        }
 	    }
 	}
-	
+
 	/** on traite la composition
-	 * 
+	 *
 	 */
 	private void processCompositionTab() {
 	    SavotField[] fields = createDescription(compositionTab.getFields());
@@ -468,12 +468,12 @@ public class SIAPExtBuilder extends TreeBuilder {
 	    int obsRefIndex = findFieldByID(obsRefID, fields);
 	    // TODO : comment trouver ce champ là ??
 	    int relatedObsIndex = findFieldByID("RelatedObservation", fields);
-	    
+
 	    int compositionDescIdx = findFieldByUtype("Observation/Provenance/Processing/Composition/description", fields);
-	    
+
 	    // fait le lien nom-->noeud "Members"
 	    Hashtable namesToMembers = new Hashtable();
-	    
+
 	    TRSet trSet = compositionTab.getData().getTableData().getTRs();
 	    SavotTR tr;
 	    Enumeration e = trSet.getItems().elements();
@@ -481,15 +481,15 @@ public class SIAPExtBuilder extends TreeBuilder {
 	    ResourceNode parent;
 	    ResourceNode curMembersNode;
 	    Vector children;
-	    
+
 	    // boucle sur les TR
 	    while( e.hasMoreElements() ) {
 	        tr = (SavotTR)e.nextElement();
 	        obsRef = ((SavotTD)(tr.getTDs().getItemAt(obsRefIndex))).getContent();
 	        parent = (ResourceNode)namesToNodes.get(obsRef);
-	        
+
 	        if( parent!=null ) {
-	        	
+
 	            // on cherche le noeud Members
 	            // s'il n'existe pas encore, on le crée
 	        	curMembersNode = (ResourceNode)namesToMembers.get(obsRef);
@@ -503,15 +503,15 @@ public class SIAPExtBuilder extends TreeBuilder {
 	            	}
 	            	namesToMembers.put(obsRef, curMembersNode);
 	                parent.addChild(curMembersNode);
-	                
+
 	                parent.isLeaf = false;
 	            }
-	        	
+
 	            relatedObs = ((SavotTD)(tr.getTDs().getItemAt(relatedObsIndex))).getContent();
 	            children = (Vector)altNamesToNodes.get(relatedObs);
-	            
 
-	            
+
+
 	            if( children!=null ) {
 	                Enumeration eChildren = children.elements();
 	                ResourceNode child;
@@ -524,9 +524,9 @@ public class SIAPExtBuilder extends TreeBuilder {
 	            }
 	        }
 	    }
-	    
+
 	}
-	
+
 	/** on traite la characterisation :
 	 * on ajoute un NOEUD "Characterization"
 	 *
@@ -535,24 +535,24 @@ public class SIAPExtBuilder extends TreeBuilder {
 	    SavotField[] fields = createDescription(characTab.getFields());
 	    // TODO : à changer, prendre en compte le ref !
 	    int obsRefIndex = findFieldByID(obsRefID, fields);
-	    
+
 	    // fait le lien nom-->noeud "Info"
 	    Hashtable namesToInfo = new Hashtable();
-	    
+
 	    TRSet trSet = characTab.getData().getTableData().getTRs();
 	    SavotTR tr;
 	    Enumeration e = trSet.getItems().elements();
 	    String obsRef;
 	    ResourceNode curInfoNode;
-	    
+
 	    while( e.hasMoreElements() ) {
 	        tr = (SavotTR)e.nextElement();
-	        
+
 	        obsRef = ((SavotTD)(tr.getTDs().getItemAt(obsRefIndex))).getContent();
 	        ResourceNode parent = (ResourceNode)namesToNodes.get(obsRef);
-	        
+
 	        if( parent!=null ) {
-	        	
+
 	            // on cherche le noeud Info
 	            // s'il n'existe pas encore, on le crée
 	            curInfoNode = (ResourceNode)namesToInfo.get(obsRef);
@@ -560,15 +560,15 @@ public class SIAPExtBuilder extends TreeBuilder {
 	            	curInfoNode = new ResourceNode(aladin, "Info/Metadata");
 	            	namesToInfo.put(obsRef, curInfoNode);
 	                parent.addChild(curInfoNode);
-	                
+
 	                parent.isLeaf = false;
 	            }
-	        	
+
 	            // récupération du FOV
 	            Fov fov = getFovFromCharac(tr.getTDs(), fields);
 	            if( fov!=null ) parent.setFov(fov);
-	            
-	            
+
+
 	            ResourceNode n = createSIAPNode(tr, fields);
 	            n.name = "CHARACTERIZATION";
 	            n.type = ResourceNode.INFO;
@@ -576,19 +576,19 @@ public class SIAPExtBuilder extends TreeBuilder {
 	        }
 	    }
 	}
-	
+
 	/** on s'occupe de la table General Features
-	 * 
+	 *
 	 * @param tab le tableau des noeuds de la resource SIAP originale
 	 */
 	private void processGenFeatTab(ResourceNode[] tab, Vector desc) {
 		processFov(tab, dalExtRes);
-		
+
 		if( idxRefRelObs<0 ) {
             Aladin.trace(3, "idxRefRelObs is null, stop processing of genFeatTab");
             return;
         }
-		
+
         Hashtable genFeatNodes = new Hashtable();
         processGenFeat(dalExtRes, genFeatNodes, desc);
 
@@ -624,7 +624,7 @@ public class SIAPExtBuilder extends TreeBuilder {
                     associatedNode.isLeaf = false;
                     n.links.put(n.description[j], associatedNode);
                     //System.out.println(key);
-                   
+
                     // pour l'origine de la resource (.origin), qui apparait dans Properties
                     for( int k=0; k<associatedNode.description.length; k++) {
                     	if( associatedNode.description[k].equals("Organisation") ) {
@@ -632,13 +632,13 @@ public class SIAPExtBuilder extends TreeBuilder {
                     		break;
                     	}
                     }
-                   
+
                 }
             }
         }
 
 	}
-	
+
 	/**
 	 * On recherche les resources et tables
 	 * dont on aura besoin par la suite
@@ -649,12 +649,12 @@ public class SIAPExtBuilder extends TreeBuilder {
 		SavotResource resource;
 		// TODO : à supprimer ?
 		Aladin.trace(3, "nb rsources : "+resources.getItemCount());
-		
+
 		for( int i=0; i<resources.getItemCount(); i++ ) {
 			resource = (SavotResource)resources.getItemAt(i);
 			checkIfOrgSiap(resource);
 			if( checkIfDalExt(resource) ) continue;
-			
+
 			// on parcourt l'ensemble des tables et on conserve
 			// les références à celles qui nous intéressent
 			TableSet tSet = resource.getTables();
@@ -665,47 +665,47 @@ public class SIAPExtBuilder extends TreeBuilder {
 				tab = (SavotTable) tSet.getItemAt(j);
 
 //                System.out.println(tab.getUtype());
-				
+
 				// checks if general features table
-				if( genFeatTab==null && 
+				if( genFeatTab==null &&
 					( tab.getUtype().trim().equalsIgnoreCase(getUType(UT_GENFEATURES)) ||
 					  tab.getUtype().trim().equalsIgnoreCase(getUType(UT_GENFEATURES_DEPRECATED)) ) ) {
-					
+
 					genFeatTab = tab;
 				}
-				
+
 				// checks if characterization table
 				else if( characTab==null &&
 						 tab.getUtype().trim().equalsIgnoreCase(getUType(UT_CHARACTERIZATION)) )
 					characTab = tab;
-				
+
 				// checks if data views and access table
 				else if( dataAccessTab==null &&
 						 ( tab.getUtype().trim().equalsIgnoreCase(getUType(UT_DATAACCESS)) ||
 						   tab.getUtype().trim().equalsIgnoreCase(getUType(UT_DATAACCESS_DEPRECATED)) ) ) {
-					
+
 					dataAccessTab = tab;
 				}
-				
+
 				// checks if composition table
 				else if( compositionTab==null &&
 						 tab.getUtype().trim().equalsIgnoreCase(getUType(UT_COMPOSITION)) )
 					compositionTab = tab;
-				
+
 				// autre table
 				else if( i!=0 ) otherTabs.addElement(tab);
 		}
-		
+
 //			System.out.println(characTab);
 //			System.out.println(dataAccessTab);
 //			System.out.println(genFeatTab);
 //			System.out.println(compositionTab);
 		}
-		
+
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @return true if the processed document holds only the original SIAP resource
 	 */
 	//TODO : changer nom de cette méthode, on peut en fait avoir original SIAP + tables génériques !
@@ -713,10 +713,10 @@ public class SIAPExtBuilder extends TreeBuilder {
 	    return dalExtRes==null && characTab==null && compositionTab==null
 	           && dalExtRes==null && dataAccessTab==null && genFeatTab==null;
 	}
-	
+
 	private ResourceNode[] processSIAPEvolResource(SavotResource res) {
 		Aladin.trace(3, "Processing original SIAP resource");
-		
+
 	    // on récupère le tableau de FIELD correspondant à mainRes
 	    SavotField[] fields = createDescription(res.getFieldSet(0));
 
@@ -733,20 +733,20 @@ public class SIAPExtBuilder extends TreeBuilder {
 	        resTab[i] = createSIAPNode((SavotTR)obsSet.getItemAt(i), fields);
 			resTab[i].isSIAPEvol = true;
 			if( idxRefRelObs>=0 && obsRefIndex>=0 ) resTab[i].altName = resTab[i].explanation[obsRefIndex];
-			
+
 //			namesToNodes.put(resTab[i].explanation[obsRefIndex], resTab[i]);
 //			if( altNamesToNodes.get(resTab[i].explanation[idxRefRelObs])==null ) altNamesToNodes.put(resTab[i].explanation[idxRefRelObs], new Vector());
-            
+
 			if( obsRefIndex>=0 ) namesToNodes.put(resTab[i].explanation[obsRefIndex], resTab[i]);
 			if( idxRefRelObs>=0 && altNamesToNodes.get(resTab[i].explanation[idxRefRelObs])==null ) altNamesToNodes.put(resTab[i].explanation[idxRefRelObs], new Vector());
-            
-			
+
+
 	    }
-	    
-	    
+
+
 	    return resTab;
 	}
-	
+
 	/**
 	 * vérifie si resource est la section results d'un document SIAP
 	 * Si oui, on conserve la référence
@@ -755,72 +755,72 @@ public class SIAPExtBuilder extends TreeBuilder {
 	private void checkIfOrgSiap(SavotResource resource) {
 		// si déja trouvé, on ne teste même pas
 		if( orgSiapRes!=null ) return;
-		
+
 		if( resource.getUtype().trim().equalsIgnoreCase(getUType(UT_SIMPLEQUERY)) ||
             resource.getType().equalsIgnoreCase("results") )
 			orgSiapRes = resource;
 	}
-	
+
 	/**
 	 * vérifie si resource constitue la section DAL extensions
-	 * 
+	 *
 	 * @param resource la resource à vérifier
 	 */
 	private boolean checkIfDalExt(SavotResource resource) {
 		// si déja trouvé, on ne teste même pas
 		if( dalExtRes!=null ) return false;
-		
+
 		if( resource.getUtype().trim().equalsIgnoreCase(getUType(UT_DALEXTENSIONS)) ||
             resource.getUtype().trim().equalsIgnoreCase("dal:footprint.geom") ) {
 		    isFootprintDoc = true;
 			dalExtRes = resource;
 			return true;
 	}
-	
+
 		return false;
-			
-		
+
+
 	}
-	
+
 	/** crée un FoV à patir des données de characterization
-	 * 
+	 *
 	 * @param tds
 	 * @param fields
 	 * @return
 	 */
 	private Fov getFovFromCharac(TDSet tds, SavotField[] fields) {
 		Fov fov = null;
-		
+
 		// position
 		int indexPos = findFieldByUtype(getUType(UT_RADEC), fields);
 		int indexMinPos = findFieldByUtype(getUType(UT_MINRADEC), fields);
 		int indexMaxPos = findFieldByUtype(getUType(UT_MAXRADEC), fields);
-		
+
 		// si un des champs est manquant, on ne peut pas calculer le FOV
 		if( indexPos<0 || indexMinPos<0 || indexMaxPos<0 ) return null;
-		
+
 		String posStr, minPosStr, maxPosStr;
 		double posRA, posDEC, minPosRA, minPosDEC, maxPosRA, maxPosDEC;
-		
+
 		posStr = tds.getContent(indexPos);
 		minPosStr = tds.getContent(indexMinPos);
 		maxPosStr = tds.getContent(indexMaxPos);
-		
+
 		String[] tab;
-		
+
 		try {
 			tab = split(posStr, " ");
 //			posRA = Double.parseDouble(tab[0]);
 //			posDEC = Double.parseDouble(tab[1]);
 			posRA = Double.valueOf( tab[0] ).doubleValue();
 			posDEC = Double.valueOf( tab[1] ).doubleValue();
-			
+
 			tab = split(minPosStr, " ");
 //			minPosRA = Double.parseDouble(tab[0]);
 //			minPosDEC = Double.parseDouble(tab[1]);
 			minPosRA = Double.valueOf( tab[0] ).doubleValue();
 			minPosDEC = Double.valueOf( tab[1] ).doubleValue();
-			
+
 			tab = split(maxPosStr, " ");
 //			maxPosRA = Double.parseDouble(tab[0]);
 //			maxPosDEC = Double.parseDouble(tab[1]);
@@ -833,13 +833,13 @@ public class SIAPExtBuilder extends TreeBuilder {
 		catch(NullPointerException npe) {
 			return null;
 		}
-		
+
 //		fov= new Fov(posRA, posDEC, Math.abs(maxPosRA-minPosRA)*Math.cos(posDEC*Math.PI/180.0), Math.abs(maxPosDEC-minPosDEC), 0);
 		fov = new Fov(posRA, posDEC, new double[] {minPosRA, minPosDEC}, new double[] {maxPosRA, maxPosDEC}, 0);
 //		System.out.println((maxPosDEC-minPosDEC)*60);
 		return fov;
 	}
-	
+
 	/** Cette méthode constitue une couche de traduction pour les utypes
 	 *  Le but est de ne pas avoir à redistribuer une version au cas où
 	 *  les noms des utypes à utiliser seraient modifiés
@@ -851,7 +851,7 @@ public class SIAPExtBuilder extends TreeBuilder {
 	private String getUType(String s) {
 		return s;
 	}
-	
+
 	/**
 	 * réinitialise certaines variables temporaires
 	 * utilisées pour le parsing
@@ -867,7 +867,7 @@ public class SIAPExtBuilder extends TreeBuilder {
 		sortItems = null;
 		isFootprintDoc = false;
 	}
-	
+
 	/**
 	 * Recherche et retourne l'ID du champ faisant office de "ObservationReference"
 	 * @param fields
@@ -890,11 +890,11 @@ public class SIAPExtBuilder extends TreeBuilder {
 	 */
 	private String getObsNameID(SavotField[] fields) {
 		for( int i=0; i<fields.length; i++ ) {
-			if( fields[i].getUtype().equals("Observation/TargetName") ) return fields[i].getId(); 
+			if( fields[i].getUtype().equals("Observation/TargetName") ) return fields[i].getId();
 		}
 		return null;
 	}
-	
+
 	// TODO : refactoring pour remonter cette méthode au niveau de ResourceNode
 	/**
 	 * Fixe le type de données représenté par le noeud (IMAGE, SPECTRUM, CATALOGUE, RETRIEVAL)
@@ -906,7 +906,7 @@ public class SIAPExtBuilder extends TreeBuilder {
 		if( type==null ) type = node.dataOrga;
 		// bidouille pour SAADA (workshop Euro-VO)
 		if( type==null ) type = node.getFieldValFromUtype("Access.Format");
-		
+
 		if( type==null ) return;
 		if( type.equalsIgnoreCase("RETRIEVAL") ) node.indexing = "HTML";
 		else if( type.equalsIgnoreCase("IMAGE")) node.type = ResourceNode.IMAGE;
@@ -915,10 +915,10 @@ public class SIAPExtBuilder extends TreeBuilder {
 		// TODO : A REFLECHIR !!
 		else if( type.equalsIgnoreCase("CATALOGUE") ) node.type = ResourceNode.OTHER;
 		// bidouille SAADA
-		else if( type.startsWith("text/xml" ) ) node.type = ResourceNode.CAT; 
-		
+		else if( type.startsWith("text/xml" ) ) node.type = ResourceNode.CAT;
+
 	}
-	
+
 	private int findKey(SavotField[] fields) {
 //		return findFieldByID(obsRefID, fields);
 		for( int i=0; i<fields.length; i++ ) {
@@ -926,19 +926,19 @@ public class SIAPExtBuilder extends TreeBuilder {
 		}
 		return -1;
 	}
-	
+
 	private ResourceNode getNodeFromKey(SavotField field, String keyVal) {
 		return (ResourceNode)keyToNodes.get(field.getId()+"__"+keyVal);
 //		return (ResourceNode)namesToNodes.get(keyVal);
 	}
-	
+
 	private boolean isPotentialKey(SavotField field) {
 		String id = field.getId();
 		if( id==null || id.length()==0 ) return false;
 		return potentialKeys.contains(id);
 	}
-	
-	/** 
+
+	/**
 	 * pour les clés "Observation/Identifier" multiples !!
 	 * @param fields
 	 * @param nodes
@@ -957,11 +957,11 @@ public class SIAPExtBuilder extends TreeBuilder {
 				}
 			}
 		}
-		
-	}
-	
 
-	
+	}
+
+
+
 	/**
 	 * traite une description éventuelle des FoV
 	 * @param siapNodes
@@ -972,7 +972,7 @@ public class SIAPExtBuilder extends TreeBuilder {
 		ResourceSet resources = res.getResources();
 		int nbRes;
 		if( resources==null || (nbRes=resources.getItemCount())==0 ) return;
-		
+
 		// on récupère les ressources étant des description de FoV
 		Vector v = new Vector();
 		SavotResource curRes;
@@ -987,14 +987,14 @@ public class SIAPExtBuilder extends TreeBuilder {
 		    Aladin.trace(3, "Did not find any FoV description !");
             return;
         }
-		
+
 		SavotResource[] resToParse = new SavotResource[v.size()];
 		v.copyInto(resToParse);
 		v = null;
-		
+
 		FootprintParser fpParse = new FootprintParser(resToParse);
 		Hashtable fpHash = fpParse.getFooprintHash();
-		
+
 		// on attache le bon FoV aux différents noeuds
 		ResourceNode curNode;
 		String key;
@@ -1003,28 +1003,28 @@ public class SIAPExtBuilder extends TreeBuilder {
 			key = curNode.getFieldValFromUtype("ivoa:characterization[ucd=pos]/coverage/support/@id");
             // nouveau format
             if( key==null ) key = curNode.getFieldValFromUtype("dal:footprint.geom.id");
-            
+
             if( key==null ||key.length()==0 ) continue;
-			
+
 			// --- Création nouveau PlanField ---
-			
+
 			// on commence par récupérer le bean avec les infos nécessaires
 			FootprintBean fpBean = (FootprintBean)fpHash.get(key);
 			if( fpBean==null ) continue ; // dans ce cas, on n'a pas trouvé le FoV associé
-			
+
 			// finally attach a new PlanField to the current node
 			PlanField pf;
 			double ra, dec, posAngle;
 			String raStr, decStr;
 			try {
-				// TODO : vraiment pas beau, à changer pour ne pas avoir à faire 
+				// TODO : vraiment pas beau, à changer pour ne pas avoir à faire
 				// l'aller-retour deciaml --> sexa --> decimal
                 // TODO : se baser plutot sur les ref (ou penser aux UCD1+)
 				raStr = curNode.getFieldValFromUcd(SIAP_RA);
 				if( raStr==null ) raStr = curNode.getFieldValFromUcd(SIAP_RA_UCD1P);
 				decStr = curNode.getFieldValFromUcd(SIAP_DE);
 				if( decStr==null ) decStr = curNode.getFieldValFromUcd(SIAP_DE_UCD1P);
-				
+
 				double[] pos = TreeView.getDeciCoord(raStr, decStr);
 				ra = pos[0];
 				dec = pos[1];
@@ -1032,10 +1032,10 @@ public class SIAPExtBuilder extends TreeBuilder {
 				String posAngStr = curNode.getFieldValFromUtype(FOV_POS_ANGLE);
 				if( posAngStr==null ) posAngStr = curNode.getFieldValFromName("PA");
 				if( posAngStr==null ) posAngStr = curNode.getFieldValFromName("Position Angle");
-				
+
 				// if still null, set to 0
 				if( posAngStr==null ) posAngStr = "0";
-				
+
 				// au cas où on a une unité accolée, exemple : "103 deg"
 				// TODO : quand on séparera unité et description, on pourra supprimer cette partie
 				int idx = posAngStr.indexOf('°');
@@ -1044,7 +1044,7 @@ public class SIAPExtBuilder extends TreeBuilder {
                 if( idx<0 ) idx = posAngStr.indexOf("'");
                 if( idx<0 ) idx = posAngStr.indexOf('"');
                 if( idx<0 ) idx = posAngStr.indexOf("arc");
-                
+
 				if( idx>0 ) posAngStr = posAngStr.substring(0, idx);
 				try {
 					posAngle = Double.valueOf(posAngStr).doubleValue();
@@ -1052,14 +1052,14 @@ public class SIAPExtBuilder extends TreeBuilder {
 				catch(Exception e) {Aladin.trace(3, "Could not find position angle field, assuming value is 0");posAngle = 0.0;}
 			}
 			catch(NullPointerException e) {e.printStackTrace();continue;}
-			
+
 			pf = new PlanField(aladin, fpBean, key);
 			pf.make(ra,dec,posAngle);
 
 			curNode.setFov(new Fov(aladin, fpBean, key, ra, dec, posAngle));
 		}
 	}
-    
-  
-	
+
+
+
 }

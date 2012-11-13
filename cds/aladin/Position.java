@@ -24,9 +24,14 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Point;
+import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Vector;
+
+import javax.swing.JTextField;
 
 import cds.aladin.Hist.HistItem;
 import cds.tools.Util;
@@ -47,7 +52,6 @@ public class Position extends Obj {
    static final Font DF = Aladin.SBOLD;
 
    protected double x,y;        // Position initiale de l'objet en X,Y (soit catalogue sans coordonnée, soit graphique sans calib)
-
    protected double xv[],yv[];   // Position de l'objet pour chaque vue
 
    /** Variables statiques utilisées pour le calcul des statistiques sur un polygone */
@@ -95,7 +99,7 @@ public class Position extends Obj {
      yv=new double[dim];
    }
 
-   public Position() { }
+   public Position() {}
 
   /** Creation d'un objet graphique vide (pour les backups) */
    protected Position(Plan plan) { this.plan=plan; createCacheXYVP(); }
@@ -154,6 +158,14 @@ public class Position extends Obj {
       this.plan=plan;
       createCacheXYVP();
    }
+   
+   /** Retourne la localisation de la source dans le frame courant */
+   public String getLocalisation() {
+      String s = plan.aladin.localisation.getLocalisation(this);
+      if( s==null ) return "null,null";
+      s=s.replace(' ', ',');
+      return s;
+   }
 
    /** Dans le cas de vues synchronisées, cette méthode permet de recopier
     * les variables xv et yv
@@ -194,6 +206,7 @@ public class Position extends Obj {
 
 
    protected void setCoord(ViewSimple v) {
+      Coord c = new Coord();
       boolean ok=false;
 //      if( plan.type==Plan.TOOL && ((PlanTool)plan).lock() ) return;
 
@@ -207,7 +220,7 @@ public class Position extends Obj {
       }
 
       if( !ok && plan.type==Plan.TOOL ) {
-        ((PlanTool)plan).setLock(true);
+        ((PlanTool)plan).setXYorig(true);
       }
 
       if( ok ) {
@@ -220,6 +233,7 @@ public class Position extends Obj {
    }
 
    protected void setCoord(ViewSimple v,Projection proj) {
+      Coord c = new Coord();
       // J'affecte les coordonnees associees a (x,y)
       c.x=xv[v.n]; c.y=yv[v.n];
       proj.getCoord(c);
@@ -232,6 +246,7 @@ public class Position extends Obj {
     * @param proj
     */
    protected void setXY(Projection proj) {
+      Coord c = new Coord();
       c.al = raj; c.del = dej;
       proj.getXY(c);
       if( !Double.isNaN(c.x) ) {
@@ -241,21 +256,27 @@ public class Position extends Obj {
    }
 
    /**
-    * Modifie les x,y dans le plan tangent
-    * @param x
-    * @param y
-    */
+    * Modifie les x,y dans le plan tangent (sert pour les plan FOV) */
    protected void setXYTan(double x, double y) {
       this.x = x;
       this.y = y;
    }
-
+   
+   /**
+    * Modifie les x,y dans le plan tangent en fonction du centre de projection (sert pour les plan FOV) */
+   protected void setXYTan(Coord center) {
+      x = Math.toRadians( Math.cos(Math.toRadians(center.del))*(raj - center.al) );
+      y = Math.toRadians( dej - center.del);
+//      x = Util.tand( Math.cos(Math.toRadians(center.del))*(raj - center.al));
+//      y = Util.tand( dej - center.del);
+   }
+   
 //   /** Modifie la propriété "rotable" de l'objet */
 //   protected void setRollable(boolean rollable) { this.rollable=rollable; }
 
 
    // PEUT ETRE UN PEU DANGEREUX DE LA METTRE EN STATIC ?
-   static protected Coord c = new Coord();	// Pour eviter les new inutiles
+//   static protected Coord c = new Coord();	// Pour eviter les new inutiles
 
   /** Projection de la source => calcul (x,y).
    * @param proj la projection a utiliser
@@ -263,6 +284,7 @@ public class Position extends Obj {
    protected void projection(ViewSimple v) {
 
       Projection proj;
+      Coord c = new Coord();
       
       // S'il n'y a pas de calibration, on prend les x,y natifs
       if( (plan!=null && plan.hasXYorig) || !Projection.isOk(proj=v.getProj()) ) {
@@ -534,11 +556,12 @@ public class Position extends Obj {
       // Mise à jour des stats
       double pix;
       PlanImage pi = (PlanImage)v.pref;
-
+      Color col = g.getColor();
+      
       if( !(plan instanceof PlanBG) && (y<0 || y>=pi.naxis2 || x<0 || x>=pi.naxis1
             || (pi.fmt==PlanImage.JPEG || pi.pixelsOrigin==null && !pi.isBigImage())
             )) {
-         pix=0;
+         pix=Double.NaN;
       } else {
          pix= ((PlanImage)v.pref).getPixelInDouble(x,y);
       }
@@ -549,26 +572,68 @@ public class Position extends Obj {
       if( g!=null && onMouse!=null && onMouse.contains(pix)) {
          Point p = v.getViewCoord(x+0.5,y+0.5);
          if( p!=null ) {
+            g.setColor(Color.cyan);
             int z1=(int)zoom;
             if( z1<1 ) z1=2;
             g.fillRect(p.x-z1/2,p.y-z1/2,z1,z1);
          }
       }
       
-      // JUSTE POUR FAIRE DES VERIF
-//      Point p = v.getViewCoord(x+0.5,y+0.5);
-//      Color col = g.getColor();
-//      if( Double.isNaN(pix) ) g.setColor(Color.red);
-//      else if( pix==0 ) g.setColor(Color.orange);
-//      else g.setColor(Color.green);
-//      Util.fillCircle5(g, p.x, p.y);
-//      g.setColor(col);
+      if( zoom>2 ) {
+         Point p = v.getViewCoord(x+0.5,y+0.5);
+        if( Double.isNaN(pix) ) g.setColor(Color.orange);
+         else g.setColor(Color.red);
+         if( zoom>4 ) Util.fillCircle5(g, p.x, p.y);
+         else Util.fillCircle2(g, p.x, p.y);
+      }
+      g.setColor(col);
+      
+      return statPixel(pix);
+   }
+   
+   
+   /** Utilisé pour le calcul des statistiques sur un polygone */
+   protected double statPixel(Graphics g,double pix, double ra, double dec,ViewSimple v,HistItem onMouse) {
 
-      if( medianeArrayNb<MAXMEDIANE ) medianeArray[medianeArrayNb++] = pix;
+     Coord coo = new Coord(ra,dec);
+     v.getProj().getXY(coo);
+     Color col = g.getColor();
+     
+     // Détermination de la taille d'un pixel Healpix sur la vue.
+     double pixelSize = v.rv.height/(v.getTailleDE()/((PlanBG)v.pref).getPixelResolution())/Math.sqrt(2);
+      
+      // Coloriage du pixel si concerné
+      if( g!=null && onMouse!=null && onMouse.contains(pix)) {
+         Point p = v.getViewCoord(coo.x,coo.y);
+         if( p!=null ) {
+            g.setColor(Color.cyan);
+            int z1=(int)pixelSize;
+            if( z1<1 ) z1=2;
+            Polygon pol = new Polygon( new int[]{ p.x,    p.x+z1, p.x,    p.x-z1}, 
+                                       new int[]{ p.y-z1, p.y,    p.y+z1, p.y}, 4);
+            g.fillPolygon(pol);
+         }
+      }
+      
+      if( pixelSize>4 ) {
+         Point p = v.getViewCoord(coo.x,coo.y);
+         if( Double.isNaN(pix) ) g.setColor(Color.orange);
+         else g.setColor(Color.red);
+         if( pixelSize>8 ) Util.fillCircle5(g, p.x, p.y);
+         else Util.fillCircle2(g, p.x, p.y);
+      }
+      g.setColor(col);
+      
+      return statPixel(pix);
+   }
+   
+
+   protected double statPixel(double pix) {
+      if( Double.isNaN(pix) ) return pix;
       nombre++;
+      if( medianeArrayNb<MAXMEDIANE ) medianeArray[medianeArrayNb++] = pix;
       total+=pix;
       carre+=pix*pix;
-      
       return pix;
    }
 
@@ -589,6 +654,9 @@ public class Position extends Obj {
 
     /** Affichage des statistiques d'un polygone */
     protected void statDraw(Graphics g,ViewSimple v,int dx, int dy) {
+       
+       // Juste pour afficher le débugging des losanges HEALPix couvrant
+       if( v.pref instanceof PlanBG && ((PlanBG)v.pref).DEBUGMODE )  { statCompute(g,v); return; } 
 
        if( !v.flagPhotometry || !v.pref.hasAvailablePixels() || v.pref instanceof PlanImageRGB ) return;
 
@@ -653,6 +721,5 @@ public class Position extends Obj {
           histOn();
        }
 //       status(plan.aladin);
-   }
-
+    }
 }

@@ -24,6 +24,7 @@ import java.awt.Composite;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.util.Enumeration;
+import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Vector;
 
@@ -32,28 +33,56 @@ import cds.tools.Util;
 
 public class PlanBGCat extends PlanBG {
 
+
+   static final protected int MAXGAPORDER = 3;  // Décalage maximal autorisé
+   private int gapOrder=0;                      // Décalage de l'ordre Max => changement de densité
+
    protected PlanBGCat(Aladin aladin) {
       super(aladin);
    }
 
-   protected PlanBGCat(Aladin aladin, TreeNodeAllsky gluSky,String label, Coord c, double radius) {
-      super(aladin,gluSky,label, c,radius);
-      type=ALLSKYCAT;
-      this.c = Couleur.getNextDefault(aladin.calque);
-      setOpacityLevel(1.0f);
+   protected PlanBGCat(Aladin aladin, TreeNodeAllsky gluSky,String label, Coord c, double radius,String startingTaskId) {
+      super(aladin,gluSky,label, c,radius,startingTaskId);
       aladin.log(Plan.Tp[type],label);
    }
-   
-   protected void log() { }
 
-   /** Tracage de tous les losanges concernés,
-    * @param op niveau d'opacité, -1 pour celui définit dans le plan
-    */
-   protected void draw(Graphics g,ViewSimple v, int dx, int dy,float op) {
+   protected int getGapOrder() { return gapOrder; }
+   protected void setGapOrder(int gapOrder) {
+      if( Math.abs(gapOrder)>MAXGAPORDER ) return;
+      this.gapOrder=gapOrder;
+   }
+
+   protected void setSpecificParams(TreeNodeAllsky gluSky) {
+      type = ALLSKYCAT;
+      c = Couleur.getNextDefault(aladin.calque);
+      setOpacityLevel(1.0f);
+   }
+   
+   protected boolean isSync() {
+      boolean isSync = super.isSync();
+      isSync = isSync && (planFilter==null || planFilter.isSync() );
+      return isSync;
+   }
+
+
+   protected void suiteSpecific() {
+      isOldPlan=false;
+      pixList = new Hashtable<String,HealpixKey>(1000);
+      allsky=null;
+      if( error==null ) loader = new HealpixLoader();
+   }
+
+   protected void log() { }
+   
+   /** Retourne true si l'image a été entièrement "drawé" à la résolution attendue */
+   protected boolean isFullyDrawn() { return readyDone && allWaitingKeysDrawn; }
+
+   
+   protected void draw(Graphics g,ViewSimple v, int dx, int dy,float op,boolean now) {
       if( v==null ) return;
       if( op==-1 ) op=getOpacityLevel();
       if(  op<=0.1 ) return;
-
+      
       if( g instanceof Graphics2D ) {
          Graphics2D g2d = (Graphics2D)g;
          Composite saveComposite = g2d.getComposite();
@@ -62,18 +91,21 @@ public class PlanBGCat extends PlanBG {
                Composite myComposite = Util.getImageComposite(op);
                g2d.setComposite(myComposite);
             }
-            drawCat(g2d, v);
+            draw(g2d, v);
 
          } catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
          g2d.setComposite(saveComposite);
 
-      } else drawCat(g, v);
+      } else draw(g, v);
 
       readyDone = readyAfterDraw;
    }
-
+   
    @Override
    protected void clearBuf() { }
+
+   // Pas supporté pour les catalogues
+   protected HealpixKey getHealpixFromAllSky(int order,long npix) { return null; }
 
    /** Demande de chargement du losange repéré par order,npix */
    public HealpixKey askForHealpix(int order,long npix) {
@@ -112,17 +144,19 @@ public class PlanBGCat extends PlanBG {
 
       if( allsky[order].getStatus()==HealpixKey.READY ) {
          hasDrawnSomething = allsky[order].draw(g,v)>0;
-//System.out.println("drawAllSkyCat order "+order);
       }
       return hasDrawnSomething;
    }
 
-   private void drawCat(Graphics g,ViewSimple v) {
-      long [] pix=null;
-      int order = Math.min(maxOrder(v),maxOrder);
-      int nb=0;
+   /** Retourne l'order max du dernier affichage */
+   protected int getCurrentMaxOrder(ViewSimple v) { return Math.max(2,Math.min(maxOrder(v)+gapOrder,maxOrder)); }
 
-//      System.out.println("order max="+order);
+   protected void draw(Graphics g,ViewSimple v) {
+      long [] pix=null;
+      int order = getCurrentMaxOrder(v);
+      int nb=0;
+      boolean allKeyReady=true;
+      
       hasDrawnSomething=drawAllSky(g, v,  2);
       if( order>=3 ) hasDrawnSomething|=drawAllSky(g, v,  3);
 
@@ -130,13 +164,13 @@ public class PlanBGCat extends PlanBG {
       resetPriority();
 
       boolean moreDetails=order<=3;
-
+      
       for( int norder=4; norder<=order; norder++ ) {
 
          pix = getPixListView(v,norder);
          for( int i=0; i<pix.length; i++ ) {
 
-            if( (new HealpixKey(this,norder,pix[i],true)).isOutView(v) ) continue;
+            if( (new HealpixKey(this,norder,pix[i],HealpixKey.NOLOAD)).isOutView(v) ) continue;
 
             // Teste si le losange père est déjà chargé et est le dernier de sa branche
             // et dans ce cas, on ne tente pas de charger le suivant
@@ -145,11 +179,14 @@ public class PlanBGCat extends PlanBG {
                if( pere!=null && pere.isLast() ) continue;
             }
 
-            HealpixKey healpix = getHealpix(norder,pix[i], true);
+            HealpixKeyCat healpix = (HealpixKeyCat)getHealpix(norder,pix[i], true);
+            
+            // Juste pour tester la synchro
+//            Util.pause(100);
 
             // Inconnu => on ne dessine pas
             if( healpix==null ) continue;
-
+            
             // Positionnement de la priorité d'affichage
             healpix.priority=250-(priority++);
 
@@ -163,11 +200,13 @@ public class PlanBGCat extends PlanBG {
 
             // Losange à gérer
             healpix.resetTimer();
+            
+            if(norder==order && status!=HealpixKey.READY ) allKeyReady=false;
 
             // Pas encore prêt
             if( status!=HealpixKey.READY ) { moreDetails = true; continue; }
 
-            nb+=healpix.draw(g,v);
+            nb += healpix.draw(g,v);
 
             HealpixKeyCat h = (HealpixKeyCat)healpix;
 //            System.out.println(h.getStringNumber()+" => reallyLast="+h.isReallyLast(v));
@@ -176,6 +215,7 @@ public class PlanBGCat extends PlanBG {
       }
 
       setHasMoreDetails(moreDetails);
+      allWaitingKeysDrawn = allKeyReady;
 
       hasDrawnSomething=hasDrawnSomething || nb>0;
 
@@ -201,8 +241,6 @@ public class PlanBGCat extends PlanBG {
       if( nbFlush>2000  ) gc();
       pixList.remove( key(healpix) );
    }
-
-
 
    /** Force le recalcul de la projection n */
    protected void resetProj(int n) {
@@ -275,19 +313,37 @@ public class PlanBGCat extends PlanBG {
       return obj;
    }
 
-//    Recupération d'un itérator sur les objets
-   protected Iterator<Obj> iterator() { return new ObjIterator(); }
+   // Recupération d'un itérator sur les objets
+   protected Iterator<Obj> iterator() { return new ObjIterator(null); }
+
+   // Recupération d'un itérator sur les objets visible dans la vue v
+   protected Iterator<Obj> iterator(ViewSimple v) { return new ObjIterator(v); }
 
    class ObjIterator implements Iterator<Obj> {
       Enumeration<HealpixKey> e = null;
       Iterator<Obj> it = null;
+      int order;
+
+      ObjIterator(ViewSimple v) {
+         super();
+         order = v!=null ? getCurrentMaxOrder(v) : -1;
+      }
 
       public boolean hasNext() {
          while( it==null || !it.hasNext() ) {
-            if( e==null ) e = pixList.elements();
+            if( e==null ) {
+                if (pixList==null) {
+                    return false;
+                }
+                e = pixList.elements();
+            }
             if( !e.hasMoreElements() ) return false;
             HealpixKeyCat healpix = (HealpixKeyCat)e.nextElement();
             if( healpix.getStatus()!=HealpixKey.READY ) continue;
+            if( order!=-1 && healpix.order>order ) {
+//               System.out.println("ne prend plus en compte (order="+healpix.order+" maxOrder="+order+") "+healpix);
+               continue;
+            }
             it = healpix.pcat.iterator();
          }
          return it.hasNext();
@@ -300,6 +356,7 @@ public class PlanBGCat extends PlanBG {
             if( !e.hasMoreElements() ) return null;
             HealpixKeyCat healpix = (HealpixKeyCat)e.nextElement();
             if( healpix.getStatus()!=HealpixKey.READY ) continue;
+            if( order!=-1 && healpix.order>order ) continue;
             it = healpix.pcat.iterator();
          }
          return it.next();

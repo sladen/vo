@@ -20,14 +20,14 @@
 
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
-import java.awt.image.*;
-import java.util.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.event.*;
+import java.awt.image.ColorModel;
+import java.awt.image.IndexColorModel;
+import java.util.Vector;
 
 import javax.swing.JPanel;
 
@@ -143,7 +143,7 @@ public final class ColorMap extends JPanel  implements
          197,201,205,209,216,220,224,228,232,235,239,243,247,251};
 
    // composantes de la table rainbow (IDL color table 13)
-   static private final int[] RAINBOW_R = {0,4,9,13,18,22,27,31,36,40,45,50,54,
+   static protected final int[] RAINBOW_R = {0,4,9,13,18,22,27,31,36,40,45,50,54,
 	   58,61,64,68,69,72,74,77,79,80,82,83,85,84,86,87,88,86,87,87,87,85,84,84,
 	   84,83,79,78,77,76,71,70,68,66,60,58,55,53,46,43,40,36,33,25,21,16,12,4,0,
 	   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -155,7 +155,7 @@ public final class ColorMap extends JPanel  implements
 	   255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
 	   255,255,255,255,255,255,255,255,255,255,255,255,255,255};
 
-   static private final int[] RAINBOW_G = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   static protected final int[] RAINBOW_G = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 	   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 	   0,0,0,0,0,0,0,0,4,8,16,21,25,29,38,42,46,51,55,63,67,72,76,84,89,93,97,
 	   106,110,114,119,127,131,135,140,144,152,157,161,165,174,178,182,187,195,
@@ -169,7 +169,7 @@ public final class ColorMap extends JPanel  implements
 	   161,153,148,144,140,131,127,123,119,110,106,102,97,89,85,80,76,72,63,59,
 	   55,51,42,38,34,29,21,17,12,8,0};
 
-   static private final int[] RAINBOW_B = {0,3,7,10,14,19,23,28,32,38,43,48,53,
+   static protected final int[] RAINBOW_B = {0,3,7,10,14,19,23,28,32,38,43,48,53,
 	   59,63,68,72,77,81,86,91,95,100,104,109,113,118,122,127,132,136,141,145,
 	   150,154,159,163,168,173,177,182,186,191,195,200,204,209,214,218,223,227,
 	   232,236,241,245,250,255,255,255,255,255,255,255,255,255,255,255,255,255,
@@ -262,11 +262,59 @@ public final class ColorMap extends JPanel  implements
 	   152,160,167,175,183,191,199,207,215,223,227,231,235,239,243,247,251,255,
 	   255,255,255,255,255,255,255};
 
+   // composantes de la table 'Cube Helix' (cf. http://arxiv.org/abs/1108.5083 )
+   static private final int[] CUBEHELIX_R = {0,1,3,4,6,8,9,10,12,13,14,15,17,18,
+       19,20,20,21,22,23,23,24,24,25,25,25,26,26,26,26,26,26,26,26,26,26,26,25,
+       25,25,25,24,24,24,23,23,23,23,22,22,22,21,21,21,21,21,21,20,20,20,21,21,
+       21,21,21,22,22,22,23,23,24,25,26,27,27,28,30,31,32,33,35,36,38,39,41,43,
+       45,47,49,51,53,55,57,60,62,65,67,70,72,75,78,81,83,86,89,92,95,98,101,104,
+       107,110,113,116,120,123,126,129,132,135,138,141,144,147,150,153,155,158,
+       161,164,166,169,171,174,176,178,181,183,185,187,189,191,193,194,196,198,
+       199,201,202,203,204,205,206,207,208,209,209,210,211,211,211,212,212,212,
+       212,212,212,212,212,211,211,211,210,210,210,209,208,208,207,207,206,205,
+       205,204,203,203,202,201,201,200,199,199,198,197,197,196,196,195,195,194,
+       194,194,193,193,193,193,193,193,193,193,193,193,194,194,195,195,196,196,
+       197,198,199,200,200,202,203,204,205,206,208,209,210,212,213,215,217,218,
+       220,222,223,225,227,229,231,232,234,236,238,240,242,244,245,247,249,251,
+       253,255};
+
+   static private final int[] CUBEHELIX_G = {0,0,1,1,2,2,3,4,4,5,6,6,7,8,9,10,
+       11,11,12,13,14,15,17,18,19,20,21,22,24,25,26,28,29,31,32,34,35,37,38,40,
+       41,43,45,46,48,50,52,53,55,57,58,60,62,64,66,67,69,71,73,74,76,78,79,81,
+       83,84,86,88,89,91,92,94,95,97,98,99,101,102,103,104,106,107,108,109,110,
+       111,112,113,114,114,115,116,116,117,118,118,119,119,120,120,120,121,121,
+       121,121,122,122,122,122,122,122,122,122,122,122,122,122,122,122,122,121,
+       121,121,121,121,121,121,121,121,120,120,120,120,120,120,120,120,120,120,
+       121,121,121,121,121,122,122,122,123,123,124,124,125,125,126,127,127,128,
+       129,130,131,131,132,133,135,136,137,138,139,140,142,143,144,146,147,149,
+       150,152,154,155,157,158,160,162,164,165,167,169,171,172,174,176,178,180,
+       182,183,185,187,189,191,193,194,196,198,200,202,203,205,207,208,210,212,
+       213,215,216,218,219,221,222,224,225,226,228,229,230,231,232,233,235,236,
+       237,238,239,240,240,241,242,243,244,244,245,246,247,247,248,248,249,250,
+       250,251,251,252,252,253,253,254,255};
+
+   static private final int[] CUBEHELIX_B = {0,1,3,4,6,8,9,11,13,15,17,19,21,23,
+       25,27,29,31,33,35,37,39,41,43,45,47,48,50,52,54,56,57,59,60,62,63,65,66,
+       67,69,70,71,72,73,74,74,75,76,76,77,77,77,78,78,78,78,78,78,78,77,77,77,
+       76,76,75,75,74,73,73,72,71,70,69,68,67,66,66,65,64,63,61,60,59,58,58,57,
+       56,55,54,53,52,51,51,50,49,49,48,48,47,47,47,46,46,46,46,46,47,47,47,48,
+       48,49,50,50,51,52,53,55,56,57,59,60,62,64,65,67,69,71,74,76,78,81,83,86,
+       88,91,94,96,99,102,105,108,111,114,117,120,124,127,130,133,136,140,143,
+       146,149,153,156,159,162,165,169,172,175,178,181,184,186,189,192,195,197,
+       200,203,205,207,210,212,214,216,218,220,222,224,226,227,229,230,231,233,
+       234,235,236,237,238,239,239,240,241,241,242,242,242,243,243,243,243,243,
+       243,243,243,243,243,242,242,242,242,241,241,241,241,240,240,240,239,239,
+       239,239,239,238,238,238,238,238,238,238,238,239,239,239,240,240,240,241,
+       242,242,243,244,245,246,247,248,249,250,252,253,255};
+
+
+
    // initialisation statique : création des color maps supplémentaires
    static {
 	   addCustomCM(new MyColorMap("rainbow", RAINBOW_R, RAINBOW_G, RAINBOW_B));
 	   addCustomCM(new MyColorMap("eosb", EOSB_R, EOSB_G, EOSB_B));
 	   addCustomCM(new MyColorMap("fire", FIRE_R, FIRE_G, FIRE_B));
+	   addCustomCM(new MyColorMap("cubehelix", CUBEHELIX_R, CUBEHELIX_G, CUBEHELIX_B));
 	   // création d'une color map  pour la polarisation
 	   int[] r, g, b;
 	   r = new int[256];
@@ -415,12 +463,12 @@ public final class ColorMap extends JPanel  implements
    */
   static void interpolPalette(int[] Sr, int[] Sg, int[] Sb, boolean inverse,
          int tr0, int tr1, int tr2,int fct) {
-     
+
       double pas1 = 128./(tr1-tr0);
       double pas2 = 128./(tr2-tr1);
 
       int max = Sr.length-1;
-      
+
       int [] fctGap = computeTransfertFct(fct);
 
       for( int i=0; i<256; i++ ) {
@@ -428,9 +476,9 @@ public final class ColorMap extends JPanel  implements
                 i<tr1 ? (int)Math.round((i-tr0)*pas1) :
                 i<tr2 ? 128+(int)Math.round((i-tr1)*pas2) :
                         max;
-                
+
          j = fctGap[j];
-         
+
          if( j>max ) j=max;
          else if( j<0 ) j=0;
          if( inverse ) j=max-j;
@@ -439,6 +487,20 @@ public final class ColorMap extends JPanel  implements
          g[i]=(byte) (0xFF & Sg[ j ]);
          b[i]=(byte) (0xFF & Sb[ j ]);
       }
+   }
+
+
+   static public IndexColorModel getRainbowCM() {
+      byte[] red   = new byte[256];
+      byte[] green = new byte[256];
+      byte[] blue  = new byte[256];
+      for (int i=0; i<256; i++) {
+          red[i]   = (byte) (0xFF & RAINBOW_R[i]);
+          green[i] = (byte) (0xFF & RAINBOW_G[i]);
+          blue[i]  = (byte) (0xFF & RAINBOW_B[i]);
+      }
+
+      return new IndexColorModel(8, 256, red, green, blue);
    }
 
    // index de la dernière color map "par défaut" (par distinction avec celles ajoutées par l'utilisateur)
@@ -457,16 +519,21 @@ public final class ColorMap extends JPanel  implements
       return (255-Math.abs(x-(maxb+minb)/2)*10);
    }
 
+   static public ColorModel getCMBand(int greyLevel, boolean inverse,boolean background) {
+      return getCMBand(greyLevel-SIZEBAND,greyLevel+SIZEBAND, inverse,background);
+   }
+
    /** Génère une colormap temporaire ne montrant qu'une bande entre min et max */
-   protected IndexColorModel getCMBand(int min,int max,boolean inverse,boolean background) {
+   static private IndexColorModel getCMBand(int min,int max,boolean inverse,boolean background) {
       minb=min; maxb=max;
       for( int i=0; i<256; i++ ) {
          if( i<min || i> max ) rb[i] = gb[i] = bb[i] = (byte)(!background ? (inverse?255:0)
                                                                : inverse ? 255-i : i);
          else {
-            rb[i]=(byte)getRBandColor(i);
-            gb[i]=0;
-            bb[i]=0;
+            byte c = (byte)getRBandColor(i);
+            rb[i]=0;
+            gb[i]=c;
+            bb[i]=c;
          }
       }
       return new IndexColorModel(8,256,rb,gb,bb);
@@ -482,49 +549,14 @@ public final class ColorMap extends JPanel  implements
    * @return la table des couleurs generee
    */
    // des triangles
-   static protected IndexColorModel getCM(int tr0,int tr1,int tr2,
+   public static IndexColorModel getCM(int tr0,int tr1,int tr2,
                                     boolean inverse,int typeCM,int fct) {
       int i,n;
-
-//      // Seuil bas et haut
-//      for( i=0, n=tr0; i<n; i++ ) r[i]=(byte)0;
-//      for( i=tr2; i<256; i++ ) r[i]=(byte)255;
-//
-//      // Premier segment de droite pour la 1ere moitie de la dynamique
-//      double dx = (tr1-tr0);
-//      double dy = 128.0;
-//      if( dx>0.0 ) {
-//         double alpha = dy/dx;
-//         double beta = -alpha*tr0;
-//         for( i=tr0, n=tr1; i<n; i++ ) {
-//            double p = i*alpha+beta;
-//            r[i] = (byte)(p);
-//         }
-//      }
-//
-//      // Deuxieme segment de droite pour la 2eme moitie de la dynamique
-//      dx = (tr2-tr1);
-//      if( dx>0.0 ) {
-//         double alpha = dy/dx;
-//         double beta = 128.0-alpha*tr1;
-//         for( i=tr1, n=tr2; i<n; i++ ) {
-//            r[i] = (byte)(i*alpha+beta);
-//         }
-//      }
-
-//       Fonction de transfert
-//      if( typeCM < PlanImage.CMSTERN ) computeTransfertFct(r,fct);
-
-      // Inversion
-//      if( inverse ) {
-//         for( i=0; i<256; i++ ) r[i] = (byte)(~r[i]);
-//      }
 
       int [] rd = new int[256];
       int [] gn = new int[256];
       int [] bl = new int[256];
-      int j;
-      
+
       if( typeCM == PlanImage.CMBB ) {
          for( i=0; i<256; i++ ) {
             rd[i] = i<<1; if( rd[i]>255 ) rd[i]=255;
@@ -551,13 +583,13 @@ public final class ColorMap extends JPanel  implements
 	     int idx = typeCM-LAST_DEFAULT_CM_IDX-1;
 	     MyColorMap myCM = (MyColorMap)customCM.elementAt(idx);
 	     interpolPalette(myCM.getRed(),myCM.getGreen(),myCM.getBlue(),!(inverse),tr0,tr1,tr2,fct);
-	     
+
       // Sinon table de niveaux de gris
       } else {
          for( i=0; i<256; i++ ) rd[i]=gn[i]=bl[i]=i;
          interpolPalette(rd,gn,bl,inverse,tr0,tr1,tr2,fct);
       }
-      
+
       return new IndexColorModel(8,256,r,g,b);
    }
 
@@ -567,7 +599,7 @@ public final class ColorMap extends JPanel  implements
     */
    static private int [] computeTransfertFct(int fct) {
       int [] r = new int[256];
-      
+
       if( fct==PlanImage.LINEAR ) {
          for( int i=0; i<256; i++ ) r[i]=i;
          return r;
@@ -575,7 +607,7 @@ public final class ColorMap extends JPanel  implements
 
       double val[] = new double[256];
       double min=Double.MAX_VALUE;
-      double max=Double.MIN_VALUE;
+      double max=-min;
       double v;
       for( int i=0; i<256; i++ ) {
          v = i;
@@ -595,12 +627,12 @@ public final class ColorMap extends JPanel  implements
          else if( v<0 ) v=0;
          r[i] = (int)v;
       }
-      
+
       return r;
    }
 
    static final private Dimension DIM = new Dimension(W,H);
-   
+
    @Override
    public Dimension getMinimumSize() { return DIM; }
    public Dimension getPreferredSize() { return DIM; }
@@ -706,8 +738,7 @@ public final class ColorMap extends JPanel  implements
       if( !memoGreyLevel(x) ) return;
 
       if( pimg.type!=PlanImage.IMAGERGB &&  y<mY ) {
-         pimg.setCM(getCMBand(greyLevel-SIZEBAND,greyLevel+SIZEBAND,
-               pimg.video==PlanImage.VIDEO_INVERSE,!e.isShiftDown()));
+         pimg.setCM(getCMBand(greyLevel, pimg.video==PlanImage.VIDEO_INVERSE,!e.isShiftDown()));
          isDragging=flagCMBand=true;
          pimg.aladin.view.getCurrentView().repaint();
          repaint();
@@ -1011,7 +1042,6 @@ public final class ColorMap extends JPanel  implements
       for( int i=0,xc=0; i<256; i++, x+=gapx ) {
          if( !flagCMBand ) gr.setColor(new Color(r[i]&0xFF,g[i]&0xFF,b[i]&0xFF));
          else gr.setColor(new Color(rb[i]&0xFF,gb[i]&0xFF,bb[i]&0xFF));
-//         gr.drawLine(mX+i,0,mX+i,mY-3);
          for( ;xc<x; xc++) gr.drawLine(dx+xc,dy,dx+xc,dy+height);
       }
    }
@@ -1030,7 +1060,7 @@ public final class ColorMap extends JPanel  implements
          else gr.setColor(new Color(rb[i]&0xFF,gb[i]&0xFF,bb[i]&0xFF));
          gr.drawLine(mX+i,0,mX+i,mY-3);
       }
-      
+
       // Affichage de la valeur du pixel min et max (en bas)
       gr.setColor(Color.black);
       gr.drawLine(mX+256,mY,mX+256,H-mY-5);
@@ -1078,7 +1108,7 @@ public final class ColorMap extends JPanel  implements
 
 //         x = mX+256+2+j*20;
 //         gr.drawString(j==0?"Red":j==1?"Gr":"Bl", x+(j==0?2:6), mY-2);
-//         
+//
 //        // Affichage de la valeur des 3 composantes correspondante au pixel courant (à droite)
 //         if( greyLevel>=0 ) {
 //            y = t[greyLevel]&0xFF;

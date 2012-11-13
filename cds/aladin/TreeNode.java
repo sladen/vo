@@ -36,7 +36,7 @@ public class TreeNode  implements Comparator {
    String path;
    String ordre;
 
-   private JCheckBox checkbox;
+   protected JCheckBox checkbox;
    private JPanel panel;
 
    protected GridBagConstraints gc;
@@ -54,6 +54,7 @@ public class TreeNode  implements Comparator {
       createPanel();
    }
 
+   String getID() { return id; }
    void noCheckbox() { checkbox=null; }
    boolean hasCheckBox() { return checkbox!=null; }
    void setCheckBox(boolean f) {
@@ -64,8 +65,12 @@ public class TreeNode  implements Comparator {
       if( !hasCheckBox() ) return false;
       return checkbox.isSelected();
    }
-
+   
    JPanel getPanel() { return panel; }
+   
+   public void setForeground(Color fg) { checkbox.setForeground(fg); }
+   
+   public Color getForeground() { return checkbox.getForeground(); }
 
    private void createPanel() {
       checkbox = new JCheckBox(label);
@@ -100,5 +105,10 @@ public class TreeNode  implements Comparator {
       if( a1.ordre==null ) return -1;
       if( a2.ordre==null ) return 1;
       return a1.ordre.compareTo(a2.ordre);
+   }
+   
+   public boolean equals(Object o) {
+      TreeNode a1= (TreeNode)o;
+      return a1.id.equals(id);
    }
 }

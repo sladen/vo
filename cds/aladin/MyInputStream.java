@@ -26,6 +26,9 @@ import java.util.StringTokenizer;
 import java.util.Vector;
 import java.util.zip.GZIPInputStream;
 
+import javax.imageio.stream.FileImageInputStream;
+
+import cds.fits.HeaderFits;
 import cds.xml.TableParser;
 
 /**
@@ -78,27 +81,30 @@ public final class MyInputStream extends FilterInputStream {
    static final public long IPAC    = 1<<29;
    static final public long BMP     = 1<<30;
    static final public long RICE    = 1L<<31;
-   static final public long HPX     = 1L<<32;
+   static final public long HEALPIX = 1L<<32;
    static final public long GLU     = 1L<<33;
-   static final public long ARGB= 1L<<34;
+   static final public long ARGB    = 1L<<34;
    static final public long PDS     = 1L<<35;
+   static final public long HPXMOC  = 1L<<36;
+   static final public long DS9REG  = 1L<<37;
 
    static final String FORMAT[] = {
       "UNKNOWN","FITS","JPEG","GIF","MRCOMP","HCOMP","GZIP","XML","ASTRORES",
       "VOTABLE","AJ","AJS","IDHA","SIA","CSV","UNAVAIL","AJSx","PNG","XFITS",
       "FOV","FOV_ONLY","CATLIST","RGB","BSV","FITS-TABLE","FITS-BINTABLE","CUBE",
-      "SEXTRACTOR","HUGE","AIPSTABLE","IPACTABLE","BMP","RICE","HEALPIX","GLU","ARGB","PDS" };
+      "SEXTRACTOR","HUGE","AIPSTABLE","IPAC-TBL","BMP","RICE","HEALPIX","GLU","ARGB","PDS",
+      "HPXMOC","DS9REG" };
 
    // Recherche de signatures particulieres
    static private final int DEFAULT = 0; // Detection de la premiere occurence
    static private final int FITSEND = 1; // Detection de la fin d'entete FITS
 
 
-   private InputStream in;    // Le flux d'entree
    private boolean withBuffer; // true si on a demandé une bufferisation
    private byte cache[]=null; // Le tampon
    private int offsetCache=0; // Position du prochain octet a lire dans le tampon
    private int inCache=0;     // Nombre d'octets disponibles dans le tampon
+   private boolean flagEOF=false; // true si la fin du fichier a été atteinte
    private long type=-1;	      // Le champ de bits qui décrit le type de fichier
    private boolean flagGetType; // true si le type a deja ete determine
    private boolean alreadyRead; // true si le flux a deja ete entame
@@ -122,6 +128,12 @@ public final class MyInputStream extends FilterInputStream {
       this.in= in!=null && withBuffer && !(in instanceof BufferedInputStream ) ?
                    new BufferedInputStream(in) : in;
    }
+   
+   public void close() throws IOException {
+//      if( Aladin.levelTrace>3 ) System.out.println("MyinputStream.close(): "+this);
+      in.close();
+      super.close();
+   }
 
    static protected long NativeImage() { return JPEG|GIF|PNG|BMP; }
 
@@ -139,7 +151,7 @@ public final class MyInputStream extends FilterInputStream {
       }
       return this;
    }
-
+   
    /** Retourne la position du prochain octet qui va être lu
     * dans le flux
     * @return position du prochain octet qui sera lu (commence à 0)
@@ -155,6 +167,36 @@ public final class MyInputStream extends FilterInputStream {
       flagGetType = alreadyRead = false;
    }
 
+   private boolean alreadyHCOMPtested=false;
+   private boolean previousHCOMPtest;
+
+   /** Juste pour tester rapidement s'il s'agit d'un FITS HCOMP */
+   public boolean isHCOMP() throws Exception {
+      return (getType() & HCOMP) != 0;
+
+//      if( alreadyHCOMPtested ) return previousHCOMPtest;
+//
+//      // le type de stream a deja ete detecte
+//      if( flagGetType ) previousHCOMPtest = (type&HCOMP)==HCOMP;
+//      else {
+//         try {
+//            // Detection de HCOMP
+//            int n = findFitsEnd();
+//            int c0 =  (cache[n]) & 0xFF;
+//            int c1 =  (cache[n+1]) & 0xFF;
+//
+//            //System.out.println("FITS Data magic code "+c0+" "+c1);
+//            previousHCOMPtest = (c0==221 && c1==153);
+//         } catch( Exception e ) {
+//            previousHCOMPtest=false;
+//         }
+//      }
+//      alreadyHCOMPtested=true;
+//      return previousHCOMPtest;
+
+   }
+
+
    /** Juste pour tester s'il s'agit d'un flux gzipé */
    public boolean isGZ() throws IOException {
       // le type de stream a deja ete detecte
@@ -162,7 +204,6 @@ public final class MyInputStream extends FilterInputStream {
 
       // Le stream a deja ete entame, impossible de determine le type
       if( alreadyRead ) return false;
-
 
       int c[] = new int[2];
       // On charge qq octets dans le tampon si nécessaire
@@ -179,16 +220,13 @@ public final class MyInputStream extends FilterInputStream {
 
    /** Sous-types particulier au FITS image */
    private void getTypeFitsImg() throws IOException {
+
       // Détection d'un CUBE
-//    if( lookForSignature("NAXIS   = 3",false)>0
+      //    if( lookForSignature("NAXIS   = 3",false)>0
       if( hasFitsKey("NAXIS","3") && !hasFitsKey("NAXIS3","1")
             || hasFitsKey("NAXIS","4")
             && !hasFitsKey("NAXIS3","1")
             && hasFitsKey("NAXIS4","1")) type |= CUBE;
-
-      // Healpix
-    if( (hasFitsKey("PIXTYPE", "HEALPIX") || hasFitsKey("ORDERING","NEST") || hasFitsKey("ORDERING","RING")) 
-          && !hasFitsKey("XTENSION","IMAGE") )  type |= HPX;
 
       // Mode couleur ARGB
       if( hasFitsKey("COLORMOD", "ARGB") )  type |= ARGB;
@@ -204,10 +242,16 @@ public final class MyInputStream extends FilterInputStream {
          try {
             int naxis1 = Integer.parseInt(getFitsValue("NAXIS1"));
             int naxis2 = Integer.parseInt(getFitsValue("NAXIS2"));
-//            int npix = Integer.parseInt(getFitsValue("BITPIX"));
+            //            int npix = Integer.parseInt(getFitsValue("BITPIX"));
             if( (long)naxis1*naxis2/**Math.abs(npix)/8*/ > Aladin.LIMIT_HUGEFILE ) type |= HUGE;
          }catch( Exception e ) {}
       }
+
+      // Healpix
+      if( (type & XFITS) !=0 && (hasFitsKey("HPXMOCM",null) || hasFitsKey("HPXMOC",null) 
+            || hasFitsKey("ORDERING","UNIQ") || hasFitsKey("ORDERING","NUNIQ")) ) type |= HPXMOC;
+      else if( (hasFitsKey("PIXTYPE", "HEALPIX") || hasFitsKey("ORDERING","NEST") || hasFitsKey("ORDERING","RING"))
+            && !hasFitsKey("XTENSION","IMAGE") )  type |= HEALPIX;
 
       // Detection de HCOMP
       int n = findFitsEnd();
@@ -225,7 +269,7 @@ public final class MyInputStream extends FilterInputStream {
    * decodeType().
    * @return un champ de bit decrivant le type de fichier
    */
-   public long getType() throws IOException {
+   public long getType() throws Exception {
       int csv;
 //System.out.println("call getType()");
 
@@ -238,7 +282,7 @@ public final class MyInputStream extends FilterInputStream {
 
       // recherche d'un eventuel MAGIC NUMBER ou d'une premier mot
       // non-equivoque pour determine le type de fichier
-//      try {
+      try {
 
          int c[] = new int[16];
          // On charge qq octets dans le tampon si nécessaire
@@ -254,6 +298,18 @@ public final class MyInputStream extends FilterInputStream {
 
          // Détection PDS
          else if( c[0]=='P' && c[1]=='D' && c[2]=='S' ) type |=PDS;
+
+         // Détection HPXMOC (ASCII - ancienne définition ORDERING...)  A VIRER DES QUE POSSIBLE
+         else if( c[0]=='O' && c[1]=='R' && c[2]=='D' && c[3]=='E' && c[4]=='R' ) type |=HPXMOC;
+
+         // Détection DS9REG 
+         else if( c[0]=='#' && c[1]==' ' && c[2]=='R' && c[3]=='e' && c[4]=='g' 
+               && c[5]=='i' && c[6]=='o' && c[7]=='n' && c[8]==' ' && c[9]=='f' 
+               &&c[10]=='i' &&c[11]=='l'&& c[12]=='e' ) type |= DS9REG|AJS;
+
+         // Détection HPXMO (ASCII - nouvelle définition #HPXMOCM...)
+         else if( c[0]=='#' && c[1]=='H' && c[2]=='P' && c[3]=='X' 
+               && c[4]=='M' && c[5]=='O' && c[6]=='C' ) type |=HPXMOC;
 
 //         // Detection de BMP
 //         else if( c[0]==66  && c[1]==77 ) type |= BMP;
@@ -320,7 +376,7 @@ public final class MyInputStream extends FilterInputStream {
              if(  hasFitsKey("ZCMPTYPE","RICE_1") ) type |= RICE;
 
              // Pour répérer les tables AIPS CC de calculs intermédiaires
-             if( hasFitsKey("EXTNAME","AIPS CC") && hasFitsKey("TFIELDS","3")
+             else if( hasFitsKey("EXTNAME","AIPS CC") && hasFitsKey("TFIELDS","3")
                    && hasFitsKey("TTYPE2","DELTAX") && hasFitsKey("TUNIT2","DEGREES")
                    && hasFitsKey("TTYPE3","DELTAY") && hasFitsKey("TUNIT3","DEGREES")
                      ) type |= AIPSTABLE;
@@ -332,7 +388,6 @@ public final class MyInputStream extends FilterInputStream {
              c[6]==' ' && c[7]==' ' && c[8]=='=' ) {
 
              type |= FITS;
-
              getTypeFitsImg();
 
           }
@@ -366,7 +421,8 @@ public final class MyInputStream extends FilterInputStream {
             // TODO : à améliorer car <RESOURCE ID=... type="results" ne sera pas reconnu
             else if( /* lookForSignature("<RESOURCE type=\"results\"",true)>0 && */
                   // SIAP et anciennes versions de SSAP
-                  lookForSignature("ucd=\"VOX:Image_Title\"",true)>0
+                     lookForSignature("ucd=\"VOX:Image_Title\"",true)>0
+                  || lookForSignature("ucd=\"VOX:Image_AccessReference\"",true)>0
                   // SSAP 1.x (ce n'est qu'un 'should' malheureusement)
                   || lookForSignature("SSAP</INFO>", true)>0
                   // SSAP 1.x
@@ -415,6 +471,9 @@ public final class MyInputStream extends FilterInputStream {
          // Detection d'un PDS sans magic code
          else if( lookForSignature("^IMAGE",true)>0 ) type |= PDS;
 
+         // Serait-ce du IPAC
+         else if( csv==4 ) type |= BSV|IPAC;
+
          // Serait-ce du Sextractor
          else if( csv==3 ) type |= BSV|SEXTRA;
 
@@ -429,13 +488,24 @@ public final class MyInputStream extends FilterInputStream {
 //                  || lookForSignature("filter ",true)>0 ) type |= AJSx;
 
 
-//      } catch ( EOFException e ) {
-////System.out.println("getType impossible: EOFException !!");
-//         return NOTAVAILABLE;
-//      }
+      } catch ( EOFException e ) {
+//System.out.println("getType impossible: EOFException !!");
+      }
 
       return type;
 
+   }
+   
+   /** Skippe les prochains octets (si nécessaire) pour se caler sur le prochain
+    * bloc de 2880 bytes (typique du FITS).
+    * @return le nombre d'octets effectivement skippes
+    * @throws IOException
+    */
+   public long skipOnNext2880() throws IOException {
+      long pos = getPos();
+      if( pos%2880==0 ) return 0;
+      long offset = ((pos/2880)+1) *2880  -pos;
+      return skip(offset);
    }
 
    /**
@@ -637,12 +707,12 @@ public long skip(long n) throws IOException {
      * Retourne la prochaine ligne du stream
      * @return la ligne lue,
      */
-    public String gets() throws IOException {
+    public String readLine() throws IOException {
        int n;
 
        try { n = findSignature("\n",false);
        } catch( EOFException eof ) {
-          if( inCache==0 ) throw new EOFException();
+          if( inCache==0 ) return null;
           n=offsetCache+inCache;
        }
        String s = new String(cache,offsetCache,n-offsetCache);
@@ -677,6 +747,8 @@ public long skip(long n) throws IOException {
     * @param len nombre de bytes a charger
     */
    private void loadInCache(int len) throws IOException {
+      
+      if( flagEOF ) throw new EOFException();
 
       // Premiere allocation du buffer du cache
       if( cache==null ) {
@@ -705,7 +777,7 @@ public long skip(long n) throws IOException {
       for( int n=0; n<len; n+=m ) {
          m = super.read(cache,offset,len-n);
 //System.out.println("J'ai lu "+m+" bytes");
-         if( m==-1 ) throw new EOFException();
+         if( m==-1 ) { flagEOF=true; throw new EOFException(); }
          offset+=m;
          inCache+=m;
       }
@@ -735,6 +807,20 @@ public long skip(long n) throws IOException {
 //System.out.println("cache (inCache="+inCache+"/offsetCache="+offsetCache+")");
    }
 
+   private void substituteIPC(int pos, int len, String s) throws Exception {
+//System.out.println("AVANT:["+(new String(cache,0,inCache))+"]");
+//System.out.println("Substitution dans cache (inCache="+inCache+"/offsetCache="+offsetCache+") pos="+pos+" len="+len+" ["+s+"]");
+      char a[] = s.toCharArray();
+      if( a.length>len || pos<offsetCache ) throw new Exception("MyInputStream substitution error");
+      int i,j;
+      for( i=0,j=pos; i<a.length; i++,j++ ) cache[j] = (byte) a[i];
+      System.arraycopy(cache,pos+len, cache, pos+a.length, inCache - (pos+len) );
+      inCache -= len - a.length;
+//System.out.println("APRES:["+(new String(cache,0,inCache))+"]");
+//System.out.println("cache (inCache="+inCache+"/offsetCache="+offsetCache+")");
+   }
+
+
    /** Retourne le nombre de fois ou un caractere particulier est present dans
     * la chaine
     * @param s La chaine à analyser
@@ -759,13 +845,102 @@ public long skip(long n) throws IOException {
       try { Integer.parseInt(s.substring(1,5).trim()); } catch( Exception e ) { return false; }
       return true;
    }
+   
+   static private int [] count(String s,boolean flagQuote,boolean flagMalin) {
+      int n[] = new int[128];
+      boolean inQuote=false;
+      
+      int len = s.length();
+      for( int i=0; i<len; i++ ) {
+         char c = s.charAt(i);
+         if( flagQuote ) {
+            if( inQuote ) {
+               if( c=='\\' ) i++;
+               else if( c=='"' ) inQuote=false;
+            } else inQuote= c=='"';
+            if( inQuote ) continue;
+         }
+         if( flagMalin && i==0 ) continue;   // On ne compte pas le première caractère (voudrait dire que le premier champ de la première ligne est vide
+         int ch = c;
+         if( ch>=n.length ) continue;
+         n[ch]++;
+      }
+      return n;
+   }
+   
+   static final private String SEP = "\t;:,!| /&";
+      
+   /** Analyse les lignes s[]. Dénombre les catactères présents dans chacune d'elles (>31 & <127)
+    * et recherche celui qui pourrait être un séparateur CSV, càd de même dénombrement dans chaque
+    * ligne, et parmi un ensemble de cas possible. S'il y a plusieurs candidats possibles,
+    * on écartera ceux qui commencent ou terminent la première ligne. S'il y a encore
+    * plusieurs candidats, on procédera de même pour les autres lignes de l'échantillon
+    * @param s
+    * @return
+    */
+   static private int analyseCSV(String [] s) { return analyseCSV(s,s.length); }
+   
+   // On va faire deux tentatives, l'une en supposant que les champs peuvent être "quotés", 
+   // et si ça ne donne rien, on recommence avec des champs supposés non quotés.
+   static private int analyseCSV(String [] s,int size) {
+      int c = analyseCSV1(s,size,true);
+      if( c==-1 ) c = analyseCSV1(s,size,false);
+//      System.out.println("c="+c);
+      return c;
+   }
+   static private int analyseCSV1(String [] s,int size,boolean flagQuote) {
+      int [][] m = new int[size][];
+      for( int i=0; i<size; i++ ) {
+         if( Aladin.levelTrace>=4 ) {
+            String s1 = s[i];
+            if( s1.length()>0 && s1.charAt(s1.length()-1)=='\n' ) s1 = s1.substring(0,s1.length()-1);
+            Aladin.trace(4,"analyseCSV (quoted="+flagQuote+") ligne "+i+" ["+s1+"]");
+         }
+         m[i] = count(s[i],flagQuote,true);
+      }
+//      System.out.println("\n***");
+//      for( int j=0; j<size; j++ ) {
+//         System.out.print("Ligne "+j+":");
+//         for( int k=0; k<SEP.length(); k++ ) {
+//            int i = SEP.charAt(k);
+//            System.out.print(" ["+SEP.charAt(k)+"]/"+m[j][i]);
+//         }
+//         System.out.println();
+//      }
+      for( int k=0; k<SEP.length(); k++ ) {
+         int i = SEP.charAt(k);
+         int j;
+         if( m[0][i]==0 ) continue;
+         for( j=1; j<size && m[j][i]==m[j-1][i]; j++ );
+         if( j==size ) return (char)i;
+      }
+      return -1;
+   }
+   
+   static public void main(String argv[]) {
+      try {
+         // String s1 = argv[0];
+         String s1 = "C:\\Documents and Settings\\Standard\\Bureau\\test.dat";
+         DataInputStream dis = new DataInputStream(new FileInputStream(s1));
+         String [] s = new String[5];
+         for( int i=0;i<s.length; i++ ) {
+            s[i] = dis.readLine();
+            if( s[i].length()>0 && s[i].charAt(0)=='#' ) i--;
+         }
+         int c = analyseCSV(s);
+         System.out.println("CSV => "+c+" => "+(c==-1?"not CSV":"["+(char)c)+"]");
+      } catch( Exception e ) {
+         e.printStackTrace();
+      }
+   }
 
    /**
     * Transforme une entête Sextractor en une simple ligne de labels
     */
    private String translateSextraHeader(String head) {
       StringTokenizer st = new StringTokenizer(head,"\n\r");
-      StringBuffer nHead = new StringBuffer("z");
+//      StringBuffer nHead = new StringBuffer("z");
+      StringBuffer nHead = new StringBuffer();
 
       while( st.hasMoreTokens() ) {
          String s = st.nextToken();
@@ -793,91 +968,157 @@ public long skip(long n) throws IOException {
     *                     #...
     *                           1  3.08751e-05   5.2560   0.0042  0.007450911 4.463027e-05     75.842     72.788  77.4363120  +1.7139901   0.02255782  0.009481858 -21.2  18
     *                           2 1.506869e-05   7.6853   0.0194   0.00145597 3.457046e-05    100.831      4.265  77.3946642  +1.5997848    0.0134634  0.005376848  -1.4  27
-    */
-    private int isCSV() throws IOException {
+    *         3 C'est du IPAC càd du BSV + entête:
+    *                     #\ ___ Ks photometric uncertainty of the associated 2MASS All-Sky PSC source
+    *                     #\
+    *                     #|       source_id|         ra|        dec|   sigra|  sigdec| sigradec| w1mpro|w1sigmpro|  w1snr|  w1rchi2| w2mpro|w2sigmpro|  w2snr|  w2rchi2| w3mpro|w3sigmpro|  w3snr|  w3rchi2| w4mpro|w4sigmpro|  w4snr|  w4rchi2|    rchi2|  nb|  na|  w1mag|w1sigm|w1flg|  w2mag|w2sigm|w2flg|  w3mag|w3sigm|w3flg|  w4mag|w4sigm|w4flg|cc_flags|det_bit|ph_qual|   sso_flg|r_2mass|pa_2mass|n_2mass|j_m_2mass|j_msig_2mass|h_m_2mass|h_msig_2mass|k_m_2mass|k_msig_2mass|             dist|           angle|
+    *                     #|            char|     double|     double|  double|  double|   double| double|   double| double|   double| double|   double| double|   double| double|   double| double|   double| double|   double| double|   double|   double| int| int| double|double|  int| double|double|  int| double|double|  int| double|double|  int|    char|    int|   char|       int| double|  double|    int|   double|      double|   double|      double|   double|      double|           double|          double|
+    *                     #|                |        deg|        deg|  arcsec|  arcsec|   arcsec|    mag|      mag|       |         |    mag|      mag|       |         |    mag|      mag|       |         |    mag|      mag|       |         |         |    |    |    mag|   mag|     |    mag|   mag|     |    mag|   mag|     |    mag|   mag|     |        |       |       |          | arcsec|     deg|       |      mag|         mag|      mag|         mag|      mag|         mag|           arcsec|             deg|
+    *                     #|            null|       null|       null|    null|    null|     null|   null|     null|   null|     null|   null|     null|   null|     null|   null|     null|   null|     null|   null|     null|   null|     null|     null|null|null|   null|  null| null|   null|  null| null|   null|  null| null|   null|  null| null|    null|   null|   null|      null|   null|    null|   null|     null|        null|     null|        null|     null|        null|             null|            null|
+    *                     # 02562a148-000137  83.6358261  22.0148582   1.4029   1.6771   -0.3636  11.750     0.407     2.7 9.340e-01  10.812     0.401     2.7 7.390e-01   7.589     0.315     3.4 9.000e-01   5.080      null     0.9 9.740e-01 8.210e-01    1    0   9.342   null    32   8.519   null    32   5.940  0.495     1   3.050  0.541     1     00dd       7    CCBU          0    null     null       0      null         null      null         null      null         null          9.255388        81.990647 
+   */
+    private int isCSV() throws Exception {
        if( inCache<BLOCCACHE-10 ) {
           try { loadInCache(BLOCCACHE-10);
           }
           catch( EOFException e) { }
           catch( IOException e ) { throw e; }
        }
-       char cs[];
+//       char cs[];
        int deb = offsetCache;
        int n=0;   // Nbre de tokens trouves dans la premiere ligne valide
-       int i=1;   // Nbre de lignes valides traitees
+//       int i=1;   // Nbre de lignes valides traitees
        int max=4; // Nbre de lignes valides a tester
        boolean inHeader=true; // true si on est dans l'entete du fichier
        int rep=1;
        StringBuffer debugMsg=null;
-       boolean flagSextra = true;   // true si on a détecté une entête Sextractor
+       boolean flagSextra = false;   // true si on a détecté une entête Sextractor
+       boolean flagIPAC = false;    // true si on a détecté une entête IPAC
+       boolean firstComment = true; // True si on n'a pas encore traité le premier commentaire
        int sextraDeb = deb;         // Position du début de l'entête sextrator (s'il y a lieu)
        int sextraFin = 0;           // Position de fin de l'entête sextrator (s'il y a lieu)
+       int IPACDeb = deb;         // Position du début de l'entête IPAC (s'il y a lieu)
+       int IPACFin = 0;           // Position de fin de l'entête IPAC (s'il y a lieu)
+       
+       int bufN = 0;
+       String [] bufLigne = new String[max];
 
-       try { cs = Aladin.aladin.CSVCHAR.toCharArray(); }
-       catch( Exception e ) { cs = "\t".toCharArray(); }
+//       try { cs = Aladin.aladin.CSVCHAR.toCharArray(); }
+//       catch( Exception e ) { cs = "\t".toCharArray(); }
+//
+//       if( Aladin.levelTrace>=3 ) debugMsg = new StringBuffer("CSV test result:");
 
-       if( Aladin.levelTrace>=3 ) debugMsg = new StringBuffer("CSV test result:");
-
-       do {
+       for( int i=0; bufN<max && deb!=-1; i++ ) {
           StringBuffer ligneb = new StringBuffer(256);
           deb = getLigne(ligneb,deb);
           String ligne = ligneb.toString();
-//System.out.println("ligne = ["+ligne+"]");
-          if( deb==-1 ) return n>0 ? rep : 0;
+          bufLigne[bufN] = ligne;
           if( inHeader ) {
              if( ligne.trim().length()==0 ) continue;
-             if( ligne.charAt(0)=='#' ) {
+             char c = ligne.charAt(0);
+             if( !flagIPAC && bufN==0 && (c=='\\' || c=='|') ) flagIPAC=true;
+             if( flagIPAC ) {
+                if( c=='\\' ) continue;
+                if( c=='|' )  {
+                   bufLigne[bufN] = bufLigne[bufN].replace('|', ' ');
+                   bufLigne[bufN] = bufLigne[bufN].replace('-', ' ');
+                   int j=bufLigne[bufN].length()-2;
+                   while( j>0 && bufLigne[bufN].charAt(j)==' ') j--;
+                   bufLigne[bufN]=bufLigne[bufN].substring(0,j+1)+'\n';
+                   bufN++;
+                   IPACFin=deb;
+                   continue;
+                }
+             }
+             if( c=='#' ) {
+                if( firstComment ) { flagSextra=true; firstComment=false; }
                 flagSextra = flagSextra & isSextra(ligne);
                 if( flagSextra ) sextraFin = deb;
                 continue;
              }
              inHeader=false;
-             n = TableParser.countColumn(ligne,cs);
-             if( n==1 ) {
-                cs = new char[] { ' ' };
-                rep = 2;
-                n=TableParser.countColumn(ligne,cs);
-             }
-if( Aladin.levelTrace>=3 ) debugMsg.append(" line="+i+"=>"+n);
-             if( n<=1 ) { rep=0; break; }
-          } else {
-             int m = TableParser.countColumn(ligne,cs);
-if( Aladin.levelTrace>=3 ) debugMsg.append(" line="+i+"=>"+m);
-             if( m!=n ) { rep=0; break; }
-             i++;
           }
-       } while( i<max );
-Aladin.trace(3,debugMsg+"");
-
-       if( rep==2 && flagSextra ) {
-          rep=3;
-          try { substitute(sextraDeb,sextraFin-sextraDeb,translateSextraHeader( new String(cache,sextraDeb,sextraFin))); }
+//System.out.println("ligne["+bufN+"] = ["+bufLigne[bufN]+"]");
+         bufN++;
+       }
+       
+       // On vire les lignes blanches éventuelles à la fin
+       for( int i=bufN-1; i>=0; i-- ) if( bufLigne[i].length()==0 ) bufN--;
+       
+       if( bufN<2 ) return 0;
+       
+       if( flagIPAC ) {
+          try { substitute(IPACDeb,IPACFin-IPACDeb,bufLigne[0]); }
           catch( Exception e ) { }
+          Aladin.trace(3,"IPAC detected");
+          return 4;
+
+       }
+       
+       int findSep = analyseCSV(bufLigne,bufN);
+       if( findSep>=0 ) {
+          char c = (char)findSep;
+          setSepCSV(c);
+          Aladin.trace(3,"CSV detected with ["+c+"] as delimitor");
+          return 1;
        }
 
-       return rep;
+       if( flagSextra ) {
+          if( TableParser.countColumn(bufLigne[0],new char[] { ' ' })>1 ) {
+             try { substitute(sextraDeb,sextraFin-sextraDeb,translateSextraHeader( new String(cache,sextraDeb,sextraFin))); }
+             catch( Exception e ) { }
+             Aladin.trace(3,"Sextractor ASCII detected");
+             return 3;
+          }
+       }
+       
+       char [] cs = new char[] { ' ' };
+       for( int i=0; i<bufN; i++ ) {
+          int m = TableParser.countColumn(bufLigne[i],cs);
+          if( i==0 ) n=m;
+          else if( m!=n ) return 0;
+       }
+
+       Aladin.trace(3,"BSD detected (aligned column with blanks");
+       return 2;
+    }
+    
+    private char sepCSV=(char)-1;
+    public char getSepCSV() { return sepCSV; }
+    private void setSepCSV(char c) { sepCSV=c; }
+    
+    private int getLigne(StringBuffer s,int offset) throws Exception {
+       int c;
+       char ch;
+       do {
+          c = getValAt(offset++);
+          if( c==-1 ) return -1;
+          ch = (char)c;
+          if( ch!='\r' ) s.append(ch);
+       } while( ch!='\n' );
+       return offset;
     }
 
-    /**
-     * Retourne une ligne du tampon a partir d'une position initiale
-     * @param s La ligne qui sera trouvee
-     * @param offset position initiale dans le tampon
-     * @return la position dans le tampon qui suit le \n de fin de ligne
-     *         -1 si aucun \n n'est trouve dans le tampon
-     */
-    private int getLigne(StringBuffer s,int offset) throws IOException {
-       int n = lookForSignature("\n",false,offset,false);
-       if( n==-1 ) return -1;
-       if( n==offset ) return -1;           // Au cas ou !
-       s.append(new String(cache,offset,n-offset));
-       return n;
-    }
+//    private int getJSonLigne(StringBuffer s,int offset) throws Exception {
+//       int c;
+//       char ch;
+//       do {
+//          c = getValAt(offset++);
+//          if( c==-1 ) return -1;
+//          ch = (char)c;
+//          if( ch!='\r' ) s.append(ch);
+//       } while( ch!='}' );
+//       return offset;
+//    }
+
 
     /** Retourne la valeur unsigned dans le cache à la position pos,
      * étend le cache si nécessaire */
-    private int C(int pos) throws Exception {
-       try { while( offsetCache+pos>=inCache ) loadInCache(8192); }
+    private int getValAt(int pos) throws Exception {
+       try { while( offsetCache+pos>=inCache && !flagEOF ) loadInCache(8192); }
        catch( EOFException e ) { }
+       
+       if( offsetCache+pos>=inCache && flagEOF ) return -1;
 
        try { return cache[offsetCache+pos] & 0xFF; }
        catch( Exception e ) { return -1; }
@@ -1053,10 +1294,18 @@ Aladin.trace(3,debugMsg+"");
 
        fits.append("COMMENT FITS header built by Aladin from AVM tags\n");
 
-       s=(String)avm.get("Spatial.CoordsystemProjection");
-       if( s==null ) s="TAN";
-       fits.append("CTYPE1  = 'RA---"+s+"'\n");
-       fits.append("CTYPE2  = 'DEC--"+s+"'\n");
+       String projs=(String)avm.get("Spatial.CoordsystemProjection");
+       if( projs==null ) projs="TAN";
+       String slon="RA---";
+       String slat="DEC--";
+       s = (String)avm.get("Spatial.CoordinateFrame");
+       if( s!=null ) {
+          if( s.equals("GAL") ) { slon="GLON-"; slat="GLAT-"; }
+          else if( s.equals("ECL") ) { slon="ELON-"; slat="ELAT-"; }
+          if( s.equals("SGAL") ) { slon="SLON-"; slat="SLAT-"; }
+       }
+       fits.append("CTYPE1  = '"+slon+projs+"'\n");
+       fits.append("CTYPE2  = '"+slat+projs+"'\n");
 
        // Faut-il prendre en compte un changement d'échelle ?
        try {
@@ -1098,7 +1347,8 @@ Aladin.trace(3,debugMsg+"");
        if( (s=(String)avm.get("Spatial.Equinox"))!=null )
           fits.append("EQUINOX = "+s+"\n");
 
-       if( (s=(String)avm.get("Spatial.CoordinateFrame"))!=null )
+       s=(String)avm.get("Spatial.CoordinateFrame");
+       if( s!=null && (s.equals("FK4") || s.equals("FK5") || s.equals("ICRS") ) )
           fits.append("RADECSYS= "+s+"\n");
 
        fits.append("COMMENT Original AVM tags:\n");
@@ -1134,12 +1384,18 @@ Aladin.trace(3,debugMsg+"");
 
     /** Construction d'un HeaderFits à partir de l'entête JPEG si possible,
      * sinon génère une exception */
-    protected FrameHeaderFits createHeaderFitsFromCommentCalib() {
+    protected FrameHeaderFits createFrameHeaderFitsFromCommentCalib() {
        return new FrameHeaderFits(commentCalib);
+    }
+    
+    /** Construction d'un HeaderFits à partir de l'entête JPEG si possible,
+     * sinon génère une exception */
+    public HeaderFits createHeaderFitsFromCommentCalib() throws Exception {
+       return new HeaderFits(commentCalib);
     }
 
     /** Retourne true si ce flux dispose d'une calib dans un segment commentaire (JPEG ou PNG) */
-    protected boolean hasCommentCalib() { return commentCalib!=null || avm!=null; }
+    public boolean hasCommentCalib() { return commentCalib!=null || avm!=null; }
 
     /** Recherche dans un flux JPEG le segment commentaire qui peut contenir une
      * calibration. La mémorise (voir getJpegCabib() )
@@ -1150,14 +1406,14 @@ Aladin.trace(3,debugMsg+"");
 
        int i=2;   // Taille de la signature JPEG
        try {
-          while( C(i)==0xFF ) {
-             int mode = C(i+1);
-             int size = C(i+2)<<8 | C(i+3);
+          while( getValAt(i)==0xFF ) {
+             int mode = getValAt(i+1);
+             int size = getValAt(i+2)<<8 | getValAt(i+3);
              try {
                 while( offsetCache+i+2+size>=inCache ) loadInCache(8192);
-             } catch( EOFException e ) { e.printStackTrace(); }
+             } catch( EOFException e ) { }
 if( Aladin.levelTrace==4 ) {
-   Aladin.trace(4,"("+i+") Segment JPEG "+H(C(i))+" "+H(C(i+1))+" "+size+" octets : ");
+   Aladin.trace(4,"("+i+") Segment JPEG "+H(getValAt(i))+" "+H(getValAt(i+1))+" "+size+" octets : ");
    Aladin.trace(4,ASC(cache,offsetCache+i+8,size>128 ? 128 : size));
 }
              if( mode==0xE1 ) {
@@ -1182,8 +1438,8 @@ if( Aladin.levelTrace==4 ) {
        int i=8;   // Taille de la signature PNG
        try {
           while( encore ) {
-             int size = C(i)<<24 | C(i+1)<<16 | C(i+2)<<8 | C(i+3);
-             String chunk = new String( new char[] { (char)C(i+4),(char)C(i+5),(char)C(i+6),(char)C(i+7)});
+             int size = getValAt(i)<<24 | getValAt(i+1)<<16 | getValAt(i+2)<<8 | getValAt(i+3);
+             String chunk = new String( new char[] { (char)getValAt(i+4),(char)getValAt(i+5),(char)getValAt(i+6),(char)getValAt(i+7)});
              try {
                 while( offsetCache+i+8+size>=inCache ) loadInCache(8192);
              } catch( EOFException e ) { encore=false; }
@@ -1238,14 +1494,14 @@ if( Aladin.levelTrace==4 ) {
                                 int offset,int maxOffset,boolean flagEOF) throws IOException {
 //System.out.println("Call lookForSignature("+sig+","+offset+")");
 
-      boolean EOF=false;	// memorise qu'on a atteind la fin de stream
+      boolean EOF=false;	// memorise qu'on a atteint la fin de stream
 
       // n'est-on pas allé déjà trop loin dans le fichier ?
       if( maxOffset>=0 && offset>=maxOffset ) return -1;
 
       // Je charge au-moins BLOCCACHE-10 bytes dans le cache pour chercher
       // la signature (evite generalement la reallocation du tampon car on a deja
-      // chargee le tampon de quelques octets pour chercher un Magic Number)
+      // charge le tampon de quelques octets pour chercher un Magic Number)
       if( offsetCache+inCache-offset<BLOCCACHE-10 ) {
          try {
             int oOffsetCache=offsetCache;

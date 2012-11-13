@@ -58,33 +58,42 @@
 //
 package cds.tools;
 
-import cds.aladin.*;
-
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.awt.image.ColorModel;
+import java.awt.image.DataBufferInt;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Vector;
 
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JComponent;
-import javax.swing.JFrame;
-import javax.swing.KeyStroke;
+import javax.net.ssl.*;
+import javax.swing.*;
+
+import cds.aladin.Aladin;
+import cds.aladin.Forme;
+import cds.aladin.MyInputStream;
+import cds.aladin.Tok;
+import cds.image.EPSGraphics;
 
 /**
  * Diverses méthodes utilitaires
@@ -100,15 +109,80 @@ public final class Util {
         FS = System.getProperty("file.separator");
 	}
 
-	/** Ouverture d'un MyInputStream avec le User-Agent correspondant à Aladin */
-    static public MyInputStream openStream(String u) throws Exception {
-       return openStream(new URL(u));
-    }
-    static public MyInputStream openStream(URL u) throws Exception {
-	   URLConnection conn = u.openConnection();
-	   MyInputStream is = new MyInputStream(conn.getInputStream());
+	/** Ouverture d'un MyInputStream que ce soit un fichier ou une url */
+	static public MyInputStream openAnyStream(String urlOrFile) throws Exception {
+	   if( urlOrFile.startsWith("http:") || urlOrFile.startsWith("https:")
+	         || urlOrFile.startsWith("ftp:") ) return openStream(urlOrFile);
+	   FileInputStream f = new FileInputStream(urlOrFile);
+	   MyInputStream is = new MyInputStream(f);
 	   return is.startRead();
 	}
+
+	/** Ouverture d'un MyInputStream avec le User-Agent correspondant à Aladin */
+    static public MyInputStream openStream(String u) throws Exception { return openStream(new URL(u),true); }
+    static public MyInputStream openStream(String u,boolean useCache) throws Exception {
+       return openStream(new URL(u),useCache);
+    }
+    static public MyInputStream openStream(URL u) throws Exception { return openStream(u,true); }
+    static public MyInputStream openStream(URL u, boolean useCache) throws Exception {
+	   URLConnection conn = u.openConnection();
+	   if( !useCache ) conn.setUseCaches(false);
+	   conn.setConnectTimeout(10000);
+// DEJA FAIT DANS Aladin.myInit() => mais sinon ne marche pas en applet
+	   if( conn instanceof HttpURLConnection ) {
+	      HttpURLConnection http = (HttpURLConnection)conn;
+	      http.setRequestProperty("http.agent", "Aladin/"+Aladin.VERSION);
+	   }
+
+       MyInputStream mis = new MyInputStream(openConnectionCheckRedirects(conn));
+//       MyInputStream mis = new MyInputStream(conn.getInputStream());
+	   return mis.startRead();
+	}
+
+    /**
+     * Java does not follow HTTP --> HTTPS redirections by default
+     * This code allows to retrieve the "final" stream from a URLConnection, after following the redirections
+     *
+     * Code copied from http://download.oracle.com/javase/1.4.2/docs/guide/deployment/deployment-guide/upgrade-guide/article-17.html
+     */
+    static private InputStream openConnectionCheckRedirects(URLConnection conn) throws IOException {
+        boolean redir;
+        int redirects = 0;
+        InputStream in = null;
+        do {
+            if (conn instanceof HttpURLConnection) {
+                ((HttpURLConnection) conn).setInstanceFollowRedirects(false);
+            }
+            // We want to open the input stream before getting headers
+            // because getHeaderField() et al swallow IOExceptions.
+            in = conn.getInputStream();
+            redir = false;
+            if (conn instanceof HttpURLConnection) {
+                HttpURLConnection http = (HttpURLConnection) conn;
+                int stat = http.getResponseCode();
+                if (stat >= 300 && stat <= 307 && stat != 306 && stat != HttpURLConnection.HTTP_NOT_MODIFIED) {
+                    URL base = http.getURL();
+                    String loc = http.getHeaderField("Location");
+                    URL target = null;
+                    if (loc != null) {
+                        target = new URL(base, loc);
+                    }
+                    http.disconnect();
+                    // Redirection should be allowed only for HTTP and HTTPS
+                    // and should be limited to 5 redirections at most.
+                    if (target == null || !(target.getProtocol().equals("http") ||
+                            target.getProtocol().equals("https")) || redirects >= 5) {
+                        throw new SecurityException("illegal URL redirect");
+                    }
+                    redir = true;
+                    conn = target.openConnection();
+                    try { conn.setUseCaches(http.getUseCaches()); } catch( Exception e ) { }
+                    redirects++;
+                }
+            }
+        } while (redir);
+        return in;
+    }
 
     /** Voir matchMask(). */
     static public boolean matchMaskIgnoreCase(String mask, String word) {
@@ -215,7 +289,7 @@ public final class Util {
     */
    static public String myRound(String x) { return myRound(x,0); }
    static public String myRound(String x,int p) {
-      
+
       // Problème en cas de notation scientifique
 
       char a[] = x.toCharArray();
@@ -444,6 +518,19 @@ public final class Util {
 	   return res.toString();
 	}
 	
+	/** Extrait la table des couleurs pour une composante sous la forme d'un tableau de 256 bytes
+	 * @param cm Le modèle de couleur
+	 * @param component 0-Rouge, 1-Vert, 2-Bleu
+	 * @return les 256 valeurs de la table pour la composante indiquée
+	 */
+	static public byte [] getTableCM(ColorModel cm,int component) {
+	   byte [] tcm = new byte[256];
+	   for( int i=0; i<tcm.length; i++ ) {
+	      tcm[i] = (byte) (0xFF & ( component==0 ? cm.getRed(i) : component==1 ? cm.getGreen(i) : cm.getBlue(i) ));
+	   }
+	   return tcm;
+	}
+
 	/**
 	 *
 	 * @param c couleur dont on veut la couleur inverse
@@ -547,14 +634,25 @@ public final class Util {
        g.fillRect(x-1,y-1,3,3);
        drawCircle5(g,x,y);
     }
-    
+
+    /** Remplissage d'un joli cercle de 2 pixels de diamètre */
+    static public void fillCircle2(Graphics g,int x, int y) {
+       if( !(g instanceof Graphics2D) ) {
+          g.fillOval(x-1, y-1, 2, 2);
+          g.drawOval(x-1, y-1, 2, 2);
+          return;
+       }
+       g.drawLine(x,y-1,x,y+1);
+       g.drawLine(x-1,y,x+1,y);
+    }
+
     /** Tracé d'une flèche entre (x,y) et (x1,y1), avec un label éventuel et une taille d'empennage de L pixels */
     static public void drawFleche(Graphics g,double x,double y,double x1,double y1,int L, String s) {
        g.drawLine((int)x,(int)y,(int)x1,(int)y1);
 
        double theta,delta;
        if( x!=x1) {
-          theta = Math.atan( (double)(y1-y)/(x1-x) );
+          theta = Math.atan( (y1-y)/(x1-x) );
           if( x>x1 ) theta += Math.PI;
        } else {
           if( y<y1 ) theta = Math.PI/2;
@@ -601,19 +699,19 @@ public final class Util {
       } catch( Exception e ) { }
       gr.drawPolygon(pol);
     }
-
+    
     /** Tracé d'un cartouche, éventuellement semi-transparent
      * Retourne les coordonnées pour écrire dedans */
     static public void drawCartouche(Graphics gr,int x, int y, int w, int h,
           float transparency,Color fg, Color bg) {
+       if( h%2==1 ) h--;
        Color c = gr.getColor();
        try {
           Graphics2D g = (Graphics2D) gr;
           Composite saveComposite = g.getComposite();
           Composite myComposite = Util.getImageComposite(transparency);
           g.setComposite(myComposite);
-          
-          // Fond
+
           if( bg!=null ) {
              g.setColor(bg);
              g.fillRect(x,y,w,h);
@@ -629,12 +727,30 @@ public final class Util {
              g.drawArc(x-h/2, y, h, h, 90, 180);
              g.drawArc(x+w-h/2, y, h, h, 90, -180);
           }
-          
+
           g.setComposite(saveComposite);
-      } catch( Exception e ) { }
+
+      } catch( Exception e ) {
+         // Fond
+         if( bg!=null ) {
+            gr.setColor(bg);
+            gr.fillRect(x,y,w,h);
+            gr.fillArc(x-h/2, y, h, h, 90, 180);
+            gr.fillArc(x+w-h/2, y, h, h, 90, -180);
+         }
+
+         // Bord
+         if( fg!=null ) {
+            gr.setColor(fg);
+            gr.drawLine(x,y,x+w,y);
+            gr.drawLine(x,y+h,x+w,y+h);
+            gr.drawArc(x-h/2, y, h, h, 90, 180);
+            gr.drawArc(x+w-h/2, y, h, h, 90, -180);
+         }
+      }
       gr.setColor(c);
     }
-    
+
     static public void drawRoundRect(Graphics g,int x,int y,int w, int h,int r, Color ch, Color cb) {
        g.setColor(ch);
        g.drawLine(x+r,y, x+w-r,y);
@@ -642,7 +758,7 @@ public final class Util {
        g.drawArc(x,y,r*2,r*2,90,90);
        g.drawArc(x+w-r*2,y,r*2,r*2,90,-45);
        g.drawArc(x,y+h-r*2,r*2,r*2,180,45);
-       
+
        g.setColor(cb);
        g.drawLine(x+r,y+h,x+w-r,y+h);
        g.drawLine(x+w,y+r,x+w,y+h-r);
@@ -661,6 +777,89 @@ public final class Util {
        g.drawLine(x-2,y+3,x-2,y+3);
        g.drawLine(x+2,y+3,x+2,y+3);
    }
+    
+    /**
+     * Dessin d'un bouton radio
+     * @param g le contexte graphique
+     * @param x,y la position (coin en haut à gauche)
+     * @param colorBord Couleur du bord
+     * @param colorFond couleur du fond ou si null, couleur par défaut
+     * @param colorCoche couleur de la coche ou si null, couleur par défaut
+     * @param selected coche active si true
+     */
+    static public void drawRadio(Graphics g,int x,int y,
+          Color colorBord,Color colorFond,Color colorCoche,boolean selected) {
+       int w = CINT.length+1;
+
+       // Une couleur de fond particulière ?
+       if( colorFond!=null ) {
+          g.setColor(colorFond);
+          g.fillRect(x+1,y+1,w,w);
+
+          // Couleur de fond par défaut
+       } else {
+          for( int i=0; i<CINT.length; i++ ) {
+             g.setColor(CINT[i]);
+             g.drawLine(x+1,y+1+i,x+CINT.length,y+1+i);
+          }
+       }
+       
+       g.setColor(colorBord);
+       g.drawArc(x,y,w,w,0,360);
+
+       // La petite coche de sélection
+       if( selected ) {
+          g.setColor(colorCoche==null?Color.black:colorCoche);
+          g.fillArc(x+2,y+2,w-4,w-4,0,360);
+       }
+    }
+
+
+    // Couleurs de la coche
+    static final private Color CINT[] = {
+       new Color(232,239,246),new Color(243,247,250),
+       new Color(255,255,255),new Color(243,247,251),new Color(232,239,247),
+       new Color(221,232,243),new Color(215,228,241),
+       new Color(210,224,239),new Color(205,221,237)
+    };
+
+    /**
+     * Dessin d'une checkbox
+     * @param g le contexte graphique
+     * @param x,y la position (coin en haut à gauche)
+     * @param colorBord Couleur du bord
+     * @param colorFond couleur du fond ou si null, couleur par défaut
+     * @param colorCoche couleur de la coche ou si null, couleur par défaut
+     * @param selected coche active si true
+     */
+    static public void drawCheckbox(Graphics g,int x,int y,
+          Color colorBord,Color colorFond,Color colorCoche,boolean selected) {
+       int w = CINT.length+1;
+       g.setColor(colorBord);
+       g.drawRect(x,y,w,w);
+
+       // Une couleur de fond particulière ?
+       if( colorFond!=null ) {
+          g.setColor(colorFond);
+          g.fillRect(x+1,y+1,w,w);
+
+          // Couleur de fond par défaut
+       } else {
+          for( int i=0; i<CINT.length; i++ ) {
+             g.setColor(CINT[i]);
+             g.drawLine(x+1,y+1+i,x+CINT.length,y+1+i);
+          }
+       }
+
+       // La petite coche de sélection
+       if( selected ) {
+          g.setColor(colorCoche==null?Color.black:colorCoche);
+          g.fillRect(x+3, y+4, 2, 5);
+          for( int i=0; i<4; i++ ){
+             g.drawLine(x+5+i,y+6-i,x+5+i,y+7-i);
+          }
+       }
+    }
 
 //    static public void drawVerticalSplitPaneTriangle(Graphics g,int x, int y) {
 //       g.drawLine(x,y,x+1,y);
@@ -717,6 +916,81 @@ public final class Util {
 //       g.drawLine(x+1,y+1,x+3,y+1);
 //       g.drawLine(x+2,y,x+2,y);
 //    }
+    
+    /** Draws an ellipse which can be rotated
+     *  @param g - the graphic context we draw on
+     *  @param c - color of the ellipse
+     *  @param xCenter,yCenter - the "center" of the ellipse
+     *  @param semiMA - value of the semi-major axis
+     *  @param semiMI - value of the semi-minor axis
+     *  @param angle - rotation angle around center
+     */
+    static public void drawEllipse(Graphics g,double xCenter, double yCenter, double semiMA, double semiMI, double angle) {
+       if( g instanceof EPSGraphics ) ((EPSGraphics)g).drawEllipse(xCenter,yCenter,semiMA,semiMI,angle);
+       else if( !(g instanceof Graphics2D ) ) drawEllipseOld(g,xCenter,yCenter,semiMA,semiMI,angle);
+       else {
+          Graphics2D g2d = (Graphics2D)g;
+          AffineTransform saveTransform = g2d.getTransform();
+          angle = angle*Math.PI/180.0;
+          g2d.rotate(angle, xCenter, yCenter);
+          g2d.draw(new Ellipse2D.Double(xCenter-semiMA,yCenter-semiMI,semiMA*2,semiMI*2));
+          g2d.setTransform(saveTransform);
+       }
+    }
+
+    /** Draws an ellipse which can be rotated
+     *  @param g - the graphic context we draw on
+     *  @param c - color of the ellipse
+     *  @param xCenter,yCenter - the "center" of the ellipse
+     *  @param semiMA - value of the semi-major axis
+     *  @param semiMI - value of the semi-minor axis
+     *  @param angle - rotation angle around center
+     */
+    static public void fillEllipse(Graphics g,double xCenter, double yCenter, double semiMA, double semiMI, double angle) {
+//       if( g instanceof EPSGraphics ) ((EPSGraphics)g).fillEllipse(xCenter,yCenter,semiMA,semiMI,angle);
+//       else if( !(g instanceof Graphics2D ) ) drawEllipseOld(g,xCenter,yCenter,semiMA,semiMI,angle);
+//       else {
+          Graphics2D g2d = (Graphics2D)g;
+          AffineTransform saveTransform = g2d.getTransform();
+          angle = angle*Math.PI/180.0;
+          g2d.rotate(angle, xCenter, yCenter);
+          g2d.fill(new Ellipse2D.Double(xCenter-semiMA,yCenter-semiMI,semiMA*2,semiMI*2));
+          g2d.setTransform(saveTransform);
+//       }
+    }
+
+    /** Tracée d'une ellipse avec angle, méthode manuelle
+     * Utilisé si le contexte graphique ne supporte par Graphics2D */
+   static private void drawEllipseOld(Graphics g, double xCenter, double yCenter, double semiMA, double semiMI, double angle) {
+        // convert the angle into radians
+        angle = angle*Math.PI/180.0;
+
+        // number of iterations
+        int nbIt = 30;
+        Point[] p = new Point[nbIt];
+        double x,y,tmpX,tmpY;
+        double curAngle;
+
+        // first, we fill the array
+        for(int i=0; i<nbIt; i++) {
+            curAngle = 2.0*i/nbIt*Math.PI;
+            tmpX = semiMA*Math.cos(curAngle);
+            tmpY = semiMI*Math.sin(curAngle);
+            // rotation
+            x = tmpX*Math.cos(angle)-tmpY*Math.sin(angle)+xCenter;
+            y = tmpX*Math.sin(angle)+tmpY*Math.cos(angle)+yCenter;
+
+            //System.out.println(x+" "+y);
+            p[i] = new Point((int)x,(int)y);
+        }
+
+        // then we draw
+        for(int i=0; i<nbIt-1; i++) {
+            g.drawLine(p[i].x,p[i].y,p[i+1].x,p[i+1].y);
+        }
+        // complete the ellipse
+        g.drawLine(p[nbIt-1].x,p[nbIt-1].y,p[0].x,p[0].y);
+    }
 
     /** Positionne un tooltip sur un JComponent en vérifiant au préalable
      * qu'il n'aurait pas été déjà positionné */
@@ -744,7 +1018,7 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
        if( aladinInst!=null ) {
           f.getRootPane().registerKeyboardAction(new ActionListener() {
              public void actionPerformed(ActionEvent e) {
-                if( aladinInst.command.robotMode ) {
+                if( aladinInst.getCommand().robotMode ) {
                    aladinInst.stopRobot(f);
                    return;
             	}
@@ -881,23 +1155,26 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
        if( n==0 ) return;
        s.delete(0,n);
     }
-    
-    /** Concéténation de paths. Remplace les \ éventuelles par /
-     * et insère le séparateur / uniquement si c'est nécessaire. 
+
+    /** Concaténation de paths.
+     * et insère le séparateur / uniquement si c'est nécessaire.
+     * Remplace les \ éventuelles par / (et réciproquement)
      */
-    static public String concatDir(String path1,String path2) {
+    static public String concatDir(String path1,String path2) { return concatDir(path1,path2,FS.charAt(0)); }
+    static public String concatDir(String path1,String path2,char FS) {
        StringBuffer s = new StringBuffer(100);
        char c=0;
-       
+       char FSS = FS=='/' ? '\\' : '/';
+
        for( int i=0; i<2; i++ ) {
-          if( c!='/' && s.length()>0 ) s.append('/');
+          if( c!=FS && s.length()>0 ) s.append(FS);
           String path = i==0 ? path1 : path2;
           if( path==null ) path="";
           else path = path.trim();
           int n = path.length();
           for( int  j=0; j<n; j++ ) {
              c = path.charAt(j);
-             if( c=='\\' ) c='/';
+             if( c==FSS ) c=FS;
              s.append(c);
           }
        }
@@ -928,7 +1205,7 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
        }
        return new String(a);
     }
-    
+
     /** Retourne un bouton avec une icone en forme de point d'interrogation */
     static public JButton getHelpButton(final Component f, final String help) {
        JButton h = new JButton(new ImageIcon(Aladin.aladin.getImagette("Help.gif")));
@@ -942,14 +1219,14 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
        }
        return h;
     }
-    
+
     /** Teste simplement si l'url existe et répond */
-    public static boolean isUrlResponding(String url) { 
+    public static boolean isUrlResponding(String url) {
        try { return isUrlResponding(new URL(url)); }
-      catch( MalformedURLException e ) {} 
-      return false; 
+      catch( MalformedURLException e ) {}
+      return false;
     }
-    
+
     /** Teste simplement si l'url existe et répond */
     public static boolean isUrlResponding(URL url) {
        try {
@@ -957,13 +1234,12 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
           conn.setRequestMethod("HEAD");
           int code = conn.getResponseCode();
 //          System.out.println(url+" => ["+code+"]");
-          if( code/100 == 4 ) return false;
-       } catch( Exception e ) {
+//          if( code/100 == 4 ) return false;
+          return code/100 == 2;
+       } catch( Exception e ) { }
           return false;
        }
-      return true;
-    }
-    
+
     /** Retourne true s'il s'agit dun fichier JPEG couleur */
     static public boolean isJPEGColored(String file) throws Exception {
        RandomAccessFile f = new RandomAccessFile(file,"r");
@@ -989,22 +1265,26 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
        int width =img.getWidth(obs);
        int height=img.getHeight(obs);
        if( width==-1 ) { throw new Exception("width = -1"); }
-       
+
        BufferedImage imgBuf = new BufferedImage(width,height,BufferedImage.TYPE_INT_ARGB);
        Graphics g = imgBuf.getGraphics();
        g.drawImage(img,0,0,obs);
        g.finalize(); g=null;
 
        int taille=width*height;
-       int rgb[] = new int[taille];
-       imgBuf.getRGB(0, 0, width, height, rgb, 0, width);
-       imgBuf.flush(); imgBuf=null;
-       for( int i=0;i<width*height; i++ ) {
-          int p = rgb[i];
-          if( ((p >> 16) & 0xFF) != ((p >> 8) & 0xFF) 
-           || ((p >> 8) & 0xFF) != (p & 0xFF) ) return true;
-       }
+       int [] rgb = ((DataBufferInt)imgBuf.getRaster().getDataBuffer()).getData();
 
+//       int rgb[] = new int[taille];
+//       imgBuf.getRGB(0, 0, width, height, rgb, 0, width);
+
+       imgBuf.flush(); imgBuf=null;
+       for( int i=0;i<taille; i++ ) {
+          int p = rgb[i];
+          int red = ((p >>> 16) & 0xFF);
+          int green = ((p >>> 8) & 0xFF);
+          int blue = (p & 0xFF);
+          if( red!=green || green!=blue ) return true;
+       }
        return false;
     }
 
@@ -1049,7 +1329,7 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
 		// et supprime le repertoire maintenant qu'il est vide
 		return dir.delete();
 	}
-	
+
 
 	/**
 	 * Suppression récursive des fichiers selon une expression régulière
@@ -1072,7 +1352,7 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
 	}
 
 	/**
-	 * touch d'unfichier
+	 * touch d'un fichier
 	 * @param file
 	 * @param createIfNeeded doit-on créer le fichier s'il n'existe pas
 	 * @return true on success, false on failure
@@ -1097,12 +1377,41 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
 	/** Création si nécessaire des répertoires et sous-répertoire du fichier
 	 * passé en paramètre
 	 */
-	public static void createPath(String filename) {
-		for( int pos=filename.indexOf(FS,3); pos>=0; pos=filename.indexOf(FS,pos+1)) {
-			File f = new File( filename.substring(0,pos) );
-			if( !f.exists() ) f.mkdir();
-		}
+	public static void createPath(String filename) throws Exception {
+	   File f = new File(new File(filename).getParent());
+	   f.mkdirs();
+	   if( !f.exists() ) throw new Exception("Cannot create directory for "+filename);
+	   
+//	   File f;
+//	   String FS = filename.indexOf('/')>=0 ? "/" : "\\";
+//
+//	   // Pour accélerer, on teste d'abord l'existence éventuelle du dernier répertoire
+//	   int i = filename.lastIndexOf(FS);
+//	   if( i<0 ) return;
+//	   f = new File( filename.substring(0,i) ) ;
+//	   if( f.exists() ) return;
+//
+//	   for( int pos=filename.indexOf(FS,3); pos>=0; pos=filename.indexOf(FS,pos+1)) {
+//	      f = new File( filename.substring(0,pos) );
+//	      if( !f.exists() ) f.mkdir();
+//	   }
 	}
+
+	/** Permet le choix d'un répertoire */
+	static public String dirBrowser(Component c,String currentDirectoryPath) {
+	   JFileChooser fd = new JFileChooser(currentDirectoryPath);
+	   fd.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+	   fd.setAcceptAllFileFilterUsed(false);
+	   if (fd.showOpenDialog(c) == JFileChooser.APPROVE_OPTION) {
+	      try {
+	         return Util.concatDir(fd.getCurrentDirectory().getAbsolutePath(),fd.getSelectedFile().getName());
+	      } catch( Exception e ) {
+	         e.printStackTrace();
+	      }
+	   }
+	   return null;
+	}
+
 
 	static private String HEX = "0123456789ABCDEF";
 
@@ -1195,12 +1504,13 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
     }
     
     /** retourne un temps en milliseconde sous une forme lisible 3j 5h 10mn 3.101s */
-    static public String getTemps(long ms) {
+    static public String getTemps(long ms) { return getTemps(ms,false);  }
+    static public String getTemps(long ms,boolean round) {
        StringBuffer s = new StringBuffer();
        if( ms>86400000 ) { long j = ms/86400000; ms -= j*86400000; s.append(j+"j"); }
        if( ms>3600000 ) { long h = ms/3600000; ms -= h*3600000; if( s.length()>0 ) s.append(' '); s.append(h+"h"); }
        if( ms>60000 ) { long m = ms/60000; ms -= m*60000; if( s.length()>0 ) s.append(' '); s.append(m+"m"); }
-       if( s.length()>0 ) s.append(' '); s.append(ms/1000.+"s");
+       if( s.length()>0 ) s.append(' '); s.append( (round ? ""+ms/1000 : ""+ms/1000.)+"s");
        return s.toString();
     }
 
@@ -1230,6 +1540,28 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
        // DES QU'ON NE SUPPORTERA PLUS JAV 1.4
 //       return System.nanoTime()/1000000;
     }
+    
+    /** Retourne la lettre code d'un champ TFORM FITS nD */
+    static final public char getFitsType(String form) {
+       int l=form.indexOf('(');
+       if( l==-1 ) l=form.length();
+       return form.charAt(l-1);
+    }
+    
+    /** retourne la taille du champs FITS exprimé sous la forme nD(xxx) ou nPD(xxx) */
+    static final public int binSizeOf(String form) throws Exception {
+       try {
+         int l=form.indexOf('(');
+          if( l==-1 ) l=form.length();
+          if( l==1 ) return binSizeOf(form.charAt(0),1);
+          if( l>1 && form.charAt(l-2)=='P' ) return 8;
+          int n = Integer.parseInt( form.substring(0,l-1) );
+          return binSizeOf(form.charAt(l-1),n);
+      } catch( Exception e ) {
+         System.err.println("Pb pour "+form);
+         throw e;
+      }
+    }
 
     /** Retourne le nombre d'octets d'un champ BINTABLE
      * @param n le nombre d'items
@@ -1245,40 +1577,42 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
           type=='A'? 1:
           type=='E'? 4:
           type=='D'? 8:
+          type=='K'? 8:
           type=='C'? 8:
           type=='M'? 16:
           type=='P'? 8:
           0;
        return sizeOf * n;
     }
-
+    
+//    HashMap<String, String> getNextJsonObj(MyInputStream in) {
+//       while( encore ) {
+//          char ch = in.g
+//          switch
+//       }
+//    }
+    
     /**
      * Affiche le chiffre donné avec une unité de volume disque (K M T)
      * @param val taille en octets
      * @return le volume disque dans une unite coherente + l'unite utilisee
      */
+    static final public String unites[] = {"","KB","MB","GB","TB","PB","EB","ZB"};
     static final public String getUnitDisk(double val) {
     	return getUnitDisk(val, 2);
     }
     static final public String getUnitDisk(double val, int format) {
     	int unit = 0;
-    	String unites[] = {"","K","M","G","T"};
     	while (val >= 1024 && unit<unites.length-1) {
     		unit++;
-    		val /= 1024.0;
+    		val /= 1024L;
     	}
-//    	String str =String.valueOf(val);
     	NumberFormat nf = NumberFormat.getInstance();
     	nf.setMaximumFractionDigits(format);
     	return nf.format(val)+unites[unit];
     }
+    
 	public static ArrayList<File> getFiles(String path, final String suffix) {
-//		FilenameFilter filter = new FilenameFilter() {
-//			public boolean accept(File dir, String name) {
-//				name.endsWith(suffix);
-//				return false;
-//			}
-//		};
 		ArrayList<File> flist = new ArrayList<File>();
 		File[] files = (new File(path)).listFiles();
 		for (File file : files) {
@@ -1286,11 +1620,125 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
 				flist.addAll(getFiles(file.getAbsolutePath(), suffix));
 			else if (file.getName().endsWith(suffix))
 				flist.add(file);
-				
+
 		}
 		return flist;
 	}
 
+	public static boolean find(String path, String suffix) {
+		File[] files = (new File(path)).listFiles();
+		for (File file : files) {
+			if (file.isDirectory())
+				return find(file.getAbsolutePath(), suffix);
+			else if (file.getName().endsWith(suffix))
+				return true;
+
+		}
+		return false;
+	}
+
+    public static void httpsInit() {
+        HostnameVerifier hv = new HostnameVerifier() {
+            public boolean verify(String urlHostName, SSLSession session) {
+                System.out.println("Warning: URL Host: " + urlHostName
+                        + " vs. " + session.getPeerHost());
+                return true;
+            }
+        };
+
+        HttpsURLConnection.setDefaultHostnameVerifier(hv);
+
+        TrustManager[] trustAllCerts = new TrustManager[] {
+                new X509TrustManager() {
+
+                    public void checkClientTrusted(X509Certificate[] chain,
+                            String authType) throws CertificateException {
+                        // pas de vérification
+                    }
+
+                    public void checkServerTrusted(X509Certificate[] chain,
+                            String authType) throws CertificateException {
+                        // on autorise tous les serveurs
+
+                    }
+
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return null;
+                    }
+                }
+        };
+
+        try {
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, null);
+            HttpsURLConnection
+                    .setDefaultSSLSocketFactory(sc.getSocketFactory());
+        } catch (NoSuchAlgorithmException nsae) {
+            nsae.printStackTrace();
+        } catch (KeyManagementException kme) {
+            kme.printStackTrace();
+        }
+    }
+
+
+   /**
+    * @param x angle in degrees
+    * @return Tan()
+    */
+   public static final double tand(double x) { return Math.tan( x*(Math.PI/180.0) ); }
+
+  /** Cos() in degres */
+   public static final double cosd(double x) { return Math.cos( x*(Math.PI/180.0) ); }
+
+
+   /**
+    * build a VOTable document from a list of Forme
+    * @param formes list of Forme
+    * @return VOTable document with 2 columns: ra, dec corresponding to the positions of the objects
+    */
+   public static String createVOTable(List<Forme> formes) {
+       StringBuffer sb = new StringBuffer()
+           .append("<?xml version=\"1.0\"?>\n")
+           .append("<VOTABLE version=\"1.2\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n")
+           .append("xmlns=\"http://www.ivoa.net/xml/VOTable/v1.2\"\n")
+           .append("xmlns:stc=\"http://www.ivoa.net/xml/STC/v1.30\" >\n")
+           .append("<RESOURCE>\n")
+           .append("<TABLE>\n")
+           .append("<GROUP ID=\"J2000\" utype=\"stc:AstroCoords\">\n")
+           .append("  <PARAM datatype=\"char\" arraysize=\"*\" ucd=\"pos.frame\" name=\"cooframe\"\n")
+           .append("    utype=\"stc:AstroCoords.coord_system_id\" value=\"ICRS\" />\n")
+           .append("  <FIELDref ref=\"ra\"/>\n")
+           .append("  <FIELDref ref=\"dec\"/>\n")
+           .append("</GROUP>\n")
+           .append("<FIELD name=\"RA\" ID=\"ra\" ucd=\"pos.eq.ra;meta.main\" ref=\"J2000\"\n")
+           .append("  utype=\"stc:AstroCoords.Position2D.Value2.C1\"\n")
+           .append("  datatype=\"double\" unit=\"deg\" />\n")
+           .append("<FIELD name=\"Dec\" ID=\"dec\" ucd=\"pos.eq.dec;meta.main\" ref=\"J2000\"\n")
+           .append("  utype=\"stc:AstroCoords.Position2D.Value2.C2\"\n")
+           .append("  datatype=\"double\" unit=\"deg\" />\n")
+           .append("<DATA><TABLEDATA>\n");
+
+       for (Forme forme: formes) {
+           sb.append(String.format((Locale)null, "<TR><TD>%.5f</TD><TD>%.5f</TD></TR>\n", forme.o[0].raj, forme.o[0].dej));
+       }
+
+       sb.append("</TABLEDATA></DATA>\n")
+           .append("</TABLE>\n")
+           .append("</RESOURCE>\n")
+           .append("</VOTABLE>");
+
+       return sb.toString();
+
+   }
+
+   static public String extractJSON(String key,String s) {
+      String k="\""+key+"\"";
+      int o1 = s.indexOf(key);
+      if( o1<0 ) return null;
+      int o2 = s.indexOf('"',o1+k.length()+1);
+      if( o2<0 ) return null;
+      return Tok.unQuote( (new Tok(s.substring(o2),"},")).nextToken() );
+   }
 
 // PAS ENCORE TESTE
 //    /** Extrait le premier nombre entier qui se trouve dans la chaine à partir

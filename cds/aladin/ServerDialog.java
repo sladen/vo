@@ -20,34 +20,16 @@
 
 package cds.aladin;
 
-import java.awt.AWTEvent;
-import java.awt.BorderLayout;
-import java.awt.CardLayout;
-import java.awt.Color;
-import java.awt.Event;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Label;
-import java.awt.Point;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.WindowEvent;
-import java.net.*;
-import java.io.*;
-import java.util.*;
+import java.awt.*;
+import java.awt.dnd.*;
+import java.awt.event.*;
+import java.io.DataInputStream;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Enumeration;
+import java.util.Vector;
 
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JComponent;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JToggleButton;
-import javax.swing.KeyStroke;
+import javax.swing.*;
 
 import cds.tools.Util;
 
@@ -63,7 +45,8 @@ import cds.tools.Util;
  * @version 0.9 : (??) creation
  */
 public final class ServerDialog extends JFrame
-             implements WidgetFinder, Runnable, ActionListener {
+             implements WidgetFinder, Runnable, ActionListener,
+                        DropTargetListener, DragSourceListener, DragGestureListener {
 	static final int MAXSERVER = 10;
 
 	// Les indices des serveurs
@@ -105,7 +88,7 @@ public final class ServerDialog extends JFrame
 
 	// pour robot
 	Server curServer, localServer, vizierServer,vizierArchives,vizierSurveys,
-           vizierBestof,discoveryServer, aladinServer, fovServer;
+           vizierBestof,discoveryServer, aladinServer, fovServer, almaFovServer;
 	JButton submit;
 
 	// Les references aux autres objets
@@ -159,7 +142,7 @@ public final class ServerDialog extends JFrame
     * @param type Server.IMAGE, Server.CATALOG, Server.OTHERS suivant que l'on traite les
     *           serveurs Images, Donnees, ou applications distantes
     */
-   private void addGluServer(Vector sv, int type) {
+   private void addGluServer(Vector<Server> sv, int type) {
 //      Enumeration e = Glu.vGluServer.elements();
       Server sTmp;
       int i;
@@ -173,13 +156,13 @@ public final class ServerDialog extends JFrame
 //         sTmp.aladin = aladin;
 
          sv.addElement(sTmp);
-         
+
          // Niveau bouton
          if( sTmp.aladinMenu != null && !sTmp.isHidden() ) {
 
             // Est-ce que ce Popup existe deja
             for( i = sv.size() - 1; i >= 0; i-- ) {
-               Server s = (Server) sv.elementAt(i);
+               Server s = sv.elementAt(i);
                if( s.aladinLabel.equals(sTmp.aladinMenu) && s instanceof ServerFolder ) break;
             }
 
@@ -287,7 +270,6 @@ public final class ServerDialog extends JFrame
       TIPCLEAR = aladin.chaine.getString("TIPCLEAR");
       TIPSUBMIT = aladin.chaine.getString("TIPSUBMIT");
       TIPCLOSE = aladin.chaine.getString("TIPCLOSE");
-
    }
 
 
@@ -302,7 +284,7 @@ long t1,t;
       Aladin.setIcon(this);
 
       int i;
-      Vector sv = new Vector(100); // Temporaire pour la creation de serveur[]
+      Vector<Server> sv = new Vector<Server>(100); // Temporaire pour la creation de serveur[]
       JPanel actions = new JPanel();
       createChaine();
       setTitle(TITLE);
@@ -348,7 +330,10 @@ long t1,t;
                   ((ServerVizieR) svizier).vArchives));
             sv.addElement(new ServerSimbad(aladin));
             sv.addElement(new ServerNED(aladin));
-            if( Aladin.PROTO ) sv.addElement(new ServerSWarp(aladin));
+            if( Aladin.PROTO ) {
+                sv.addElement(new ServerSWarp(aladin));
+                sv.addElement(new ServerMocQuery(aladin));
+            }
          } else {
             sv.addElement(new ServerSimbad(aladin));
 //            sv.addElement(vizierBestof = new BestofServer(aladin,
@@ -368,11 +353,11 @@ long t1,t;
       // liste
       if( !Aladin.OUTREACH ) sv = triServer(sv);
 
-      // L'acces local/url
-      sv.addElement(localServer = new ServerFile(aladin));
-      
       // L'arbre des allsky
       sv.addElement(new ServerAllsky(aladin));
+
+      // L'acces local/url
+      sv.addElement(localServer = new ServerFile(aladin));
 
       // Juste pour savoir s'il y a un discoveryServer
       discoveryServer = null;
@@ -383,19 +368,29 @@ long t1,t;
          sv.addElement(discoveryServer);
       }
 
+      // L'arbre des catégories
+      sv.addElement(new ServerCategory(aladin));
+
       // Les serveurs Spectra via GLU
       if( !Aladin.OUTREACH && Aladin.NETWORK ) addGluServer(sv, Server.SPECTRUM);
 
       // Les FoV
-      if( !Aladin.OUTREACH ) sv.addElement(fovServer = new ServerFoV(aladin));
+      if( !Aladin.OUTREACH ) {
+         sv.addElement(fovServer = new ServerFoV(aladin));
+         int n = sv.size();
+         ServerFolder fovFolder = new ServerFolder(aladin, fovServer.aladinMenu, n, ServerFolder.TOP );
+         sv.addElement( fovFolder );
+         fovFolder.addItem(fovServer.aladinLabel);
+
+         sv.addElement(almaFovServer = new ServerAlmaFootprint(aladin));
+         fovFolder.addItem(almaFovServer.aladinLabel);
+
+      }
 
       // Les serveurs d'application via GLU
       if( !Aladin.OUTREACH && Aladin.NETWORK )
          addGluServer(sv, Server.APPLI | Server.APPLIIMG);
 
-      // L'arbre des catégories
-      sv.addElement(new ServerCategory(aladin));
-      
       // Serveurs obtenus via PLASTIC
 //      if( !Aladin.OUTREACH && Aladin.PROTO && Aladin.PLASTIC_SUPPORT ) {
 //         sv.addElement(voResPopup = new ServerFolder(aladin, VO_RESOURCES_BY_PLASTIC, sv.size()-1, ServerFolder.TOP));
@@ -461,7 +456,7 @@ long t1,t;
 
       for( i = 0; i < server.length; i++ ) {
          gcimg.insets.top=0;
-         server[i] = (Server) sv.elementAt(i);
+         server[i] = sv.elementAt(i);
 
          // Certains serveurs n'auront pas leur propre bouton et formulaire
          if( server[i].isHidden() ) {
@@ -616,11 +611,32 @@ long t1,t;
       Aladin.makeAdd(ct, milieu, "Center");
       Aladin.makeAdd(ct, bas, "South");
 
+      aladin.manageDrop();
+
+//      setCurrent("Allsky");
+
       // INUTILE, C'EST MAINTENANT ASSEZ RAPIDE !
 //      Thread th = new Thread(this,"AladinServerPack");
 //      th.start();
       run();
    }
+
+   public void dragGestureRecognized(DragGestureEvent dragGestureEvent) { }
+   public void dragEnter(DropTargetDragEvent dropTargetDragEvent) {
+      dropTargetDragEvent.acceptDrag (DnDConstants.ACTION_COPY_OR_MOVE);
+   }
+   public void dragExit (DropTargetEvent dropTargetEvent) {}
+   public void dragOver (DropTargetDragEvent dropTargetDragEvent) {}
+   public void dropActionChanged (DropTargetDragEvent dropTargetDragEvent){}
+   public void dragDropEnd(DragSourceDropEvent DragSourceDropEvent){}
+   public void dragEnter(DragSourceDragEvent DragSourceDragEvent){}
+   public void dragExit(DragSourceEvent DragSourceEvent){}
+   public void dragOver(DragSourceDragEvent DragSourceDragEvent){}
+   public void dropActionChanged(DragSourceDragEvent DragSourceDragEvent){}
+   public synchronized void drop(DropTargetDropEvent dropTargetDropEvent) {
+      aladin.drop(dropTargetDropEvent);
+   }
+
 
    // Juste pour gagner qq secondes
    public void run() {
@@ -650,7 +666,7 @@ long t1,t;
       URL url = null;
 
       try {
-         
+
          url = aladin.glu.getURL("IVOAdic");
 //         String s = Aladin.STANDALONE ? "http://aladin.u-strasbg.fr/java"
 //               : Aladin.CGIPATH;
@@ -661,7 +677,7 @@ long t1,t;
          dis = new DataInputStream(aladin.cache.getWithBackup(url.toString()));
 
          aladin.glu.vGluServer = new Vector(50);
-         aladin.glu.loadGluDic(dis,true);
+         aladin.glu.loadGluDic(dis,true,false);
 
          int n = aladin.glu.vGluServer.size();
          if( n == 0 ) {
@@ -698,7 +714,7 @@ long t1,t;
 
 	    	 DataInputStream dis = new DataInputStream(is);
 	         aladin.glu.vGluServer = new Vector(50);
-	         aladin.glu.loadGluDic(dis,true);
+	         aladin.glu.loadGluDic(dis,true,false);
 
 	         int n = aladin.glu.vGluServer.size();
 	         if( n == 0 ) return;
@@ -867,6 +883,11 @@ long t1,t;
             Coord.getDist(c1, c2)), true);
    }
 
+   /** Ajuste les champs de saisie en fonction du repere courant et de la taille du champ */
+   protected void adjustParameters() {
+      setDefaultParameters(current,3);
+   }
+
    /**
     * Mise en place du target/radius/epoch par defaut. Le choix se fait en fonction de
     * la derniere saisie et du plan de reference courant
@@ -923,9 +944,12 @@ long t1,t;
             }
          }
 
+         if( mode==3 ) taille = v.getTaille(2);
+
          // Récupération de la position du repère
-         if( mode == 2 || mode == 3 || mode == 5 || v.pref instanceof PlanBG )  radec = Coord.getSexa(
-                  aladin.view.repere.raj, aladin.view.repere.dej, ":");
+         if( mode == 2 || mode == 3 || mode == 5 || v.pref instanceof PlanBG )  {
+            radec = Coord.getSexa(aladin.view.repere.raj, aladin.view.repere.dej, ":");
+         }
 
          // Recuperation de l'objet central et des coord du plan de ref
          else radec = v.getCentre();
@@ -1000,7 +1024,7 @@ long t1,t;
 
       // Vérifie que le pack() est terminé
       if( !packed() ) { return; }
-      
+
       if( current>=0 ) server[current].resumeTargetLabel();
 
       if( !flagSetPos ) {
@@ -1017,7 +1041,7 @@ long t1,t;
       } catch( Exception e ) {
          e.printStackTrace();
       }
-      
+
    }
 
    /**
@@ -1052,7 +1076,7 @@ long t1,t;
    }
 
    /** Montre le formulaire du server passé en paramètre */
-   protected boolean show(String nom) {
+   public boolean show(String nom) {
       int i = findIndiceServer(nom);
       if( i<0 ) return false;
       setCurrent(i);
@@ -1234,14 +1258,10 @@ long t1,t;
       }
    }
 
-//   public void paint(Graphics g) {
-//      System.out.println("Paint");
-//      super.paint(g);
-//   }
-
    // Gestion des evenement
    public boolean action(Event evt, Object what) {
       if( !(what instanceof String) ) return false;
+
 
       // Changement du formulaire
       server[current].memTarget(); // Memorisation du precedent target

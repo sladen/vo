@@ -21,11 +21,14 @@
 package cds.aladin;
 
 import java.text.ParseException;
-import java.util.*;
+import java.util.Enumeration;
+import java.util.StringTokenizer;
+import java.util.Vector;
 
-import cds.tools.Util;
-import cds.tools.parser.*;
 import cds.astro.Unit;
+import cds.tools.Util;
+import cds.tools.parser.Parser;
+import cds.tools.parser.ParserException;
 
 /**
  * Gestion des filtres avec contraintes sur les UCD
@@ -63,7 +66,7 @@ public class UCDFilter {
 	private String curOperator = null; // equals to the current operator
 
 	// vector of ConstraintsBlock for the filter
-	private Vector constraintsBlocks;
+	private Vector<ConstraintsBlock> constraintsBlocks;
 
 	// work variable
 	private ConstraintsBlock block;
@@ -1003,100 +1006,28 @@ public class UCDFilter {
 		return getFilteredSources(sources, false);
 	}
 
-	// ANCIEN ALGO
-	 /*
-	protected Source[] getFilteredSources(Source[] sources) {
-		//protected void getFilteredSources(Source[] sources) {
-		long start = System.currentTimeMillis();
-		Vector filteredSources = new Vector();
-
-		ConstraintsBlock curBlock = null;
-		Vector remainingSources = new Vector();
-
-		int nbSources = sources.length; // nb de sources total
-		int processedSources=0; // nb de sources traitées
-
-		nbConvertProblem = 0;
-
-		Enumeration eBlocks = constraintsBlocks.elements();
-
-		// loop on all blocks
-		while (eBlocks.hasMoreElements()) {
-			curBlock = (ConstraintsBlock) eBlocks.nextElement();
-			remainingSources.removeAllElements();
-
-			for (int i = sources.length - 1; i >= 0; i--) {
-				// Pour laisser la main aux autres threads
-				if ( i % 50 == 0 ) {
-					// màj du pourcentage
-					pf.pourcent = 100.0*((double)processedSources/(double)nbSources);
-					//System.out.println(pf.pourcent);
-					if( Aladin.isSlow ) {
-						try {
-							Thread.currentThread().sleep(10);
-						} catch (Exception e) {}
-					}
-				}
-				if (verifyValueConstraints(sources[i], curBlock)) {
-					filteredSources.addElement(sources[i]);
-					processedSources++;
-
-					sources[i].isSelected[numero] = true;
-					sources[i].actions[numero] = curBlock.actions;
-
-					// initialisation of values array for each source
-					sources[i].values[numero] =
-						new double[sources[i].actions[numero].length][3];
-					for (int j = 0;
-						j < sources[i].actions[numero].length;
-						j++) {
-
-						sources[i].actions[numero][j].computeValues(
-							sources[i],
-							numero,
-							j);
-					}
-				} else if (convertProblem) {
-					//System.out.println("Problem");
-					nbConvertProblem++;
-					processedSources++;
-				} else {
-					remainingSources.addElement(sources[i]);
-				}
-			} // fin de la boucle for
-
-			// copy the remaining sources into sources
-			if (remainingSources.size() > 0) {
-				sources = new Source[remainingSources.size()];
-				remainingSources.copyInto(sources);
-			} else
-				break;
-		} // fin du while
-
-		// for the remaining sources, we set action to null
-		if (remainingSources.size() > 0) {
-			for (int i = sources.length - 1; i >= 0; i--)
-				sources[i].actions[numero] = null;
-		}
-
-		Source[] sourceArray = new Source[filteredSources.size()];
-		filteredSources.copyInto(sourceArray);
-		//System.out.println("nb selected sources: "+sourceArray.length);
-
-		if (nbConvertProblem > 0)
-			Aladin.warning(
-				"Warning : there were conversion problems for "
-					+ nbConvertProblem
-					+ " sources",
-				1);
-		long end = System.currentTimeMillis();
-		System.out.println("TEMPS TOTAL : "+(end-start));
-		return sourceArray;
+	protected boolean hasRainbowFunction() {
+	    return this.definition.toLowerCase().indexOf("rainbow")>=0;
 	}
-	*/
+
+	protected double[] getRainbowMinMax() {
+	    for (ConstraintsBlock constraint: constraintsBlocks) {
+	        if (constraint.actions==null) {
+	            continue;
+	        }
+	        for (Action action: constraint.actions) {
+	            if (action.rainbowMinValue!=action.rainbowMaxValue) {
+	                return new double[] {action.rainbowMinValue, action.rainbowMaxValue};
+	            }
+	        }
+	    }
+	    return new double[] {0.0, 0.0};
+	}
+
+
 
     protected boolean verifyValueConstraints(Source s, int indexBlock) {
-        return verifyValueConstraints(s, (ConstraintsBlock)constraintsBlocks.elementAt(indexBlock));
+        return verifyValueConstraints(s, constraintsBlocks.elementAt(indexBlock));
     }
 
 	/** check whether s verifies the value constraints

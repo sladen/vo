@@ -20,6 +20,10 @@
 package cds.aladin;
 
 import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Enumeration;
@@ -65,22 +69,29 @@ public class Plan implements Runnable {
    static final int ALLSKYIMG=16;  // Le plan contient les infos pour un background
    static final int ALLSKYPOL=17; // Le plan contient des segments de polarisation
    static final int ALLSKYCAT=18; // Le plan contient des segments de polarisation
+   static final int ALLSKYMOC=19; // Le plan contient un Multi-Order Coverage map Healpix
+   static final int IMAGECUBERGB =20;  // Le plan contient un cube d'images homogènes couleurs
+   static final int ALLSKYFINDEX=21; // Plan Allsky Finder (de fait pas un vrai plan => voir PlanBG)
 
    static String [] Tp       = { "","Image","RGB","Blink","Cube","Resampled","Mosaic","Algo",
                                     "Catalog",
                                     "Tool","Aperture","Folder","Filter",
-                                    "Image FoV","In progress","ImageHuge","AllskyImage","AllskyPolarisation","AllskyCatalog"
+                                    "Image FoV","In progress","ImageHuge",
+                                    "AllskyImage","AllskyPolarisation","AllskyCatalog",
+                                    "MOC","CubeColor","AllskyFinder"
                                     };
 
    protected int type;           // Type de plan: NO, IMAGE, CATALOG, TOOL, APERTURE,...
    protected int folder;	     // niveau du folder, 0 si aucun
    protected Slide slide=null;   // Slide pour la pile
    protected boolean isOldPlan;  // True s'il s'agit d'un plan réutilisé (algo) (voir Plan.planReady());
+   protected boolean noBestPlacePost; // true s'il ne faut pas passer le plan à la méthode bestPlacePost() après son chargement
    protected boolean collapse;	 // true si le plan est collapse dans la pile
    protected String objet;       // Target du plan (celui qui a ete indique a l'interrogation)
    protected String label;       // Label du plan; (celui qui apparait dans le "plane stack"
    protected String param;       // Les parametres d'interrogation du serveur
    protected String info=null;   // De l'information sur le plan
+   protected double coRadius;      // le rayon du champ de vue demandée (J2000 deg) => voir allsky
    protected Coord co;           // Les coordonnees J2000 du target de l'interrogation
                                  // ou null si non encore calcule
 //   protected Thread	sr;	         // Thread pour la resolution Simbad */
@@ -95,6 +106,7 @@ public class Plan implements Runnable {
    protected Server server;      // Le serveur d'origine
    protected float opacityLevel = 1.0f; // TB, 26/09/2007 : niveau de transparence pour superposition  (ou FoV) sur image
    protected Color colorBackground = null; // Couleur du fond (null si automatique ou Color.white, Color.black)
+   protected String startingTaskId = null; // ID de la tache de démarrage du plan (voir aladin.synchroPlan)
 
    // thomas
    /** pour les filtres */
@@ -127,7 +139,7 @@ public class Plan implements Runnable {
    protected boolean hasXYorig;   // true si dans le cas d'un plan objet on bloque les xy
    protected boolean recalibrating; // true si on est en train de recalibrer le plan (catalogue)
    protected boolean isSelectable=true; // false si le plan n'a pas d'objets sélectionnable
-
+   protected boolean doClose=true; // si false, ne pas fermer le flux une fois le plan créé
 
    protected double initZoom=1;	// Facteur de zoom par défaut
 
@@ -148,7 +160,7 @@ public class Plan implements Runnable {
    Pcat pcat;                  // Les objets du plan si CATALOG ou TOOL ou FIELD
    int sourceType=Obj.SQUARE;  // Le type de source dans le cas d'un plan CATALOG ou PlanBGCAT
    MyInputStream dis=null;     // Le flux de donnees
-   int streamType=0;           // le type de stream trouvé par MyInputStream
+//   int streamType=0;           // le type de stream trouvé par MyInputStream
 
    // Les variables et objets de travail
    Thread runme;               // Pour charger les images et les plans en asynchrone
@@ -207,12 +219,20 @@ public class Plan implements Runnable {
       p.active=active;
       p.ref=ref;
    }
-
+   
+   // Il s'agit d'un plan qui s'applique en overlay d'une image */
+   protected boolean isOverlay() {
+      return isCatalog() || isPlanBGOverlay() || this instanceof PlanTool 
+      || this instanceof PlanField || this instanceof PlanFov || this instanceof PlanFilter;
+   }
+   
+   /** Retourne true s'il s'agit d'un plan avec pixel */
+   protected boolean isPixel() { return isImage() || type==ALLSKYIMG; }
 
    /** Retourne true s'il s'agit d'un plan image */
    final protected boolean isImage() { return type==IMAGE || type==IMAGERGB || type==IMAGEHUGE
       || type==IMAGEBLINK || type==IMAGECUBE || type==IMAGERSP
-      || type==IMAGEALGO || type==IMAGEMOSAIC ; }
+      || type==IMAGEALGO || type==IMAGEMOSAIC || type==IMAGECUBERGB; }
 
    /** Retourne true s'il s'agit d'un plan image "simple" */
    final protected boolean isSimpleImage() { return type==IMAGE || type==IMAGERSP || type==IMAGEALGO
@@ -220,9 +240,10 @@ public class Plan implements Runnable {
       ; }
 
    /** Retourne true s'il s'agit d'un plan qui a des pixels */
-   final protected boolean hasAvailablePixels() {
-      return isImage() ||  type==IMAGEBLINK || type==IMAGECUBE
-      || this instanceof PlanBG && type==Plan.ALLSKYIMG && ((PlanBG)this).truePixels;
+   final public boolean hasAvailablePixels() {
+//      return isImage() ||  type==IMAGEBLINK || type==IMAGECUBE
+      return isSimpleImage() ||  type==IMAGEBLINK || type==IMAGECUBE
+      || this instanceof PlanBG && type==Plan.ALLSKYIMG && ((PlanBG)this).hasOriginalPixels();
    }
 
    /** Retourne true s'il s'agit d'un plan qui n'a pas de réduction astrométrique */
@@ -234,7 +255,7 @@ public class Plan implements Runnable {
    /** Retourne true s'il s'agit d'un plan en erreur
     * => càd avec un message d'erreur avec l'exception du message d'absence de réduction
     * astrométrique */
-   protected boolean hasError() {
+   public boolean hasError() {
       if( !flagOk ) return false;   // pas encore prêt
       if( hasNoReduction() && error!=null ) return false;  // Exception
       return error!=null;
@@ -296,6 +317,11 @@ public class Plan implements Runnable {
    /** Il s'agit d'un plan de type catalogue */
    protected boolean isCatalog() {
       return type==CATALOG || type==TOOL && ((PlanTool)this).legPhot!=null || type==ALLSKYCAT;
+   }
+
+   /** Il s'agit d'un plan de type Tools */
+   protected boolean isTool() {
+      return type==TOOL || type==ALLSKYMOC || type==APERTURE || type==Plan.FOV;
    }
 
    /** Il s'agit d'un plan catalogue non progressif */
@@ -360,12 +386,13 @@ public class Plan implements Runnable {
 
       Vector<Obj> res = new Vector<Obj>(5000);
 
-      Iterator<Obj> it = iterator();
+      Iterator<Obj> it = iterator(v);
       while( it!=null && it.hasNext() ) {
          Obj o = it.next();
          if( !(o instanceof Position) ) continue;
          Position p = (Position)o;
-         if (/* p.plan instanceof PlanContour || */ p.plan.type==Plan.FOV || p instanceof Forme) continue;
+         if( p.plan.type==Plan.FOV || p instanceof Forme) continue;
+         
          // on ne sélectionne que les sources "filtrées"
          if( p.inRectangle(v,r) &&
                 ( !( p instanceof Source) || ((Source)p).noFilterInfluence() || ((Source)p).isSelectedInFilter() ) ) {
@@ -395,17 +422,18 @@ public class Plan implements Runnable {
 
        Vector<Obj> res = new Vector<Obj>(500);
 
-       Iterator<Obj> it = iterator();
+       Iterator<Obj> it = iterator(v);
        if( type==Plan.APERTURE ) {
           for( i=0; it.hasNext() ; i++ ) {
              Obj o = it.next();
              if( o.in(v,x,y) ) {
-                if( i==0 && Aladin.ROTATEFOVCENTER && ((PlanField)this).isRollable() ) {
+                if( i==0 && Aladin.ROTATEFOVCENTER 
+                      && ((PlanField)this).isRollable() && ((PlanField)this).isCenterRollable() ) {
                    aladin.calque.planRotCenter=((Repere)o).plan;
                    res.addElement(o);
                 } else {
                    aladin.calque.planRotCenter=null;
-                   Iterator<Obj> it1 = iterator();
+                   Iterator<Obj> it1 = iterator(v);
                    while( it1.hasNext() ) res.addElement(it1.next());
                 }
                 break;
@@ -534,7 +562,7 @@ public class Plan implements Runnable {
     * Indique si on doit envoyer d'eventuels logs ou non ?
     * @param mode true si on doit envoyer un log, false sinon
     */
-   synchronized void setLogMode(boolean mode) { log=mode; }
+   void setLogMode(boolean mode) { log=mode; }
 
   /** Libere le plan.
    * cad met toutes ses variables a <I>null</I> ou a <I>false</I>
@@ -609,6 +637,18 @@ public class Plan implements Runnable {
        filters=null;
        slide=null;
     }
+    
+    /** Bloque ou nom le mode de calcul des x,y des objets.
+     * @param lock <I>true</I> les objets gardent leurs x,y, sinon <I>false</I>
+     */
+     protected void setXYorig(boolean lock) {
+        hasXYorig = lock;
+     }
+
+    /** Retourne l'etat du plan tool (locke ou non).
+     * @return <I>true</I> les objets gardent leurs x,y, sinon <I>false</I>
+     */
+     protected boolean hasXYorig() { return hasXYorig; }
 
    /**
     * Génère des XY "natifs" en fonction de la projection courante
@@ -760,7 +800,7 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
       int t = Projection.getProjType(projName);
       Projection p = projd;
       if( p==null || t==-1 ) return;
-      modifyProj(null,Projection.SIMPLE,p.alphai,p.deltai,p.rm1,p.cx,p.cy,p.r1,p.rot,p.sym,t);
+      modifyProj(null,Projection.SIMPLE,p.alphai,p.deltai,p.rm1,p.cx,p.cy,p.r1,p.rot,p.sym,t,p.system);
       aladin.view.newView(1);
       aladin.calque.repaintAll();
    }
@@ -769,8 +809,8 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
    protected void modifyProj(String label,int modeCalib,
          double alphai, double deltai, double rm,
          double cx, double cy,double r,
-         double rot,boolean sym,int t) {
-      projd.modify(label,modeCalib,alphai,deltai,rm,rm,cx,cy,r,r,rot,sym,t);
+         double rot,boolean sym,int t,int system) {
+      projd.modify(label,modeCalib,alphai,deltai,rm,rm,cx,cy,r,r,rot,sym,t,system);
    }
 
    /** Force le recalcul de la projection n */
@@ -889,8 +929,14 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
    protected boolean hasCanBeTranspState() { return (debugFlag & CANBETRANSP) == CANBETRANSP; }
 
    /** Retourne true si l'état UNDERIMG|UNDERBKGD a été positionné sur le plan */
-   protected boolean isUnderImgBkgd() { return (debugFlag & (UNDERIMG|UNDERBKGD)) !=0; }
+   protected boolean isUnderImg() { return (debugFlag & (UNDERIMG|UNDERBKGD)) !=0; }
+   protected boolean isUnderImgBkgd() { return (debugFlag & UNDERBKGD) !=0; }
 
+   private boolean hasCheckBox=false;
+   protected void setHasCheckBox(boolean flag) { hasCheckBox=flag; }
+   protected boolean hasCheckBox() { return hasCheckBox; }
+
+   
    /** positionnement d'un flag de débugging du plan */
    protected void setDebugFlag(int type,boolean flag) {
       if( flag ) debugFlag |= type;
@@ -919,7 +965,7 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
       }
       return rep.toString();
    }
-
+   
     /** Retourne vrai si le plan peut etre visible dans au moins une des vues visibles
    * @return <I>true</I> si ok, <I>false</I> sinon.
    */
@@ -949,9 +995,81 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
    	  setDebugFlag(VIEWABLE,false);
    	  return false;
    }
+   
+   /** retourne vrai s'il s'agit d'un plan overlay qui peut être vu en transparence sur au-moins un autre plan 
+    * qui se trouve en dessous de lui dans la pile */
+//   protected boolean isOverlayable() {
+//      setDebugFlag(OVERLAYABLE,false);
+//      
+//      
+//      if( !isReady() ) return false;
+//      if( !isOverlay() ) return false;
+//      int n = aladin.calque.getIndex(this);
+//      
+//      Plan [] p = aladin.calque.getPlans();
+//      for( int i=n+1; i<p.length; i++ ) {
+//         if( !p[i].isReady() ) continue;
+//         if( p[i] instanceof PlanBG || isCompatibleWith(p[i]) ) {
+//            setDebugFlag(OVERLAYABLE,true);
+//            return true;
+//         }
+//      }
+//      return false;
+//   }
+   
+   /** Ce plan devrait avoir une checkbox afin de pouvoir le sélectionner dans la pile
+    * ==> Dépend des autres plans présents dans la pile */
+   protected boolean shouldHaveARefCheckBox() {
+      
+      if( !isReady() ) return false;
+      
+//      // Un plan pris en référence quel qu'il soit doit avoir une coche
+//      // s'il n'est pas tout seul dans la pile
+//      if( ref && aladin.calque.getNbUsedPlans()>1 ) return true;
+      
+      boolean isImage = isImage();
+      boolean isCatalog = isSimpleCatalog();
+      boolean isImgBg = type==ALLSKYIMG;
+      boolean isCatBg = isPlanBGOverlay();
+      
+      // réponse par défaut
+      boolean rep = isCatalog ? true : false;
+      
+      int n = aladin.calque.getIndex(this);
+      
+      Plan [] p = aladin.calque.getPlans();
+      for( int i=0; i<p.length; i++ ) {
+         if( !p[i].isReady() || p[i]==this ) continue;
+         
+         // pour une image, la checkbox doit apparaître...
+         if( isImage ) {
+            // s'il y a au-moins un catalogue dont la projection n'est pas compatible
+            if( p[i].isSimpleCatalog() && !isCompatibleWith(p[i])
+            // Ou qu'il y a une autre image, ou un allsky image
+             || p[i].isImage() || p[i].type==ALLSKYIMG ) return true;
+         }
+         
+         // pour un catalogue...
+         if( isCatalog ) {
+            // si j'ai une image ou allskyimg compatible , c'est inutile
+            if( p[i].isImage() && isCompatibleWith(p[i]) || p[i] instanceof PlanBG  ) return false;
+            
+            // Si j'ai un catalogue situé en dessous compatible, c'est inutile
+            if( p[i].isSimpleCatalog() && isCompatibleWith(p[i]) && i>n ) return false;
+         }
+         
+         // Pour un allsky image...
+         if( isImgBg ) {
+            // Il suffit d'un autre plan BG image ou d'une image
+            if( p[i].isImage() || p[i].type==ALLSKYIMG ) return true;
+         }
+         
+         // Et ce n'est jamais le cas pour un allsky cat
+      }
+      return rep;
+   }
 
-
-
+   
    /** Retourne true si la coordonnée est dans le plan */
    protected boolean contains(Coord c) { return false; }
 
@@ -990,7 +1108,10 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
    /** Retourne true si le plan passé est susceptible d'être visible en partie dans la vue indiquée */
    protected boolean isCompatibleWith(ViewSimple v) {
       if( v.isFree() || !Projection.isOk(v.getProj()) ) return false;
-      if( v.pref==this ) return true;
+      if( v.pref==this ) {
+         setUnderBackGroundFlag(v);   // Faut tout de même positionner ce flag
+         return true;
+      }
 
 //      if( v.pref.type==Plan.IMAGEBKGD && type==Plan.IMAGEBKGD
 //            && aladin.calque.getIndex(this)>aladin.calque.getIndex(v.pref)) {
@@ -1000,7 +1121,8 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
 //
 //      } else
 
-      if( v.pref.isImage() && (type==Plan.IMAGE || this instanceof PlanBG) && aladin.calque.getIndex(this)>aladin.calque.getIndex(v.pref)) {
+      if( !(aladin.view.isMultiView() && v.pref.ref) 
+            && v.pref.isImage() && (type==Plan.IMAGE || type==Plan.ALLSKYIMG  ) && aladin.calque.getIndex(this)>aladin.calque.getIndex(v.pref)) {
          setDebugFlag(UNDERIMG, true);
 //System.out.println("IMG:"+label+" sous IMG?:"+v.pref+" dans le pile");
          return false;
@@ -1008,22 +1130,44 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
       } else setDebugFlag(UNDERIMG, false);
 
       // Peut être sous un plan Background ?
-      if( !aladin.view.isMultiView() ) {
-         Plan [] allPlan = aladin.calque.getPlans();
-         int n = aladin.calque.getIndex(allPlan,this);
-         for( int i=n-1; i>=0; i-- ) {
-            Plan p=allPlan[i];
-            if( p.type==ALLSKYIMG && p.active && (p.getOpacityLevel()==1 || p.isRefForVisibleView()) ) {
-//               System.out.println(label+" sous BG opaque ["+p+"] dans la pile");
-               setDebugFlag(UNDERBKGD, true);
-               return false;
-            }
-         }
+      if( !setUnderBackGroundFlag(v) ) {
+         return false;
       }
+      
+//      if( !aladin.view.isMultiView() ) {
+//         Plan [] allPlan = aladin.calque.getPlans();
+//         int n = aladin.calque.getIndex(allPlan,this);
+//         for( int i=n-1; i>=0; i-- ) {
+//            Plan p=allPlan[i];
+//            if( p.type==ALLSKYIMG && p.active && (p.getOpacityLevel()>=0.1 || p.isRefForVisibleView()) ) {
+//              System.out.println(label+" sous BG opaque ["+p+"] dans la pile");
+//               setDebugFlag(UNDERBKGD, true);
+//               return false;
+//            }
+//         }
+//      }
 
       boolean rep = isOutView(v);
 //System.out.println(this+" isOutView("+v+") = "+rep);
       return !rep;
+   }
+   
+   // Peut être sous un plan Background ?
+   private boolean setUnderBackGroundFlag(ViewSimple v) {
+      boolean under=false;
+      Plan [] allPlan = aladin.calque.getPlans();
+      int n = aladin.calque.getIndex(allPlan,this);
+      for( int i=n-1; i>=0; i-- ) {
+         Plan p=allPlan[i];
+         if( p.type==ALLSKYIMG && p.active && (p.getOpacityLevel()==1 || p.isRefForVisibleView()) ) {
+            under=true;
+            break;
+         }
+      }
+      if( under && aladin.view.isMultiView() ) under=false;
+      setDebugFlag(UNDERBKGD, under);
+      return !under;
+
    }
 
 
@@ -1062,7 +1206,7 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
          return false;  // Mais attention, ce n'est pas certain !!
 
       } else {
-         boolean rep = !v.pref.projd.agree(projd,aladin.view.getCurrentView());
+         boolean rep = !v.pref.projd.agree(projd,aladin.view.getCurrentView(),false);
          setDebugFlag(OUTOFVIEW,rep);
          return rep;
       }
@@ -1395,7 +1539,7 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
           try {
              setNewProjD(new Projection(Projection.WCS,new Calib(headerFits.getHeaderFits())));
              setHasSpecificCalib();
-             aladin.command.toStdoutAndConsole("Astrometrical calibration has been modified on "+label);
+             aladin.command.console("Astrometrical calibration has been modified on "+label);
              aladin.view.newView();
              aladin.view.repaintAll();
           } catch( Exception e ) { }
@@ -1403,6 +1547,21 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
        } else throw new Exception("Unknown plane propertie ["+prop+"]");
 
        Properties.majProp(this);
+    }
+    
+    
+    private long startCheckBoxBlink=0L;  // Date de début d'une séquence de checkbox blink
+    
+    /** Lance la séquence de blink de la check box du plan (voir isCheckBoxBlink() */
+    protected void startCheckBoxBlink() {
+       startCheckBoxBlink = System.currentTimeMillis();
+    }
+    
+    /** Retourne true si la checkbox du plan (dans la pile) doit être affiché
+     * temporairement en rouge afin d'indiquer à l'utilisateur qu'il doit éventuellement l'utiliser */
+    protected boolean isCheckBoxBlink() {
+       long t = System.currentTimeMillis();
+       return t-startCheckBoxBlink<4000;
     }
 
    /** Demande d'activation/désactivation d'un plan
@@ -1430,6 +1589,7 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
 
    	  // Activation/Desactivation effective
    	  active=flag;
+//   	  if( active && getOpacityLevel()<0.1f && !ref ) setOpacityLevel(1f);
       aladin.view.deSelect(this);
       return active;
    }
@@ -1439,6 +1599,32 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
 //      runme.stop();
       runme = null;
    }
+   
+   /** Dessin du plan
+    * @param op niveau d'opacité forcé, -1 si prendre celui du plan
+    */
+//   protected void draw(Graphics g,ViewSimple v,int dx, int dy, float op) {
+//      if( v==null ) return;
+//      if( op==-1 ) op=getOpacityLevel();
+//      if(  op<=0.1 ) return;
+//
+//      if( g instanceof Graphics2D ) {
+//         Graphics2D g2d = (Graphics2D)g;
+//         Composite saveComposite = g2d.getComposite();
+//         try {
+//            if( op < 0.9 ) {
+//               Composite myComposite = Util.getImageComposite(op);
+//               g2d.setComposite(myComposite);
+//            }
+//            draw(g2d, v, dx, dy);
+//         } catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
+//         g2d.setComposite(saveComposite);
+//
+//      } else draw(g, v, dx, dy);
+//   };
+//   
+//   protected void draw(Graphics g,ViewSimple v,int dx, int dy) { }
+
 
   /** Attente pendant la construction du plan.
    * Il est necessaire de voir les specialisations des cette methode
@@ -1500,7 +1686,11 @@ Aladin.trace(3,"create original XY from RA,DEC for plane "+this);
    public void run() {
 Aladin.trace(1,(flagSkip?"Skipping":"Creating")+" the "+Tp[type]+" plane "+label);
       if( server!=null ) server.setStatus();
-      boolean rep=waitForPlan();
+      boolean rep=true;;
+      try { rep = waitForPlan();
+      } catch( Exception e ) {
+         if( aladin.levelTrace>=3 ) e.printStackTrace();
+      }
       planReady( rep );
       if( server!=null ) server.setStatus();
    }
@@ -1515,11 +1705,19 @@ Aladin.trace(1,(flagSkip?"Skipping":"Creating")+" the "+Tp[type]+" plane "+label
    */
    protected void planReady(boolean ready) {
       if( flagSkip ) return;
+      
+      if( doClose && dis!=null ) {
+         try { dis.close(); } catch( IOException e ) {
+            if( aladin.levelTrace>=3 ) e.printStackTrace();
+         }
+      }
+      
+      aladin.endMsg();
 
       if( !ready ) {
          if( error==null ) error = aladin.error;
          aladin.calque.select.repaint();
-         aladin.toolbox.toolMode();
+         aladin.toolBox.toolMode();
 
          return;
       }
@@ -1535,21 +1733,30 @@ Aladin.trace(1,(flagSkip?"Skipping":"Creating")+" the "+Tp[type]+" plane "+label
 
 
       setPourcent(-1);
-      flagOk = true;
-      flagProcessing = false;
+      flagOk = ready;
 
+      
+//      if( aladin.calque.mustBeSetPlanRef(this) ) {
+//         aladin.calque.setPlanRef(this);
+//         setOpacityLevel( isOverlay()?1f : 0f);
+//         
+//      } else setActivated(true);
+      
+       
       boolean un,deux,trois;
       un=deux=trois=false;
-
+      
       if( (un=!isOldPlan && (isImage() || type==ALLSKYIMG && !(this instanceof PlanBGCat)))
             || (deux=aladin.calque.isFreeX(this))
-            || (trois=isSimpleCatalog() && !isViewable()) ) {
-//         System.out.println("je setPlanRef("+label+") un="+un+" deux="+deux+" trois="+trois);
+            || (trois=isSimpleCatalog() && !isViewable() && !aladin.calque.isBackGround() ) ) {
          aladin.calque.setPlanRef(this);
+         if( !isOverlay() )  setOpacityLevel(0f);
+//         setOpacityLevel( isOverlay()?1f : 0f);
       } else {
-//         System.out.println("je setActivated("+label+")");
+         if( !isViewable() ) aladin.view.syncPlan(this);
          setActivated(true);
       }
+
 
       // Ajout thomas : on avertit qu'un nouveau plan a ete cree pour mettre a jour les filtres
       // et pour mettre a jour les FilterProperties
@@ -1567,12 +1774,14 @@ Aladin.trace(1,(flagSkip?"Skipping":"Creating")+" the "+Tp[type]+" plane "+label
 
       // Libération de l'attente possible sur le target (voir Command.waitingPlanInProgress)
       flagWaitTarget=false;
+      
+      flagProcessing = false;
 
       aladin.calque.repaintAll();
    }
 
    public String toString() {
-   	   return label;
+   	   return label+"["+Tp[type]+"]";
    }
 
    // Arrondi plus facile à écrire que (int)Math.round()
@@ -1582,5 +1791,8 @@ Aladin.trace(1,(flagSkip?"Skipping":"Creating")+" the "+Tp[type]+" plane "+label
 
    // Recupération d'un itérator sur les Obj
    protected Iterator<Obj> iterator() { return pcat==null ? null : pcat.iterator(); }
+   
+   // Recupération d'un itérator sur les objets visible dans la vue v (voir spécificité PlanBGCat)
+   protected Iterator<Obj> iterator(ViewSimple v) { return iterator(); }
 
 }

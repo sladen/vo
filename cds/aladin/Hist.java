@@ -90,8 +90,9 @@ class Hist implements Runnable {
    }
    
    /** Construction de l'histogramme de pixels en fonction de la liste des valeurs passées */
-   protected void createHistPixel() { {
-      titre="Pixels";
+   protected void createHistPixel(String titre) { {
+//      titre="Pixels";
+      this.titre = titre;
       setHist(pixelList); }
    }
 
@@ -206,7 +207,7 @@ class Hist implements Runnable {
 
       // Recherche du min et max
       double min=Double.MAX_VALUE;
-      double max=Double.MIN_VALUE;
+      double max=-min;
       for( int i=0; i<length; i++ ) {
          double c = x[i];
          if( Double.isNaN(c) ) continue;
@@ -214,7 +215,7 @@ class Hist implements Runnable {
          if( c>max ) max=c;
       }
       
-      if( min==Double.MAX_VALUE || max==Double.MIN_VALUE
+      if( min==Double.MAX_VALUE || max==-Double.MAX_VALUE
             || min==max || length<=1 ) { hist=null; return; }
 
       hist = new HistItem[NBHIST];

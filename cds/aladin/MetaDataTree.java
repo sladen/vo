@@ -499,13 +499,13 @@ public class MetaDataTree extends BasicTree implements WidgetFinder, KeyListener
 
        	       AppMessagingInterface.AbstractMessage msg = node.getPlasticMsg();
 
-       	       String[] apps = aladin.getMessagingMgr().getAppsSupporting(msg);
-       	       System.out.println(apps.length);
+       	       ArrayList<String> apps = aladin.getMessagingMgr().getAppsSupporting(msg);
+       	       System.out.println(apps.size());
 
        	       if( apps!=null ) {
 //				   m.addSeparator();
-       	           for( int i=0; i<apps.length; i++ ) {
-       	           	   mi = createItem(apps[i]);
+       	           for (String app: apps ) {
+       	           	   mi = createItem(app);
        	           	   mi.setActionCommand(PLASTICAPPS);
        	               m.add(mi);
        	           }
@@ -513,7 +513,7 @@ public class MetaDataTree extends BasicTree implements WidgetFinder, KeyListener
 
        	       // pour catcher un bug de Java !!!
        	       try {
-       	       	  plasticMenu.setEnabled(apps!=null && apps.length>0
+       	       	  plasticMenu.setEnabled(apps!=null && apps.size()>0
        	       	                         && aladin.getMessagingMgr().isRegistered());
        	       }
        	       catch(NullPointerException npe) {}
@@ -1806,10 +1806,10 @@ public class MetaDataTree extends BasicTree implements WidgetFinder, KeyListener
        }
    }
 
-   // Gestion d'un verrou pour la synchronisation script. (PF - mars 2010)
-   private boolean sync=true;
-   synchronized protected boolean isSync() { return sync; }
-   synchronized protected void setSync(boolean sync) { this.sync=sync; }
+//   // Gestion d'un verrou pour la synchronisation script. (PF - mars 2010)
+//   private boolean sync=true;
+//   synchronized protected boolean isSync() { return sync; }
+//   synchronized protected void setSync(boolean sync) { this.sync=sync; }
 
 	// devrait être ramené au niveau du noeud !
     /** charge la ressource décrite par node dans un thread séparé
@@ -1817,35 +1817,41 @@ public class MetaDataTree extends BasicTree implements WidgetFinder, KeyListener
      * @param param parametre supplementaire (eg format pour les images)
      * @param label le nom du plan à créer, ou null si non fourni (PF mars 2010)
      */
-	protected void load(final ResourceNode node, final String param, final String label, final Component c) {
-	    setSync(false);
-	    new Thread("LoadResourceNode") {
-	        public void run() {
-	            if( /*!node.isLeaf &&*/ (node.location==null || node.location.length()==0) ) { setSync(true); return; }
+   protected void load(final ResourceNode node, final String param, final String label, final Component c) {
+      final String treeTaskId = aladin.synchroServer.start("MetaDataTree.load");
+      //	    setSync(false);
+      new Thread("LoadResourceNode") {
+         public void run() {
+            try {
+               if( /*!node.isLeaf &&*/ (node.location==null || node.location.length()==0) ) {
+//	              setSync(true); 
+                  return;
+               }
 
 
-                if( node.type == ResourceNode.IMAGE || node.type == ResourceNode.CUBE ) {
-                    loadImage(node, param, label);
-                }
-                else if( node.type == ResourceNode.CAT ) {
-                	loadCat(node,label);
-                }
-                else if( node.type == ResourceNode.SPECTRUM ) {
-                    loadSpectrum(node, c);
-                }
-                // on tente de le charger par LocalServer.creatLocalPlane
-                else if( node.type == ResourceNode.OTHER ) {
-                	loadOther(node,label);
-                }
-                // tentative d'ouverture d'une page HTML dans browser
-                else if( node.indexing!=null && node.indexing.equals("HTML") ) {
-                        aladin.glu.showDocument("Http",node.location,true);
-                }
-                setSync(true);
-	        }
-	    }.start();
-	    Util.pause(100);
-	}
+               if( node.type == ResourceNode.IMAGE || node.type == ResourceNode.CUBE ) {
+                  loadImage(node, param, label);
+               }
+               else if( node.type == ResourceNode.CAT ) {
+                  loadCat(node,label);
+               }
+               else if( node.type == ResourceNode.SPECTRUM ) {
+                  loadSpectrum(node, c);
+               }
+               // on tente de le charger par LocalServer.creatLocalPlane
+               else if( node.type == ResourceNode.OTHER ) {
+                  loadOther(node,label);
+               }
+               // tentative d'ouverture d'une page HTML dans browser
+               else if( node.indexing!=null && node.indexing.equals("HTML") ) {
+                  aladin.glu.showDocument("Http",node.location,true);
+               }
+//	           setSync(true);
+            } finally { aladin.synchroServer.stop(treeTaskId); }
+         }
+      }.start();
+      Util.pause(100);
+   }
 
     protected void load(ResourceNode node, String label) {
         load(node, null, label, null);
@@ -1872,15 +1878,15 @@ public class MetaDataTree extends BasicTree implements WidgetFinder, KeyListener
 
 		boolean cantDisplay = false;
 		if( !aladin.getMessagingMgr().isRegistered() ) cantDisplay = true;
-		String[] plasticApps = aladin.getMessagingMgr().getAppsSupporting(node.getPlasticMsg());
-		if( plasticApps==null || plasticApps.length==0 ) cantDisplay = true;
+		ArrayList<String> plasticApps = aladin.getMessagingMgr().getAppsSupporting(node.getPlasticMsg());
+		if( plasticApps==null || plasticApps.size()==0 ) cantDisplay = true;
 
 		if( cantDisplay ) {
 			System.out.println("Can't load spectrum "+node.name+" : couldn't find any PLASTIC-compatible spectrum viewer");
 		}
 		// on charge le spectre avec la première appli compatible PLASTIC qui a été trouvée
 		else {
-			loadNodeWithPlastic(node, plasticApps[0]);
+			loadNodeWithPlastic(node, plasticApps.get(0));
 		}
 
 	}

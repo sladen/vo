@@ -42,49 +42,49 @@ public class Function {
    private boolean NL=true;
    private boolean modif=false;
    
-   protected Function() {}
+   public Function() {}
    
-   protected Function(String name, String param, String code, String description) {
+   public Function(String name, String param, String code, String description) {
       setName(name);
       setParam(param);
       setCode(code);
       setDescription(description);
    }
    
-   protected Function(String s ) throws Exception {
+   public Function(String s ) throws Exception {
       if( !parseFunction(s) ) throw new Exception("Function truncated ["+s+"]");
    }
    
-   protected String getName() { return name.toString().trim(); }
-   protected String getCode() { return code.toString(); }
-   protected String getParam() { return param.toString(); }
-   protected String getDescription() { return description.toString(); }
+   public String getName() { return name.toString().trim(); }
+   public String getCode() { return code.toString(); }
+   public String getParam() { return param.toString(); }
+   public String getDescription() { return description.toString(); }
    
-   protected void setName(String name)   { this.name =new StringBuffer(name==null?"":name); modif=true; }
-   protected void setCode(String code)   { this.code = new StringBuffer(code==null?"":code); modif=true; }
-   protected void setParam(String param) { this.param = new StringBuffer(param==null?"":param); nbParam=-1; modif=true; }
-   protected void setDescription(String description) { this.description = new StringBuffer(description==null?"":description); modif=true; }
+   public void setName(String name)   { this.name =new StringBuffer(name==null?"":name); modif=true; }
+   public void setCode(String code)   { this.code = new StringBuffer(code==null?"":code); modif=true; }
+   public void setParam(String param) { this.param = new StringBuffer(param==null?"":param); nbParam=-1; modif=true; }
+   public void setDescription(String description) { this.description = new StringBuffer(description==null?"":description); modif=true; }
    
    /** Indique que cette fonction a été définie localement par l'utilisateur */
-   protected void setLocalDefinition(boolean flag) { localDefinition=flag; }
+   public void setLocalDefinition(boolean flag) { localDefinition=flag; }
    
    /** Indique que cette fonction doit être utilsée comme un bookmark */
-   protected void setBookmark(boolean flag) { bookmark=flag; }
+   public void setBookmark(boolean flag) { bookmark=flag; }
    
    /** retourne true s'il s'agit d'une fonction définie localement par l'utilisateur */
-   protected boolean isLocalDefinition() { return localDefinition; }
+   public boolean isLocalDefinition() { return localDefinition; }
    
    /** retourne true s'il s'agit d'une fonction bookmarkr */
-   protected boolean isBookmark() { return bookmark; }
+   public boolean isBookmark() { return bookmark; }
    
    /** Positionne le drapeau de modification de la fonction */
-   protected void setModif(boolean flag) { modif=flag; }
+   public void setModif(boolean flag) { modif=flag; }
    
    /** Retourne true si la fonction a été modifiée après sa première définition */
-   protected boolean hasBeenModif() { return modif; }
+   public boolean hasBeenModif() { return modif; }
    
    /** Retourne le nombre de paramètres de la fonction */
-   protected int getNbParam() {
+   public int getNbParam() {
       if( nbParam<0 ) {
          if( param.toString().trim().length()==0 ) nbParam=0;
          else {
@@ -98,7 +98,7 @@ public class Function {
    }
    
    /** Retourne true si la fonction est complète et prête à être exécuter */
-   protected boolean isOk() { return etat==6; }
+   public boolean isOk() { return etat==6; }
    
    /** Retourne la fonction sous sa forme éditée */
    public String toString() { return toString("\n"); }
@@ -116,7 +116,7 @@ public class Function {
    
    /** Execution de la fonction avec les paramètres passés en ligne de commande
     * Attention aux cas $TARGET et $RADIUS => voir targetRadiusSpecialCase()    */
-   protected String exec(Aladin aladin,String param,boolean async) throws Exception {
+   public String exec(Aladin aladin,String param,boolean async) throws Exception {
       String codeWithParam = getCodeWithParam(aladin,param);
       if( async ) aladin.execAsyncCommand(codeWithParam);
       else aladin.execCommand(codeWithParam);

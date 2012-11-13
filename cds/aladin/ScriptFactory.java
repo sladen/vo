@@ -275,7 +275,7 @@ public class ScriptFactory {
         StringBuffer servers = new StringBuffer();
         StringBuffer t = new StringBuffer();
         StringBuffer r = new StringBuffer();
-        if( !Aladin.aladin.command.splitGetCmd(servers, t, r, argsStr ) )
+        if( !Aladin.aladin.command.splitGetCmd(servers, t, r, argsStr,true ) )
             return null;
 
         String target = t.toString();

@@ -44,6 +44,14 @@ import java.lang.*;
     double [] xydpoly = new double[10];
     double [] adypoly = new double[10];
     double [] adxpoly = new double[10];
+    double [][] sip_a   = new double[10][10];
+    int         order_a ;
+    double [][] sip_b   = new double[10][10];
+    int         order_b ;
+    double [][] sip_ap  = new double[10][10]; 
+    int         order_ap ;
+    double [][] sip_bp  = new double[10][10];
+    int         order_bp ;
     double epoch ;
     int    flagepoc =0 ;
     double equinox ;
@@ -74,13 +82,17 @@ import java.lang.*;
     double [][] CD = new double[2][2];
     double [][] ID = new double[2][2];
 
-    public static int FK5 = 5;
     public static int FK4 = 1;
-    public static int ICRS = 6 ;
     public static int GALACTIC = 2;
     public static int SUPERGALACTIC = 3 ;
     public static int ECLIPTIC = 4 ;
+    public static int FK5 = 5;
+    public static int ICRS = 6 ;
     public static int XYLINEAR = 7;
+    
+    // PF - Jan 2011 - Différentes valeurs des mots clés en fonction du système de coordonnées
+    static final String[] RADECSYS    = { "", "FK4", "",       "",         "",        "FK5", "ICRS", "" };
+    
     protected int system = FK5;
     protected int proj ;
 
@@ -107,22 +119,69 @@ import java.lang.*;
     static public final int NCP = 8;
     static public final int ZPN = 9;
     static public final int SOL = 10;
-    static public final int MOL = 12;
+    static public final int MOL = 11;
+    static public final int SIP = 12 ;
+    static public final int MATRIX = 13 ;
     
     // Signature dans les mots clés FITS des différentes projections (l'indice dans le tableau doit correspondre
     // aux constantes statics ci-dessus
-    static final String[] projType = {"", "SIN", "TAN", "ARC", "AIT", "ZEA", "STG", "CAR", "NCP", "ZPN", "SOL", "SOL", "MOL" };
+    static final String[] projType = {"", "SIN", "TAN", "ARC", "AIT", "ZEA", "STG", "CAR", "NCP", "ZPN", "SOL", /*"SOL",*/ "MOL","TAN-SIP","MATRIX" };
 
     /** Retourne l'indice de la signature de la projection (code 3 lettres), -1 si non trouvé */
     static int getProjType(String s) { return Util.indexInArrayOf(s, projType); }
     
+    /** Retourne l'indice de la signature de la projection (code 3 lettres)
+     * en se contentant éventuellement de ne trouver qu'une sous chaine, -1 si non trouvé */
+    static int getSubProjType(String s1) { 
+       int i = getProjType(s1);
+       if( i>=0 ) return i;
+       String [] array = projType;
+       String s = s1.toUpperCase();
+       for( i=1; i<array.length; i++ ) {
+          
+          // En attendant de supporter TANSIP
+          if( s.indexOf(array[i])>=0 ) {
+             Aladin.aladin.command.printConsole("!!! Unknown projection ["+s1+"] : assume "+projType[i]);
+             return i;
+          }
+       }
+       
+       // En attendant de supporter TNX
+       if( s.indexOf("TNX")>=0 || s.indexOf("COE")>=0 ) {
+          i=TAN;
+          Aladin.aladin.command.printConsole("!!! Unknown projection ["+s1+"] : assume "+projType[i]);
+          return i;
+       }
+       return -1;
+    }
+    
     /** Retourne la signature de la projection (code 3 lettres) de l'indice passé en paramètre */
     static String getProjName(int indice ) { return projType[indice]; }
 
+//#ifndef PIERRE
+//    /** Retourne true si le type de projection est reconnu par Calib
+//     * AJOUT PF nov 09 pour supporter les projections linéaires CRVAL+CDELT, mÃ¯Â¿Â½me
+//     * si le type n'edst pas "Solar"
+//     */
+//    private boolean isUnknown(String type) {
+//       if( type==null ) return true;
+//       for( int i=0; i<PROJ_SIGNATURE.length; i++ ) {
+//          if( type.indexOf(PROJ_SIGNATURE[i])>=0 ) return false;
+//       }
+//       return true;
+//   }
+             
+   // PF. 12/06 - Modif liées à l'utilisation de la nouvelle classe de Fox
+   // pour les conversions de coordonnées. On crée à l'avance les différents
+   // Astroframe et Astrocoo nécessaires aux manip. pour éviter les créations
+   // d'objets java à répétition
+//#endif
    static private Astroframe AF_FK4 = new FK4();
    static private Astroframe AF_FK5 = new FK5();
    static private Astroframe AF_ICRS = new ICRS();
    static private Astroframe AF_GAL = new Galactic();
+   static private Astroframe AF_SGAL = new Supergal() ;
+   static private Astroframe AF_ECL = new Ecliptic() ;
    
    /** Clonage d'une Calib */
    static public Calib copy(Calib c) {
@@ -290,66 +349,136 @@ import java.lang.*;
             sdelz = Math.sin(deltai*deg_to_rad);
             aladin =0;
          }
-      //   System.out.println("CD "+CD[0][0]+" "+CD[1][0]+" "+CD[0][1]+" "+CD[1][1]);
-         for (i =0 ; i < coo.length ; i++) {
+//         System.out.println("CD "+CD[0][0]+" "+CD[1][0]+" "+CD[0][1]+" "+CD[1][1]);
+         
+       double  inx = coo[0].dx ;
+       double  iny = coo[0].dy ;
+       double  inX = coo[0].xstand ;
+       double  inY = coo[0].ystand ;
+       double AAx = 0 ;
+       double BBx = 0 ;
+       double Detx ;
+       double AAy = 0;
+       double BBy = 0 ;
+       double Dety ;
+
+       for (i =1 ; i < coo.length ; i++) {
             GetXYstand(coo[i]) ;
-           //          System.out.println("coo "+coo[i].dx+" "+coo[i].dy+" "+coo[i].xstand +" "+coo[i].ystand);
+           Detx = -(coo[i].dx)*iny +(coo[i].dy)*inx ;
+           if (Detx != 0)
+           {
+           AAx +=  (-iny*(coo[i].xstand)+ inX*(coo[i].dy))/Detx;
+           BBx += (-(coo[i].dx)*inX +(coo[i].xstand)*inx)/Detx ;
+//           System.out.println("AAx "+AAx+" "+BBx);
+           Dety = (coo[i].dx)*iny -(coo[i].dy)*inx ;
+           AAy +=  (inY*(coo[i].dx) - inx*(coo[i].ystand))/Dety;
+           BBy += ((coo[i].ystand)*iny -(coo[i].dy)*inY)/Dety ;
+           
+//           System.out.println("AAy "+AAy+" "+BBy);
+           }
+     //      DX = coo[i].xstand -inX ;
+     //      DY = coo[i].ystand -inY ;
+           inx = coo[i].dx ;
+           iny = coo[i].dy ;
+           inX = coo[i].xstand ;
+           inY = coo[i].ystand ;
+//           System.out.println("DDDDD"+Dx+" "+Dy+" "+DX+" "+DY) ;
+           
+         }
+         if (AAx < 0) sign1 = -1 ;
+         else sign1 = 1 ;
+         if (AAy < 0) sign2 = -1 ;
+         else sign2 = 1 ;
+    //     System.out.println("sign "+sign1+" "+sign2);
+         for (i =1 ; i < coo.length ; i++) {
+             GetXYstand(coo[i]) ;
+   //                  System.out.println("coo "+coo[i].dx+" "+coo[i].dy+" "+coo[i].xstand +" "+coo[i].ystand);
            // x  -= (CD[0][0]/Math.abs(CD[0][0]))*coo[i].dx;
            // y  -= (CD[1][1]/Math.abs(CD[1][1]))*coo[i].dy;
            // x  -= coo[i].dx;
            // y  -= coo[i].dy;
-            x  +=   coo[i].dx;
-            y  +=   coo[i].dy;
+                     
+          // MODIF IMPORT
+          // if (CD[0][0] < 0) sign1 = -1 ;
+          //  else sign1 = 1 ;
+           // if (CD[1][1] < 0) sign2 = -1 ;
+           // else sign2 = 1 ;
+           // System.out.println("sign "+sign1+" "+sign2);
+            //sign1 = 1 ;
+            //sign2 = 1 ;
+            x  +=   sign1*coo[i].dx;
+           //   x  +=   coo[i].dx;
+            y  +=   sign2*coo[i].dy;
+            //  y  +=   coo[i].dy;
             X  += coo[i].xstand ;
             Y  += coo[i].ystand ;
+           // System.out.println(" "+coo[i].dx+" "+coo[i].dy);
+           // System.out.println(" "+coo[i].xstand+" "+coo[i].ystand);
             z  +=
                coo[i].dx * coo[i].dx + coo[i].dy * coo[i].dy ;
-            if (x*X > 0) sign1 = 1 ;
-            else sign1 = -1 ;
-            if (y*Y>0)  sign2 = 1 ;
-            else sign2 = -1 ;
-          //  XxYy -=  (CD[0][0]/Math.abs(CD[0][0]))*coo[i].dx * coo[i].xstand +  (CD[1][1]/Math.abs(CD[1][1]))*coo[i].dy * coo[i].ystand ;
+           //if (x*X > 0) sign1 = 1 ;
+           //else sign1 = -1 ;
+            //sign2 = 1 ;
+            //sign1 = 1 ;
+           //if (y*Y>0)  sign2 = 1 ;
+           //else sign2 = -1 ;
+           //  XxYy -=  (CD[0][0]/Math.abs(CD[0][0]))*coo[i].dx * coo[i].xstand +  (CD[1][1]/Math.abs(CD[1][1]))*coo[i].dy * coo[i].ystand ;
           //  XyYx += (CD[0][0]/Math.abs(CD[0][0]))* coo[i].dx * coo[i].ystand - (CD[1][1]/Math.abs(CD[1][1]))*coo[i].dy * coo[i].xstand ;
-            XxYy -=  sign1 * coo[i].dx * coo[i].xstand + sign2 * coo[i].dy * coo[i].ystand ;
-            XyYx +=  sign1 * coo[i].dx * coo[i].ystand - sign2 * coo[i].dy * coo[i].xstand ;
+          // XxYy -=  sign1 * coo[i].dx * coo[i].xstand + sign2 * coo[i].dy * coo[i].ystand ;
+            XxYy +=  sign1 * coo[i].dx * coo[i].xstand + sign2 * coo[i].dy * coo[i].ystand ;
+           //  XyYx +=  sign1 * coo[i].dx * coo[i].ystand - sign2 * coo[i].dy * coo[i].xstand ;
+          XyYx += - sign1 * coo[i].dx * coo[i].ystand + sign2 * coo[i].dy * coo[i].xstand ;
            // System.out.println(" "+coo[i].dx * coo[i].xstand+" "+coo[i].dy * coo[i].ystand);
            // System.out.println(" "+coo[i].dx * coo[i].ystand+" "+coo[i].dy * coo[i].xstand);
            // System.out.println("XxYy "+XxYy +" "+XyYx);
          }
-         x  /= coo.length * (-sign1) ;
-         y  /= coo.length * (-sign2) ;
+         //x  /= coo.length * (-sign1) ;
+          x /= coo.length ;
+        // y  /= coo.length * (-sign2) ;
+           y /= coo.length ;
          z  /= coo.length ;
          b1 = X/coo.length ;
          b2 = Y/coo.length ;
          b3 = XxYy/coo.length ;
          b4 = XyYx/coo.length ;
-         // System.out.println("b1b2b3b4 "+b1 +" "+b2 +" "+b3 +" "+b4);
+       //  System.out.println("xyz "+x+" "+y+" "+z) ;
+       //   System.out.println("b1b2b3b4 "+b1 +" "+b2 +" "+b3 +" "+b4);
          c1 = x*x*x + x*y*y - x*z ;
          // System.out.println("xxx "+x*x*x +" "+x*y*y +" "+x*z);
          c2 = x*x*y + y*y*y - y*z ;
          c3 = -x*x - y*y +z ;
          c4 = -x*x*z - y*y*z + z*z ;
          // System.out.println("c1c2c3c4 "+c1 +" "+c2 +" "+c3 +" "+c4);
+         // System.out.println("b1c1 b2c2 b3c3 "+b1*c1+" "+b2*c2+" "+b3*c3) ;
+         // System.out.println("b2c1 b1c2 b4c3 "+b2*c1+" "+b1*c2+" "+b4*c3) ;
+          
          det = x*x*x*x + 2* x*x*y*y +y*y*y*y -2* x*x*z -2* y*y*z +z*z ;
          A = (b1*c1 +b2*c2 +b3*c3)/det ;
+        // System.out.println("det "+det) ;
          B = (-b2*c1 +b1*c2 +b4*c3)/det ;
+        // B = (b2*c1 -b1*c2 +b4*c3)/det ;
          x0 = (b3*c1 +b4*c2 +b1*c4)/det ;
          y0 = (-b4*c1 +b3*c2 +b2*c4)/det ;
          // System.out.println("ABxy0 "+A+" "+B+" "+x0+" "+y0);
 
          //X_cen = Xcen + (A*x0-B*y0)*(CD[0][0]/Math.abs(CD[0][0]))/(A*A+B*B) ;
          //Y_cen =  Ycen + (B*x0 +A*y0)*(CD[1][1]/Math.abs(CD[1][1]))/(A*A+B*B)  ;
-         X_cen = Xcen - (A*x0-B*y0)/(A*A+B*B) ;
-         Y_cen =  Ycen + (B*x0 +A*y0)/(A*A+B*B)  ;
-
+      //   X_cen = Xcen - (A*x0-B*y0)/(A*A+B*B) ;
+           X_cen = Xcen +sign1*(-A*x0+B*y0)/(A*A+B*B);
+         Y_cen =  Ycen + sign2*(-B*x0 -A*y0)/(A*A+B*B)  ;
+        // System.out.println("ABxy0 "+A+" "+B+" "+X_cen+" "+Y_cen);
         // CD00 = -A*(CD[0][0]/Math.abs(CD[0][0]))*rad_to_deg ;
         // CD10 = B*(CD[0][0]/Math.abs(CD[0][0]))*rad_to_deg ;
         // CD01 = -B*(CD[1][1]/Math.abs(CD[1][1]))*rad_to_deg ;
         // CD11 = -A*(CD[1][1]/Math.abs(CD[1][1]))*rad_to_deg ;
-           CD00 = -sign1 * A*rad_to_deg ;
-           CD10 = sign1 * B*rad_to_deg ;
-           CD01 = -sign2 * B*rad_to_deg ;
-           CD11 = -sign2 * A*rad_to_deg ;
+         // System.out.println("AB "+A*rad_to_deg+" "+B*rad_to_deg);
+           // CD00 = -sign1 * A * rad_to_deg ;
+          CD00 = sign1 * A*rad_to_deg ; 
+          CD10 = -sign1 * B * rad_to_deg ;
+          CD01 =sign2 * B * rad_to_deg ;
+          //CD01 = - sign1 * B * rad_to_deg ;
+          //  CD11 = -sign2 * A*rad_to_deg ;
+          CD11 = sign2 * A*rad_to_deg ;
 
          //                      inc_A = Math.sqrt(CD00*CD00+CD01*CD01)*(CD00/Math.abs(CD00)) ;
          //                      inc_D = Math.sqrt(CD10*CD10+CD11*CD11)*(CD11/Math.abs(CD11)) ;
@@ -451,11 +580,13 @@ import java.lang.*;
 }
 
    public Calib (double ra,double de, double cx, double cy,
-                    double width, double height, double radius, double radius1, double rot, int proje,  boolean sym ) {
+                    double width, double height, double radius, double radius1, double rot, int proje,  boolean sym,
+                    int systeme) {
                 aladin = 0 ;
                 xnpix = (int)width ;
                 ynpix = (int)height ;
                 Xcen = cx ;
+// PF1          Ycen = height-cy ;
                 Ycen = cy ;
                 alphai = ra ;
                 deltai = de ;
@@ -463,9 +594,10 @@ import java.lang.*;
                 sdelz = Math.sin(deltai*deg_to_rad);
                 double cosdd = Math.cos(rot*deg_to_rad);
                 double sindd = Math.sin(rot*deg_to_rad);
+               // System.out.println ("New width "+width+"height "+height+"radius "+radius+"radius1 "+radius+"rot"+rot);
                 radius /= 60. ;
                 radius1 /= 60. ;
-
+               // System.out.println ("New width "+width+"height "+height+"radius "+radius+"radius1 "+radius+"rot"+rot);
                  if(sym == false)
                 incA = - radius/width ;
                 else incA = radius/width ;
@@ -479,6 +611,7 @@ import java.lang.*;
                 CD[0][1] = incA*sindd ;
                 CD[1][0] = -incD*sindd ;
                 CD[1][1] = incD*cosdd ;
+               // System.out.println ("New Xcen "+Xcen+" Ycen "+Ycen+"incA "+incA+"incD "+incD+" "+CD[0][0]+"xnpix "+xnpix+"ynpix "+ynpix);
                 double   det = CD[0][0]* CD[1][1]-CD[0][1]*CD[1][0] ;
                 ID[0][0] = CD[1][1]/det ;
                 ID[0][1] = -CD[0][1]/det ;
@@ -489,6 +622,7 @@ import java.lang.*;
                 epoch = 2000.0;
                 flagepoc = 0 ;
                 proj = proje ;
+                system=systeme;
                 
                 // PF - sept 2010 - C'est plus generique comme cela
                 type1 = "RA---"+projType[proj];
@@ -528,7 +662,7 @@ import java.lang.*;
 
    public Calib (double ra,double de, double cx, double cy,
                     double width,  double radius,  double rot, int proj,  boolean sym ) {
-            this(ra,de,cx,cy,width,width,radius,radius,rot,proj,sym);         
+            this(ra,de,cx,cy,width,width,radius,radius,rot,proj,sym,FK5);         
     }
 
      /** Creation de la calibration.
@@ -718,6 +852,9 @@ import java.lang.*;
      
      public Calib () {}
      public Calib (HeaderFits hf) throws Exception {
+//ifndef PIERRE
+//              boolean flagSolar=false;
+//#endif /* ! PIERRE */
               double det ;     
               
               // Calib ne vient pas d'aladin ;
@@ -741,6 +878,7 @@ import java.lang.*;
                    type2 = hf.getStringFromHeader("CTYPE2  ");
                    
                    // Requis: position (alph delt) du centre sauf si CTYPE SOLAR
+                   // Problème dans le cas ou le type est UNknown ? 
                    if( type1.startsWith("Solar") || type1.startsWith("solar") ) { 
                 	   try {
                 		   alphai = hf.getDoubleFromHeader("CRVAL1  ");
@@ -750,8 +888,6 @@ import java.lang.*;
                 		   deltai = 0.0 ;
                 	   }
                 	} else { 
-                		   
-                
 
                    alphai = hf.getDoubleFromHeader("CRVAL1  ");
                    deltai = hf.getDoubleFromHeader("CRVAL2  ");
@@ -821,7 +957,7 @@ import java.lang.*;
                          } catch (Exception e7) {                     	 
                          rota2 = hf.getDoubleFromHeader("CROTA2  ");
                    //if(flagadd == 1) WCSKeys.addElement("CROTA2  ") ;
-//                      System.out.println("CROTA2 "+rota2);
+//                      ("CROTA2 "+rota2);
                           }
                           }
 
@@ -976,6 +1112,7 @@ import java.lang.*;
 //                       System.out.println("SLON");
                        system = SUPERGALACTIC ;
                       }
+// plus de flagSolar pour tenir compte de plusieurs cas ?
                   if (type1.startsWith("Solar"))
                   {
                 	   system = XYLINEAR ;
@@ -992,11 +1129,38 @@ import java.lang.*;
                      if (Syst.indexOf("ICRS")>=0) system = ICRS;
                      if (Syst.indexOf("FK5")>=0) system = FK5 ;
                      if (Syst.indexOf("FK4")>=0) system = FK4 ;
+             //        System.out.println("system "+system);
                   } catch(Exception e10) {}
                    try {
-                   adxpoly[1] = hf.getDoubleFromHeader("PV2_1   ");    
-                   adxpoly[3] = hf.getDoubleFromHeader("PV2_3   ");    
-//                  System.out.println("adx: "+adxpoly[1]+" "+adxpoly[3]);
+                   adxpoly[0] = hf.getDoubleFromHeader("PV2_0   ");	 
+                   } catch(Exception e11) {}
+                   try {
+                   adxpoly[1] = hf.getDoubleFromHeader("PV2_1   ");  
+                   } catch(Exception e11) {}
+                   try {
+                   adxpoly[2] = hf.getDoubleFromHeader("PV2_2   "); 
+                   } catch(Exception e11) {}
+                   try {
+                   adxpoly[3] = hf.getDoubleFromHeader("PV2_3   ");
+                   } catch(Exception e11) {}
+                   try {
+                   adxpoly[4] = hf.getDoubleFromHeader("PV2_4   "); 
+                   } catch(Exception e11) {}
+                   try {
+                   adxpoly[5] = hf.getDoubleFromHeader("PV2_5   ");
+                   } catch(Exception e11) {}
+                   try {
+                   adxpoly[6] = hf.getDoubleFromHeader("PV2_6   ");	
+                   } catch(Exception e11) {}
+                   try {
+                   adxpoly[7] = hf.getDoubleFromHeader("PV2_7   ");  
+                   } catch(Exception e11) {}
+                   try {
+                   adxpoly[8] = hf.getDoubleFromHeader("PV2_8   "); 
+                   } catch(Exception e11) {}
+                   try {
+                   adxpoly[9] = hf.getDoubleFromHeader("PV2_9   ");
+                 //                  System.out.println("adx: "+adxpoly[1]+" "+adxpoly[3]);
                   } catch(Exception e11) {}
                    try {
                         xyapoly[0] = hf.getDoubleFromHeader("PV1_0   ");   
@@ -1020,11 +1184,11 @@ import java.lang.*;
                         xyapoly[9] = hf.getDoubleFromHeader("PV1_9   ");   
                         xydpoly[9] = hf.getDoubleFromHeader("PV2_9   ");   
                   } catch(Exception e12) {}
-
+                //            System.out.println(adxpoly[1]+" "+adxpoly[3]+" "+xydpoly[1]+" "+xydpoly[3]);
                   // else System.out.println("RA");
                   
                   // PF - sept 2010 - C'est plus generique comme cela
-                  try { proj = getProjType(type1.substring(5)); } 
+                  try { proj = getSubProjType(type1.substring(5)); } 
                   catch( Exception e ) { proj=-1; }
 //                   proj = 0 ;
 //                   System.out.println("type1 "+type1+" type2"+type2);
@@ -1041,6 +1205,116 @@ import java.lang.*;
 //                   if (type1.indexOf("solar")>=0) proj = 10;
                    if ( Util.indexOfIgnoreCase(type1,"solar")>=0) proj = SOL;
 // PIERRE POUR GOODS
+//#ifndef PIERRE
+//if (type1.indexOf("COE")>= 0) proj = 2 ;
+//                   if (type1.indexOf("ARC")>= 0) proj = 3 ;
+//                   if (type1.indexOf("AIT")>= 0) proj = 4 ;
+//                   if (type1.indexOf("ZEA")>= 0) proj = 5 ;
+//                   if (type1.indexOf("STG")>= 0) proj = 6 ;
+//                   if (type1.indexOf("CAR-")>= 0) proj = 7 ;
+//                   if (type1.indexOf("NCP")>= 0) proj = 8 ;
+//                   if (type1.indexOf("ZPN")>= 0) proj = 9 ;
+//                   if( flagSolar ) proj = 10;
+//                   if (type1.indexOf("Solar")>=0) proj = 10;
+//                   if (type1.indexOf("solar")>=0) proj = 10;
+//                   if (proj == 0) {
+//#endif /* PIERRE */
+                   if (proj == 12) {
+                	      try {
+                	    	   order_a = hf.getIntFromHeader("A_ORDER") ;
+                	    	   order_b= hf.getIntFromHeader("B_ORDER") ;
+                	  
+                	    	   for (int order = 2;  order < order_a+1 ; order++)
+                           	 {
+                           		 for (int powx =0 ; powx < order+1 ; powx++ )
+                           		 {
+                           			 sip_a[powx][order-powx] = hf.getDoubleFromHeader("A_"+(new Integer(powx).toString())+"_"+(new Integer(order-powx).toString())+"  ");
+                           		 }
+                           	 }	
+                	    	   for (int order = 2;  order < order_b+1 ; order++)
+                             	 {
+                             		 for (int powx =0 ; powx < order+1 ; powx++ )
+                             		 {
+                             			 sip_b[powx][order-powx] = hf.getDoubleFromHeader("B_"+(new Integer(powx).toString())+"_"+(new Integer(order-powx).toString())+"  ");
+                             		 }
+                             	 }	
+
+                	    //	  sip_a[0][2] = hf.getDoubleFromHeader("A_"+(new Integer(0).toString())+"_2  "); 
+                	    	 
+                	    // 	  sip_a[1][1] = hf.getDoubleFromHeader("A_1_1  ");
+                	    	  
+                	    //	  sip_a[2][0] = hf.getDoubleFromHeader("A_2_0  ");
+                	    	  
+                	    //	  sip_b[0][2] = hf.getDoubleFromHeader("B_0_2  "); 
+                	    //	  sip_b[1][1] = hf.getDoubleFromHeader("B_1_1  ");
+                	    //	  sip_b[2][0] = hf.getDoubleFromHeader("B_2_0 ");
+                	    	  
+                	    //	  sip_ap[0][2] = hf.getDoubleFromHeader("AP_0_2 ");
+                	    // 	  sip_ap[1][1] = hf.getDoubleFromHeader("AP_1_1 ");
+                	    //	  sip_ap[2][0] = hf.getDoubleFromHeader("AP_2_0 ");
+                	    	  
+                	    //	  sip_bp[0][2] = hf.getDoubleFromHeader("BP_0_2 "); 
+                	    //	  sip_bp[1][1] = hf.getDoubleFromHeader("BP_1_1 ");
+                	    // 	  sip_bp[2][0] = hf.getDoubleFromHeader("BP_2_0 ");
+                	    	  
+                	    //	  if (order_a > 2)
+                	    // 	  {
+                	    //  	  sip_a[3][0] = hf.getDoubleFromHeader("A_3_0  ");
+                	    //  	  sip_a[0][3] = hf.getDoubleFromHeader("A_0_3  ");
+                	    // 	  sip_a[1][2] = hf.getDoubleFromHeader("A_1_2  ");
+                	    // 	  sip_a[2][1] = hf.getDoubleFromHeader("A_2_1  ");
+                	    //	  }
+                	    //	   if (order_b > 2)
+                	    //	   { 		   
+                	    	               	    	  
+                	    	 
+                	    //	  sip_b[1][2] = hf.getDoubleFromHeader("B_1_2  ");
+                	    //	  sip_b[0][3] = hf.getDoubleFromHeader("B_0_3  ");
+                	    //	  sip_b[2][1] = hf.getDoubleFromHeader("B_2_1  ");
+                	    //	  sip_b[3][0] = hf.getDoubleFromHeader("B_3_0  ");
+                	    //	   }
+                	    //	   if (order_ap > 2)
+                	    //	   {	   
+                	    //	  
+                	    //	  sip_ap[3][0] = hf.getDoubleFromHeader("AP_3_0 ");
+                	    //	  sip_ap[2][1] = hf.getDoubleFromHeader("AP_2_1 ");
+                	    //	  sip_ap[1][2] = hf.getDoubleFromHeader("AP_1_2 ");
+                	    //	  sip_ap[0][3] = hf.getDoubleFromHeader("AP_0_3 ");
+                	    //	   }
+                  	    //	   if (order_bp > 2)
+                  	    //	   {		     
+                	    //	  sip_bp[3][0] = hf.getDoubleFromHeader("BP_3_0 ");
+                	    //	  sip_bp[2][1] = hf.getDoubleFromHeader("BP_2_1 ");
+                	    //	  sip_bp[1][2] = hf.getDoubleFromHeader("BP_1_2 ");
+                	    //	  sip_bp[0][3] = hf.getDoubleFromHeader("BP_0_3 ");
+                  	    //	   }
+                	      }
+                	      catch (Exception e13 ){ proj = -1  ;}   
+                	      try {
+                	   //   System.out.println("ici") ;
+                	  	   order_ap = hf.getIntFromHeader("AP_ORDER") ;
+                	  //	 System.out.println("ici") ;
+            	    	   order_bp = hf.getIntFromHeader("BP_ORDER") ;
+            	    	//   System.out.println("ici") ;  
+               	    	   for (int order = 2;  order < order_ap+1 ; order++)
+                       	 {
+                       		 for (int powx =0 ; powx < order+1 ; powx++ )
+                       		 {
+                       			 sip_ap[powx][order-powx] = hf.getDoubleFromHeader("AP_"+(new Integer(powx).toString())+"_"+(new Integer(order-powx).toString())+"  ");
+                       		 }
+                       	 }	
+               	 //   	System.out.println("ici") ;
+            	    	   for (int order = 2;  order < order_bp+1 ; order++)
+                         	 {
+                         		 for (int powx =0 ; powx < order+1 ; powx++ )
+                         		 {
+                         			 sip_bp[powx][order-powx] = hf.getDoubleFromHeader("BP_"+(new Integer(powx).toString())+"_"+(new Integer(order-powx).toString())+"  ");
+                         		 }
+                         	 }		
+            	    //	   System.out.println("ici") ;
+                	      }
+                	      catch (Exception e14 ) { }
+                   }
                    if (type1.indexOf("COE")>= 0) proj = TAN ;
                    if (proj == -1) {
                       System.err.println(
@@ -1075,6 +1349,12 @@ import java.lang.*;
               int sign = 1;
                double det ;
 
+               
+               // PF - Jan 2011 - La méthode de calibration DSS ne marche pas actuellement avec les imagettes
+               // => dans les mains de François B. En attendant, je fais un gros patch
+//               if( hf.getDoubleFromHeader("NAXIS1")<10000 ) throw new Exception("Certainely not a full plate");
+
+
               proj = TAN ; // projection TAN ;
               alpha += hf.getIntFromHeader("PLTRAM  ")*60. ;
               //WCSKeys.addElement("PLTRAM  "); 
@@ -1095,6 +1375,7 @@ import java.lang.*;
               focale = hf.getDoubleFromHeader("PLTSCALE");
               //WCSKeys.addElement("PLTSCALE"); 
               focale = 180.*3600./Math.PI/focale ;
+//              System.out.println("Dss focale: "+focale);
               equinox = hf.getDoubleFromHeader("EQUINOX ");
               //WCSKeys.addElement("EQUINOX"); 
                 try {
@@ -1192,6 +1473,7 @@ import java.lang.*;
                 {
                   xyapoly[i] /= (180*3600/Math.PI/focale) ;
                   xydpoly[i] /= (180*3600/Math.PI/focale) ;
+//                  System.out.println("xyapoly "+ xyapoly[i] +" " +xydpoly[i]   );
                 }
                incX = hf.getDoubleFromHeader("XPIXELSZ") ;
               //WCSKeys.addElement("XPIXELSZ"); 
@@ -1203,37 +1485,45 @@ import java.lang.*;
               //WCSKeys.addElement("NAXIS2  "); 
                Xorg = incX *  hf.getDoubleFromHeader("CNPIX1  ") ;
               // CNPX1 double for DFBS WCSKeys.addElement("CNPIX1  "); 
-               Yorg = incY *(13999 - hf.getDoubleFromHeader("CNPIX2  ") -ynpix ) ;
+               Yorg = incY *(23040 - hf.getDoubleFromHeader("CNPIX2  ") -ynpix ) ;
               //CNPIX2 double for DFBS WCSKeys.addElement("CNPIX2  "); 
-               yz   = incY * 13999 / 1000. -yz ;
+               yz   = incY * 23040 / 1000. -yz ;
 
                cdelz = Math.cos(delta*deg_to_rad);
                sdelz = Math.sin(delta*deg_to_rad);
+               alphai = alpha ;
+               deltai = delta ;
 
-               aladin = 1;
+           //    aladin = 1;
                
-               GetWCS_i() ;
-        
-               det = CD[0][0]* CD[1][1]-CD[0][1]*CD[1][0] ;
-               ID[0][0] = CD[1][1]/det ;
-               ID[0][1] = -CD[0][1]/det ;
-               ID[1][0] = -CD[1][0]/det ;
-               ID[1][1] = CD[0][0]/det ;
-               incA = Math.sqrt(CD[0][0]*CD[0][0]+CD[0][1]*CD[0][1]) ;
-               incD = Math.sqrt(CD[1][0]*CD[1][0]+CD[1][1]*CD[1][1]) ;
-               widtha = xnpix * Math.abs(incA) ;
-               widthd = ynpix * Math.abs(incD) ;
+         //       GetWCS_i() ;
+         //
+         //       det = CD[0][0]* CD[1][1]-CD[0][1]*CD[1][0] ;
+         //      ID[0][0] = CD[1][1]/det ;
+         //      ID[0][1] = -CD[0][1]/det ;
+         //      ID[1][0] = -CD[1][0]/det ;
+         //      ID[1][1] = CD[0][0]/det ;
+         //      incA = Math.sqrt(CD[0][0]*CD[0][0]+CD[0][1]*CD[0][1]) ;
+         //      incD = Math.sqrt(CD[1][0]*CD[1][0]+CD[1][1]*CD[1][1]) ;
+         //      widtha = xnpix * Math.abs(incA) ;
+         //      widthd = ynpix * Math.abs(incD) ;
          
-               cdelz = Math.cos(deltai*deg_to_rad);
-               sdelz = Math.sin(deltai*deg_to_rad);
+         //    cdelz = Math.cos(deltai*deg_to_rad);
+         //    sdelz = Math.sin(deltai*deg_to_rad);
       
                
-               type1 = "'RA---TAN'" ;
-               type2 = "'DEC--TAN'" ;
-
+          //     type1 = "'RA---TAN'" ;
+          //     type2 = "'DEC--TAN'" ;
+               incA =  (xyapoly[2]*incX/focale/1000)*rad_to_deg ;
+               incD =  (xydpoly[1]*incY/focale/1000)*rad_to_deg  ;
+               
+               widtha = xnpix * Math.abs(incA) ;
+               widthd = ynpix * Math.abs(incD) ;
+               
+         //      System.out.println("Dss inC "+incA+" "+incD);
 
 // Pourquoi y repasser ? On garde la solution linÃ¯Â¿Â½aire dans ce cas.
-               aladin = 2 ;
+                aladin = 2 ;
 
 
              }
@@ -1286,17 +1576,50 @@ import java.lang.*;
                  c.dx = c.x - Xcen /* PF +1 */;
 //                 c.dy = ynpix - Ycen -c.y;
                  c.dy = c.y - Ycen ;
-
-             if ((equinox != 2000.0)&&(system != GALACTIC))
-               {
+//               if (equinox == 0.0 )  system = FK4 ;
+               if (system ==  FK4)
+//             if ((equinox != 2000.0)&&(system != GALACTIC))
+// Ancine test supprimé en 04/2012  
+                 {
+// PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                Astroframe j2000 = new Astroframe() ;
+//                Astroframe natif = new Astroframe(1,equinox) ;
+//                j2000.set(al,del) ;
+//                j2000.convert(natif) ;
+//                al = natif.getLon() ;
+//                del = natif.getLat() ;                               
                 Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
                 ac.setPrecision(Astrocoo.MAS+1);
                 ac.convertTo(AF_FK4);
                 al = ac.getLon();
                 del = ac.getLat();
                }
+              if (system ==  FK5)
+//                 if ((equinox != 2000.0)&&(system != GALACTIC))
+    // Ancine test supprimé en 04/2012  
+                     {
+    // PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                    Astroframe j2000 = new Astroframe() ;
+//                    Astroframe natif = new Astroframe(1,equinox) ;
+//                    j2000.set(al,del) ;
+//                    j2000.convert(natif) ;
+//                    al = natif.getLon() ;
+//                    del = natif.getLat() ;                               
+                    Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
+                    ac.setPrecision(Astrocoo.MAS+1);
+                    ac.convertTo(AF_FK5);
+                    al = ac.getLon();
+                    del = ac.getLat();
+                   }
               if (system == GALACTIC)
                 {
+// PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                 Astroframe fk5 = new Astroframe() ;
+//                 Astroframe natif =  new Astroframe(2,equinox);
+//                 fk5.set(al,del) ;
+//                 fk5.convert(natif);
+//                 al = natif.getLon() ;
+//                 del = natif.getLat() ;
                  Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
                  ac.setPrecision(Astrocoo.MAS+1);
                  ac.convertTo(AF_GAL);
@@ -1304,7 +1627,39 @@ import java.lang.*;
                  del = ac.getLat();
           //      System.out.println(c.al+" "+c.del);
                 }
+              if (system == ECLIPTIC)
+              {
+//PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//               Astroframe fk5 = new Astroframe() ;
+//               Astroframe natif =  new Astroframe(2,equinox);
+//               fk5.set(al,del) ;
+//               fk5.convert(natif);
+//               al = natif.getLon() ;
+//               del = natif.getLat() ;
+               Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
+               ac.setPrecision(Astrocoo.MAS+1);
+               ac.convertTo(AF_ECL);
+               al = ac.getLon();
+               del = ac.getLat();
+        //      System.out.println(c.al+" "+c.del);
+              }
 
+              if (system == SUPERGALACTIC)
+              {
+//PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//               Astroframe fk5 = new Astroframe() ;
+//               Astroframe natif =  new Astroframe(2,equinox);
+//               fk5.set(al,del) ;
+//               fk5.convert(natif);
+//               al = natif.getLon() ;
+//               del = natif.getLat() ;
+               Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
+               ac.setPrecision(Astrocoo.MAS+1);
+               ac.convertTo(AF_SGAL);
+               al = ac.getLon();
+               del = ac.getLat();
+        //      System.out.println(c.al+" "+c.del);
+              }
 
 
 
@@ -1354,12 +1709,17 @@ import java.lang.*;
                         else phi = - Math.PI/2 ;
                         if (sin_del*cdelz - cos_del*sdelz*cos_dalpha >= 0)
                         phi =  Math.PI + phi ;
-                        tet = Math.asin (
+                       tet = Math.asin (
+                     //   tet = Math.atan( 
                         sin_del*sdelz+ cos_del*cdelz *cos_dalpha);
                         double rteta ;
                         if (proj == ZPN)
-                        {
-                        rteta = adxpoly[1]*(Math.PI/2 -tet) +adxpoly[3]*(Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet) ;
+                        { rteta = 0.0 ;
+                          	 for (int order = 9;  order >= 0 ; order--)
+                           	 { rteta = (rteta )*(Math.PI/2-tet)+adxpoly[order];}
+                            		
+                     //   rteta = adxpoly[1]*(Math.PI/2 -tet) +adxpoly[3]*(Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet) 
+                     //            + adxpoly[5]* (Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet);
                         }
                         else rteta = (Math.PI/2 -tet) ;
                         //x_stand = (Math.PI/2 -tet)*Math.sin(phi) ;
@@ -1417,6 +1777,7 @@ import java.lang.*;
           }
         c.xstand = x_stand ;
         c.ystand = y_stand ;
+        
       }
 
 
@@ -1427,9 +1788,15 @@ import java.lang.*;
              double y_objr ;
              double posx ;
              double posy ;
-  
-   //          System.out.println("GetCoord "+c.x+" "+c.y);
-             if(aladin == 1)
+             
+             // Ajout PF - juillet 2012 - pour développement calibration par matrice de coordonnées)
+             if( proj==MATRIX ) {
+                getCoordMatrix(c);
+                return;
+             }
+             
+  // System.out.println("GetCoord "+c.x+" "+c.y+" "+aladin);
+             if((aladin == 1) || (aladin ==2))
              {
 //               cdelz = Math.cos((delta/180.)*Math.PI);
 //               sdelz = Math.sin((delta/180.)*Math.PI);
@@ -1438,10 +1805,11 @@ import java.lang.*;
 
              x_obj = (c.x*incX +Xorg)/1000. ;
              y_obj = (c.y*incY + Yorg)/1000. ;
-//           System.out.println("xyobj "+x_obj+" " +y_obj);
+    //       System.out.println("GetCoord xyobj "+x_obj+" " +y_obj);
              x_objr = (x_obj -xz) / focale ;
              y_objr = (y_obj -yz) / focale ;
-          // System.out.println("xyobjr "+x_objr+" " +y_objr);
+    //         System.out.println("GetCoord xz yz "+xz+" "+yz);
+    //         System.out.println("GetCoord xyobjr "+x_objr+" " +y_objr);
            if (x_objr*x_objr +y_objr*y_objr > 0.19)
         	   throw new Exception("No coordinates") ;
         	   
@@ -1468,7 +1836,7 @@ import java.lang.*;
                      xydpoly[9]*y_objr*x_objr*x_objr ;
 
 
-          // System.out.println("pos "+posx+" " +posy);
+        //   System.out.println("GetCoord pos "+posx+" " +posy);
 
              c.al = alpha
                     + (Math.atan(posx/(cdelz-posy*sdelz)))*rad_to_deg ;
@@ -1486,7 +1854,7 @@ import java.lang.*;
 
              if(c.al > 360.) c.al -= 360.;
              if(c.al <   0.) c.al += 360.;
-//           System.out.println("coord "+c.al+" " +c.del);
+          // System.out.println("Getcoord "+c.al+" " +c.del);
                  }
               else
                 {
@@ -1498,6 +1866,41 @@ import java.lang.*;
                  if ((proj == TAN) && (xyapoly[1] != 0)&&(xyapoly[1] != 1) && (aladin ==0)
                 		 && (xydpoly[2]*CD[1][1] <0 ))
                     y_obj = c.y - Ycen ;
+                 if (proj == SIP)
+                 {
+                	 double xint = x_obj;
+                	 double yint = y_obj;
+                	 for (int order = 2;  order < order_a+1 ; order++)
+                 	 {
+                 		 for (int powx =0 ; powx < order+1 ; powx++ )
+                 		 {
+                 			 x_obj = x_obj + sip_a[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+                 		 }
+                 	 }
+                	 for (int order = 2;  order < order_b+1 ; order++)
+                 	 {
+                 		 for (int powx =0 ; powx < order+1 ; powx++ )
+                 		 {
+                 			 y_obj = y_obj + sip_b[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+                 		 }
+                 	 }
+                	 //x_obj = xint + 
+                	 //        sip_a[0][2]*yint*yint +
+                	 //        sip_a[0][3]*yint*yint*yint +
+                	 //        sip_a[1][1]*xint*yint +
+                	 //        sip_a[1][2]*xint*yint*yint +
+                	 //        sip_a[2][0]*xint*xint +
+                	 //        sip_a[2][1]*xint*xint*yint +
+                	 //        sip_a[3][0]*xint*xint*xint ;
+                	 //y_obj = yint + 
+        	         //sip_b[0][2]*yint*yint +
+        	         //sip_b[0][3]*yint*yint*yint +
+        	         //sip_b[1][1]*xint*yint +
+        	         //sip_b[1][2]*xint*yint*yint +
+        	         //sip_b[2][0]*xint*xint +
+        	         //sip_b[2][1]*xint*xint *yint+
+        	         //sip_b[3][0]*xint*xint*xint;
+                 }
               
  //              System.out.println("xyobj "+x_obj+" "+y_obj);
 //                   y_obj = Ycen -c.y ;
@@ -1511,7 +1914,7 @@ import java.lang.*;
 //                 System.out.println("xyobjr "+x_objr+" "+y_objr);
 //                 x_objr *= Math.PI/180. ;
 //                 y_objr *= Math.PI/180. ;
- //                System.out.println("xyobjr "+x_objr+" "+y_objr);   
+   //          if (x_obj == 0.0) System.out.println("xyobjr "+x_objr+" "+y_objr);   
                  x_objr *= deg_to_rad ;
                  y_objr *= deg_to_rad ;
                  double  yy = y_objr ;
@@ -1520,6 +1923,7 @@ import java.lang.*;
 
              double X ;
              double tet ;
+           //  System.out.println("Proj "+proj);
              switch(proj)
               {
                 case SIN: // projection en SINUS
@@ -1565,6 +1969,7 @@ import java.lang.*;
 
                         break ;
                case TAN:  // projection en TAN
+               case SIP:	   
     //      System.out.println("xyobjr "+x_objr+" " +yy);
            // 	   System.out.println("avant aladin "+aladin) ;
                          if ((xyapoly[1] != 0)&&(xyapoly[1] != 1) && (aladin == 0))
@@ -1598,7 +2003,8 @@ import java.lang.*;
                       x_objr = posx ;
                       yy = posy ;
        //   System.out.println("pos "+posx+" " +posy);
-                       }
+                        }
+                                   
 
 //                       double deno = Math.cos(deltai*Math.PI/180.)
                          double deno = cdelz
@@ -1635,21 +2041,35 @@ import java.lang.*;
                        int niter = 20 ;
                        double dtet ;
                        int iter = 0 ;
+               //        System.out.println("adxpoly "+adxpoly[1]+" "+adxpoly[3]+" "+adxpoly[5]);
                        while (iter < niter)
-                       {
-                        dtet = (rteta- adxpoly[1]*tet -adxpoly[3]* tet*tet*tet)/(adxpoly[1]+3*adxpoly[3]* tet*tet) ;
-                        tet += dtet ;
+                       {   double rrr =0.0 ;
+                           double drrr = 0.0 ;
+                    	   for (int order = 9;  order >= 0 ; order--)
+                         	 { rrr = (rrr )*tet+adxpoly[order];}
+                    	   for (int order = 8;  order >= 0 ; order--)
+                    	   {  
+                         	   drrr = drrr * tet + (order+1)*adxpoly[order+1];
+                           }
+                     //   dtet = (rteta- adxpoly[1]*tet -adxpoly[3]* tet*tet*tet-adxpoly[5]*tet*tet*tet*tet*tet)/(adxpoly[1]+3*adxpoly[3]* tet*tet+5*adxpoly[5]*tet*tet*tet*tet) ;
+                          dtet = (rteta -rrr)/drrr ;  
+                    	   tet += dtet ;
+                  //     System.out.println("tet"+iter+" "+rteta+" "+tet+" "+dtet);
                         iter++ ;
                        }
                        }
                        else tet = rteta;
-                         
-                       c.del = rad_to_deg*Math.asin(+y_objr*cdelz*Math.sin(tet)/ rteta +sdelz*Math.cos(tet));
+                         if (rteta == 0.0) c.del = deltai ;
+                         else c.del = rad_to_deg*Math.asin(+y_objr*cdelz*Math.sin(tet)/ rteta +sdelz*Math.cos(tet));
 
-                       if (tet <= Math.PI/2)
+                       if (tet < Math.PI/2)
                        c.al =alphai + rad_to_deg*Math.asin(Math.sin(tet)*x_objr/ (rteta*Math.cos(c.del*deg_to_rad)));
+                        
                        else c.al =alphai + 180. - rad_to_deg*Math.asin(Math.sin(tet)*x_objr/(rteta*Math.cos(c.del*deg_to_rad))) ;
-
+                      
+                      //         if(tet==0.0)c.al=alphai;
+                      //         System.out.println("tete "+tet+" "+(alphai + rad_to_deg*Math.asin(Math.sin(tet)*x_objr/ (rteta*Math.cos(c.del*deg_to_rad))))+" "+(alphai + 180. - rad_to_deg*Math.asin(Math.sin(tet)*x_objr/(rteta*Math.cos(c.del*deg_to_rad)))));
+                      // System.out.println("tet alphai"+tet+" "+c.al+" "+alphai);
                        break;
 
                case AIT:  // projection AITOFF
@@ -1706,11 +2126,14 @@ import java.lang.*;
                case MOL:
                   double x =  x_objr;
                   double y =  y_objr;
+               //   System.out.println("x y "+x+" "+y) ;
                   double PI_SQ = Math.PI * Math.PI;
                   double rSq = x * x / PI_SQ + y * y * PI_SQ / 16;
                   if( rSq > 1)  return; // Dehors
+               //   System.out.println("rSq "+rSq) ;
                   double theta = Math.asin(y * Math.PI / 4);
                   double psi = theta * 2;
+               //   System.out.println("psi "+psi) ;
                   double delta = Math.asin((psi + Math.sin(psi)) / Math.PI);
                   double alpha = x / Math.cos(theta);
                   c.al = alphai + alpha * rad_to_deg;
@@ -1796,23 +2219,83 @@ import java.lang.*;
               }
              if (system == XYLINEAR) return ;
              
-              if ((equinox != 2000.0) && (system != GALACTIC))
-                 {
+         //     if ((equinox != 2000.0) && (system != GALACTIC))
+              if (system == FK4)
+             {
+// PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                 Astroframe j2000 = new Astroframe() ;
+//                 Astroframe natif = new Astroframe(1,Astroframe.MAS+1,equinox) ;
+//                 natif.set(c.al,c.del) ;
+//                 natif.convert(j2000) ;
+//                 c.al = j2000.getLon() ;
+//                 c.del = j2000.getLat() ;
                  Astrocoo ac = new Astrocoo(AF_FK4,c.al,c.del);
                  ac.setPrecision(Astrocoo.MAS+1);
                  ac.convertTo(AF_ICRS);
                  c.al = ac.getLon();
                  c.del = ac.getLat();
                  }
+             if (system == FK5)
+              {
+ // PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                  Astroframe j2000 = new Astroframe() ;
+//                  Astroframe natif = new Astroframe(1,Astroframe.MAS+1,equinox) ;
+//                  natif.set(c.al,c.del) ;
+//                  natif.convert(j2000) ;
+//                  c.al = j2000.getLon() ;
+//                  c.del = j2000.getLat() ;
+                 Astrocoo ac = new Astrocoo(AF_FK5,c.al,c.del);
+                  ac.setPrecision(Astrocoo.MAS+1);
+                  ac.convertTo(AF_ICRS);
+                 c.al = ac.getLon();
+                  c.del = ac.getLat();
+                  }
               if (system == GALACTIC)
                 {
+// PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                 Astroframe fk5 = new Astroframe() ;
+//                 Astroframe natif =  new Astroframe(2,Astroframe.MAS+1,equinox);
+//                 natif.set(c.al,c.del) ;
+//                 natif.convert(fk5);
+//                 c.al = fk5.getLon() ;
+//                 c.del = fk5.getLat() ;
                  Astrocoo ac = new Astrocoo(AF_GAL,c.al,c.del);
                  ac.setPrecision(Astrocoo.MAS+1);
                  ac.convertTo(AF_ICRS);
                  c.al = ac.getLon();
                  c.del = ac.getLat();
                 }
-           //   System.out.println("coord "+c.al+" " +c.del);
+              if (system == SUPERGALACTIC)
+              {
+//PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//               Astroframe fk5 = new Astroframe() ;
+//               Astroframe natif =  new Astroframe(2,Astroframe.MAS+1,equinox);
+//               natif.set(c.al,c.del) ;
+//               natif.convert(fk5);
+//               c.al = fk5.getLon() ;
+//               c.del = fk5.getLat() ;
+               Astrocoo ac = new Astrocoo(AF_SGAL,c.al,c.del);
+               ac.setPrecision(Astrocoo.MAS+1);
+               ac.convertTo(AF_ICRS);
+               c.al = ac.getLon();
+               c.del = ac.getLat();
+              }
+              if (system == ECLIPTIC)
+              {
+//PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//               Astroframe fk5 = new Astroframe() ;
+//               Astroframe natif =  new Astroframe(2,Astroframe.MAS+1,equinox);
+//               natif.set(c.al,c.del) ;
+//               natif.convert(fk5);
+//               c.al = fk5.getLon() ;
+//               c.del = fk5.getLat() ;
+               Astrocoo ac = new Astrocoo(AF_ECL,c.al,c.del);
+               ac.setPrecision(Astrocoo.MAS+1);
+               ac.convertTo(AF_ICRS);
+               c.al = ac.getLon();
+               c.del = ac.getLat();
+              }
+//              System.out.println("GetCoord "+c.al+" " +c.del);
 
 
              if(c.al >= 360.) c.al -= 360.;
@@ -1852,13 +2335,21 @@ import java.lang.*;
               double dr;
               double al,del ;
 
-   //         System.out.println("GetXY aladin"+aladin+" "+c.al+" "+c.del+" "+system);
+         //   System.out.println("GetXY aladin"+aladin+" "+c.al+" "+c.del+" "+system);
+              
+              if( proj==MATRIX ) {
+                 getXYMatrix(c);
+                 return;
+              }
+
               
               if(aladin == 1)
               {
 //               cdelz = Math.cos((delta/180.)*Math.PI);
 //               sdelz = Math.sin((delta/180.)*Math.PI);
                  double cos_del = Math.cos(c.del*deg_to_rad);
+//                 double sin_del = Math.sin(c.del*deg_to_rad);  PF => jamais utilisÃ¯Â¿Â½
+//                 double dalpha =  (c.al- alphai)*deg_to_rad;   PF => jamais utilisÃ¯Â¿Â½
                  double distalpha = Math.min(Math.abs(c.al-alphai),360.-Math.abs(c.al-alphai));
                  if (cos_del*(distalpha)*cos_del*(distalpha)+(c.del-deltai)*(c.del-deltai)>625.0)
                  throw new Exception("Outside the projection") ;
@@ -1907,6 +2398,8 @@ import java.lang.*;
 
 //            System.out.println("coord "+x_obj+" " +y_obj);
 
+//PIERRE      c.xf = (x_obj *1000.0 - Xorg)/incX;
+//PIERRE      c.yf = (y_obj *1000.0 - Yorg)/incY ;
                  c.x = (x_obj *1000.0 - Xorg)/incX;
                  c.y = (y_obj *1000.0 - Yorg)/incY ;
 
@@ -1919,32 +2412,98 @@ import java.lang.*;
                  al = c.al ;
                  del = c.del ;
                 // System.out.println(c.al+" "+c.del);
-                 if ((equinox != 2000.0)&&(system != GALACTIC))
+                 if (system ==  FK4)
+//                   if ((equinox != 2000.0)&&(system != GALACTIC))
+      // Ancine test supprimé en 04/2012  
+                       {
+      // PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                      Astroframe j2000 = new Astroframe() ;
+//                      Astroframe natif = new Astroframe(1,equinox) ;
+//                      j2000.set(al,del) ;
+//                      j2000.convert(natif) ;
+//                      al = natif.getLon() ;
+//                      del = natif.getLat() ;                               
+                      Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
+                      ac.setPrecision(Astrocoo.MAS+1);
+                      ac.convertTo(AF_FK4);
+                      al = ac.getLon();
+                      del = ac.getLat();
+                     }
+                     if (system ==  FK5)
+//                       if ((equinox != 2000.0)&&(system != GALACTIC))
+          // Ancine test supprimé en 04/2012  
+                           {
+          // PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                          Astroframe j2000 = new Astroframe() ;
+//                          Astroframe natif = new Astroframe(1,equinox) ;
+//                          j2000.set(al,del) ;
+//                          j2000.convert(natif) ;
+//                          al = natif.getLon() ;
+//                          del = natif.getLat() ;                               
+                          Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
+                          ac.setPrecision(Astrocoo.MAS+1);
+                          ac.convertTo(AF_FK5);
+                          al = ac.getLon();
+                          del = ac.getLat();
+                         }
+                    if (system == GALACTIC)
+                      {
+      // PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                       Astroframe fk5 = new Astroframe() ;
+//                       Astroframe natif =  new Astroframe(2,equinox);
+//                       fk5.set(al,del) ;
+//                       fk5.convert(natif);
+//                       al = natif.getLon() ;
+//                       del = natif.getLat() ;
+                       Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
+                       ac.setPrecision(Astrocoo.MAS+1);
+                       ac.convertTo(AF_GAL);
+                       al = ac.getLon();
+                       del = ac.getLat();
+                //      System.out.println(c.al+" "+c.del);
+                      }
+                    if (system == ECLIPTIC)
                     {
-                    Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
-                    ac.setPrecision(Astrocoo.MAS+1);
-                    ac.convertTo(AF_FK4);
-                    al = ac.getLon();
-                    del = ac.getLat();
+      //PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                     Astroframe fk5 = new Astroframe() ;
+//                     Astroframe natif =  new Astroframe(2,equinox);
+//                     fk5.set(al,del) ;
+//                     fk5.convert(natif);
+//                     al = natif.getLon() ;
+//                     del = natif.getLat() ;
+                     Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
+                     ac.setPrecision(Astrocoo.MAS+1);
+                     ac.convertTo(AF_ECL);
+                     al = ac.getLon();
+                     del = ac.getLat();
+              //      System.out.println(c.al+" "+c.del);
                     }
-                 if (system == GALACTIC)
+
+                    if (system == SUPERGALACTIC)
                     {
-                    Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
-                    ac.setPrecision(Astrocoo.MAS+1);
-                    ac.convertTo(AF_GAL);
-                    al = ac.getLon();
-                    del = ac.getLat();
-     //            System.out.println(c.al+"avant glon "+c.del);
-      //           System.out.println(al+"after Glon "+del);
-                 
-                }
+      //PF 12/06 - Modif pour utilisation nouvelles classes Astrocoo de Fox                
+//                     Astroframe fk5 = new Astroframe() ;
+//                     Astroframe natif =  new Astroframe(2,equinox);
+//                     fk5.set(al,del) ;
+//                     fk5.convert(natif);
+//                     al = natif.getLon() ;
+//                     del = natif.getLat() ;
+                     Astrocoo ac = new Astrocoo(AF_ICRS,c.al,c.del);
+                     ac.setPrecision(Astrocoo.MAS+1);
+                     ac.convertTo(AF_SGAL);
+                     al = ac.getLon();
+                     del = ac.getLat();
+              //      System.out.println(c.al+" "+c.del);
+                    }
+
+
 
 //                System.out.println("c.al c.del "+c.al+" "+del);
              // Methode Header FITS WCS
 //                 double ddel = (del-deltai)*deg_to_rad ;    PF => Non utilisÃ¯Â¿Â½
 //                 double cos_ddel = Math.cos(ddel) ;         PF => Non utilisÃ¯Â¿Â½
                  double dalpha =  (al- alphai)*deg_to_rad;
-//System.out.println("dalpha "+ c.al +" " + alphai + " " + deltai + " " + deg_to_rad );
+//                System.out.println("dalpha "+ c.al +" " + alphai + " " + deltai + " " + deg_to_rad );
                  double cos_del = Math.cos(del*deg_to_rad);
                  double sin_del = Math.sin(del*deg_to_rad);
                  double sin_dalpha = Math.sin(dalpha);
@@ -1971,6 +2530,7 @@ import java.lang.*;
                 case SIN:
                 case NCP : // NCP
                 case TAN: // TAN proj
+                case SIP:	
                     if (dalpha > Math.PI )   dalpha = -2*Math.PI +dalpha ;
                     if (dalpha < -Math.PI )  dalpha = + 2*Math.PI +dalpha ;
                     if ((-sin_del * sdelz)/(cos_del * cdelz) > 1  )
@@ -2006,6 +2566,7 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                         else {x_stand = 0.0 ; y_stand = 0.0 ;}
                         break ;
                 case TAN: // TAN proj
+                case SIP: 	
 //                         double den     = Math.sin(del*Math.PI/180.)
 //                                  *Math.sin(deltai*Math.PI/180.) +
 //                                   Math.cos(del*Math.PI/180.)
@@ -2017,7 +2578,7 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
 //             System.out.println("xystand"+x_stand+" "+y_stand);
 //                        x_stand *= 180./Math.PI ;
 //                        y_stand *= 180./Math.PI ;
-            // System.out.println("xystand"+x_stand+" "+y_stand);
+//            System.out.println("xystand"+x_stand+" "+y_stand);
 //                        System.out.println("proj 2\n");
                          if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&(aladin == 0))
                          {
@@ -2032,6 +2593,7 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                            int niter = 20 ;
                            int iter = 0 ;
                            double m1,m2,m3,m4;
+                            
                            while (iter < niter)
                              {
                                iter++ ;
@@ -2080,8 +2642,8 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                                  xx += dx ;
                                  yy += dy ;
 
-//                             System.out.println("iterations dXY"+iter+" "+(x_stand - X)+" "+(y_stand-Y));
-//                             System.out.println("iterations XY"+iter+" "+X+" "+Y);
+           //                  System.out.println("iterations dXY"+iter+" "+(x_stand - X)+" "+(y_stand-Y));
+           //                  System.out.println("iterations XY"+iter+" "+X+" "+Y);
                                  X =  xyapoly[0] +
                                       xyapoly[2]*yy +
                                       xyapoly[1]*xx +
@@ -2105,19 +2667,115 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                                       xydpoly[7]*yy*xx*xx ;
                               //   Y *= deg_to_rad ;
 //                             System.out.println("iterations "+iter+" "+xx+" "+yy);
-                             }
+                                                            }
                         x_stand = xx ;
                         y_stand = yy ;
+                         }
+                         else if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&(aladin == 2))
+                         {
+                             double X = xyapoly[0];
+                             double Y = xydpoly[0];
+                             double dx ;
+                             double dy ;
+                             double xx=0 ;
+                             double yy=0 ;
+   
+                             int niter = 5 ;
+                             int iter = 0 ;
+                             double m1,m2,m3,m4;
+                            //        System.out.println("XY "+X+" "+Y) ;
+                            // System.out.println("XY "+X*rad_to_deg+" "+Y*rad_to_deg) ;
+                         while (iter < niter)
+                         {
+                           iter++ ;
+                           m1 = xyapoly[2]+
+                              2*xyapoly[4]*xx +
+                                xyapoly[5]*yy +
+                              3*xyapoly[7]*xx*xx +
+                                xyapoly[8]*yy*yy +
+                              2*xyapoly[9]*yy*xx ;
+                         //  m1  *= deg_to_rad ;
+
+                           m2  = xydpoly[2]+
+                               2*xydpoly[4]*xx +
+                                 xydpoly[5]*yy +
+                               3*xydpoly[7]*xx*xx +
+                                 xydpoly[8]*yy*yy +
+                               2*xydpoly[9]*yy*xx ;
+                          // m2  *= deg_to_rad ;
+
+                           m3  = xyapoly[1] +
+                               2*xyapoly[3]*yy +
+                                 xyapoly[5]*xx +
+                               3*xyapoly[6]*yy*yy +
+                               2*xyapoly[8]*yy*xx +
+                                 xyapoly[9]*xx*xx ;
+                          // m3  *= deg_to_rad ;
+
+                           m4  = xydpoly[1] +
+                               2*xydpoly[3]*yy +
+                                 xydpoly[5]*xx +
+                               3*xydpoly[6]*yy*yy +
+                               2*xydpoly[8]*yy*xx +
+                                 xydpoly[9]*xx*xx ;
+                         //  m4  *= deg_to_rad ;
+                      double det = m1 * m4 - m2 * m3 ;
+                      double tmp = m4 / det ;
+                             m2 /= -det ;
+                             m3 /= -det ;
+                             m4 = m1 /det ;
+                             m1 = tmp ;
+
+          //          
+                     //       System.out.println("matrice "+m1+" "+m2+" "+m3+" "+m4) ;
+                             dx = m1 * (x_stand - X) + m3 * (y_stand - Y) ;
+                             dy = m2 * (x_stand - X) + m4 * (y_stand - Y) ;
+                     //        System.out.println("dx dy dxstand dystand "+dx+" "+dy+" "+(x_stand-X)+" "+(y_stand-Y)); 
+                             xx += dx ;
+                             yy += dy ;
+                             X =  xyapoly[0] +
+                             xyapoly[1]*yy +
+                             xyapoly[2]*xx +
+                             xyapoly[3]*yy*yy +
+                             xyapoly[4]*xx*xx +
+                             xyapoly[5]*yy*xx +
+                             xyapoly[6]*yy*yy*yy +
+                             xyapoly[7]*xx*xx*xx +
+                             xyapoly[8]*yy*yy*xx +
+                             xyapoly[9]*yy*xx*xx ;
+                     //   X  *= deg_to_rad ;
+                        Y  =  xydpoly[0] +
+                             xydpoly[1]*yy +
+                             xydpoly[2]*xx +
+                             xydpoly[3]*yy*yy +
+                             xydpoly[4]*xx*xx +
+                             xydpoly[5]*yy*xx +
+                             xydpoly[6]*yy*yy*yy +
+                             xydpoly[7]*xx*xx*xx +
+                             xydpoly[8]*yy*yy*xx +
+                             xydpoly[9]*yy*xx*xx ;
+                     //   Y *= deg_to_rad ;
+            
+                   // System.out.println("iterations XY"+iter+" "+X*rad_to_deg+" "+Y*rad_to_deg);
+                   // System.out.println("iterations "+iter+" "+xx+" "+yy);
+                   // System.out.println("iterations XY"+iter+" "+X+" "+Y);
+                   // System.out.println("iterations "+iter+" "+xx*rad_to_deg+" "+yy*rad_to_deg);
+                                                   }
+                   //      System.out.println("iterations "+iter+" "+xx+" "+yy);
+                   //      System.out.println("inC toto"+incA+" "+incD);
+               x_stand = xx ;
+               y_stand = yy ;
+                         
                          }
                         else {
                         x_stand *= rad_to_deg;
                         y_stand *= rad_to_deg;
                         }
-   //          System.out.println("xystand"+x_stand+" "+y_stand);
+             //System.out.println("xystand"+x_stand+" "+y_stand);
                         break ;
                   case ZPN:
                   case ARC:
-                  //      System.out.println("al del"+al+" "+del);
+                        // System.out.println("al del"+al+" "+del);
                         if((sin_del*cdelz- cos_del*sdelz *cos_dalpha)!=0)
                         phi = Math.atan(-cos_del *sin_dalpha
                         / (sin_del*cdelz- cos_del*sdelz *cos_dalpha));
@@ -2125,7 +2783,7 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                         else phi = - Math.PI/2 ;
                    //    System.out.println("num"+(cos_del *sin_dalpha));
                     //   System.out.println("crit"+(sin_del*cdelz- cos_del*sdelz *cos_dalpha));
-                     //  System.out.println("phi"+phi);
+                    //   System.out.println("phi dans ARC"+phi);
                         if (sin_del*cdelz - cos_del*sdelz*cos_dalpha > 0)
                         phi =  Math.PI + phi ;
                       //  System.out.println("phi1"+phi);
@@ -2134,9 +2792,14 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                         sin_del*sdelz+ cos_del*cdelz *cos_dalpha);
                         double rteta ;
                         if (proj == ZPN)
-                        rteta = adxpoly[1]*(Math.PI/2 -tet) +adxpoly[3]*(Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet) ;
-                        else rteta = (Math.PI/2 -tet) ;
-                       // System.out.println("tet rteta "+(Math.PI/2 -tet)+" "+rteta);
+                        { rteta = 0.0 ;
+                        // System.out.println("rteta "+rteta);
+                     //                        	rteta = adxpoly[1]*(Math.PI/2 -tet) +adxpoly[3]*(Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet) +adxpoly[5]*(Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet)*(Math.PI/2 -tet);
+                       	 for (int order = 9;  order >= 0 ; order--)
+                       	 { rteta = (rteta )*(Math.PI/2-tet)+adxpoly[order];}}
+                        	else rteta = (Math.PI/2 -tet) ;
+                       // System.out.println("rteta "+rteta);
+                      //  System.out.println("tet rteta "+(Math.PI/2 -tet)+" "+rteta);
                         x_stand = rteta*Math.sin(phi) ;
 //                        y_stand = -(Math.PI/2 -tet)*Math.cos(phi) ;
                         y_stand = -rteta*Math.cos(phi) ;
@@ -2281,10 +2944,10 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                 case SOL: // SOLAR
                     x_stand = al-alphai ;
                     y_stand = del-deltai ;
-                   // System.out.println("xystand"+x_stand+" "+y_stand);
+                  //  System.out.println("xystand"+x_stand+" "+y_stand);
                     break ;
                 default:
-//                        System.out.println("proj 3\n");
+//                       System.out.println("proj default\n");
                         break ;
               }
               }
@@ -2293,17 +2956,172 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
              
 
 
-       //      System.out.println("ID "+x_stand+" "+ID[0][0]+" "+y_stand+" "+ID[0][1]+" "+Xcen);
-       //      System.out.println("ID "+x_stand+" "+ID[1][0]+" "+y_stand+" "+ID[1][1]+" "+Ycen);
+            // System.out.println("ID "+x_stand+" "+ID[0][0]+" "+y_stand+" "+ID[0][1]+" "+Xcen+" "+xnpix);
+            // System.out.println("ID "+x_stand+" "+ID[1][0]+" "+y_stand+" "+ID[1][1]+" "+Ycen+" "+ynpix);
 
-                
+                if (aladin != 2)
+                {
               c.x = (ID[0][0]*x_stand +ID[0][1]*y_stand)+ Xcen;
               c.y =  -(ID[1][0]*x_stand +ID[1][1]* y_stand) + ynpix - Ycen;
               if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&(proj==TAN) && (aladin == 0) && (xydpoly[2]*ID[1][1] <0 )) 
               {c.y =  (ID[1][0]*x_stand +ID[1][1]* y_stand) + Ycen;
+              if (proj == SIP)
+            	  
+              {
+            	  if ((order_ap == 0)||(order_bp == 0))
+            	  {
+            		  double X = 0;
+                      double Y = 0;
+                      double dx ;
+                      double dy ;
+                      double xx=0 ;
+                      double yy=0 ;
+                      int niter = 20 ;
+                      int iter = 0 ;
+                      double m1,m2,m3,m4;
+                       
+                      while (iter < niter)
+                        {
+                          iter++ ;
+                          m1 = 1 ;
+                          for (int order = 2;  order < order_a+1 ; order++)
+                      	 {
+                      		 for (int powx =0 ; powx < order+1 ; powx++ )
+                      		 {
+                      			m1 = m1 + powx*sip_a[powx][order-powx]*Math.pow(xx,(double)(powx-1))*Math.pow(yy,(double)(order-powx));
+                      		 }
+                      	 }
+                          m2 = 0 ;
+                          for (int order = 2;  order < order_a+1 ; order++)
+                      	 {
+                      		 for (int powx =0 ; powx < order+1 ; powx++ )
+                      		 {
+                      			m2 = m2 + (order-powx)*sip_a[powx][order-powx]*Math.pow(xx,(double)(powx))*Math.pow(yy,(double)(order-powx-1));
+                      		 }
+                      	 } 
+                          m3 = 1 ;
+                          for (int order = 2;  order < order_b+1 ; order++)
+                      	 {
+                      		 for (int powx =0 ; powx < order+1 ; powx++ )
+                      		 {
+                      			m3 = m3 + powx*sip_b[powx][order-powx]*Math.pow(xx,(double)(powx-1))*Math.pow(yy,(double)(order-powx));
+                      		 }
+                      	 }
+                          m4 = 0 ;
+                          for (int order = 2;  order < order_b+1 ; order++)
+                      	 {
+                      		 for (int powx =0 ; powx < order+1 ; powx++ )
+                      		 {
+                      			m4 = m4 + (order-powx)*sip_b[powx][order-powx]*Math.pow(xx,(double)(powx))*Math.pow(yy,(double)(order-powx-1));
+                      		 }
+                      	 }   
+                          double det = m1 * m4 - m2 * m3 ;
+                          double tmp = m4 / det ;
+                                 m2 /= -det ;
+                                 m3 /= -det ;
+                                 m4 = m1 /det ;
+                                 m1 = tmp ;
+                                 double DX ;
+                                 double DY ;
+                                 DX = (ID[0][0]*(x_stand -X) +ID[0][1]*(y_stand-Y));
+                                 DY =  (ID[1][0]*(x_stand-X) +ID[1][1]* (y_stand-Y)) ;
+//                               System.out.println("matrice "+m1+" "+m2+" "+m3+" "+m4) ;
+                                 dx = m1 * DX + m3 * DY ;
+                                 dy = m2 * DX + m4 * DY ;
+                                
+                                 xx += dx ;
+                                 yy += dy ;
+                          double xint = xx ;   
+                          double yint = yy ;
+                          double    px = xint ;
+                          double    py = yint ; 
+                          for (int order = 2;  order < order_a+1 ; order++)
+                      	 {
+                      		 for (int powx =0 ; powx < order+1 ; powx++ )
+                      		 {
+                      			px = px + sip_a[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+                      		 }
+                      	 }
+                      	 
+                          for (int order = 2;  order < order_b+1 ; order++)
+                       	 {
+                       		 for (int powx =0 ; powx < order+1 ; powx++ )
+                       		 {
+                       			py = py + sip_b[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+                       		 }
+                       	 }
+                          X = CD[0][0]*px +CD[0][1]*py ;
+                          Y = CD[1][0]*px +CD[1][1]*py ;                       	 
+                        }  
+                      c.x = xx + Xcen ;
+                      c.y = yy + ynpix -Ycen ;
+            	  }
+            	  else
+            	  {	            
+            	 double xint= c.x -Xcen ;
+            	 double yint= c.y -ynpix + Ycen ;
+            	 
+             	 c.x = xint ;
+             	 for (int order = 2;  order < order_ap+1 ; order++)
+             	 {
+             		 for (int powx =0 ; powx < order+1 ; powx++ )
+             		 {
+             			 c.x = c.x + sip_ap[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+             		 }
+             	 }
+             	 
+             	 c.x =c.x +Xcen ;
+             	 
+             	 //       sip_ap[0][2]*Math.pow(yint,2.0) +
+             	 //       sip_ap[0][3]*yint*yint*yint +
+             	 //       sip_ap[1][1]*xint*yint +
+             	 //       sip_ap[1][2]*xint*yint*yint +
+             	 //       sip_ap[2][0]*Math.pow(xint,2.0) +
+             	 //       sip_ap[2][1]*xint*xint*yint +
+             	 //       sip_bp[3][0]*xint*xint*xint + Xcen ;
+             	
+             	 c.y = yint ;
+             	 for (int order = 2;  order < order_bp+1 ; order++)
+             	 {
+             		 for (int powx =0 ; powx < order+1 ; powx++ )
+             		 {
+             			 c.y = c.y + sip_bp[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+             	// c.y = yint + 
+     	        // sip_bp[0][2]*Math.pow(yint,(double)(nnnn)) +
+     	        // sip_bp[0][3]*yint *yint*yint +
+     	        // sip_bp[1][1]*xint*yint +
+     	        // sip_bp[1][2]*xint*yint*yint +
+     	        // sip_bp[2][0]*Math.pow(xint,2.0) +
+     	        // sip_bp[2][1]*xint*xint*yint +
+     	        // sip_bp[3][0]*xint*xint*xint + ynpix -Ycen ;
+             		 }    
+             		 }
+             	 c.y = c.y +ynpix -Ycen ;
               }
-        //     System.out.println("center ID"+ID[0][0]+" "+ID[0][1] ) ;
-       //      System.out.println("c.xy "+c.x+" "+c.y);
+              }
+              }
+                }
+              else
+              {
+          //*
+            	  
+            //	  System.out.println("x y xz yz"+(x_stand)*1000.0/incX+" "+(y_stand)*1000.0/incY+" "+(xz*1000.0/incX)+ " "+(yz*1000.0/incY));  
+               c.x= ((x_stand*focale)*1000.0  +xz*1000.0 - Xorg)/incX ;
+               c.y= ((y_stand*focale)*1000.0 + yz*1000.0 - Yorg)/incY  ; 
+              // System.out.println("center cxy"+c.x+" "+c.y ) ;
+              // System.out.println("Xorg Yorg"+Xorg+" "+Yorg+" "+incX+" "+incY) ;
+              //  System.out.println("c.xy "+c.x+" "+c.y);
+              }
+           //  System.out.println("center cxy"+c.x+" "+c.y ) ;
+           //  System.out.println("Xorg Yorg"+Xorg+" "+Yorg+" "+incX+" "+incY) ;
+        //      System.out.println("c.xy "+c.x+" "+c.y);
+          //   double xx = (ID[0][0]*x_stand +ID[0][1]*(-y_stand))+ Xcen;
+          //   double yy =  -(ID[1][0]*x_stand +ID[1][1]* (-y_stand)) + Ycen;
+           //  if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&(proj==2) && (aladin == 0) && (xydpoly[2]*ID[1][1] <0 )) 
+           //  {yy =  (ID[1][0]*x_stand +ID[1][1]* (-y_stand)) + ynpix - Ycen  /* PF -1 */;
+//             c.x = c.x /* PF +1 */; 
+             //}
+             //System.out.println("c.xy "+xx+" "+yy+" "+(-(ID[1][0]*x_stand +ID[1][1]* (-y_stand)))+" "+(-(ID[1][0]*x_stand +ID[1][1]* y_stand)));
            //            c.yf = - (ID[1][0]*x_stand +ID[1][1]* y_stand) +  Ycen;
           }
       }
@@ -2314,8 +3132,11 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
 
      public  double [] GetResol() {
                     double inc[] = new double[2];
-                    inc[0]= incA ;
-                    inc[1]= incD ;
+// Pierre - sept 2011 : depuis la dernière mouture de Calib, il peut y avoir des valeurs négatives
+//                    inc[0]= incA ;
+//                    inc[1]= incD ;
+                    inc[0]= Math.abs(incA) ;
+                    inc[1]= Math.abs(incD) ;
                     return inc;
                    }
 
@@ -2353,6 +3174,10 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                Xcen = xnpix/2. ;
                Ycen = ynpix/2. ;
 
+//PIERRE       a_d.xf = Xcen ;
+//PIERRE       a_d.yf = Ycen ;
+//PIERRE       a_d.x = (int)Math.rint(a_d.xf) ;
+//PIERRE       a_d.y = (int)Math.rint(a_d.yf) ;
                a_d.x = Xcen ;
                a_d.y = Ycen ;
 
@@ -2363,6 +3188,11 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
 //             System.out.println("XYcen "+Xcen+" "+Ycen);
 //            System.out.println("alp delt"+alphai+" "+deltai);
 
+//PIERRE       x_y_1.xf = Xcen  - xnpix/4. ;
+//PIERRE       x_y_1.yf = Ycen  - ynpix/4. ;
+//PIERRE       x_y_1.x = (int)Math.rint(x_y_1.xf) ;
+//              System.out.println("x_y_1 "+x_y_1.xf+" "+x_y_1.yf);
+//PIERRE       x_y_1.y = (int)Math.rint(x_y_1.yf) ;
                x_y_1.x = Xcen  - xnpix/4. ;
                x_y_1.y = Ycen  - ynpix/4. ;
 
@@ -2389,6 +3219,10 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                CD[0][0] = -(ynpix*xst+xnpix*yst)*2/ynpix/xnpix;
                CD[0][1] = +(ynpix*xst-xnpix*yst)*2/xnpix/ynpix;
 
+//PIERRE       x_y_2.xf = Xcen  + xnpix/4.  ;
+//PIERRE       x_y_2.yf = Ycen  - ynpix/4.  ;
+//PIERRE       x_y_2.x = (int) Math.rint(x_y_2.xf) ;
+//PIERRE       x_y_2.y = (int)Math.rint(x_y_2.yf) ;
                x_y_2.x = Xcen  + xnpix/4.  ;
                x_y_2.y = Ycen  - ynpix/4.  ;
 
@@ -2494,37 +3328,47 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                value.addElement(new Double(flagPermute?alphai:deltai).toString());
                key.addElement("CTYPE1  ");
                if (aladin == 1) value.addElement("'RA---TAN'");
+// PIERRE : ATTENTION type1 PEUT ETRE NULL -- NORMALEMENT, PLUS FB
                else value.addElement(type1);
                key.addElement("CTYPE2  ");
                if (aladin == 1) value.addElement("'DEC--TAN'");
+// PIERRE : ATTENTION type2 PEUT ETRE NULL -- NORMALEMENT, PLUS FB
+               if (aladin == 1) value.addElement("'DEC--TAN'");
                else value.addElement(type2);
-               key.addElement("RADECSYS");
-              
-               switch(system)
                
-                   {
-                    case 1 :
-                          value.addElement("FK4") ;
-                          break ;
-                    case 2 :
-                          value.addElement("GLON") ;
-                          break ;
-                    case 3 :
-                          value.addElement("SLON") ;
-                          break ;
-                    case 4 :
-                          value.addElement("ELON") ;
-                          break ;
-                    case 5 :
-                          value.addElement("FK5") ;
-                          break ;
-                    case 6 :
-                          value.addElement("ICRS") ;
-                          break ;
-                    case 7 :
-                    	  value.addElement("Solar");
-                    	  break ;
-                   }
+               // Le mot clé RADECSYS n'est concerné que par les systèmé équatoriaux
+               // Modif PF Jan 2011
+               if( RADECSYS[system].length()>0 ) {
+                  key.addElement("RADECSYS");
+                  value.addElement(RADECSYS[system]);
+               }
+//               key.addElement("RADECSYS");
+//               switch(system)
+//               
+//                   {
+//                    case 1 :
+//                          value.addElement("FK4") ;
+//                          break ;
+//                    case 2 :
+//                          value.addElement("GLON") ;
+//                          break ;
+//                    case 3 :
+//                          value.addElement("SLON") ;
+//                          break ;
+//                    case 4 :
+//                          value.addElement("ELON") ;
+//                          break ;
+//                    default:
+//                    case 5 :
+//                          value.addElement("FK5") ;
+//                          break ;
+//                    case 6 :
+//                          value.addElement("ICRS") ;
+//                          break ;
+//                    case 7 :
+//                    	  value.addElement("Solar");
+//                    	  break ;
+//                   }
 
                key.addElement("CD1_1   ");
 //               value.addElement(new Double(flagPermute?CD[1][0]:CD[0][0]).toString());
@@ -2572,35 +3416,41 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
             else value.addElement(new Double(delta).toString());
             key.addElement("CTYPE1  ");
             if (aladin == 1) value.addElement("'RA---TAN'");
+//PIERRE : ATTENTION type1 PEUT ETRE NULL -- NORMALEMENT, PLUS FB
             else value.addElement(type1);
             key.addElement("CTYPE2  ");
             if (aladin == 1) value.addElement("'DEC--TAN'");
+//PIERRE : ATTENTION type2 PEUT ETRE NULL -- NORMALEMENT, PLUS FB
             else value.addElement(type2);
-            key.addElement("RADECSYS");
-            switch (system)
-                {
-                 case 1 :
-                       value.addElement("FK4") ;
-                       break ;
-                 case 2 :
-                       value.addElement("GLON") ;
-                       break ;
-                 case 3 :
-                       value.addElement("SLON") ;
-                       break ;
-                 case 4 :
-                       value.addElement("ELON") ;
-                       break ;
-                 case 5 :
-                       value.addElement("FK5") ;
-                       break ;
-                 case 6 :
-                       value.addElement("ICRS") ;
-                       break ;
-                 case 7 :
-                	 value.addElement("Solar") ;
-                     break ; 
-                }
+           // key.addElement("RADECSYS");
+            if( RADECSYS[system].length()>0 ) {
+                key.addElement("RADECSYS");
+                value.addElement(RADECSYS[system]);
+             }
+           // switch (system)
+           //     {
+           //      case 1 :
+           //            value.addElement("FK4") ;
+           //            break ;
+           //      case 2 :
+           //            value.addElement("GLON") ;
+           //            break ;
+           //      case 3 :
+          //             value.addElement("SLON") ;
+           //            break ;
+           //      case 4 :
+           //            value.addElement("ELON") ;
+           //            break ;
+           //      case 5 :
+           //            value.addElement("FK5") ;
+           //            break ;
+           //      case 6 :
+           //            value.addElement("ICRS") ;
+           //            break ;
+           //      case 7 :
+           //     	 value.addElement("Solar") ;
+           //          break ; 
+           //     }
        if (aladin == 1)
           {
 //            double sca = incX/(1000.0*focale) ;
@@ -2707,7 +3557,9 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
    public Coord getProjCenter()  {
       Coord c = new Coord();
       c.x = Xcen;
+//      c.y = ynpix-Ycen;
       c.y = Ycen;
+//      try { GetCoord(c); } catch( Exception e ) { }
       c.al=alphai;
       c.del=deltai;
       return c;
@@ -2741,14 +3593,18 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
    protected int getProj() { return proj; }
 
    /*
+    * Retourne Le système de coordonnées
+    */
+   protected int getSystem() { return system; }
+   
+   /*
     * Retourne La dimension en pixels de l'image
     */
    public Dimension getImgSize() { return new Dimension(xnpix,ynpix); }
 
-
    /**
-    * Modifie la calibration astromÃ¯Â¿Â½trique pour prendre en compte une sous-image
-    * @param offx,offy : coin haut gauche (si absent, centrÃ¯Â¿Â½)
+    * Modifie la calibration astrométrique pour prendre en compte une sous-image
+    * @param offx,offy : coin haut gauche (si absent, centré)
     * @param  w,h : taille de la sous-image
     */
    protected void cropping(double w,double h) { cropping((xnpix -w)/2.,(ynpix -h)/2.,w,h); }
@@ -2758,7 +3614,7 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
        if( aladin == 0) {
            Xcen -=  offx ;
            // toujours faire attention quand on part du haut. calib, comme FITS et WCS compte
-           // du bas et il y a la hauteur Ã¯Â¿Â½ enlever en prime ...
+           // du bas et il y a la hauteur à enlever en prime ...
            Ycen -= (ynpix -offy -h ) ;
        }
        else {
@@ -2767,11 +3623,9 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
        }
        xnpix = (int)Math.round(w) ;
        ynpix = (int)Math.round(h) ;
+             
        widtha = xnpix * Math.abs(incA) ;
        widthd = ynpix * Math.abs(incD) ;
-
-
-
    }
    
    public int getSyst() {
@@ -2779,7 +3633,7 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
    }
    
    // thomas, 19/11/2007
-   // TODO : FranÃ¯Â¿Â½ois, peux tu me vÃ¯Â¿Â½rifier cette mÃ¯Â¿Â½thode ?
+   // TODO : François, peux tu me vérifier cette méthode ?
    /** S'agit-il d'une calib avec rotation dans le sens direct */
    protected boolean sensDirect() {
 	 //  System.out.println("CD "+CD[0][0]+" "+CD[1][1]);
@@ -2807,22 +3661,28 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
 	   
    }   
    
-   /** Code modifié par Pierre F. Juillet 2010 - à vérifier par François B. SVP */
+   /** Code modifié par Pierre F. Juillet 2010 - à vérifier par François B. SVP - code original ci-dessous
+    * Remodifié par Pierre F. en Mars 2011 - toujours à vérifier par François B. SVP */
    protected void cropAndZoom(double deltaX, double deltaY, double w, double h, double zoom) {
-       incX = incX/zoom ;
-       incY = incY/zoom ;
-       Xcen = Xcen*zoom ;
-       Ycen = Ycen*zoom ;
-       xnpix = (int)Math.ceil(xnpix * zoom) ;
-       ynpix = (int)Math.ceil(ynpix * zoom) ;
-       CD[0][0] = CD[0][0]/zoom ;
-       CD[0][1] = CD[0][1]/zoom ;
-       CD[1][0] = CD[1][0]/zoom ;
-       CD[1][1] = CD[1][1]/zoom ;
-       ID[0][0] = ID[0][0]*zoom ;
-       ID[0][1] = ID[0][1]*zoom ;
-       ID[1][0] = ID[1][0]*zoom ;
-       ID[1][1] = ID[1][1]*zoom ;
+      
+      incX = incX/zoom ;
+      incY = incY/zoom ;
+      Xcen = Xcen*zoom ;
+      Ycen = Ycen*zoom ;
+      xnpix = (int)Math.round(xnpix * zoom) ;  // Modif PF juillet 2010
+      ynpix = (int)Math.round(ynpix * zoom) ;  // Modif PF juillet 2010
+      CD[0][0] = CD[0][0]/zoom ;
+      CD[0][1] = CD[0][1]/zoom ;
+      CD[1][0] = CD[1][0]/zoom ;
+      CD[1][1] = CD[1][1]/zoom ;
+      ID[0][0] = ID[0][0]*zoom ;
+      ID[0][1] = ID[0][1]*zoom ;
+      ID[1][0] = ID[1][0]*zoom ;
+      ID[1][1] = ID[1][1]*zoom ;
+
+      incA /=zoom;   // Modif PF mars 2011
+      incD /=zoom;   // Modif PF mars 2011
+      
       cropping(deltaX*zoom,deltaY*zoom,w*zoom,h*zoom) ;
    }
    
@@ -2854,9 +3714,12 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
    
    static boolean equalEpsilon(double a, double b) {
       if( Double.isNaN(a) || Double.isNaN(b) ) return false;
-      return Math.abs(a-b)<=EPSILON;
+ //    if (Math.abs(a-b) >= EPSILON) 
+ //   	 { System.out.println("Diff "+(Math.abs(a-b))+" "+EPSILON) ;
+ //   	 System.out.println(" "+a+" "+b+" "+EPSILON) ;}
+      return Math.abs(a-b)<=EPSILON ;
    }
-   
+
 //   public static void main(String[] args) {
 //      test();
 //   }
@@ -2881,7 +3744,7 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                double rot=0;
                boolean sym=false;
                String centre = "   coo=("+ra+","+dec+")<=>xy=("+cxPix+","+cyPix+") : ";
-               Calib c = new Calib(ra,dec,cxPix,cyPix,widthPix,heightPix,widthAng,heightAng,rot,proj,sym);
+               Calib c = new Calib(ra,dec,cxPix,cyPix,widthPix,heightPix,widthAng,heightAng,rot,proj,sym,FK5);
                
                Coord coo = new Coord();
                
@@ -2889,17 +3752,18 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                double x=cxPix,y=cyPix;
                coo.x=x; coo.y=y;
                c.GetCoord(coo);
+               System.out.print("\nfixe"+centre+"  coo=("+coo.al+","+coo.del+") => xy=("+coo.x+","+coo.y+")");
                if( !equalEpsilon(coo.al,ra) || !equalEpsilon(coo.del,dec) ) {
                   if( !erreur ) System.out.print(" Error");
                   erreur=true;
-                  System.out.print("\n"+centre+" Wrong celestian center: xy=("+x+","+y+") => coo=("+coo.al+","+coo.del+") ");
+                  System.out.print("\nfixe"+centre+" Wrong celestian center: xy=("+x+","+y+") => coo=("+coo.al+","+coo.del+") ");
                }
                coo.al=ra; coo.del=dec;
                c.GetXY(coo);
                if( !equalEpsilon(coo.x,x) || !equalEpsilon(coo.y,y) ) {
                   if( !erreur ) System.out.print(" Error");
                   erreur=true;
-                  System.out.print("\n"+centre+" Wrong projected center: coo=("+coo.al+","+coo.del+") => xy=("+coo.x+","+coo.y+")");
+                  System.out.print("\nfixe"+centre+" Wrong projected center: coo=("+coo.al+","+coo.del+") => xy=("+coo.x+","+coo.y+")");
                }
                
                try {
@@ -2908,6 +3772,7 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                   for( int i=0; i<1000; i++ ) {
                      x=coo.x = rand.nextDouble()*widthPix;
                      y=coo.y = rand.nextDouble()*heightPix;
+//                     System.out.println("random avant GetCoord"+coo.x+" "+coo.y);
                      c.GetCoord(coo);
                      c.GetXY(coo);
                      if( !equalEpsilon(coo.x,x) || !equalEpsilon(coo.y,y) ) {
@@ -2918,7 +3783,7 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
                      }
                   }
                } catch( Exception e ) {
-                  if( !erreur ) System.out.print(" Error");
+                  if( !erreur ) System.out.print("random Error");
                   erreur=true;
                   System.out.print("\n"+centre+" Java exception: xy=("+x+","+y+") => "+e.getMessage());
                }
@@ -2926,30 +3791,25 @@ else    if (((-sin_del * sdelz)/(cos_del * cdelz) > -1 )&& (Math.abs(dalpha) > M
             if( !erreur ) System.out.println(" OK");
             else System.out.println();
             toutestbon &= erreur;
-//            return !erreur;
+//         return !erreur;
          }
       } catch( Exception e ) { e.printStackTrace(); toutestbon=false; }
       return toutestbon;
    }
    
-   static final Astrocoo COO_EQU = new Astrocoo(new ICRS());
-   static final Astrocoo COO_GAL = new Astrocoo(new Galactic());
-   public static double[] RaDecToGalactic(double ra, double dec) {
-	   double[] res = new double[2];
-	   Astrocoo coo = (Astrocoo) COO_EQU.clone(); 
-	   coo.set(ra, dec);
-	   coo.convertTo(AF_GAL);
-	   res[0] = coo.getLon();
-	   res[1] = coo.getLat();
-	   return res;
+   
+   
+   // Pour développement future - Calib par matrice
+   
+  public void getCoordMatrix(Coord c) {
+      c.al = 0;  // => methode a appeler en fonction de c.x et c.y
+      c.del = 0; // => methode a appeler en fonction de c.x et c.y
    }
-   public static double[] GalacticToRaDec(double al, double del) {
-	   double[] res = new double[2];
-	   Astrocoo coo = (Astrocoo) COO_GAL.clone(); 
-	   coo.set(al,del);
-	   coo.convertTo(AF_ICRS);
-	   res[0] = coo.getLon();
-	   res[1] = coo.getLat();
-	   return res;
-   }
+  
+  public void getXYMatrix(Coord c) {
+     c.x = 0;  // => methode a appeler en fonction de c.al et c.del
+     c.y = 0;  // => methode a appeler en fonction de c.al et c.del
+  }
+
+
 }

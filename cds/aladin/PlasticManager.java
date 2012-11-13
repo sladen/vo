@@ -25,36 +25,14 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Properties;
-import java.util.Vector;
 
-import javax.swing.BorderFactory;
-import javax.swing.DefaultListModel;
-import javax.swing.DefaultListSelectionModel;
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.ListSelectionModel;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 
 import net.ladypleaser.rmilite.Client;
 
@@ -554,7 +532,11 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
     }
 
 
-    public synchronized String[] getAppsSupporting(AppMessagingInterface.AbstractMessage abstractMsg) {
+    public ArrayList<String> getAppsSupportingTables() {
+        return getAppsSupporting(ABSTRACT_MSG_LOAD_VOT_FROM_URL);
+    }
+
+    public synchronized ArrayList<String> getAppsSupporting(AppMessagingInterface.AbstractMessage abstractMsg) {
         URI implMsg = getMessage(abstractMsg);
         return getAppsSupporting(implMsg);
     }
@@ -564,7 +546,7 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 	 * @param message un message PLASTIC
 	 * @return la liste des noms des applications supportant le message passé en param
 	 */
-	private synchronized String[] getAppsSupporting(URI message) {
+	private synchronized ArrayList<String> getAppsSupporting(URI message) {
 
 		if( message==null ) return null;
 
@@ -575,14 +557,15 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 //        for( int i=0; i<listApps.length; i++ ) System.out.println(listApps[i]);
 
         // on ne SE prend pas en compte, d'où le -1
-		String[] apps;
-        if( isSupporting(message) && listApps.length>0 ) apps = new String[listApps.length-1];
-        else apps = new String[listApps.length];
+		ArrayList<String> apps = new ArrayList<String>();
+		int nbApps;
+        if( isSupporting(message) && listApps.length>0 ) nbApps = listApps.length-1;
+        else nbApps = listApps.length;
 
-        if( apps.length==0 ) return new String[] {};
+        if( nbApps==0 ) return new ArrayList<String>();
 
-		if( appNamesToURI==null ) appNamesToURI = new Hashtable();
-		if( appNames==null ) appNames = new Vector();
+		if( appNamesToURI==null ) appNamesToURI = new Hashtable<String, URI>();
+		if( appNames==null ) appNames = new Vector<String>();
 
 		int j = 0;
 		String name;
@@ -595,10 +578,10 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 
 			name = null;
 			// on cherche si on a déja mémorisé cette URI, et on récupère le nom correpondant
-			Enumeration e = appNamesToURI.keys();
+			Enumeration<String> e = appNamesToURI.keys();
 			String tmp;
 			while( name==null && e.hasMoreElements() ) {
-				tmp = (String)e.nextElement();
+				tmp = e.nextElement();
 				if( appNamesToURI.get(tmp).equals(uri) ) name = tmp;
 			}
 
@@ -617,9 +600,10 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 				appNamesToURI.put(name, uri);
 			}
 
-			apps[j++] = name;
+			apps.add(name);
 		}
-		Arrays.sort(apps);
+
+		Collections.sort(apps);
 
 		return apps;
 	}
@@ -1021,7 +1005,7 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 	 * @param recipients tableau des destinataires. Si null, on envoie à tout le monde
 	 *
 	 */
-	public boolean broadcastTable(final PlanCatalog pc, final String[] recipients) {
+	public boolean broadcastTable(final Plan pc, final String[] recipients) {
 		Aladin.trace(3, "Broadcasting table "+pc.getLabel()+" to "+((recipients==null)?"everyone":(recipients.length+" applications")));
 
         if( widget!=null ) widget.animateWidgetSend();
@@ -1087,8 +1071,12 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 	 * @param pi le PlanImage à broadcaster
 	 * @param recipients tableau des destinataires. Si null, on envoie à tout le monde
 	 */
-	public boolean broadcastImage(final PlanImage pi, final String[] recipients) {
+	public boolean broadcastImage(final Plan pi, final String[] recipients) {
 		Aladin.trace(3, "Broadcasting image "+pi.getLabel()+" to "+((recipients==null)?"everyone":(recipients.length+" applications")));
+
+		if (pi==null || ! (pi instanceof PlanImage) ) {
+		    return false;
+		}
 
         if( widget!=null ) widget.animateWidgetSend();
 
@@ -1105,7 +1093,7 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 		new Thread("AladinPlasticSendImage") {
 			public void run() {
 				if( a.save==null ) a.save = new Save(a);
-				(a.save).saveImageFITS(tmpFile, pi);
+				(a.save).saveImageFITS(tmpFile, (PlanImage)pi);
 				URL url = SAMPUtil.getURLForFile(tmpFile);
 				String urlStr = url.toString();
 				String id = pi.getPlasticID();
@@ -1289,7 +1277,7 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 
                 a.glu.vGluServer = new Vector(50);
                 // ajout des resources sélectionnées
-                a.glu.loadGluDic(new DataInputStream(bas.getInputStream()),true);
+                a.glu.loadGluDic(new DataInputStream(bas.getInputStream()),true,false);
 
                 int n = a.glu.vGluServer.size();
                 if( n == 0 ) return;
@@ -1371,8 +1359,8 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 				if( sources==null ) return;
 
 				// on n'envoie aucun message si auune appli ne peut recevoir le message MSG_SELECT_OBJECTS
-				String[] apps = getAppsSupporting(MSG_SELECT_OBJECTS);
-				if( apps==null || apps.length==0 ) {
+				ArrayList<String> apps = getAppsSupporting(MSG_SELECT_OBJECTS);
+				if( apps==null || apps.size()==0 ) {
 					trace("None of the connected applications supports the 'select objects' message");
 					return;
 				}
@@ -1749,4 +1737,6 @@ public class PlasticManager implements PlasticListener, AppMessagingInterface {
 	public void setPlasticTrace(boolean plasticTrace) {
 		this.plasticTrace = plasticTrace;
 	}
+
+
 }

@@ -22,11 +22,7 @@ package cds.aladin;
 import java.awt.Color;
 import java.awt.Label;
 import java.net.URL;
-import java.util.Hashtable;
-import java.util.StringTokenizer;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.Vector;
+import java.util.*;
 
 import cds.tools.Util;
 
@@ -51,31 +47,28 @@ public final class CreatObj implements Runnable {
       trace(1,"Creating Console window");
       a.console = new Console(a);
       a.console.setInfo("Aladin "+a.VERSION+" under JVM "+aladin.javaVersion+" with "+a.MAXMEM+"MB");
-      
+
       trace(1,"Creating Command interface");
+      a.synchroServer = new Synchro(10000);
+      a.synchroPlan = new Synchro(60000);
       a.command=new Command(a);
 
       trace(1,"Creating Button menu");
       a.vButton = new Vector(10);
 
-      // Le fait que ce soit une référence static n'exonère pas de
-      // la nécessité de créer les formulaires associés à la bonne instance
-      // d'aladin (cf. ServerDialog.addGluServer())
-      // Cela dit il faudrait le remettre en NON static si possible
-//      if( a.glu==null ) {
-         trace(1,"Creating Glu gateway");
-         a.glu = new Glu(a);
-//      }
-
+      trace(1,"Creating Glu gateway");
+      a.glu = new Glu(a);
+      
       trace(1,"Creating Aladin logo");
       a.logo = new Logo(a);
 
       trace(1,"Creating Status object");
       a.status = new Status(a,a.WELCOME);
 
-      trace(1,"Creating Sync, Split, Grid logo");
+      trace(1,"Creating Sync, Split, Grid, Wink logo");
       a.sync = new Match(a);
       a.grid = new Grid(a);
+      a.oeil = new Oeil(a);
       a.northup = new Northup(a);
 
       trace(1,"Creating View control widget");
@@ -93,7 +86,7 @@ public final class CreatObj implements Runnable {
       a.search = new Search(a,true);
 
       trace(1,"Creating Toolbar panel");
-      a.toolbox = new ToolBox(a);
+      a.toolBox = new ToolBox(a);
 
       a.calque = new Calque(a);
       trace(1,"Creating Calque object");
@@ -115,9 +108,9 @@ public final class CreatObj implements Runnable {
 
       trace(1,"Creating Save");
       a.save = new Save(a);
-      
+
       a.setMemory();
-      
+
    }
 
    // Initialisation du timer
@@ -137,7 +130,7 @@ public final class CreatObj implements Runnable {
    * d'eventuels plans a charger immediatement
    */
    protected boolean creatLastObj() {
-      
+
       // Creation asynchrone...
       thread = new Thread(this,"AladinCreatObj");
       thread.start();
@@ -153,7 +146,7 @@ public final class CreatObj implements Runnable {
 
   /** Creation des objets en asynchrone */
    public void run() {
-      
+
        // launch try to autoconnect to PLASTIC/SAMP (and might launch a hub according to user prefs and Aladin.NOHUB)
        // and launch timer which will periodically check PLASTIC/SAMP status
        if( Aladin.PLASTIC_SUPPORT ) {
@@ -171,7 +164,7 @@ public final class CreatObj implements Runnable {
       initTimer();
       a.dialog = new ServerDialog(a);
       trace(1,"Creating Server window");
-      
+
       // Positionnement du frame par défaut
       if( a.NOGUI ) {
          a.localisation.setFrame(a.localisation.ICRS);
@@ -183,13 +176,14 @@ public final class CreatObj implements Runnable {
       }
       a.searchData.setEnabled(true);
       
-//      Util.pause(2000);
-      // Chargement des bookmarks
-      if( a.BOOKMARKS ) a.bookmarks.init(false);
+      if( a.BOOKMARKS ) {
+         trace(1,"CreateObj.run(): initializing bookmarks...");
+         a.bookmarks.init(false);
+      }
 
       // Traitement des parametres en mode applet
       if( Aladin.isApplet() && a.extApplet==null ) processParameter();
-      
+
       // Exécution d'un launch script (voir main())
       else {
          String script = a.getLaunchScript();
@@ -230,7 +224,7 @@ public final class CreatObj implements Runnable {
 
        a.trace(1,"Analyzing the parameters...");
        a.waitDialog();
-       
+
        try {
           // Chargement d'un script
           // Chargement d'eventuelles images par le parametre

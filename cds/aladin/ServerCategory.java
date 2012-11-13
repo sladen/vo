@@ -20,17 +20,7 @@
 
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseEvent;
 import java.io.*;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.util.*;
-
-import javax.swing.*;
-import javax.swing.event.CellEditorListener;
 import javax.swing.tree.*;
 
 /**
@@ -73,7 +63,7 @@ public class ServerCategory extends ServerTree  {
       (new Thread("initTree") {
          public void run() {
             loadRemoteTree();
-            populateTree(aladin.glu.vGluCategory.elements());
+            tree.populateTree(aladin.glu.vGluCategory.elements());
          }
       }).start();
    }
@@ -85,7 +75,7 @@ public class ServerCategory extends ServerTree  {
          dynTree=true;
          Aladin.trace(3,"Loading Tree definitions...");
          DataInputStream dis = new DataInputStream(aladin.cache.getWithBackup(Aladin.TREEURL));
-         aladin.glu.loadGluDic(dis,0,false,false);
+         aladin.glu.loadGluDic(dis,0,false,false,false);
       } catch( Exception e1 ) { if( Aladin.levelTrace>=3 ) e1.printStackTrace(); }
    }
 }

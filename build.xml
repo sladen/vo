@@ -2,7 +2,7 @@
 <!-- 
  Very simple ANT build.xml file for compiling and generating Aladin.jar file
  * Author : P.Fernique [CDS]
- * Date   : nov 2009
+ * Date   : dec 2011
 -->
 
 <project name="Aladin" default="main" basedir="."> 
@@ -13,11 +13,13 @@
    <target name="compil" description="source compilation" >
      <mkdir dir="${bin}"/>
      <javac srcdir="${basedir}" destdir="${bin}"
-	    encoding="Cp1252" source="1.4" target="1.4" deprecation="off" >
+	    encoding="Cp1252" source="1.5" target="1.5" deprecation="off" >
        <classpath>
           <pathelement path="${java.class.path}/"/>
           <pathelement path="jsamp.jar"/>
           <pathelement path="microhub.jar"/>
+          <pathelement path="Moc.jar"/>
+          <pathelement path="jhealpixSmall.jar"/>
       </classpath>
      </javac>
    </target>
@@ -27,6 +29,8 @@
         <fileset dir="${bin}"/>
 	    <zipfileset src="jsamp.jar"/>
 	    <zipfileset src="microhub.jar"/>
+	    <zipfileset src="Moc.jar"/>
+	    <zipfileset src="jhealpixSmall.jar"/>
 	    <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*"/>
         <manifest>
            <attribute name="Main-Class" value="cds.aladin.Aladin" />

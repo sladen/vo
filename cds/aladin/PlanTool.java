@@ -37,7 +37,7 @@ import cds.tools.VOObserver;
 public class PlanTool extends PlanCatalog {
    
    protected Legende legPhot = null;
-
+   
   /** Creation d'un plan de type TOOL
    * @param label le nom du plan (dans la pile des plans)
    */
@@ -61,6 +61,17 @@ public class PlanTool extends PlanCatalog {
       } else hasXYorig=false;
    }
    
+   /** Creation d'un plan de type TOOL (pour un backup) */
+   protected PlanTool(Aladin aladin) {
+      setLogMode(true);
+      this.aladin= aladin;
+      type       = TOOL;
+      c          = Couleur.getNextDefault(aladin.calque);
+      pcat       = new Pcat(this,c,aladin.calque,aladin.status,aladin);
+      flagOk     = true;
+      askActive  = true;
+   }
+
    private void createPhotLegende() {
       setSourceRemovable(true);
       legPhot = Legende.adjustDefaultLegende(legPhot,Legende.NAME,     new String[]{  "ID",  "RA (ICRS)","DE (ICRS)","X",     "Y",      "FWHM_X", "FWHM_Y", "Angle",  "Peak",  "Background" });
@@ -110,29 +121,6 @@ public class PlanTool extends PlanCatalog {
       pcat.setObjetFast(o);
       return o;
    }
-
-  /** Creation d'un plan de type TOOL (pour un backup) */
-   protected PlanTool(Aladin aladin) {
-      setLogMode(true);
-      this.aladin= aladin;
-      type       = TOOL;
-      c          = Couleur.getNextDefault(aladin.calque);
-      pcat       = new Pcat(this,c,aladin.calque,aladin.status,aladin);
-      flagOk     = true;
-      askActive  = true;
-   }
-
-  /** Bloque ou nom le mode de calcul des x,y des objets.
-   * @param lock <I>true</I> les objets gardent leurs x,y, sinon <I>false</I>
-   */
-   protected void setLock(boolean lock) {
-      hasXYorig = lock;
-   }
-
-  /** Retourne l'etat du plan tool (locke ou non).
-   * @return <I>true</I> les objets gardent leurs x,y, sinon <I>false</I>
-   */
-   protected boolean lock() { return hasXYorig; }
 
   /** Retourne la ligne d'informations concernant le plan dans le statut d'Aladin*/
    protected String getInfo() {

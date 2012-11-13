@@ -19,132 +19,98 @@
 
 package cds.tools.pixtools;
 
-import healpix.core.HealpixIndex;
+import healpix.core.HealpixBase;
+import healpix.core.Pointing;
+import healpix.core.Scheme;
+import healpix.core.Vec3;
 import healpix.core.base.set.LongRangeSet;
 import healpix.tools.SpatialVector;
 
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.Iterator;
-import java.util.Vector;
 
-import org.asterope.healpix.PixToolsVector3d;
-
-/** Wrapper Healpix CDS pour pouvoir passer facilement d'une librairie Healpix à une autre */
+/** Wrapper Healpix CDS pour ne pas réinitialiser systématiquement l'objet HealpixBase pour chaque NSIDE 
+ * @author Pierre Fernique [CDS] with the help of Martin Reinecke
+ */
 public final class CDSHealpix {
    
-   static final String [] MODE = {
-      "Panachage CDS",
-      "Kuropatkin (JPL) + Oberto",
-      "Will'O Mulan (GAIA)",
-      "Kotek (based on Kuropatkin)"
+   static final public int MAXORDER=29;
    
-   };
-   
-   static public final int PANACHAGE  = 0;
-   static public final int KUROPATKIN = 1;
-   static public final int WILL       = 2;
-   static public final int KOTEK      = 3;
-   
-   static public final int MAXMODE=3;
-   
-   static final String MODEEXCEPTION = "This method is not supported in the current CDSHealpix mode";
+   static private HealpixBase hpxBase[] = new HealpixBase[MAXORDER+1];  // Objet HealpixBase pour chaque nside utilisé
 
-   static private int mode = PANACHAGE;
-   
-   /** Positionne la librairie CDSHealpix à utiliser */
-   static public void setMode(int mode) {
-      if( mode==CDSHealpix.mode ) return;
-      CDSHealpix.mode=mode;
-      System.out.println("CDSHealpix current mode: "+MODE[mode]+" library");
+   static private int init(long nside) throws Exception {
+      int order = (int)log2(nside);
+      if( hpxBase[order]!=null ) return order;
+      hpxBase[order] = new HealpixBase((int)nside,Scheme.NESTED);
+      return order;
    }
    
-   /** Retourne le mode CDSHealpix courant */
-   static public int getMode() { return mode; }
-   
-   /** Pour du debug - changement cyclique de mode */
-   static public String switchMode() {
-      mode++;
-      if( mode>MAXMODE ) mode=0;
-      return MODE[mode];
-   }
-
-   /** Voir Healpix documentation */
    static public double[] pix2ang_nest(long nside,long ipix) throws Exception {
-      switch(mode) {
-         case PANACHAGE:
-         case WILL: synchronized(lockWill) { initWillMode(nside); return hWill.pix2ang_nest(ipix); }
-         case KUROPATKIN: return PixTools.pix2ang_nest(nside, ipix);
-         case KOTEK: return pixtoolsNestedKotek.pix2ang_nest(nside, ipix);
-         default: throw new Exception(MODEEXCEPTION);
-      }
+      Pointing res = hpxBase[ init(nside) ].pix2ang(ipix);
+      return new double[]{ res.theta, res.phi };
    }
    
-   /** Voir Healpix documentation */
-   static public double[] pix2ang_ring(long nside,long ipix) throws Exception {
-      switch(mode) {
-         case PANACHAGE:
-         case WILL: synchronized( lockWill ) { initWillMode(nside); return hWill.pix2ang_ring(ipix); }
-         case KUROPATKIN: return PixTools.pix2ang_ring(nside, ipix);
-         case KOTEK: return pixtoolsKotek.pix2ang_ring(nside, ipix);
-         default: throw new Exception(MODEEXCEPTION);
-      }
-   }
-   
-   /** Voir Healpix documentation */
    static public long ang2pix_nest(long nside,double theta, double phi) throws Exception {
-      switch(mode) {
-         case PANACHAGE:
-         case WILL: synchronized( lockWill ) { initWillMode(nside); return hWill.ang2pix_nest(theta, phi); }
-         case KUROPATKIN: return PixTools.ang2pix_nest(nside, theta, phi);
-         case KOTEK: return pixtoolsNestedKotek.ang2pix_nest(nside, theta, phi);
-         default: throw new Exception(MODEEXCEPTION);
-      }
+      return hpxBase[ init(nside) ].ang2pix(new Pointing(theta,phi));
    }
-   
-   /** Voir Healpix documentation */
-   static public long ang2pix_ring(long nside,double theta, double phi) throws Exception {
-      switch(mode) {
-         case PANACHAGE:
-         case WILL: synchronized( lockWill ) { initWillMode(nside); return hWill.ang2pix_ring(theta, phi); }
-         case KUROPATKIN: return PixTools.ang2pix_ring(nside, theta, phi);
-         case KOTEK: return pixtoolsKotek.ang2pix_ring(nside, theta, phi);
-         default: throw new Exception(MODEEXCEPTION);
-      }
-   }
-   
-   /** Voir Healpix documentation */
+
    static public long[] query_disc(long nside,double ra, double dec, double radius) throws Exception {
-	   return query_disc(nside, ra, dec, radius, true);
+      return query_disc(nside, ra, dec, radius, true);
    }
+
    static public long[] query_disc(long nside,double ra, double dec, double radius, boolean inclusive) throws Exception {
-	      switch(mode) {
-	      case PANACHAGE:
-	         case WILL: return query_discWill(nside,ra,dec,radius, inclusive);
-	         case KUROPATKIN: return query_discOberto(nside,ra,dec,radius);
-	         case KOTEK : return query_discKotek(nside,ra,dec,radius, inclusive);
-	         default: throw new Exception(MODEEXCEPTION);
-	      }	   
+      SpatialVector vector = new SpatialVector(ra,dec);
+      int order = init(nside);
+      LongRangeSet list = hpxBase[order].queryDisc(new Pointing(vector),radius,inclusive);
+      if( list==null ) return new long[0];
+      return list.toArray();
    }
-   /** Voir Healpix documentation */
-   static public long[] query_polygon(long nside,ArrayList<double[]>list) throws Exception {
-      switch(mode) {
-         case PANACHAGE:
-         case WILL: return query_polygonWill(nside,list);
-         case KOTEK: return query_polygonKotek(nside,list);
-         default: throw new Exception(MODEEXCEPTION);
+
+   static public long[] query_polygon(long nside,ArrayList<double[]>cooList) throws Exception {
+      ArrayList vlist = new ArrayList(cooList.size());
+      Iterator<double[]> it = cooList.iterator();
+      while( it.hasNext() ) {
+         double coo[] = it.next();
+         vlist.add(new SpatialVector(coo[0], coo[1]));
       }
+      int order = init(nside);
+      Pointing[] vertex = new Pointing[vlist.size()];
+      for (int i=0; i<vlist.size(); ++i) vertex[i]=new Pointing((Vec3)vlist.get(i));
+      LongRangeSet list = hpxBase[order].queryPolygon(vertex,true);
+      if( list==null ) return new long[0];
+      return list.toArray();
    }
    
-   /** Voir Healpix documentation */
-   static public long nest2ring(long nside, long npix) throws Exception  {
-      switch(mode) {
-         case PANACHAGE:
-         case WILL: synchronized( lockWill ) { initWillMode(nside); return hWill.nest2ring(npix); }
-         case KUROPATKIN: return PixTools.nest2ring(nside, npix);
-         case KOTEK: return pixtoolsNestedKotek.nest2ring(nside, npix);
-         default: throw new Exception(MODEEXCEPTION);
+   static final private int [] A = { 3, 2, 0, 1 };
+   static public double[][] corners(long nside,long npix) throws Exception {
+      Vec3[] tvec = hpxBase[ init(nside) ].corners(npix,1);
+      double [][] corners = new double[tvec.length][2];
+      for (int i=0; i<tvec.length; ++i) {
+         SpatialVector v = new SpatialVector(tvec[i]);
+         int j=A[i];
+         corners[j][0] = v.ra();
+         corners[j][1] = v.dec();
       }
+      return corners;  
+   }
+   
+   static public double[][] borders(long nside,long npix,int step) throws Exception {
+      Vec3[] tvec = hpxBase[ init(nside) ].corners(npix,step);
+      double [][] borders = new double[tvec.length][2];
+      for (int i=0; i<tvec.length; ++i) {
+         SpatialVector v = new SpatialVector(tvec[i]);
+         borders[i][0] = v.ra();
+         borders[i][1] = v.dec();
+      }
+      return borders;  
+   }
+
+   static public long [] neighbours(long nside, long npix) throws Exception  {
+      return hpxBase[ init(nside) ].neighbours(npix);
+   }
+   
+   static public long nest2ring(long nside, long npix) throws Exception  {
+      return hpxBase[ init(nside) ].nest2ring(npix);
    }
    
    /** Voir Healpix documentation */
@@ -159,7 +125,29 @@ public final class CDSHealpix {
       return res;
    }
    
-   /** Voir Healpix documentation */
+   /** Retourne la numérotation unique pour un pixel d'un nside donné */
+   static long nsidepix2uniq(long nside, long npix) {
+      return 4*nside*nside + npix;
+   }
+   
+   /** Retourne le nside et le pixel pour un numéro uniq donné */
+   static long [] uniq2nsidepix(long uniq) {
+      return uniq2nsidepix(uniq,null);
+   }
+   
+   /** Retourne le nside et le pixel pour un numéro uniq donné 
+    * en utilisant le tableau passé en paramètre s'il est différent de  null */
+   static long [] uniq2nsidepix(long uniq,long [] nsidepix) {
+      if( nsidepix==null ) nsidepix = new long[2];
+      long order = log2(uniq/4)/2;
+      nsidepix[0] = pow2(order);
+      nsidepix[1] = uniq - 4*nsidepix[0]*nsidepix[0];
+      return nsidepix;
+   }
+   
+   public static final long pow2(long order){ return 1L<<order;}
+   public static final long log2(long nside){ int i=0; while((nside>>>(++i))>0); return --i; }
+   
    static public double[] radecToPolar(double[] radec) { return radecToPolar(radec,new double[2]); }
    static public double[] radecToPolar(double[] radec,double polar[]) {
       polar[0] = Math.PI/2. - radec[1]/180.*Math.PI;
@@ -167,7 +155,6 @@ public final class CDSHealpix {
       return polar;
    }
    
-   /** Voir Healpix documentation */
    static public double[] polarToRadec(double[] polar) { return polarToRadec(polar,new double[2]); }
    static public double[] polarToRadec(double[] polar,double radec[]) {
       radec[1] = (Math.PI/2. - polar[0])*180./Math.PI;
@@ -175,181 +162,42 @@ public final class CDSHealpix {
       return radec;
    }
    
-   static final private double LOG2 = Math.log(2);
-   static public long log2(long x) { return (long)(Math.log(x)/LOG2); }
    
-   
-   
-   // ------------------------------- Particularités Kotek
-   
-   static private org.asterope.healpix.PixTools pixtoolsKotek = new org.asterope.healpix.PixTools();  // Objet Healpix mode Kotek
-   static private org.asterope.healpix.PixToolsNested pixtoolsNestedKotek = new org.asterope.healpix.PixToolsNested();  // Objet Healpix mode Kotek
-   
-   static private long[] query_discKotek(long nside,double ra, double dec, double radius, boolean inclusive) throws Exception {
-      PixToolsVector3d vector = createPixToolsVector3dKotek(ra,dec);
-      org.asterope.healpix.LongRangeSet list = pixtoolsKotek.query_disc(nside, vector, radius, inclusive);
-      if( list==null ) return new long[0];
-      return ring2nest(nside,list.toArray());
-   }
-   
-   static private long [] ring2nest(long nside,long [] a) {
-      long[] b = new long[a.length];
-      for( int i=0; i<a.length; i++ ) b[i] = PixTools.ring2nest(nside, a[i]);
-      return b;
-   }
-   
-   static private long[] query_polygonKotek(long nside,ArrayList<double[]> cooList) throws Exception {
-      ArrayList<PixToolsVector3d> vlist = new ArrayList<PixToolsVector3d>(cooList.size());
-      Iterator<double[]> it = cooList.iterator();
-      while( it.hasNext() ) {
-         double coo[] = it.next();
-         vlist.add( createPixToolsVector3dKotek(coo[0], coo[1]) );
-         
-      }
-      org.asterope.healpix.LongRangeSet list = pixtoolsKotek.query_polygon(nside, vlist, 1);
-      if( list==null ) return new long[0];
-      return ring2nest(nside,list.toArray());
-   }      
 
-   static private PixToolsVector3d createPixToolsVector3dKotek(double ra,double dec) {
-      return pixtoolsKotek.Ang2Vec(Math.PI/2. -dec/180.*Math.PI,ra/180.*Math.PI);
 
-//      double cd = Math.cos( Math.toRadians(dec) );
-//      double x = Math.cos( Math.toRadians(ra)) * cd;
-//      double y = Math.sin( Math.toRadians(ra)) * cd;
-//      double z = Math.sin( Math.toRadians(dec) );
-//      return  new PixToolsVector3d(x, y, z);
-   }
+   // ------------------------------- CDS
    
-   
-   // ------------------------------- Particularités Will
-
-   static private long nsideWill = -1;  // NSIDE courant dans le mode WILL uniquement
-   static private HealpixIndex hWill;  // Objet Healpix dans le mode WILL uniquement
-   static private Object lockWill = new Object();
-   
-   // Initialisation de l'objet de manipulation Healpix (dans le mode WILL uniquement)
-   static private void initWillMode(long nside) throws Exception {
-      if( nsideWill==nside ) return;
-      hWill = new HealpixIndex((int)nside);
-      nsideWill=nside;
-   }
-   
-   static private long[] query_discWill(long nside,double ra, double dec, double radius, boolean inclusive) throws Exception {
-      synchronized( lockWill ) {
-         initWillMode(nside);
-         SpatialVector vector = new SpatialVector(ra,dec);
-         LongRangeSet list = hWill.queryDisc(vector, radius, 1, inclusive?1:0);
-         if( list==null ) return new long[0];
-         return list.toArray();
-      }
-   }
-
-   static private long[] query_polygonWill(long nside,ArrayList<double[]> cooList) throws Exception {
-      synchronized( lockWill ) {
-         initWillMode(nside);
-         ArrayList vlist = new ArrayList(cooList.size());
-         Iterator<double[]> it = cooList.iterator();
-         while( it.hasNext() ) {
-            double coo[] = it.next();
-            vlist.add(new SpatialVector(coo[0], coo[1]));
-
-         }
-         LongRangeSet list = hWill.query_polygon((int)nside, vlist, 1, 1);
-         if( list==null ) return new long[0];
-         return list.toArray();
-      }
-   }      
-   
-   
-//   public static void main(String[] args) {
+//   /** Approximation des coordonnées RA,DEC des 4 angles du losange
+//    * Je recherche les coord (centrales) des losanges des 4 coins dans la résolution
+//    * Healpix maximale */
+//   private static double [][] corners_nestCDS(long nside, long pixid) {
+//      double [][] corners;
 //      try {
-//         int nside = 8;
-//         SpatialVector vector = new SpatialVector(219.92904166666668,85.88719444444445);
-//         double radius = 3.91698480573189;
-//
-//         HealpixIndex hi = new HealpixIndex(nside);
-//         LongRangeSet vlist = hi.queryDisc(vector, radius / 180 * Constants.PI, 1, 1);
-//         long [] list = vlist==null ? new long[0] : vlist.toArray();
-//
-//         System.out.print("ra="+vector.ra()+ " dec="+vector.dec()+" radius="+radius+" Nside="+nside+" => npixlist:");
-//         for( int i = 0; i < list.length; i++ ) {
-//            System.out.print(" " + list[i]);
-//         }
-//         System.out.println();
-//      } catch( Exception e ) {
-//         e.printStackTrace();
-//      }
+//         int order = (int)log2(nside);
+//         corners = new double[4][2];
+//         int orderFile = getMaxOrder() - order; // Je ne dois pas dépasser la limite Healpix
+//         long nSidePix = pow2(orderFile);
+//         // Numéro des pixels des 4 coins
+//         long c0, c1, c2, c3;
+//         c0 = c1 = c2 = 0;
+//         c3 = (nSidePix * nSidePix) - 1;
+//         for( int i = 0; i < orderFile; i++ ) c1 = (c1 << 2) | 1;
+//         for( int i = 0; i < orderFile; i++ ) c2 = (c2 << 2) | 2;
+//         // Chaque pixel "interne" va être remplacé par nsidePix*nsidePix pixels
+//         // d'où l'offset suivant
+//         long offset = pixid * nSidePix * nSidePix;
+//         c0 += offset;
+//         c1 += offset;
+//         c2 += offset;
+//         c3 += offset;
+//         long nSideFile = (long) pow2(order + orderFile);
+//         polarToRadec(pix2ang_nest(nSideFile, c0) , corners[0]);
+//         polarToRadec(pix2ang_nest(nSideFile, c1) , corners[1]);
+//         polarToRadec(pix2ang_nest(nSideFile, c2) , corners[2]);
+//         polarToRadec(pix2ang_nest(nSideFile, c3) , corners[3]);
+//       } catch( Exception e ) { return null; }
+//      return corners;
 //   }
-
-
-   // ------------------------------- Particularités Kuropatkin + Oberto
-   
-   static private long [] query_discOberto(long nside, double ra, double dec, double radius) {
-      radius =  Math.toDegrees(radius) + pixRes(nside)/(3600*2);
-
-      boolean poleN = false, poleS = false;
-
-      // Détermination des cercles concernées
-      // theta est inversement proportionnel à delta => on verse min/max
-      double thetaMin = Math.PI/2 - Math.toRadians(dec+radius);
-      double thetaMax = Math.PI/2 - Math.toRadians(dec-radius);
-
-      // recadre les theta pour etre entre [0;PI]
-      if (thetaMin < 0) {
-         thetaMin = - thetaMin;
-         poleN=true;
-      }
-      if (thetaMax > Math.PI) {
-         thetaMax = 2*Math.PI - thetaMax;
-         poleS=true;
-      }
-
-      // Détermination de phi, dphi
-      double phi = Math.toRadians(ra);
-      double dphi = Math.toRadians(radius);
-      if ((dphi - Math.PI) > 0)
-         dphi = Math.PI;
-
-      long ringMin = PixTools.RingNum(nside, Math.cos(thetaMin));
-      long ringMax = PixTools.RingNum(nside, Math.cos(thetaMax));
-
-      Vector candidats = new Vector();
-
-      // si on a un pole dans la vue => taille à PI
-      if (poleN || poleS) {
-         dphi = Math.PI;
-         // Avant le pole
-         if (poleS) {
-            getNpixListOberto(phi, dphi, nside, ringMin, 4*nside-1, candidats);
-            ringMin = 1;
-         }
-         // Après le pole
-         if (poleN) {
-            getNpixListOberto(phi, dphi, nside, 1, ringMax, candidats);
-            ringMax=4*nside-1;
-         }
-      }
-      else
-         getNpixListOberto(phi, dphi, nside, ringMin, ringMax, candidats);
-
-      // Passage sous forme d'un tableau de long[]
-      long [] npix = new long[candidats.size()];
-      Enumeration e = candidats.elements();
-      for( int i=0; i<npix.length; i++ ) {
-         npix[i] = ( (Long)e.nextElement()).longValue();
-      }
-
-      return npix;
-   }
-
-   private static void getNpixListOberto(double phi, double dphi, long nside, long ringMin, long ringMax, Vector candidats) {
-      for( long ring=ringMin; ring<=ringMax; ring++ ) {
-         if (phi-dphi<0) candidats.addAll( PixTools.InRing(nside,ring,phi+Math.PI*2,dphi,true));
-         else candidats.addAll( PixTools.InRing(nside,ring,phi,dphi,true));
-      }
-   }
-   
 
 
 }

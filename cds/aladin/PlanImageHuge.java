@@ -64,8 +64,8 @@ public class PlanImageHuge extends PlanImage implements Runnable {
     * @param in le stream
     */
    protected PlanImageHuge(Aladin aladin,String file,MyInputStream in,String label,String from,
-         Obj o,ResourceNode imgNode,boolean skip,Plan forPourcent) {
-      super(aladin,file,in,label,from,o,imgNode,skip,forPourcent);
+         Obj o,ResourceNode imgNode,boolean skip,boolean doClose,Plan forPourcent) {
+      super(aladin,file,in,label,from,o,imgNode,skip,doClose,forPourcent);
       type=IMAGEHUGE;
    }
    
@@ -304,7 +304,7 @@ Aladin.trace(3,"getSubImage["+n+"] from "+label+" ("+x*step+","+y*step+" "+w*ste
    /** Retourne le pixel 8 bit repéré par la coordonnée x,y full résolution. Si L'imagette
     * full résolution à été chargée, prend la valeur dans cette image, sinon dans
     * l'image basse résolution */
-   protected int getPixel8(int x,int y) {
+   public int getPixel8(int x,int y) {
       if( inSubImage(x/step,y/step,1,1) ) return (int)(pixelsSub[(y-oy*step)*ow*step + (x-ox*step)] & 0xFF);
       return getBufPixels8()[(y/step)*width+x/step];
    }
@@ -329,7 +329,13 @@ Aladin.trace(3,"getSubImage["+n+"] from "+label+" ("+x*step+","+y*step+" "+w*ste
           case View.REAL:
              if( onePixelOrigin==null ) onePixelOrigin = new byte[npix];
              if( !getOnePixelFromCache(onePixelOrigin,npix,x,y) ) return UNK;
-             return Y(getPixVal(onePixelOrigin,bitpix,0)*bScale+bZero);
+             
+//             return Y(getPixVal(onePixelOrigin,bitpix,0)*bScale+bZero);
+             double val = getPixVal(onePixelOrigin,bitpix,0)*bScale+bZero;
+             if( aladin.levelTrace<4 ) return Y(val);
+             double infileVal=getPixVal1(onePixelOrigin,bitpix,0);
+             return Y(val)+(Double.isNaN(infileVal) || val!=infileVal?"("+infileVal+")":"")+(isBlank && infileVal==blank ? " BLANK":"");
+
       }
       return null;
    }
@@ -393,7 +399,7 @@ Aladin.trace(3,"getSubImage["+n+"] from "+label+" ("+x*step+","+y*step+" "+w*ste
 
                 if( pos==buf.length ) {
                    to8bits(getBufPixels8(),offsetLoad/npix,buf,pos/npix,bitpix,
-                         isBlank,blank,pixelMin,pixelMax,true);
+                         /*isBlank,blank,*/pixelMin,pixelMax,true);
                    offsetLoad+=pos;
                    pos=0;
                    setPourcent(offsetLoad*99./ntaille);
@@ -405,7 +411,7 @@ Aladin.trace(3,"getSubImage["+n+"] from "+label+" ("+x*step+","+y*step+" "+w*ste
        }
        if( pos>0 ) {
           to8bits(getBufPixels8(),offsetLoad/npix,buf,pos/npix,bitpix,
-                isBlank,blank,pixelMin,pixelMax,true);
+                /*isBlank,blank,*/pixelMin,pixelMax,true);
           offsetLoad+=pos;
           setPourcent(offsetLoad*99./ntaille);
        }
@@ -460,13 +466,35 @@ Aladin.trace(3," => NAXIS1="+width+" NAXIS2="+height+" BITPIX="+bitpix+" => size
       // Les paramètres FITS facultatifs
       loadFitsHeaderParam(headerFits);
       
-      // Gestion du cache à partir du fichier d'origine (si possible)
-      setCacheFromFile(dis);
-      
       // Pour des stats
       Date d = new Date();
       Date d1;
       int temps;
+      
+      // Accès au fichier en local obligatoirement (dump si gzip ou remote)
+      if( !setCacheFromFile(dis) ) {
+         aladin.trace(2,"Dumping huge image in local cache...");
+         int len = 512;
+         byte [] buffer = new byte[len];
+         long offsetLoad=0;      // octets effectivement lus
+         RandomAccessFile f=null;
+         try {
+            while( offsetLoad<taille) {
+               if( taille-offsetLoad<len ) len=(int)(taille-offsetLoad);
+               dis.readFully(buffer,0,len);
+               if( offsetLoad==0 ) f=beginInCache(buffer);
+               else f.write(buffer,0,len);
+               offsetLoad+=len;
+               setPourcent(offsetLoad*85./taille);
+            }
+            fCache=f;
+         } catch( Exception e ) {
+            error=aladin.error="Loading error: "+e.getMessage();
+            e.printStackTrace();
+            close();
+            return false;
+         }
+      }
       
       // Allocation du buffer d'arrivée
       tailleLoad=taille;	// nombres d'octets a lire
@@ -509,7 +537,7 @@ Aladin.trace(3," => NAXIS1="+width+" NAXIS2="+height+" BITPIX="+bitpix+" => size
       Aladin.trace(3," => Reading "+(cut?"and autocutting ":"")+"in "+Util.round(temps/1000.,3)+" s => "+Util.round(((double)offsetLoad/temps)/(1024*1.024),2)+" Mbyte/s");         
             
       // On calcule l'imagette du zoom
-      calculPixelsZoom(getBufPixels8());
+      calculPixelsZoom();
 
       creatDefaultCM();
       setPourcent(99);

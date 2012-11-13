@@ -48,7 +48,7 @@ public class TreeNodeCategory extends TreeNode {
    }
 
    @Override
-protected void submit() {
+   protected void submit() {
       aladin.calque.newPlan(aladin.glu.getURL(id)+"",label,origin);
    }
 
@@ -59,7 +59,7 @@ protected void submit() {
    void setUrl(String url) { this.url=url; }
    void setExUrl(String exUrl) {
       this.exampleUrl = exUrl;
-      JButton b = new JButton(aladin.chaine.getString("TREEMORE"));
+      JButton b = new JButton(aladin.chaine.getString("TREEEXAMPLE"));
       b.setFont(b.getFont().deriveFont(Font.ITALIC));
       b.setForeground(Color.blue);
       b.setBackground(background);
@@ -74,7 +74,7 @@ protected void submit() {
    }
    void setDocUSer(String docUser) {
       this.docUser = docUser;
-      JButton b = new JButton(aladin.chaine.getString("TREEEXAMPLE"));
+      JButton b = new JButton(aladin.chaine.getString("TREEMORE"));
       b.setFont(b.getFont().deriveFont(Font.ITALIC));
       b.setForeground(Color.blue);
       b.setBackground(background);

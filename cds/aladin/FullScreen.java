@@ -350,7 +350,7 @@ public final class FullScreen extends JFrame implements ActionListener {
       if( memoCheck==null || aladin.calque.isFree() ) return;
       for(int i=nCheck-1; i>=0; i-- ) {
          Check c = memoCheck[i];
-         MCanvas.drawCheckbox(g, c.x, c.y, c.p.c , null, null, c.p.active);
+         Util.drawCheckbox(g, c.x, c.y, c.p.c , null, null, c.p.active);
       }
    }
    

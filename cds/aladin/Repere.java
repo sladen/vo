@@ -21,13 +21,21 @@
 package cds.aladin;
 
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.*;
 
+import javax.swing.JTextField;
+
 import cds.aladin.Hist.HistItem;
+import cds.aladin.Ligne.Segment;
+import cds.aladin.prop.Prop;
+import cds.aladin.prop.PropAction;
 import cds.astro.AstroMath;
 import cds.astro.Coo;
 import cds.astro.Proj3;
 import cds.tools.Util;
+import cds.tools.pixtools.CDSHealpix;
 
 
 /**
@@ -82,6 +90,51 @@ public class Repere extends Position {
       setWithLabel(false);
    }
    
+   public Vector getProp() {
+      Vector propList = super.getProp();
+      
+      if( hasRayon() ) {
+         final Obj myself = this;
+         final JTextField testRadius = new JTextField( 10 );
+         final PropAction updateRadius = new PropAction() {
+            public int action() { testRadius.setText( Coord.getUnit(getRadius()) ); return PropAction.SUCCESS; }
+         };
+         PropAction changRadius = new PropAction() {
+            public int action() { 
+               testRadius.setForeground(Color.black);
+               String oval = Coord.getUnit(getRadius());
+               try {
+                  String nval = testRadius.getText();
+                  if( nval.equals(oval) ) return PropAction.NOTHING;
+                  ((Repere)myself).setRadius(nval);
+                  return PropAction.SUCCESS;
+               } catch( Exception e1 ) { 
+                  updateRadius.action();
+                  testRadius.setForeground(Color.red);
+               }
+               return PropAction.FAILED;
+            }
+         };
+         propList.add( Prop.propFactory("radius","Radius","",testRadius,updateRadius,changRadius) );
+      }
+      
+      final Couleur col = new Couleur(couleur,true);
+      final PropAction changeCouleur = new PropAction() {
+         public int action() { 
+            Color c= col.getCouleur();
+            if( c==couleur ) return PropAction.NOTHING;
+            couleur=c;
+            return PropAction.SUCCESS;
+         }
+      };
+      col.addActionListener( new ActionListener() {
+         public void actionPerformed(ActionEvent e) { changeCouleur.action(); plan.aladin.view.repaintAll(); }
+      });
+      propList.add( Prop.propFactory("color","Color","Alternative color",col,null,changeCouleur) );
+      
+      return propList;
+   }
+   
    /** Retourne le type d'objet */
    static private final String C= "|";
    
@@ -134,7 +187,6 @@ public class Repere extends Position {
    /** Force la projection qq soit l'état du buffer */
    protected void reprojection(ViewSimple v) {
       super.projection(v);
-//      if( Aladin.VP ) oiz[v.n]=-1;
    }
 
   /** Determine le decalage pour ecrire l'id */
@@ -154,24 +206,15 @@ public class Repere extends Position {
    }
 
    /** Change le rayon d'un repère CERCLE (r en pixels dans le plan de ref de v */
-//   void setRayon(ViewSimple v,double r) {
-//      Projection proj = v.getProj();
-//      c.al=raj; c.del=dej;
-//      proj.getXY(c);
-//      c.y+=r;
-//      proj.getCoord(c);
-//      radius=Math.abs(dej-c.del);
-//      setSelected(true);
-//   }
    void setRayon(ViewSimple v,double r) {
+      Coord c = new Coord();
       Projection proj = v.getProj().copy();
       proj.setProjCenter(0,0);
       c.al=c.del=0;
-      proj.getXYNative(c);
+      proj.getXY(c);
       c.y+=r;
-      proj.getCoordNative(c);
+      proj.getCoord(c);
       radius=Math.abs(c.del);
-      setSelected(true);
    }
 
    /** Positionnement d'un ID particulier */
@@ -235,7 +278,7 @@ public class Repere extends Position {
 //   }
    protected Rectangle extendClip(ViewSimple v,Rectangle clip) {
       if( !isVisible() ) return clip;
-      int L = ViewSimple.top(Math.max(this.L,getRayon(v)*v.getZoom()));
+      int L = (int)Math.ceil(Math.max(this.L,getRayon(v)*v.getZoom()));
       Point p = getViewCoord(v,L,L);
       if( p==null ) return clip;
 
@@ -256,16 +299,16 @@ public class Repere extends Position {
    protected Rectangle getClipRayon(ViewSimple v ) {
       Rectangle clip=null;
       if( !isVisible() ) return null;
-      int L = ViewSimple.top(getRayon(v)*v.getZoom());
+      int L = (int)Math.ceil(getRayon(v)*v.getZoom());
       Point p = getViewCoord(v,L,L);
       if( p==null ) return null;
       if( isSelected() )  clip = unionRect(clip, p.x-L-DS,p.y-L-DS,L*2+DDS,L*2+DDS);
       return clip;
 
    }
-
+   
    /** Détermination de la couleur de l'objet */
-   protected Color getColor() {
+   public Color getColor() {
 	  if( type==TARGET || type==TARGETL ) couleur=Color.magenta.darker();
    	  if( couleur!=null ) return couleur;
 
@@ -295,37 +338,31 @@ public class Repere extends Position {
    }
 
    protected boolean statCompute(Graphics g,ViewSimple v) {
-      if( v!=null && !v.isFree() && v.pref.type==Plan.ALLSKYIMG ) {
-         ((PlanBG)v.pref).setDebugIn(raj,dej,getRadius(),3);
-         return false;
-      }
+//      if( v!=null && !v.isFree() && v.pref.type==Plan.ALLSKYIMG ) {
+//         ((PlanBG)v.pref).setDebugIn(raj,dej,getRadius());
+//      }
       
       boolean flagHist = v==v.aladin.view.getCurrentView();
       
       if( v==null || v.isFree() || !v.pref.hasAvailablePixels() ) return false;
       statInit();
-
+      
       double xc,yc;
       xc=xv[v.n]-0.5;
       yc=yv[v.n]-0.5;
       double r=getRayon(v);
       
-      // Si cercle large, on ne calcule pas pendant le changement de taille ou les déplacements
-      if( r>100 && v.flagClicAndDrag ) return false;
+      // Si cercle large ou s'il s'agit d'un allsky, on ne calcule pas pendant le changement de taille ou les déplacements
+      if( r>100 &&  v.flagClicAndDrag) return false;
       
-      if( v.pref.type==Plan.ALLSKYIMG ) {
-         PointD p = getViewCoordDouble(v, dw, dh);
-         xc=p.x;
-         yc=p.y;
-      }
-
       // TODO : j'ai des doutes sur ces valeurs si v.pref.type==Plan.IMAGEBKGD
-      minx=ViewSimple.floor(xc-r);
-      maxx=ViewSimple.top(xc+r);
-      miny=ViewSimple.floor(yc-r);
-      maxy=ViewSimple.top(yc+r);
+      minx=(int)Math.floor(xc-r);
+      maxx=(int)Math.ceil(xc+r);
+      miny=(int)Math.floor(yc-r);
+      maxy=(int)Math.ceil(yc+r);
       
       double carreRayon = r*r;
+      double pixelSurf = 0;
       
       HistItem onMouse=null;
       if( flagHist ) {
@@ -336,30 +373,66 @@ public class Repere extends Position {
          if( onMouse==null ) v.aladin.view.zoomview.initPixelHist();
          else flagHist=false;
       }
+      
+      // Dans le cas d'un plan HEALPix, il faut passer par les routines query_disk()
+      if( v.pref.type==Plan.ALLSKYIMG ) {
+         try {
+            PlanBG pbg = (PlanBG)v.pref;
+            pixelSurf = Math.pow(pbg.getPixelResolution(),2);
+            int orderFile = pbg.getOrder();
+//            if( pbg.maxOrder!=pbg.getOrder() ) return false;
+            long nsideFile = CDSHealpix.pow2(orderFile);
+            long nsideLosange = CDSHealpix.pow2(pbg.getLosangeOrder());
+            long nside = nsideFile * nsideLosange;
+            Coord coo = new Coord(raj,dej);
+            coo = Localisation.frameToFrame(coo,Localisation.ICRS,pbg.frameOrigin);
+            double radiusRadian = Math.toRadians(getRadius());
+            long [] npix = CDSHealpix.query_disc(nside, coo.al, coo.del, radiusRadian, false);
+//            System.out.println("npix="+npix.length+" coo="+coo+" nside="+nside+" radius="+getRadius()+" nsideFile="+nsideFile+" nsideLosange="+nsideLosange);
+            for( int i=0; i<npix.length; i++ ) {
+               long npixFile = npix[i]/(nsideLosange*nsideLosange);
+               double pix = pbg.getHealpixPixel(orderFile,npixFile,npix[i],HealpixKey.NOW);
+//               double pix = pbg.getHealpixPixel(orderFile,npixFile,npix[i],HealpixKey.ONLYIFDISKAVAIL);
+               if( Double.isNaN(pix) ) continue;
+               pix = pix*pbg.bScale+pbg.bZero;
+               double polar[] = CDSHealpix.pix2ang_nest(nside, npix[i]);
+               polar = CDSHealpix.polarToRadec(polar);
+               coo.al = polar[0]; coo.del = polar[1];
+               coo = Localisation.frameToFrame(coo,pbg.frameOrigin,Localisation.ICRS);
+               statPixel(g,pix,coo.al,coo.del,v,onMouse);
+//               System.out.println("pix["+i+"]="+pix);
+               if( flagHist ) v.aladin.view.zoomview.addPixelHist(pix);
+            }
+//            System.out.println("==> nombre="+npix.length+" total="+total+" => moyenne="+(total/nombre));
+         } catch( Exception e ) { e.printStackTrace(); }
 
-      for( int y=miny; y<=maxy; y++ ) {
-         for( int x=minx; x<=maxx; x++ ) {
-            if( (x-xc)*(x-xc) + (y-yc)*(y-yc) > carreRayon ) continue;
-            double pix = statPixel(g, x, y, v,onMouse);
-            if( flagHist ) v.aladin.view.zoomview.addPixelHist(pix);
+      } else {
+         try { pixelSurf = v.pref.projd.getPixResAlpha()* v.pref.projd.getPixResDelta();
+         } catch( Exception e ) { }
+         for( int y=miny; y<=maxy; y++ ) {
+            for( int x=minx; x<=maxx; x++ ) {
+               if( (x-xc)*(x-xc) + (y-yc)*(y-yc) > carreRayon ) continue;
+               double pix = statPixel(g, x, y, v,onMouse);
+               if( Double.isNaN(pix) ) continue;
+               if( flagHist ) v.aladin.view.zoomview.addPixelHist(pix);
+            }
          }
       }
       
-      if( flagHist ) v.aladin.view.zoomview.createPixelHist();
+      if( flagHist ) v.aladin.view.zoomview.createPixelHist(v.pref.type==Plan.ALLSKYIMG ? "HEALPixels":"Pixels");
 
       if( v.pref.type==Plan.ALLSKYIMG ) {
          xc=xv[v.n]-0.5;
          yc=yv[v.n]-0.5;
-         minx=ViewSimple.floor(xc-r);
-         maxx=ViewSimple.top(xc+r);
-         miny=ViewSimple.floor(yc-r);
-         maxy=ViewSimple.top(yc+r);
+         minx=(int)Math.floor(xc-r);
+         maxx=(int)Math.ceil(xc+r);
+         miny=(int)Math.floor(yc-r);
+         maxy=(int)Math.ceil(yc+r);
       }
 
       // Calculs des statistiques => sera utilisé immédiatement par le paint
       // Attention, il s'agit de variables statiques
       try {
-         double pixelSurf = plan.proj[v.n].getPixResAlpha()*plan.proj[v.n].getPixResDelta();
          surface = nombre*pixelSurf;
          moyenne = total/nombre;
          variance = carre/nombre - moyenne*moyenne;
@@ -371,8 +444,93 @@ public class Repere extends Position {
          }
          setWithStat(true);
       } catch( Exception e ) { }
+      
       return true;
    }
+   
+   public boolean hasSurface() { return radius>0; }
+   
+   public double [] getStatistics(Plan p) throws Exception {
+      
+      Projection proj = p.projd;
+      if( !p.hasAvailablePixels() ) throw new Exception("getStats error: image without pixel values");
+      if( !Projection.isOk(proj) ) throw new Exception("getStats error: image without astrometrical calibration");
+      if( radius<=0 ) throw new Exception("getStats error: no radius");
+      
+      double nombre=0;
+      double carre=0;
+      double total=0;
+      double pixelSurf;
+      
+      // Cas d'une map HEALPix
+      if( p.type==Plan.ALLSKYIMG ) {
+         PlanBG pbg = (PlanBG)p;
+         pixelSurf = Math.pow(pbg.getPixelResolution(),2);
+         int orderFile = pbg.getOrder();
+//         if( pbg.maxOrder!=pbg.getOrder() ) return false;
+         long nsideFile = CDSHealpix.pow2(orderFile);
+         long nsideLosange = CDSHealpix.pow2(pbg.getLosangeOrder());
+         long nside = nsideFile * nsideLosange;
+         Coord coo = new Coord(raj,dej);
+         coo = Localisation.frameToFrame(coo,Localisation.ICRS,pbg.frameOrigin);
+         double radiusRadian = Math.toRadians(getRadius());
+         long [] npix = CDSHealpix.query_disc(nside, coo.al, coo.del, radiusRadian, false);
+         for( int i=0; i<npix.length; i++ ) {
+            long npixFile = npix[i]/(nsideLosange*nsideLosange);
+//            double pix = pbg.getHealpixPixel(orderFile,npixFile,npix[i],HealpixKey.ONLYIFDISKAVAIL);
+            double pix = pbg.getHealpixPixel(orderFile,npixFile,npix[i],HealpixKey.NOW);
+            if( Double.isNaN(pix) ) continue;
+            pix = pix*pbg.bScale+pbg.bZero;
+            nombre++;
+            total+=pix;
+            carre+=pix*pix;
+         }
+         
+      // Cas d'une image "classique"
+      } else {
+         PlanImage pi = (PlanImage)p;
+         pi.setLockCacheFree(true);
+         pi.pixelsOriginFromCache();
+         
+         pixelSurf = proj.getPixResAlpha()*proj.getPixResDelta();
+         Coord c = new Coord(raj,dej);
+         proj.getXY(c);
+         double  xc=c.x-0.5;
+         double  yc=c.y-0.5;
+
+         c.del=dej+radius;
+         proj.getXY(c);
+         double dy=(yc+0.5)-c.y;
+         double dx=(xc+0.5)-c.x;
+         double r = Math.sqrt(dx*dx + dy*dy);
+         double carreRayon = r*r;
+
+         int minx=(int)Math.floor(xc-r);
+         int maxx=(int)Math.ceil(xc+r);
+         int miny=(int)Math.floor(yc-r);
+         int maxy=(int)Math.ceil(yc+r);
+
+         for( int y=miny; y<=maxy; y++ ) {
+            for( int x=minx; x<=maxx; x++ ) {
+               if( (x-xc)*(x-xc) + (y-yc)*(y-yc) > carreRayon ) continue;
+               double pix= pi.getPixelInDouble(x,y);
+               if( Double.isNaN(pix) ) continue;
+               nombre++;
+               total+=pix;
+               carre+=pix*pix;
+            }
+         }
+         pi.setLockCacheFree(false);
+      }
+      
+      double surface = nombre*pixelSurf;
+      double moyenne = total/nombre;
+      double variance = carre/nombre - moyenne*moyenne;
+      double sigma = Math.sqrt(variance);
+      
+      return new double[]{ nombre, total, sigma, surface };
+   }
+
    
    /** Retourne la rayon du repère en degrés */
    public double getRadius() { return radius; }
@@ -382,10 +540,17 @@ public class Repere extends Position {
    
    /** Retourne true si l'objet contient des informations de photométrie  */
    public boolean hasPhot() { return hasRayon(); }
+   
+   public String getCommand() {
+      String r;
+      if( plan.aladin.localisation.getFrame()==Localisation.XY ) r=Util.myRound(getRayon(plan.aladin.view.getCurrentView()));
+      else r=Coord.getUnit(getRadius());
+      return "draw phot("+getLocalisation()+","+r+")";
+   }
 
    /** Retourne le rayon en pixels d'un repère cerclé */
    protected double getRayon(ViewSimple v) {
-//      return rayon;
+      Coord c = new Coord();
       Projection proj = v.getProj();
       if( radius==0 || v.pref==null || !Projection.isOk(proj) ) return 0;
       c.al=raj;
@@ -485,25 +650,24 @@ public class Repere extends Position {
                if( isSelected() && plan.aladin.view.nbSelectedObjet()<=2 ) cutOn();
                else cutOff();
             } else {
-               if( v.pref instanceof PlanBG ) {
-                  int l = (int)(getRayon(v)*v.getZoom());
-                  g.drawOval(p.x-l, p.y-l, l*2, l*2);
-                  
-//                  String s = plan.aladin.localisation.J2000ToString(raj, dej);
-//                  g.drawString(s, p.x - g.getFontMetrics().stringWidth(s)/2, p.y-2);
-//                  s = Coord.getUnit(getRadius());
-//                  g.drawString(s, p.x - g.getFontMetrics().stringWidth(s)/2, p.y+15);
-                  
-//                  demiLargeur = (int)Math.min(Math.max(2,v.getZoom()*3),16);
-//                  demiCentre = 2*demiLargeur/3;
-//                  drawReticule(g,p.x,p.y,demiLargeur,demiCentre,getColor());
-//                  drawSpecialCircle(g,v);
-//                  id = PlanBG.CURRENTMODE;
-               } else {
+//               if( v.pref instanceof PlanBG ) {
+//                  int l = (int)(getRayon(v)*v.getZoom());
+//                  g.drawOval(p.x-l, p.y-l, l*2, l*2);
+//                  
+////                  String s = plan.aladin.localisation.J2000ToString(raj, dej);
+////                  g.drawString(s, p.x - g.getFontMetrics().stringWidth(s)/2, p.y-2);
+////                  s = Coord.getUnit(getRadius());
+////                  g.drawString(s, p.x - g.getFontMetrics().stringWidth(s)/2, p.y+15);
+//                  
+////                  demiLargeur = (int)Math.min(Math.max(2,v.getZoom()*3),16);
+////                  demiCentre = 2*demiLargeur/3;
+////                  drawReticule(g,p.x,p.y,demiLargeur,demiCentre,getColor());
+////                  drawSpecialCircle(g,v);
+////                  id = PlanBG.CURRENTMODE;
+//               } else {
                   int l = (int)(getRayon(v)*v.getZoom());
                   Util.drawFillOval(g, p.x-l, p.y-l, l*2, l*2, 0.1f * plan.getOpacityLevel(), null);
-//                  g.drawOval(p.x-l, p.y-l, l*2, l*2);
-               }
+//               }
                if( isSelected() ) statDraw(g, v,dx,dy);
             }
             break;
@@ -603,7 +767,7 @@ public class Repere extends Position {
     */
    protected boolean cutOn() {
       ViewSimple v=plan.aladin.view.getCurrentView();
-      if( v==null || plan.aladin.toolbox.getTool()==ToolBox.PAN ) return false;
+      if( v==null || plan.aladin.toolBox.getTool()==ToolBox.PAN ) return false;
       Plan p=v.pref;
       if( p==null || !(p instanceof PlanImageBlink) ) return false;
       PlanImageBlink pc = (PlanImageBlink)p;

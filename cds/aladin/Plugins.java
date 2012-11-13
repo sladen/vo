@@ -74,7 +74,7 @@ public class Plugins extends ClassLoader implements Runnable,ListModel,Comparato
 
 //        Recherche des plugins dans mon répertoire de développement
 //        (juste pour me simplifier la vie)
-//       if( aladin.levelTrace>=3 ) {
+//       if( aladin.PROTO && aladin.levelTrace>=3 ) {
 //          try {
 //             String dir = System.getProperty("user.home")
 //             +FS+"Mes Documents"
@@ -615,6 +615,20 @@ Aladin.trace(1,"Exec plugin by script ["+cmd+"]...");
     		try { ap.cleanup(); } catch( Exception e1 ) {}
     	}
     }
+
+    /**
+     * Appelle la méthode isSync() pour chaque plugin 
+     * Retourne true si tous les plugins sont synchronisés
+     */
+    protected boolean isSync() {
+        Enumeration e = plugs.elements();
+        while( e.hasMoreElements() ) {
+            AladinPlugin ap = (AladinPlugin) e.nextElement();
+            if( !ap.isSync() ) return false;
+        }
+        return true;
+    }
+
 
    public Object getElementAt(int index) {
       return ((AladinPlugin)plugs.elementAt(index)).menu();

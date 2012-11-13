@@ -129,14 +129,11 @@ public class Histogramme extends JComponent implements MyListener, MouseListener
       if (pimg == null && pixels == null) return;
 
       if( img==null ) { update(g); return; }
-      g.drawImage(img,mX,mY,null);
+      g.drawImage(img,mX,mY,pimg.aladin);
 
       if( showPixVal ) drawInfo(g);
 
    }
-
-
-
 
    public void update(Graphics gr) {
       //System.out.println(flag);

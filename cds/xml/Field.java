@@ -31,7 +31,7 @@ import java.util.Hashtable;
 final public class Field {
 
    /** Numeric datatype keys */
-   static private String NUMDATATYPE = "JKEDI";
+   static private String NUMDATATYPE = "JKEFGDI";
 
    /** Field Identifier */
    public String ID;
@@ -58,7 +58,7 @@ final public class Field {
    /** UCD associated with the field */
    public String ucd;
 
-   /** Datatype of field value (F-float, D-double, I-integer, S-short, A-ascii,
+   /** Datatype of field value (F-float, D-double, K-long, I-integer, S-short, A-ascii,
        L-boolean (logical), E-exponential) */
    public String datatype;
 
@@ -196,9 +196,12 @@ final public class Field {
 //      if( datatype!=null && !datatype.equals(f.datatype) ) return false;
       return true;
    }
+   
+   /** Retourne le tag de la colonne (RA, DE, X ou Y) */
+   public int getFieldSignature() { return coo; }
 
    /** Return the positional Field signature (RA, DE, X, Y ou "") */
-   public String getCooSign() { return COOSIGN[coo]; }
+   public String getCooSignature() { return COOSIGN[coo]; }
 
   /** Field object creation.
    * @param name Field name
@@ -237,6 +240,8 @@ final public class Field {
       if( s.equals("A") ) return "char";
       if( s.equals("E") ) return "float";
       if( s.equals("D") ) return "double";
+      if( s.equals("F") ) return "double";
+      if( s.equals("G") ) return "double";
       if( s.equals("L") ) return "boolean";
       if( s.equals("I") ) return "short";
       if( s.equals("X") ) return "bit";
@@ -276,7 +281,7 @@ final public class Field {
              +(datatype==null? "":" datatype="+datatype)
              +(precision==null?"":" precision="+precision)
              +(type==null?     "":" type="+type)
-             +" coo="+getCooSign()
+             +" coo="+getCooSignature()
              +(arraysize==null?"":" arraysize="+arraysize)
              ;
    }

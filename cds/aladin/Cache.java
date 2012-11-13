@@ -161,7 +161,7 @@ Aladin.trace(3,"Clear cache");
    }
    
    /** Met dans le cache le résultat de l'url indiquée */
-   protected boolean putInCache(String url) throws Exception {
+   public boolean putInCache(String url) throws Exception {
       
       // Lecture
       try  {

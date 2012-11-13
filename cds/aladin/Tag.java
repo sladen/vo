@@ -21,13 +21,28 @@
 package cds.aladin;
 
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
 import java.awt.image.*;
 import java.net.*;
 import java.io.*;
 import java.util.*;
 
-import sun.security.action.GetLongAction;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSlider;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
 
+import cds.aladin.prop.Prop;
+import cds.aladin.prop.PropAction;
 import cds.tools.Util;
 
 /**
@@ -67,8 +82,8 @@ public final class Tag extends Position {
    private int L = 5;                 // Demi-taille du réticule
    private int tag = RETICLE;         // Type de tag
    private double angle=Math.PI/4;    // Angle de la hampe (sens positive, Y vers le bas)
-   private double dist=40;            // Taille de la hampe sans l'accroche
-   private int accroche = 20;         // Taille de l'accroche de la hampe (petit trait juste avant le label)
+   private double dist=0;             // Taille de la hampe sans l'accroche
+   private int accroche = 10;         // Taille de l'accroche de la hampe (petit trait juste avant le label)
    private Color couleur=null;        // Couleur alternative
    private float fond=0f;             // Niveau de transparence du fond (0, pour aucun)
    private int bord=0;                // Type de bord
@@ -120,6 +135,161 @@ public final class Tag extends Position {
       t.distAngulaireOrig=distAngulaireOrig;
       return t;
    }
+   
+   public Vector getProp() {
+      Vector propList = super.getProp();
+      Prop.remove(propList,"id");
+      
+      final JTextField textAngle = new JTextField( 10 );
+      final PropAction updateAngle = new PropAction() {
+         public int action() { textAngle.setText( ""+(360- (int)Math.round(Math.toDegrees(angle))) ); return PropAction.SUCCESS; }
+      };
+      PropAction changeAngle = new PropAction() {
+         public int action() { 
+            try { 
+               textAngle.setForeground(Color.black);
+               int nangle = Integer.parseInt( textAngle.getText() );
+               if( nangle==360-(int)Math.round(Math.toDegrees(angle)) ) return PropAction.NOTHING;
+               angle=Math.toRadians(360-nangle);
+               return PropAction.SUCCESS;
+            } catch( Exception e) {
+               updateAngle.action();
+               textAngle.setForeground(Color.red);
+               return PropAction.FAILED;
+            }
+         }
+      };
+      propList.add(Prop.propFactory("angle","Angle","Pole orientation (in degrees - trigonometric orientation)",textAngle,updateAngle,changeAngle));
+
+      final JTextField textDist = new JTextField( 10 );
+      final PropAction updateDist = new PropAction() {
+         public int action() { textDist.setText( ""+(int)dist ); return PropAction.SUCCESS; }
+      };
+      PropAction changeDist = new PropAction() {
+         public int action() { 
+            try { 
+               textDist.setForeground(Color.black);
+               int ndist = Integer.parseInt( textDist.getText() );
+               if( ndist==(int)dist ) return PropAction.NOTHING;
+               dist=ndist;
+               return PropAction.SUCCESS;
+            } catch( Exception e) {
+               updateDist.action();
+               textDist.setForeground(Color.red);
+               return PropAction.FAILED;
+            }
+         }
+      };
+      propList.add(Prop.propFactory("dist","Pole size","Pole size (in pixels)",textDist,updateDist,changeDist));
+
+      final JComboBox pole =  new JComboBox(TAGS);
+      final PropAction updatePole = new PropAction() {
+         public int action() { pole.setSelectedIndex(tag); return PropAction.SUCCESS; }
+      };
+      final PropAction changePole = new PropAction() {
+         public int action() {
+            int npole = pole.getSelectedIndex();
+            if( tag==npole ) return PropAction.NOTHING;
+            tag=npole;
+            return PropAction.SUCCESS;
+         }
+      };
+      pole.addActionListener( new ActionListener() {
+         public void actionPerformed(ActionEvent e) { changePole.action(); plan.aladin.view.repaintAll(); }
+      });
+      propList.add( Prop.propFactory("tag","Arrow head","Alternative arrow head",pole,updatePole,changePole) );
+
+      final JTextField textSize = new JTextField( 10 );
+      final PropAction updateSize = new PropAction() {
+         public int action() { textSize.setText( F.getSize()+"" ); return PropAction.SUCCESS; }
+      };
+      PropAction changeSize = new PropAction() {
+         public int action() { 
+            try { 
+               textSize.setForeground(Color.black);
+               float nsize = Float.parseFloat( textSize.getText() );
+               if( nsize==F.getSize() ) return PropAction.NOTHING;
+               F=F.deriveFont(nsize);
+               return PropAction.SUCCESS;
+            } catch( Exception e) {
+               updateSize.action();
+               textSize.setForeground(Color.red);
+               return PropAction.FAILED;
+            }
+         }
+      };
+      propList.add(Prop.propFactory("fontsize","Font size",null,textSize,updateSize,changeSize));
+     
+      final Couleur col = new Couleur(couleur,true);
+      final PropAction changeCouleur = new PropAction() {
+         public int action() { 
+            Color c= col.getCouleur();
+            if( c==couleur ) return PropAction.NOTHING;
+            couleur=c;
+            return PropAction.SUCCESS;
+         }
+      };
+      col.addActionListener( new ActionListener() {
+         public void actionPerformed(ActionEvent e) { changeCouleur.action(); plan.aladin.view.repaintAll(); }
+      });
+      propList.add( Prop.propFactory("color","Color","Alternative color",col,null,changeCouleur) );
+      
+      final JTextArea textId = new JTextArea( 3,25 );
+      JScrollPane paneId = new JScrollPane(textId);
+      final PropAction updateId = new PropAction() {
+         public int action() { textId.setText( id ); return PropAction.SUCCESS; }
+      };
+      final PropAction changeId = new PropAction() {
+         public int action() { 
+            String s = textId.getText();
+            if( s.equals(id) ) return PropAction.NOTHING;
+            id=textId.getText();
+            return PropAction.SUCCESS;
+         }
+      };
+      propList.add(Prop.propFactory("id","Label","Tag label",paneId,updateId,changeId));
+
+      final JCheckBox bordCheck =  new JCheckBox("with border");
+      final PropAction updateBord = new PropAction() {
+         public int action() { bordCheck.setSelected(bord==1); return PropAction.SUCCESS; }
+      };
+      final PropAction changeBord = new PropAction() {
+         public int action() {
+            if( bordCheck.isSelected()== (bord==1) ) return PropAction.NOTHING;
+            bord = bordCheck.isSelected() ? 1 : 0;
+            return PropAction.SUCCESS;
+         }
+      };
+      bordCheck.addActionListener( new ActionListener() {
+         public void actionPerformed(ActionEvent e) { changeBord.action(); plan.aladin.view.repaintAll(); }
+      });
+      propList.add( Prop.propFactory("border","Label border",null,bordCheck,updateBord,changeBord) );
+
+      final JSlider transSlider =  new JSlider();
+      final PropAction updateTrans = new PropAction() {
+         public int action() { transSlider.setValue((int)(fond*100)); return PropAction.SUCCESS; }
+      };
+      final PropAction changeTrans = new PropAction() {
+         public int action() {
+            if( transSlider.getValue()==(int)(fond*100) ) return PropAction.NOTHING;
+            fond = (float)(transSlider.getValue()/100.);
+            return PropAction.SUCCESS;
+         }
+      };
+      transSlider.addMouseMotionListener( new MouseMotionListener() {
+         public void mouseMoved(MouseEvent e) { }
+         public void mouseDragged(MouseEvent e) { changeTrans.action(); plan.aladin.view.repaintAll(); }
+      });
+      propList.add( Prop.propFactory("background","Label background",null,transSlider,updateTrans,changeTrans) );
+
+      return propList;
+   }
+
+   
+   public String getCommand() {
+      return "draw tag("+getLocalisation()+","+Tok.quote(id)+","+Math.round(dist)+","
+          +Math.round((270-Math.toDegrees(angle)))+","+TAGS[tag]+","+F.getSize()+")";
+   }
 
    /** Retourne le type d'objet */
    static private final String C= "|";
@@ -157,7 +327,10 @@ public final class Tag extends Position {
    public String getObjType() { return "Tag"; }
    
    /** Positionnement de la distance (en pixels) du tag au label */
-   protected void setDist(int dist) { this.dist=dist; setWH();}
+   protected void setDist(int dist) { 
+      this.dist=dist;
+      setWH();
+   }
 
    /** Positionnement de l'angle (en degrés, sens trigo) du tag au label */
    protected void setAngle(int angle) { this.angle=Math.toRadians(270-angle); setWH();}
@@ -178,7 +351,7 @@ public final class Tag extends Position {
    * @param id le nouveau texte
    */
    protected void setText(String id) {
-      this.id= id==null || id.length()==0 ? null : id.replace("\\n","\n");
+      this.id= id==null || id.length()==0 ? "" : id.replace("\\n","\n");
       setWH();
    }
 
@@ -205,7 +378,7 @@ public final class Tag extends Position {
    
    /** Le label est-il trop petit pour ce champ ? */
    private boolean isTooSmallForLabel(ViewSimple v) {
-      if( distAngulaireOrig==0 ) return false;
+      if( distAngulaireOrig==0 || v.getProj()==null ) return false;
       Coord c = new Coord();
       c.y = dist; c.x = 0;
       v.getProj().getCoord(c);
@@ -261,11 +434,16 @@ public final class Tag extends Position {
       return rect2.contains(x,y);
    }
    
+   static final private int T=4;
+   private Rectangle larger(Rectangle r) {
+      return new Rectangle( r.x-T, r.y-T, r.width+2*T, r.height+2*T);
+   }
+   
    /** Retourne true si x,y (coordonnées image) se trouve sur le tag */
    protected boolean onTag(ViewSimple v,double x, double y) {
       x = (x-xv[v.n])*v.zoom;
       y = (y-yv[v.n])*v.zoom;
-      return rect1.contains(x,y);
+      return larger(rect1).contains(x,y);
    }
    
    /** Retourne true si x,y (coordonnées image) se trouve sur le coin */
@@ -280,8 +458,8 @@ public final class Tag extends Position {
     * qui peut être modifiable par la molette de la souris. Si c'est le cas, mémorise
     * l'élément en question dans "on", et retourne true */
    protected boolean onViaWheel(ViewSimple v,double x, double y) {
-      if( onTag(v,x,y ) ) on = TAG;
-      else if( onLabel(v,x,y) )on = LABEL;
+      if( onLabel(v,x,y) )on = LABEL;
+      else if( onTag(v,x,y ) ) on = TAG;
       else on = NOTHING;
       return on!=NOTHING;
    }
@@ -300,6 +478,7 @@ public final class Tag extends Position {
     * qui peut être modifiable par étirement via la souris. Si c'est le cas, mémorise
     * l'élément en question dans "on", et retourne true */
    protected boolean onViaMouse(ViewSimple v,double x, double y) {
+      if( !hasLabel() && !isArrow() ) return false;
       if( onPoignee(v,x,y ) ) on = POIGNEE;
       else if( onCorner(v,x,y) ) on = CORNER;
       else on = NOTHING;
@@ -325,6 +504,7 @@ public final class Tag extends Position {
       if( nangle<0 ) nangle += Math.PI*2;
       else if( ndist>MAXDIST ) ndist=MAXDIST;
       if( Math.round(Math.toDegrees(nangle))==Math.toDegrees(angle) && dist==ndist  ) return false;
+      if( dist==0 && tag==RETICLE ) tag=ARROW;
       angle=nangle; dist=ndist;
       if( tag==NOPOLE ) tag=0;
       setWH();
@@ -368,8 +548,11 @@ public final class Tag extends Position {
    }
    
    protected void drawSelect(Graphics g,ViewSimple v) {
-      super.drawSelect(g,v);
-      if( !hasLabel() && !isArrow() ) return;
+      
+      if( !hasLabel() && !isArrow() ) {
+         super.drawSelect(g,v);
+         return;
+      }
       
       // la poignée pour changer l'ancrage
       Point p = getViewCoord(v,50,50);
@@ -423,7 +606,7 @@ public final class Tag extends Position {
    }
 
    /** Détermination de la couleur de l'objet */
-   protected Color getColor() {
+   public Color getColor() {
       if( !isVisible() ) return null;
    	  if( couleur!=null ) return couleur;
    	  if( plan!=null && plan.type==Plan.APERTURE ) {
@@ -573,7 +756,8 @@ public final class Tag extends Position {
    }
    
    private void drawTag(Graphics g, int x, int y) {
-      if( tag==NOPOLE || dist<=MINDIST ) return;
+      if( tag==NOPOLE  ) return;
+      if( dist<MINDIST && hasLabel() && !isEditing() ) return;
       switch( tag ) {
          case RETICLE:
          case BIGRETICLE:

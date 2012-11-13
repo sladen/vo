@@ -20,6 +20,7 @@
 
 package cds.aladin;
 
+import cds.aladin.prop.PropPanel;
 import cds.astro.*;
 import cds.fits.HeaderFits;
 import cds.tools.Util;
@@ -55,7 +56,7 @@ public final class FrameNewCalib extends JFrame
 
    String TITLE,SUBMIT,MODIFY,UNDO,REDO,HELP,RESET,CLEAR,CANCEL,
           ONE,TWO,THREE,HELPSTRING,MYPROJ,ADJUST1,ADJUST2,TRUE,FALSE,
-          CHOOSECAL,LABEL,COORD,XY,PIXSIZE,PROJECT,ROT,RASYM,QUADMSG,
+          CHOOSECAL,LABEL,FRAME,COORD,XY,PIXSIZE,PROJECT,ROT,RASYM,QUADMSG,
           XYPOS,ERRNOXY,ERRNOBEST/*,COPYCAL*/,ERRIMG;
 
 
@@ -68,12 +69,13 @@ public final class FrameNewCalib extends JFrame
    MyLabel titleFrame;
    JTextField labelT,cooT,xyT,xyS,rotT;
    JTextArea wcsT;		          // Editeur pour le WCS
-   JComboBox projChoice=null;	  // Choice des projections
+   JComboBox frameChoice=null;    // Choice du système de coordonnées
+   JComboBox projChoice=null;     // Choice des projections
    JRadioButton trueSym, falseSym;// Checkbox pour la symetrie
    ButtonGroup symRadio=null;	  // Boutons radios pour la symetrie
    JPanel pSym;			          // JPanel des boutons trueSym et falseSym
    JButton modifyButton,resetButton;
-   int maxPosT=30;		          // Le nombre max d'etoiles
+   int maxPosT=7;		          // Le nombre max d'etoiles
    FrameNewCalibTextField xyPosT[];		      // Textfields des XY
    FrameNewCalibTextField cooPosT[];		      // textfields des coordonnees associees
 
@@ -82,6 +84,7 @@ public final class FrameNewCalib extends JFrame
    double raj,dej,cx,cy,rm,r,rot;
    boolean sym;
    int t;			// Type de la projection
+   int system;      // Systeme de coordonnées
 
    JTextField focusTextField=null;// Component ayant le focus (parmi xyPosT[] et cooPosT[])
    boolean flagXY=false;	     // true si le focus est sur un element de xyPosT[]
@@ -115,6 +118,7 @@ public final class FrameNewCalib extends JFrame
       FALSE = a.chaine.getString("NCFALSE");
       CHOOSECAL = a.chaine.getString("NCCHOOSECAL");
       LABEL = a.chaine.getString("NCLABEL");
+      FRAME = a.chaine.getString("UPFRAMEB");
       COORD = a.chaine.getString("NCCOORD");
       XY = a.chaine.getString("NCXY");
       PIXSIZE = a.chaine.getString("NCPIXSIZE");
@@ -252,6 +256,7 @@ public final class FrameNewCalib extends JFrame
             r1=proj.c.getImgSize().height;
             rot=proj.c.getProjRot();
             sym=proj.c.getProjSym();
+            system=proj.c.getSystem();
             t=proj.c.getProj();
          } catch( Exception e) { System.err.println("Error on projd: "+e); }
       } else {
@@ -280,6 +285,7 @@ public final class FrameNewCalib extends JFrame
       xyS.setText(rm==0||r==0?"1\"":Coord.getUnit((rm/60.)/r));
       rotT.setText(rot+"");
       setSymRadio(sym);
+      setFrameChoice(system);
       setProjChoice(t>=0?t:0);
       setCoo(proj);
 
@@ -301,7 +307,7 @@ public final class FrameNewCalib extends JFrame
 
       // Dans le cas ou l'on veut editer le WCS
       if( proj==null ) {
-         getWCS(new Projection(label,Projection.SIMPLE,raj,dej,rm,rm1,cx,cy,r,r1,rot,sym,Calib.TAN));
+         getWCS(new Projection(label,Projection.SIMPLE,raj,dej,rm,rm1,cx,cy,r,r1,rot,sym,Calib.TAN,system));
       } else getWCS(proj);
 
       pack();
@@ -364,6 +370,7 @@ public final class FrameNewCalib extends JFrame
      xyS.setText("");
      rotT.setText("0");
      setSymRadio(sym);
+     setFrameChoice(system);
      setProjChoice(t >= 0 ? t : 0);
      setCoo(null);
      getWCS(null);
@@ -382,6 +389,16 @@ public final class FrameNewCalib extends JFrame
       double x = Server.getAngle(xyS.getText(),Server.RADIUS);
       if( r<=0 ) r=1024;
       rm = x*r;
+   }
+   
+   // Creation ou mise a jour du choix du système de coordonnées
+   private void setFrameChoice(int system) {
+      if( frameChoice==null ) frameChoice = Localisation.createFrameComboBis();
+      try {
+         frameChoice.setSelectedIndex(system);
+      } catch( Exception e ) {
+         frameChoice.setSelectedIndex(0);
+      }
    }
 
    // Creation ou mise a jour du choix des projections
@@ -468,6 +485,7 @@ public final class FrameNewCalib extends JFrame
       GridBagLayout g =  new GridBagLayout();
       c.fill = GridBagConstraints.BOTH;
       c.anchor = GridBagConstraints.WEST;
+      c.insets.bottom=2;
 
       JPanel p = new JPanel(g);
 
@@ -475,15 +493,17 @@ public final class FrameNewCalib extends JFrame
       xyT  =new JTextField(20);
       xyS  =new JTextField(20);
       rotT =new JTextField(20);
+      frameChoice = Localisation.createFrameComboBis();
       setSymRadio(sym);
       setProjChoice(t);
 
-      Properties.addCouple(p,COORD, cooT, g,c);
-      Properties.addCouple(p,XY, xyT, g,c);
-      Properties.addCouple(p,PIXSIZE, xyS, g,c);
-      Properties.addCouple(p,PROJECT, projChoice, g,c);
-      Properties.addCouple(p,ROT, rotT, g,c);
-      Properties.addCouple(p,RASYM, pSym, g,c);
+      PropPanel.addCouple(p,COORD, cooT, g,c);
+      PropPanel.addCouple(p,XY, xyT, g,c);
+      PropPanel.addCouple(p,PIXSIZE, xyS, g,c);
+      PropPanel.addCouple(p,FRAME, frameChoice, g,c);
+      PropPanel.addCouple(p,PROJECT, projChoice, g,c);
+      PropPanel.addCouple(p,ROT, rotT, g,c);
+      PropPanel.addCouple(p,RASYM, pSym, g,c);
 
       return p;
    }
@@ -591,6 +611,8 @@ public final class FrameNewCalib extends JFrame
 
    /** Retourne la méthode de recalibration courante */
    protected int getModeCalib() { return modeCalib; }
+   
+   private long oplanHashCode=-1;
 
    // Action associee au menu de changement de methode
    private void changeMethod() {
@@ -600,6 +622,11 @@ public final class FrameNewCalib extends JFrame
       if( modeCalib==QUADRUPLET ) {
          xyPosT[0].requestFocus();
          setFocusPos(xyPosT[0]);
+         if( !plan.hasNoReduction() && plan.hashCode()!=oplanHashCode ) {
+            if( Aladin.confirmation(this,a.chaine.getString("NCALIBAGAIN")+"\n=> "+plan.label) ) {
+               oplanHashCode=plan.hashCode();
+            }
+         }
       }
 
       resumeFlagPlanRecalibrating();
@@ -694,6 +721,10 @@ e.printStackTrace();
       String label   = labelT.getText();
       String error=null;
       double r1=0.,rm1=0.;
+      
+      // Le frame associée à la projection est remis à ICRS par défaut.
+      // (==> Cas du changement de référentiel a posteriori pour les Allsky)
+      if( flagModif && oldp!=null ) oldp.frame=Localisation.ICRS;
 
       try {
 
@@ -707,27 +738,37 @@ e.printStackTrace();
             error="XY position";
             double cx  = Double.valueOf(st.nextToken()).doubleValue();
             double cy  = Double.valueOf(st.nextToken()).doubleValue();
-error="Pixel size";
-updaterm();
+            error="Pixel size";
+            updaterm();
+            
             // Petite mise au point pas très propre dans le cas d'image rectangulaire
             r1=r;
             rm1=rm;
             if( plan.isImage() ) {
-              r1 = ((PlanImage)plan).naxis2;
+               r1 = ((PlanImage)plan).naxis2;
               rm1 = rm* r1/r;
             }
 
             error="rotation";
             double rot = Double.valueOf( rotT.getText()).doubleValue();
             int type   = Projection.getProjType( (String)projChoice.getSelectedItem() );
+            
+//            // On remet le centre dans le système d'arrivée
+//            int syst = Localisation.getFrameComboValue( (String)projChoice.getSelectedItem() );
+//            Coord center = Localisation.frameToFrame(new Coord(raj,dej), Localisation.ICRS, syst);
+//            raj=center.al; dej=center.del;
+//            Aladin.trace(4,"FreamNewCalib.submit() syst="+syst+" center="+center);
+            
+            // Indice du système d'arrivée (à la BOF)
+            int system = Localisation.getFrameComboBisValue( (String)frameChoice.getSelectedItem() );
             boolean sym  = trueSym.isSelected();
             error=null;
 
             if( flagModif && oldp!=null ) {
                p=oldp;
-               p.modify(label,Projection.SIMPLE,raj,dej,rm,rm1,cx,cy,r,r1,rot,sym,type);
+               p.modify(label,Projection.SIMPLE,raj,dej,rm,rm1,cx,cy,r,r1,rot,sym,type,system);
             } else {
-               p = new Projection(label,Projection.SIMPLE,raj,dej,rm,rm1,cx,cy,r,r1,rot,sym,type);
+               p = new Projection(label,Projection.SIMPLE,raj,dej,rm,rm1,cx,cy,r,r1,rot,sym,type,system);
             }
 
          // Methode par quadruplets
@@ -742,11 +783,11 @@ updaterm();
             if( coo==null ) return;
             if( flagModif ) p=oldp;
             else {
-//               if( plan.projd!=null ) p = plan.projd.copy();
-//               else {
+               if( plan.projd!=null ) p = plan.projd.copy();
+               else {
                   p=new Projection(label,Projection.SIMPLE,
-                     coo[0].al,coo[0].del,cx,cy,coo[0].x,coo[0].y,cx*2,cy*2,0,false,Calib.TAN);
-//               }
+                        coo[0].al,coo[0].del,cx,cy,coo[0].x,coo[0].y,cx*2,cy*2,0,false,Calib.TAN,system);
+               }
             }
             p.modify(label,coo);
 
@@ -756,7 +797,7 @@ updaterm();
             HeaderFits headerFits = new HeaderFits(s);
             Calib c = new Calib(headerFits);
             if( flagModif ) p=oldp;
-            else p = new Projection(label,Projection.WCS,raj,dej,rm,rm1,cx,cy,r,r1,rot,sym,Calib.TAN);
+            else p = new Projection(label,Projection.WCS,c.alphai,c.deltai,/*raj,dej,*/rm,rm1,cx,cy,r,r1,rot,sym,Calib.TAN,system);
             p.modify(label,c);
          }
 
@@ -795,7 +836,7 @@ e.printStackTrace();
       if( a.calque.getIndex(drawPlan)==-1) {
          drawPlan =a.calque.newPlanTool("Calibration");
       }
-      a.command.execScript("rm "+drawPlan.label,false);
+      a.command.execScript("rm "+drawPlan.label,false,false);
       a.view.repaintAll();
 
    }
@@ -1318,7 +1359,7 @@ e.printStackTrace();
                if( a.calque.getIndex(drawPlan)==-1) {
                   drawPlan = a.calque.newPlanTool("Calibration");
                }
-               a.command.execScript("select \""+drawPlan.label+"\";draw tag("+s1+")",false);
+               a.command.execScript("select \""+drawPlan.label+"\";draw tag("+s1+")",false,false);
                a.view.repaintAll();
             }
          } else {

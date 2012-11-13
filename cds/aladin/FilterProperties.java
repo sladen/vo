@@ -20,41 +20,15 @@
 
 package cds.aladin;
 
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Event;
-import java.awt.FileDialog;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.awt.Insets;
-import java.awt.Point;
+import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
-import java.util.*;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.StringTokenizer;
+import java.util.Vector;
 
-import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
-import javax.swing.ButtonGroup;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JRadioButton;
-import javax.swing.JScrollPane;
-import javax.swing.JTabbedPane;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.text.DefaultEditorKit;
 
@@ -78,7 +52,7 @@ public final class FilterProperties extends Properties implements MouseListener,
 	       LOADFILTER,PICKCOLUMN,PICKUCD,SHAPEFUNC,COLORFUNC,IOERR,CAVEAT,
 	       MATHS,OPEN_COLUMNS,LABEL,CHOOSE,CHOOSE1,PREDEF,YOUROWN,PICK,
 	       COL,ACTION,UNIT,CPLANE,FREQUCD,CATUCD,SHAPEFCT,COLORFCT,CAVEATMSG,
-	       FILTER_EXPLAIN;
+	       FILTER_EXPLAIN,RAINBOWCM;
 
     protected static String BEGINNER,ADVANCED;
 
@@ -120,6 +94,7 @@ public final class FilterProperties extends Properties implements MouseListener,
 	private ButtonGroup beginnerCbg; // pour choix filtre débutant
 
 	// Les references aux objets
+
 	PlanFilter pf;
 
 	// mémoire du label et du script
@@ -139,6 +114,8 @@ public final class FilterProperties extends Properties implements MouseListener,
 
     JButton applyBtn;
     JButton closeBtn;
+
+    JButton showRainbowBtn;
 
 	// Widgets
 	JTextField label;              // Le label du plan
@@ -216,6 +193,7 @@ public final class FilterProperties extends Properties implements MouseListener,
 	   COLORFCT = aladin.chaine.getString("FTCOLORFCT");
 	   CAVEATMSG = aladin.chaine.getString("FTCAVEATMSG");
 	   FILTER_EXPLAIN = aladin.chaine.getString("FTFILTER_EXPLAIN");
+	   RAINBOWCM = aladin.chaine.getString("FTRAINBOWCM");
 
 	   UNITEXPLAIN= new String[]{
 		      aladin.chaine.getString("FTMIN"),
@@ -287,6 +265,7 @@ public final class FilterProperties extends Properties implements MouseListener,
 	   panel.setLayout( new BorderLayout(5,5) );
 
        propPanel = getPanelProperties();
+       
 	   Aladin.makeAdd(panel,propPanel,"Center");
 	   Aladin.makeAdd(panel,getPanelValid(),"South");
 
@@ -340,11 +319,9 @@ public final class FilterProperties extends Properties implements MouseListener,
 		// le label associe au plan
 		label = new JTextField(pf.label,15);
 		addCouple(p, LABEL, label, g,c);
-		
+
 		 // si le plan est un PlanFilter et que la def est vide, il est actif par defaut
-		if( pf.script.length()==0 ) {
-            pf.active = true;
-		}
+		if( pf.script.length()==0 ) pf.active = true;
 
 		// si la définition du script n'est pas vide, ou que l'on est en mode robot, on force le mode Advanced
 		if( pf.script!=null && pf.script.length()>0 || (Aladin.ROBOTSUPPORT && aladin.command.robotMode) ) currentMode = ADVANCED;
@@ -364,8 +341,8 @@ public final class FilterProperties extends Properties implements MouseListener,
         c.fill = GridBagConstraints.BOTH;
 		g.setConstraints(modeTabbedPane,c);
 		p.add(modeTabbedPane);
-
-		return p;
+		
+        return p;
 	 }
 
      /**
@@ -423,7 +400,7 @@ public final class FilterProperties extends Properties implements MouseListener,
          return p;
      }
 
-     protected static void addCouple(JPanel p, Object titre, Component valeur,
+     public static void addCouple(JPanel p, Object titre, Component valeur,
             GridBagLayout g, GridBagConstraints c) {
 
         Component t;
@@ -662,6 +639,8 @@ public final class FilterProperties extends Properties implements MouseListener,
 		   	defPanel.add(loadSavePanel);
 		}
 
+
+
 		if( computeCol ) updateUCDAndColumn();
 
 		c.gridx=0;
@@ -673,6 +652,7 @@ public final class FilterProperties extends Properties implements MouseListener,
 		cc.fill = GridBagConstraints.BOTH;
 		cc.insets = new Insets(1,3,1,3);
 		pBtns.setLayout(gg);
+		pBtns.setBorder(BorderFactory.createEmptyBorder(5, 5, 2, 5));
 
 		JButton bExport = new JButton(EXPORT);
         bExport.addActionListener(this);
@@ -687,7 +667,17 @@ public final class FilterProperties extends Properties implements MouseListener,
         cc.weightx = 1.0;
         gg.setConstraints(lExport,cc);
         pBtns.add(lExport);
-        pBtns.setBorder(BorderFactory.createEmptyBorder(5, 5, 2, 5));
+
+
+        cc.gridwidth = GridBagConstraints.REMAINDER;
+        cc.anchor = GridBagConstraints.WEST;
+        cc.weightx = 0.0;
+        cc.fill = GridBagConstraints.NONE;
+        showRainbowBtn = new JButton(RAINBOWCM);
+        showRainbowBtn.addActionListener(this);
+        showRainbowBtn.setEnabled(pf.getUCDFilter().hasRainbowFunction());
+        gg.setConstraints(showRainbowBtn, cc);
+        pBtns.add(showRainbowBtn);
 
 		p.add(pBtns);
 
@@ -938,6 +928,9 @@ public final class FilterProperties extends Properties implements MouseListener,
 		saveDef = filterDef.getText();
         saveName = label.getText();
 
+        // rainbow color map
+        showRainbowBtn.setEnabled(pf.getUCDFilter().hasRainbowFunction());
+
 		aladin.view.repaintAll();
 		aladin.calque.select.repaint();
 
@@ -964,6 +957,14 @@ public final class FilterProperties extends Properties implements MouseListener,
 		 else if( target instanceof JRadioButton) {
 		 	applyBeginnerFilter(((JRadioButton)target));
 		 }
+
+         else if( what.equals(RAINBOWCM)) {
+             double[] minmax = pf.getUCDFilter().getRainbowMinMax();
+             aladin.view.showRainbowFilter(ColorMap.getRainbowCM(), minmax[0], minmax[1]);
+             aladin.view.getCurrentView().rainbowF.setTitle(pf.label);
+
+             aladin.view.getCurrentView().repaint();
+         }
 
 		 // action sur un MenuItem
 		 else if( target instanceof JMenuItem ) {

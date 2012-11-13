@@ -53,7 +53,7 @@ public final class ServerFoV extends Server implements TableModel {
 
    String LOAD;
 
-   Vector fovList;  // la liste des FoVs
+   Vector<FoVItem> fovList;  // la liste des FoVs
    JTable table;
    TableModelListener tableListener;
    JTextField roll;
@@ -81,7 +81,9 @@ public final class ServerFoV extends Server implements TableModel {
    protected ServerFoV(Aladin aladin) {
       this.aladin = aladin;
       createChaine();
-      aladinLabel = "FoV";
+//      aladinLabel = "FoV";
+      aladinLabel = "Instrument Field of Views (FoV)";
+      aladinMenu = "FoV...";
       type = APPLI;
       aladinLogo = "FoVLogo.gif";
       grab=null;
@@ -222,12 +224,12 @@ public final class ServerFoV extends Server implements TableModel {
 
       int idx = table.getSelectedRow();
       if( idx>=0 ) {
-         FoVItem fov = (FoVItem) fovList.elementAt(idx);
+         FoVItem fov = fovList.elementAt(idx);
          s = fov.id;
       } else s=null;
 
-      if( creatFieldPlane(t,r,s,null)!=-1 ) ball.setMode(ball.OK);
-      else ball.setMode(ball.NOK);
+      if( creatFieldPlane(t,r,s,null)!=-1 ) ball.setMode(Ball.OK);
+      else ball.setMode(Ball.NOK);
    }
 
    // on conserve l'id du dernier FOV enregistré
@@ -293,7 +295,7 @@ public final class ServerFoV extends Server implements TableModel {
    /** Recherche de l'indice d'un FoV dans la table */
    int findFoVIndex(String id) {
       for( int i=0; i<fovList.size(); i++ ) {
-         FoVItem fov = (FoVItem)fovList.elementAt(i);
+         FoVItem fov = fovList.elementAt(i);
          if( fov.id.equals(id) ) return i;
       }
       return -1;
@@ -332,14 +334,13 @@ public final class ServerFoV extends Server implements TableModel {
    }
 
    private void defaultSortFoV() {
-      Collections.sort(fovList,new Comparator() {
-         public int compare(Object o1, Object o2) {
-            FoVItem f1 = (FoVItem)o1;
-            FoVItem f2 = (FoVItem)o2;
+      Collections.sort(fovList,new Comparator<FoVItem>() {
+
+        public int compare(FoVItem f1, FoVItem f2) {
             int n = f1.telescope.compareTo(f2.telescope);
             if( n!=0 ) return n;
             return  f1.instrument.compareTo(f2.instrument);
-         }
+        }
       });
       if( ! ascSort) Collections.reverse(fovList);
       ascSort = !ascSort;
@@ -348,7 +349,7 @@ public final class ServerFoV extends Server implements TableModel {
    public int getRowCount() { return fovList==null?-1:fovList.size(); }
 
    public Object getValueAt(int rowIndex, int columnIndex) {
-      FoVItem fov = (FoVItem)fovList.elementAt(rowIndex);
+      FoVItem fov = fovList.elementAt(rowIndex);
       switch(columnIndex) {
          case 0: return fov.instrument;
          case 1: return fov.telescope;
@@ -378,7 +379,7 @@ public final class ServerFoV extends Server implements TableModel {
    };
 
    private void initStaticFoV() {
-      fovList = new Vector();
+      fovList = new Vector<FoVItem>();
       for( int i=0; i<FOV.length; i++ ) {
          FoVItem fov = new FoVItem(FOV[i][0],FOV[i][1],FOV[i][2],FOV[i][3]);
          fovList.add(fov);

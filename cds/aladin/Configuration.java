@@ -20,9 +20,8 @@
 
 package cds.aladin;
 
-import cds.aladin.Legende.MyRenderer;
+import cds.aladin.prop.PropPanel;
 import cds.tools.*;
-import cds.xml.Field;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -30,10 +29,8 @@ import java.io.*;
 import java.net.URL;
 import java.util.*;
 import javax.swing.*;
-import javax.swing.border.TitledBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.swing.table.AbstractTableModel;
 
 /**
  * Gestion du fichier de configuration Aladin. Il va être enregistré dans
@@ -95,6 +92,7 @@ public final class Configuration extends JFrame
    protected static String MOD        = "Profile";
    protected static String HPXGRID    = "HealpixGrid";
    protected static String MESURE     = "HideMeasurements";
+   protected static String MHEIGHT    = "MeasurementHeight";
    protected static String BOOKMARKS  = "Bookmarks";
    protected static String FRAME      = "Frame";
    protected static String FRAMEALLSKY= "FrameAllsky";
@@ -102,6 +100,7 @@ public final class Configuration extends JFrame
    protected static String CACHE      = "HpxCacheSize";
    protected static String MAXCACHE   = "HpxMaxCacheSize";
    protected static String LOG        = "Log";
+   protected static String HELP       = "Wizard";
 //   protected static String TAG        = "CenteredTag";
 //   protected static String WENSIZE    = "WenSize";
    
@@ -113,7 +112,7 @@ public final class Configuration extends JFrame
                  CMB,CMH,CMV,CMM,CMC,CMF,BKGB,BKGH,WEBB,WEBH,RELOAD,
                  REGB,REGH,/*REGCL,REGMAN,*/APPLY,CLOSE,/*GLUTEST,GLUSTOP,*/BROWSE,FRAMEB,FRAMEALLSKYB,FRAMEH,OPALEVEL,
                  FILTERB,FILTERH,FILTERN,FILTERY,SMBB,SMBH,TRANSB,TRANSH,
-                 IMGB,IMGH,IMGS,IMGC,MODE,MODEH,CACHES,CACHEH,CLEARCACHE,LOGS,LOGH/*,TAGCENTER,TAGCENTERH*/;
+                 IMGB,IMGH,IMGS,IMGC,MODE,MODEH,CACHES,CACHEH,CLEARCACHE,LOGS,LOGH,HELPS,HELPH/*,TAGCENTER,TAGCENTERH*/;
    
    static private String CSVITEM[] = { "tab","|",";",",","tab |","tab | ;" };
    static private String CSVITEMLONG[];
@@ -149,6 +148,7 @@ public final class Configuration extends JFrame
    private JComboBox        filterChoice;         // Pour l'activation du filtre par défaut
    private JComboBox        transparencyChoice;   // Pour l'activation de la transparence des footprints
    private JComboBox        logChoice;            // Pour l'activation des logs
+   private JComboBox        helpChoice;           // Pour l'activation de l'aide des débutants
 //   private JComboBox        tagChoice;           // Pour l'activation du centrage des tags
    private JSlider          transparencyLevel;    // niveau de transparence pour footprints
    private JComboBox        csvChoice;            // Pour la sélection du caractère CSV
@@ -220,6 +220,8 @@ public final class Configuration extends JFrame
       IMGC = aladin.chaine.getString("UPIMGC");
       LOGS = aladin.chaine.getString("UPLOG");
       LOGH = aladin.chaine.getString("UPLOGH");
+      HELPS = aladin.chaine.getString("UPHELP");
+      HELPH = aladin.chaine.getString("UPHELPH");
 //      TAGCENTER = aladin.chaine.getString("UPTAGCENTER");
 //      TAGCENTERH = aladin.chaine.getString("UPTAGCENTERH");
       
@@ -236,7 +238,6 @@ public final class Configuration extends JFrame
       Util.setCloseShortcut(this, false,aladin);
       prop = new Vector(10);
       flagModif = false;
-      
    }
 
    /** Construction du panel des boutons de validation
@@ -302,13 +303,6 @@ public final class Configuration extends JFrame
       }
    }
    
-   
-   /** Spécifie le mode d'affichage des positions (J2000, B1950...) */
-   private void setPositionMode(String mode) throws Exception {
-      if( !aladin.localisation.setPositionMode(mode) ) {
-         throw new Exception("Not available position mode ! ["+mode+"]");
-      }
-   }
    
    /** Spécifie le mode d'affichage des pixels */
 //   private void setPixelMode(String mode) throws Exception {
@@ -555,13 +549,13 @@ public final class Configuration extends JFrame
    }
    
    /** Retourne les bookmarks particuliers, null si aucun */
-   protected String getBookmarks() {
+   public String getBookmarks() {
       if( Aladin.OUTREACH ) return null;
       return get(BOOKMARKS);
    }
    
    /** Supprime les bookmarks particuliers */
-   protected void resetBookmarks() { remove(BOOKMARKS); }
+   public void resetBookmarks() { remove(BOOKMARKS); }
    
    /** Retourne le survey d'images par défaut */
    protected String getSurvey() {
@@ -626,18 +620,31 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
    
    
    // EN ATTENDANT
-   protected int getFrameAllsky() { return getFrame(); }
+//   protected int getFrameAllsky() { return getFrame(); }
    
-   /** Retourne l'indice de la frame mémorisée par l'utilisateur pour les Allsky, GAL par défaut */
-//   protected int getFrameAllsky() {
-//      if( Aladin.OUTREACH ) return Localisation.ICRS;
-//      String frame = get(FRAMEALLSKY);
-//      try {
-//         int i = Util.indexInArrayOf(frame, Localisation.REPERE);
-//         if( i>=0 ) return i;
-//      } catch( Exception e ) { }
-//      return Localisation.GAL;
-//   }
+   private boolean setConfFrame=false; // true si l'utilisateur a modifié par script 
+   
+   /** Spécifie le mode d'affichage des positions (J2000, B1950...) */
+   private void setPositionMode(String mode) throws Exception {
+      if( !aladin.localisation.setPositionMode(mode) ) {
+         throw new Exception("Not available position mode ! ["+mode+"]");
+      }
+      setConfFrame=true;
+   }
+   
+   /** Retourne l'indice de la frame qui sera utilisé par défaut pour le tracé des Allsky */
+   protected int getFrameDrawing() {
+      if( Aladin.OUTREACH ) return 3;   // GAL
+      if( !Aladin.PROTO ) return 0;   // Pour le moment le frame par défaut pour les allsky n'est supporté qu'en mode PROTO   
+      
+      if( setConfFrame ) return getFrame();   // L'utilisateur a modifié le cas par défaut via une commande setconf frame=
+      String frame = get(FRAMEALLSKY);
+      try {
+         int i = Util.indexInArrayOf(frame, Localisation.FRAME);
+         if( i>=0 ) return i;
+      } catch( Exception e ) { }
+      return 0;   // Default => celui du repère céleste
+   }
    
    /** Retourne le code 2 lettres de la langue courante, même pour l'anglais */
    protected String getLanguage() {
@@ -652,6 +659,12 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       return s==null || s.equals(ACTIVATED);
    }
    
+   /** Retourne true si le mode HELP pour les débutants est activé */
+   protected boolean isHelp() {
+      String s = get(HELP);
+      return s==null || s.equals(ACTIVATED);
+   }
+
    /** Retourne le mode repéré dans le fichier de config */
    protected boolean isOutReach() {
       String s = get(MOD);
@@ -810,13 +823,15 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
    
    private Point initWinLocXY=new Point();      // Position initiale de la fenêtre
    private Dimension initWinLocWH=new Dimension();  // Dimenison initiale de la fenêtre
+   private int initMesureHeight=0;               // Taille de la fenêtre des mesures
    
    /** Retourne true si la fenêtre d'Aladin n'a ni bougé, ni été redimensionnée */
-   private boolean sameWinLocation() {
+   private boolean sameWinParam() {
       if( aladin.isApplet() ) return true;  // pas de gestion de positionnement en mode applet
       Dimension d = aladin.f.getSize();
       Point p = aladin.f.getLocation();
-      return initWinLocXY.equals(p) && initWinLocWH.equals(d);
+      int mesureHeight = aladin.splitH.getMesureHeight();
+      return initWinLocXY.equals(p) && initWinLocWH.equals(d) && initMesureHeight==mesureHeight;
    }
    
    /** Retourne la position et la taille de la fenêtre Aladin. Mémorise
@@ -837,6 +852,18 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       return null;
    }
    
+   /** Retourne la proportion de la fenêtre des mesures d'Aladin. Mémorise
+    * cette position pour vérifier qu'à la fin de la session on a bougé ou non */
+   protected int getWinDivider() {
+      String s;
+      int mesureHeight=150;
+      try { s = get(MHEIGHT);
+            mesureHeight=Integer.parseInt(s);
+      } catch( Exception e ) {}
+      setInitMesureHeight(mesureHeight);
+      return mesureHeight;
+   }
+   
    /** Mémorisation de la position et de la taille de la fenêtre initiale d'Aladin en vue
     * de comparaison (voir save())*/
    protected void setInitWinLoc(int x,int y,int width, int height) {
@@ -844,6 +871,12 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       initWinLocXY.y=y;
       initWinLocWH.width=width;
       initWinLocWH.height=height;
+   }
+   
+   /** Mémorisation de limite de séparation de la fenêtre initiale des mesures d'Aladin en vue
+    * de comparaison (voir save())*/
+   protected void setInitMesureHeight(int mesureHeight) {
+      this.initMesureHeight=mesureHeight;
    }
    
    /** Etend le tableau des langues si nécessaire de n cases et
@@ -954,7 +987,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
          b.setMargin( new Insets(2,4,2,4));
          panel.add(b,BorderLayout.EAST);
       }
-      Properties.addCouple(this, p, l, LANGUEH, panel, g, c, GridBagConstraints.EAST);           
+      PropPanel.addCouple(this, p, l, LANGUEH, panel, g, c, GridBagConstraints.EAST);           
       
       addRemoteLanguage();
       
@@ -966,11 +999,18 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       modeChoice.addItem(PREVIEW);
       (l = new JLabel(MODE)).setFont(l.getFont().deriveFont(Font.BOLD));
       if( !aladin.setOUTREACH ) {
-         Properties.addCouple(this, p, l, MODEH, modeChoice, g, c, GridBagConstraints.EAST);           
+         PropPanel.addCouple(this, p, l, MODEH, modeChoice, g, c, GridBagConstraints.EAST);           
+      }
+      
+      if( !Aladin.OUTREACH ) {
+         (l = new JLabel(HELPS)).setFont(l.getFont().deriveFont(Font.BOLD));
+         helpChoice = new JComboBox();
+         helpChoice.addItem(ACTIVATED);
+         helpChoice.addItem(NOTACTIVATED);
+         PropPanel.addCouple(this, p, l, HELPH, helpChoice, g, c, GridBagConstraints.EAST);
       }
       
       // Le Répertoire par défaut
-//      Properties.addFilet(p, g, c);
       dir = new JTextField(35);
       b=new JButton(BROWSE); b.addActionListener(this);
       b.setMargin( new Insets(2,4,2,4));
@@ -978,16 +1018,20 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       panel = new JPanel(new BorderLayout(5,5));
       panel.add(dir,BorderLayout.CENTER);
       panel.add(b,BorderLayout.EAST);
-      Properties.addCouple(this, p, l,DEFDIRH, panel, g, c, GridBagConstraints.EAST);
+      PropPanel.addCouple(this, p, l,DEFDIRH, panel, g, c, GridBagConstraints.EAST);
       
       // Le frame
       frameChoice = aladin.localisation.createChoice();
-      frameAllskyChoice = aladin.localisation.createChoice();
+      frameAllskyChoice = aladin.localisation.createFrameCombo();
       (l = new JLabel(FRAMEB)).setFont(l.getFont().deriveFont(Font.BOLD));
       panel = new JPanel(new FlowLayout(FlowLayout.LEFT,0,0));
       panel.add(frameChoice);
+      if( aladin.PROTO ) {
+         panel.add(new JLabel(" - "+FRAMEALLSKYB));
+         panel.add(frameAllskyChoice);
+      }
       if( !aladin.OUTREACH ) {
-         Properties.addCouple(this, p, l, FRAMEH, panel, g, c, GridBagConstraints.EAST);
+         PropPanel.addCouple(this, p, l, FRAMEH, panel, g, c, GridBagConstraints.EAST);
       }
       
       // Le mode pixel
@@ -1007,15 +1051,15 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
          panel.add(new JLabel("- "+CMC,JLabel.LEFT)); panel.add(cutChoice);
          panel.add(new JLabel("  - "+CMF,JLabel.LEFT)); panel.add(fctChoice);
          (l = new JLabel(CMB)).setFont(l.getFont().deriveFont(Font.BOLD));
-         Properties.addCouple(this, p, l, CMH, panel, g, c, GridBagConstraints.EAST);
+         PropPanel.addCouple(this, p, l, CMH, panel, g, c, GridBagConstraints.EAST);
       }
 
-      csvChoice = new JComboBox();
-      for( int i=0; i<CSVITEM.length; i++ ) csvChoice.addItem(CSVITEMLONG[i]);
-      (l = new JLabel(CSVCHAR)).setFont(l.getFont().deriveFont(Font.BOLD));
-      if( !aladin.OUTREACH ) {
-         Properties.addCouple(this, p, l, CSVCHARH, csvChoice, g, c, GridBagConstraints.EAST);
-      }
+//      csvChoice = new JComboBox();
+//      for( int i=0; i<CSVITEM.length; i++ ) csvChoice.addItem(CSVITEMLONG[i]);
+//      (l = new JLabel(CSVCHAR)).setFont(l.getFont().deriveFont(Font.BOLD));
+//      if( !aladin.OUTREACH ) {
+//         Properties.addCouple(this, p, l, CSVCHARH, csvChoice, g, c, GridBagConstraints.EAST);
+//      }
 
       // Le filtre par défaut
       filterChoice = new JComboBox();
@@ -1023,7 +1067,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       filterChoice.addItem(ACTIVATED);
       if( !aladin.OUTREACH ) {
          (l = new JLabel(FILTERB)).setFont(l.getFont().deriveFont(Font.BOLD));
-         Properties.addCouple(this, p, l, FILTERH, filterChoice, g, c, GridBagConstraints.EAST);
+         PropPanel.addCouple(this, p, l, FILTERH, filterChoice, g, c, GridBagConstraints.EAST);
       }
 
       // Transparence des footprints
@@ -1046,7 +1090,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
 
       if( !aladin.OUTREACH ) {
          (l = new JLabel(TRANSB)).setFont(l.getFont().deriveFont(Font.BOLD));
-         Properties.addCouple(this, p, l, TRANSH, transparencyPanel, g, c, GridBagConstraints.EAST);
+         PropPanel.addCouple(this, p, l, TRANSH, transparencyPanel, g, c, GridBagConstraints.EAST);
 
 //         // Les centrage des tags
 //         (l = new JLabel(TAGCENTER)).setFont(l.getFont().deriveFont(Font.BOLD));
@@ -1058,10 +1102,10 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       
       // Le Web Browser
       if( isUnixStandalone() && !aladin.OUTREACH ) {
-         Properties.addFilet(p, g, c);
+         PropPanel.addFilet(p, g, c);
          browser = new JTextField(30);
          (l = new JLabel(WEBB)).setFont(l.getFont().deriveFont(Font.BOLD));
-         Properties.addCouple(this, p, l, WEBH, browser, g, c, GridBagConstraints.EAST);
+         PropPanel.addCouple(this, p, l, WEBH, browser, g, c, GridBagConstraints.EAST);
       }
       
       // Le survey par défaut
@@ -1072,7 +1116,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
          p1.add(new JLabel(IMGS,JLabel.LEFT)); p1.add(serverTxt);
          p1.add(new JLabel(IMGC,JLabel.LEFT)); p1.add(surveyTxt);
          (l = new JLabel(IMGB)).setFont(l.getFont().deriveFont(Font.BOLD));
-         Properties.addCouple(this, p, l, IMGH, p1, g, c,GridBagConstraints.EAST);
+         PropPanel.addCouple(this, p, l, IMGH, p1, g, c,GridBagConstraints.EAST);
       }
 
       // Le GLU
@@ -1081,14 +1125,14 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       createGluChoice();
       
       if( !aladin.OUTREACH ) {
-         
+
          // Le glu
          panel = new JPanel(new BorderLayout(5,5));
          panel.add(gluChoice,BorderLayout.WEST);
          b.setMargin( new Insets(2,4,2,4));
          b.addActionListener(this);
          panel.add(b,BorderLayout.EAST);
-         Properties.addCouple(this, p, l, REGH, panel, g, c, GridBagConstraints.EAST);
+         PropPanel.addCouple(this, p, l, REGH, panel, g, c, GridBagConstraints.EAST);
 
          // Les logs
          if( Aladin.LOG ) {
@@ -1096,9 +1140,9 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
             logChoice = new JComboBox();
             logChoice.addItem(ACTIVATED);
             logChoice.addItem(NOTACTIVATED);
-            Properties.addCouple(this, p, l, LOGH, logChoice, g, c, GridBagConstraints.EAST);
+            PropPanel.addCouple(this, p, l, LOGH, logChoice, g, c, GridBagConstraints.EAST);
          }
-
+         
          // Le cache
          (l = new JLabel(CACHES)).setFont(l.getFont().deriveFont(Font.BOLD));
          panel = new JPanel(new FlowLayout(FlowLayout.LEFT,5,0));
@@ -1108,12 +1152,12 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
          b=new JButton(CLEARCACHE); b.addActionListener(this);
          b.setMargin( new Insets(2,4,2,4));
          panel.add( b );
-         Properties.addCouple(this, p, l, CACHEH, panel, g, c, GridBagConstraints.EAST);
-}
+         PropPanel.addCouple(this, p, l, CACHEH, panel, g, c, GridBagConstraints.EAST);
+      }
 
       return p;
    }
-   
+
    // Nettoyage du cache HPX et du cache GLU
    private void clearCache() {
       aladin.makeCursor(this,Aladin.WAITCURSOR);
@@ -1160,7 +1204,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       else frameChoice.setSelectedItem(s);   
       
       s = get(FRAMEALLSKY);
-      if( s == null ) frameAllskyChoice.setSelectedItem("Gal");
+      if( s == null ) frameAllskyChoice.setSelectedItem("GAL");
       else frameAllskyChoice.setSelectedItem(s);   
       
       fctChoice.setSelectedIndex(PlanImage.LINEAR);
@@ -1194,14 +1238,14 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
 //         }
 //      }
 
-      s = get(CSV);
-      csvItem=0;
-      if( s == null ) csvChoice.setSelectedIndex(0);
-      else {
-         for( int i=0; i<CSVITEM.length; i++ ) {
-            if( CSVITEM[i].equals(s) ) csvChoice.setSelectedIndex(csvItem=i);      
-         }
-      }
+//      s = get(CSV);
+//      csvItem=0;
+//      if( s == null ) csvChoice.setSelectedIndex(0);
+//      else {
+//         for( int i=0; i<CSVITEM.length; i++ ) {
+//            if( CSVITEM[i].equals(s) ) csvChoice.setSelectedIndex(csvItem=i);      
+//         }
+//      }
       
       s = get(FILTER);
       if( s != null && s.charAt(0)=='N' ) filterChoice.setSelectedIndex(0);
@@ -1238,9 +1282,9 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       
       reload.setEnabled( true );
       
-      if( logChoice!=null) {
-         logChoice.setSelectedIndex(isLog()?0:1);
-      }
+      if( logChoice!=null) logChoice.setSelectedIndex(isLog()?0:1);
+      
+      if( helpChoice!=null) helpChoice.setSelectedIndex(isHelp()?0:1);
 
       if( cache!=null ) {
          long cacheSize = PlanBG.cacheSize;
@@ -1341,8 +1385,12 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       if( aladin.mesure.isReduced() && get(MESURE)==null ) remove(MESURE);
       if( !aladin.mesure.isReduced() && get(MESURE)!=null ) set(MESURE,"on");
       
+      // On conserve la taille de la fenêtre des mesures
+      int hd = aladin.splitH.getMesureHeight();
+      set(MHEIGHT,""+hd);
+      
       // On mémorise les bookmarks si nécessaire
-      if( !Aladin.OUTREACH && Aladin.NETWORK ) {
+      if( !Aladin.OUTREACH && aladin.bookmarks.canBeSaved() ) {
          String list = aladin.bookmarks.getBookmarkList();
          if( aladin.bookmarks.isDefaultList() ) remove(BOOKMARKS);
          else if( get(BOOKMARKS)==null || !get(BOOKMARKS).equals(list) ) set(BOOKMARKS,list);
@@ -1361,6 +1409,9 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       String s = get(LOG);
       if( s!=null && s.equals(ACTIVATED) ) remove(LOG);
       
+      s = get(HELP);
+      if( s!=null && s.equals(ACTIVATED) ) remove(HELP);
+      
       // On conserve l'état du pointeur Simbad
       if( !Aladin.OUTREACH ) {
          if( aladin.calque.flagSimbad
@@ -1369,7 +1420,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       }
       
       // On conserve la position de la fenêtre
-      if( !flagModif && sameWinLocation() ) return;
+      if( !flagModif && sameWinParam() ) return;
       
       // Existe-il déjà un répertoire générique .aladin sinon je le crée ?
       String configDir = System.getProperty("user.home") + Util.FS + aladin.CACHE;
@@ -1412,8 +1463,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
          ConfigurationItem item = (ConfigurationItem) e.nextElement();
 
          // Entête si nécessaire
-         if( first
-               && !(item.key.equals("#") && item.value.startsWith("#Aladin")) ) {
+         if( first && !(item.key.equals("#") && item.value.startsWith("#Aladin")) ) {
             bw.write("#Aladin user configuration file");
             bw.newLine();
             bw.newLine();
@@ -1421,9 +1471,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
          first = false;
 
          if( item.key.equals("#") ) bw.write(item.value); // Commentaires
-         else if( item.key.trim().length() > 0 ) bw.write(Util.align(item.key,
-               20)
-               + item.value); // Propriétés
+         else if( item.key.trim().length() > 0 ) bw.write(Util.align(item.key, 20) + item.value); // Propriétés
          bw.newLine();
       }
       bw.close();
@@ -1452,7 +1500,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       Aladin.trace(3, "Aladin user local functions saved: "+s);
    }
    
-   protected String getLocalBookmarksFileName() {
+   public String getLocalBookmarksFileName() {
       return System.getProperty("user.home") + Util.FS + aladin.CACHE + Util.FS + CONFIGBKM;
    }
 
@@ -1571,6 +1619,12 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
          }
       }
 
+      // Pour l'assistant débutant
+      if( helpChoice!=null ) {
+         if( helpChoice.getSelectedIndex()==1 ) set(HELP,(String)helpChoice.getSelectedItem());
+         else remove(HELP);
+      }
+
       // Pour le site Glu
       int index = gluChoice.getSelectedIndex();
       if( index!=-1 && index!=lastGluChoice ) {
@@ -1648,11 +1702,13 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
      
       
       // Pour le caractère de CVS
-      index = csvChoice.getSelectedIndex();
-      if( index!=csvItem ) {
-         set(CSV,CSVITEM[index]);
-         setCSV(CSVITEM[index]);
-      }   
+      if( csvChoice!=null ) {
+         index = csvChoice.getSelectedIndex();
+         if( index!=csvItem ) {
+            set(CSV,CSVITEM[index]);
+            setCSV(CSVITEM[index]);
+         }   
+      }
 
        // Pour le browser
       if( browser != null ) {
@@ -1855,7 +1911,7 @@ Aladin.trace(2,modeLang+" language ["+s+"] => assume ["+currentLang+"]");
       else if( LANGCONTRIB.equals(what)) langContrib();
       else if( RELOAD.equals(what) ) reloadGlu();
       else if( APPLY.equals(what) ) {
-         try { if( apply() ) { /* dispose(); */ } }	   
+         try { if( apply() ) { aladin.calque.repaintAll(); /* dispose(); */ } }	   
          catch( Exception e ) { Aladin.warning(this," "+e.getMessage(),1); }
       }
 //      else if( GLUTEST.equals(what) ) startGluTest();

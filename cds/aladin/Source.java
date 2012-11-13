@@ -41,7 +41,12 @@ import cds.xml.Field;
 public class Source extends Position implements Comparator {
 
    static final int MDS = DS/2;      // demi-taille des poignees de selection
-   static final int L = 3;          // demi-taille de la source
+//   static public int L = 3;          // demi-taille de la source
+   
+   final protected int getL() {
+      if( plan==null || plan.getScalingFactor()==1) return 3;
+      return (int)( (2*plan.getScalingFactor()/3.)*3 );
+   }
 
    // Gestion des formes en fonction du nombre d'elements
    static final int [] LIMIT =      { 3,     10,       100,      250,   500,   1000,       2000,   5000,          13000, 100000 };
@@ -66,7 +71,7 @@ public class Source extends Position implements Comparator {
 
    /**** objet wrappant les infos relatives au footprint associé à la source ****/
    private SourceFootprint sourceFootprint;
-
+   
    /** For plugin */
    protected Source() {}
 
@@ -119,17 +124,28 @@ public class Source extends Position implements Comparator {
 
    }
    
+   /** Accroit ou décroit la taille du type de source */
+   void increaseSourceSize(int sens) { 
+      sourceType+=sens;
+      if( sourceType>=TYPENAME.length ) sourceType=(byte)(TYPENAME.length-1);
+      else if( sourceType<0 ) sourceType=0;
+   }
+
+   public boolean hasProp() { return false; }
+
    /** Projection de la source => calcul (x,y).
     * @param proj la projection a utiliser
     */
     protected void projection(ViewSimple v) {
-       
+
        if( v.isPlotView() ) {
           double [] xy = v.plot.getXY(this);
           xv[v.n] = xy[0];
           yv[v.n] = xy[1];
-          
-       } else super.projection(v);
+
+       } else {
+           super.projection(v);
+       }
     }
 
    /** Positionne le flag de tag */
@@ -150,7 +166,7 @@ public class Source extends Position implements Comparator {
 
    /** Retourne true si la source est mise en évidence temporairement */
    final protected boolean isHighlighted() { return (flags & HIGHLIGHT) !=0; /* == HIGHLIGHT;*/ }
-   
+
    /** Retourne true si l'objet contient des informations de photométrie  */
    public boolean hasPhot() { return leg.hasGroup(); }
 
@@ -169,7 +185,7 @@ public class Source extends Position implements Comparator {
 
        StringTokenizer st = new StringTokenizer(this.info,"\t");
        int nbInfo = st.countTokens()-1; // skip du triangle
-
+       
        int nbFields = leg.field.length;
 
        while( nbInfo<nbFields ) {
@@ -284,17 +300,19 @@ public class Source extends Position implements Comparator {
    // Calcul le decalage du label en fct de la font
    // et de la taille de la source. On utilise une variable statique pour éviter
    // les allocations inutiles
-   private Rectangle setBox() {
+   private Rectangle setBox() { return setBox(null); }
+   private Rectangle setBox(Graphics g) {
       int dx,dy,dw,dh;
+      if( g!=null ) g.setFont(DF);
       FontMetrics m = Toolkit.getDefaultToolkit().getFontMetrics(DF);
       dw=dx = (byte)(m.stringWidth(id)/2);
       dh=dy = (byte)(HF/2);
+      int L =getL();
       if( dx>L ) { dx=L-1; dw+=(dw-dx); }
       if( dy>L ) { dy=L-1; dh+=(dh-dy); }
       box.x=dx; box.y=dy; box.width=dw; box.height=dh;
       return box;
    }
-
 
   /** Test d'appartenance.
    * Retourne vrai si le point (x,y) de l'image se trouve dans l'objet
@@ -303,6 +321,7 @@ public class Source extends Position implements Comparator {
    * @return <I>true</I> si on est dedans, <I>false</I> sinon
    */
    protected boolean inside(ViewSimple v,double x, double y) {
+      int L =getL();
       double l=L/v.getZoom();
       double xc = xv[v.n];
       double yc = yv[v.n];
@@ -333,8 +352,14 @@ public class Source extends Position implements Comparator {
     */
    protected Rectangle extendClip(ViewSimple v,Rectangle clip) {
       if( !isVisible() ) return clip;
+      int L =getL();
       Point p = getViewCoord(v,L*2,L*2);
       if( p==null ) return clip;
+
+      if (sourceFootprint != null) {
+          // TODO : étendre le clip
+      }
+
       if( !isWithLabel() ) {
          if( isSelected() ) return unionRect(clip, p.x-L-MDS,p.y-L-MDS, L*2+DS, L*2+DS);
          else return unionRect(clip, p.x-L,p.y-L, L*2, L*2);
@@ -348,6 +373,7 @@ public class Source extends Position implements Comparator {
    /** Teste l'intersection même partielle avec le clip */
    protected boolean inClip(ViewSimple v,Rectangle clip) {
       if( !isVisible() ) return false;
+      int L =getL();
       Point p = getViewCoord(v,L*2,L*2);
       if( p==null ) return false;
       int x,y,w,h;
@@ -364,9 +390,10 @@ public class Source extends Position implements Comparator {
 
    // Tracage d'un carre
    void drawCarre(Graphics g,Point p) {
+      int L =getL();
       if( !isWithLabel() ) g.drawRect(p.x-L,p.y-L, L*2, L*2);
       else {
-         setBox();
+         setBox(g);
          g.drawLine(p.x+L,p.y-L+box.y+2,  p.x+L,p.y+L);
          g.drawLine(p.x-L,p.y+L, p.x+L,p.y+L);
          g.drawLine(p.x-L,p.y+L, p.x-L,p.y-L);
@@ -375,80 +402,96 @@ public class Source extends Position implements Comparator {
       }
    }
 
-   final static int R=8;
-   final static int LR=6;
-   final static int SR=4;
+//   final static int R=8;
+//   final static int LR=6;
+//   final static int SR=4;
 
    // Tracage d'un cercle
    void drawCircleS(Graphics g,Point p) {
-      if( g instanceof EPSGraphics ) g.drawOval(p.x-SR/2, p.y-SR/2, SR, SR);
-      else Util.drawCircle5(g,p.x,p.y);
+      int L =getL();
+      
+      if( g instanceof EPSGraphics || L!=3 ) {
+         int SR = (int)(L+L/3.);
+//         if( SR%2==0 ) SR++;
+         g.drawOval(p.x-SR/2, p.y-SR/2, SR, SR);
+      } else Util.drawCircle5(g,p.x,p.y);
 
       if( isWithLabel() ) {
-         setBox();
+         setBox(g);
          g.drawString(id,p.x+L-box.x,p.y-L+box.y);
       }
    }
 
    // Tracage d'un cercle
    void drawOval(Graphics g,Point p) {
+      int L =getL();
+      int R = (int)( (L+L/3.)*2);
       g.drawOval(p.x-R/2, p.y-R/3, R, (2*R)/3);
       if( isWithLabel() ) {
-         setBox();
+         setBox(g);
          g.drawString(id,p.x+L-box.x,p.y-L+box.y);
       }
    }
 
    // Tracage d'un cercle
    void drawCircle(Graphics g,Point p) {
-      if( g instanceof EPSGraphics )  g.drawOval(p.x-LR/2, p.y-LR/2, LR, LR);
+      int L =getL();
+      if( g instanceof EPSGraphics || L!=3 )  {
+         int LR = L*2;
+//         if( LR%2==0 ) LR++;
+         g.drawOval(p.x-LR/2, p.y-LR/2, LR, LR);
+      }
       else Util.drawCircle7(g,p.x,p.y);
 
       if( isWithLabel() ) {
-         setBox();
+         setBox(g);
          g.drawString(id,p.x+L-box.x,p.y-L+box.y);
       }
    }
 
    // Tracage d'un losange
    void drawLosange(Graphics g,Point p) {
+      int L =getL();
       g.drawLine(p.x,p.y-L, p.x+L,p.y);
       g.drawLine(p.x+L,p.y, p.x,p.y+L);
       g.drawLine(p.x,p.y+L, p.x-L,p.y);
       g.drawLine(p.x-L,p.y, p.x,p.y-L);
       if( isWithLabel() ) {
-         setBox();
+         setBox(g);
          g.drawString(id,p.x+L-box.x,p.y-L+box.y);
       }
    }
 
    // Tracage d'un triangle
    void drawTriangle(Graphics g,Point p) {
+      int L =getL();
       g.drawLine(p.x-L,p.y+L/3, p.x+L,p.y+L/3);
       g.drawLine(p.x-L,p.y+L/3, p.x,p.y-(2*L)/3);
       g.drawLine(p.x+L,p.y+L/3, p.x,p.y-(2*L)/3);
       if( isWithLabel() ) {
-         setBox();
+         setBox(g);
          g.drawString(id,p.x+L-box.x,p.y-L+box.y);
       }
    }
 
    // Tracage d'une croix (vertical/horizontal)
    void drawPlus(Graphics g,Point p) {
+      int L =getL();
       g.drawLine(p.x-L,p.y, p.x+L,p.y );
       g.drawLine(p.x,p.y-L, p.x,p.y+L );
       if( isWithLabel() ) {
-         setBox();
+         setBox(g);
          g.drawString(id,p.x+L-box.x/2,p.y-L+box.y/2);
       }
    }
 
    // Tracage d'une croix (45 degres)
    void drawCroix(Graphics g,Point p) {
+      int L = getL();
       g.drawLine(p.x-L,p.y-L, p.x+L,p.y+L );
       g.drawLine(p.x-L,p.y+L, p.x+L,p.y-L );
       if( isWithLabel() ) {
-         setBox();
+         setBox(g);
          g.drawString(id,p.x+L,p.y+box.y/2);
       }
    }
@@ -458,7 +501,7 @@ public class Source extends Position implements Comparator {
       g.drawLine(p.x-1,p.y, p.x+1,p.y );
       g.drawLine(p.x,p.y-1, p.x,p.y+1 );
       if( isWithLabel() ) {
-         setBox();
+         setBox(g);
          g.drawString(id,p.x+2-box.x/2,p.y-2+box.y/2);
       }
    }
@@ -467,7 +510,7 @@ public class Source extends Position implements Comparator {
    void drawDot(Graphics g,Point p) {
       g.drawLine(p.x,p.y, p.x,p.y );
       if( isWithLabel() ) {
-         setBox();
+         setBox(g);
          g.drawString(id,p.x+2-box.x/2,p.y-2+box.y/2);
       }
    }
@@ -507,7 +550,7 @@ public class Source extends Position implements Comparator {
       }
       return false;
    }
-   
+
    /** retourne true si la source n'est sous l'influence d'aucun filtre (ie pas concernee ou concernee mais filtre off) */
    protected boolean noFilterInfluence() {
       PlanFilter pf;
@@ -539,6 +582,7 @@ public class Source extends Position implements Comparator {
    /** Ecriture d'info ASCII permettant de construire des links html
     * pour une carte cliquable */
    protected void writeLinkFlex(OutputStream o,ViewSimple v) throws Exception {
+      int L =getL();
       PointD p = getViewCoordDouble(v,L,L);
       if( p==null ) return;  // hors champ
       o.write((plan.label+"\t"+(id!=null?id:"-")+"\t"+p.x+"\t"+p.y+"\t"+getFirstLink()+"\n").getBytes());
@@ -547,6 +591,7 @@ public class Source extends Position implements Comparator {
    /** Ecriture d'info ASCII permettant de construire des links html
     * pour une carte cliquable */
    protected void writeLink(OutputStream o,ViewSimple v) throws Exception {
+      int L =getL();
       Point p = getViewCoord(v,L,L);
       if( p==null ) return;  // hors champ
       o.write((plan.label+"\t"+(id!=null?id:"-")+"\t"+p.x+"\t"+p.y+"\t"+getFirstLink()+"\n").getBytes());
@@ -572,7 +617,7 @@ public class Source extends Position implements Comparator {
       }
       catch( Exception e ) { return "-"; }
    }
-
+   
 
   /** Dessine la source
    * @param g        le contexte graphique
@@ -580,6 +625,7 @@ public class Source extends Position implements Comparator {
    */
    protected boolean draw(Graphics g,ViewSimple v,int dx,int dy) {
       //System.out.println("On repaint");
+      int L =getL();
       Point p = getViewCoord(v,L,L);
       if( p==null ) return false;
       p.x+=dx; p.y+=dy;
@@ -603,17 +649,17 @@ public class Source extends Position implements Comparator {
       // if the source is in the filter selection, we proceed the action associated with the active filter
       if( !noInfluence && iAmSelected ) {
       	  drawAssociatedFootprint(g,v,dx,dy);
-          // si aucun des plans dont la source subit l'influence n'est pret
-          // on dessine la source comme d'habitude
-          if( nbFiltersOk == 0 ) {
-             doDraw(g, p, plan.c);
-          }
-          // on applique les differentes actions associees aux differents filtres
-          else {
-              boolean success = drawWithFilter(g, v, p, dx, dy);
-              if ( ! success ) return false;
-		           }
-                }
+      	  // si aucun des plans dont la source subit l'influence n'est pret
+      	  // on dessine la source comme d'habitude
+      	  if( nbFiltersOk == 0 ) {
+      	     doDraw(g, p, plan.c);
+      	  }
+      	  // on applique les differentes actions associees aux differents filtres
+      	  else {
+      	     boolean success = drawWithFilter(g, v, p, dx, dy);
+      	     if ( ! success ) return false;
+      	  }
+      }
 
       // pour les sources qui ne sont sous l'influence d'aucun filtre
       else if(noInfluence) {
@@ -647,15 +693,12 @@ public class Source extends Position implements Comparator {
         return true;
     }
 
-   private void drawAssociatedFootprint(Graphics g, ViewSimple v, int dx, int dy) {
-    // dessin du FoV éventuellement associé à la source
-   	PlanField footprint;
-    if( sourceFootprint!=null && (footprint=sourceFootprint.getFootprint())!=null && showFootprint() ) {
-//    	footprint.pcat.c = plan.c;
-    	footprint.c = plan.c;
-	    footprint.pcat.draw(g,null,v,true,dx,dy);
+    private void drawAssociatedFootprint(Graphics g, ViewSimple v, int dx, int dy) {
+        // dessin du FoV éventuellement associé à la source
+        if (sourceFootprint != null) {
+            sourceFootprint.draw(v.getProj(), g, v, dx, dy, plan.c);
+        }
     }
-   }
 
    /** Dessine la source en inversant sa couleur (ne concerne que les surcharges dues aux filtres)
     * @param g        le contexte graphique
@@ -984,16 +1027,16 @@ public class Source extends Position implements Comparator {
        info = nInfo.toString();
        return true;
     }
-    
+
     /** Set the drawing shape
      * @param sourceType Obj.OVAL, SQUARE, CIRCLE, RHOMB, PLUS, CROSS, TRIANGLE, CIRCLES, POINT, DOT
      */
      public void setShape(int shape) { setSourceType(shape); }
      protected void setSourceType(int sourceType) { this.sourceType = (byte)sourceType; }
-     
+
      /** Highlight or unhighlight the source */
      public void setHighlighted(boolean flag) { plan.aladin.view.setHighlighted(this,flag); }
-     
+
     /**
      * Set metadata for a specifical column (name, unit, ucd, display width).
      * null or <0 values are not modified.
@@ -1082,29 +1125,37 @@ public class Source extends Position implements Comparator {
        return u;
     }
 
+    /** Return XML meta information associated to this object
+     * @return XML string, or null
+     */
+    public String getXMLMetaData() {
+       return leg.getGroup();
+    }
 
    /** Returns the unit for the field at position pos */
    protected String getUnit(int pos) {
     	if(pos<0) return "";
     	return leg.field[pos].unit;
    }
-   
+
    /** VOTable just for this source */
    public InputStream getVOTable() throws Exception {
       return plan.aladin.writeObjectInVOTable(null, this, null, true, false, false).getInputStream();
    }
-   
+
   /**
     * Crée l'objet sourceFootprint s'il n'a pas déja été créé
     *
     */
    private void createSourceFootprint() {
-      if( sourceFootprint==null ) sourceFootprint = new SourceFootprint();
+      if( sourceFootprint==null ) {
+          sourceFootprint = new SourceFootprint();
+      }
    }
 
    /** Retourne le footprint attaché à la source (peut être <i>null</i>) */
-   protected PlanField getFootprint() {
-      return sourceFootprint==null?null:sourceFootprint.getFootprint();
+   protected SourceFootprint getFootprint() {
+      return sourceFootprint;
    }
 
    /** Attache un footprint donné à la source */
@@ -1113,47 +1164,17 @@ public class Source extends Position implements Comparator {
    	  sourceFootprint.setFootprint(footprint);
    }
 
-   /**
-    * @return Retourne la valeur de l'angle de position du footprint associé à la source (valeur par défaut : 0)
-   protected double getFootprintAngle() {
-      return sourceFootprint==null?0:sourceFootprint.getFootprintAngle();
+   protected void setFootprint(String stcs) {
+       createSourceFootprint();
+       sourceFootprint.setStcs(this.raj, this.dej, stcs);
    }
-   */
-
-   /** Fixe la valeur de l'angle de position du footprint associé à la source
-    * @param footprintAngle valeur de l'angle de position
-   protected void setFootprintAngle(double footprintAngle) {
-      createSourceFootprint();
-      sourceFootprint.setFootprintAngle(footprintAngle);
-   }
-   */
-
-   /** Fixe la valeur de l'angle de position du footprint associé à la source
-    * @param angle angle de position sous forme d'une String
-   protected void setFootprintAngle(String angle) {
-      double angleD;
-   	  try {
-         angleD = Double.valueOf(angle).doubleValue();
-      }
-   	  catch(NumberFormatException e) {angleD=0;}
-   	  setFootprintAngle(angleD);
-   }
-   */
 
    /**
     * Switch the state (on/off) of the associated footprint
     *
     */
    protected void switchFootprint() {
-      setShowFootprint(!showFootprint());
-   }
-
-   /**
-    *
-    * @return Returns <i>true</i> if the associated footprint is currently visible, <i>false</i> otherwise
-    */
-   protected boolean showFootprint() {
-      return sourceFootprint==null?false:sourceFootprint.showFootprint();
+      setShowFootprint(sourceFootprint.showFootprint());
    }
 
    /**

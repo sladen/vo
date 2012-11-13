@@ -21,13 +21,19 @@
 package cds.aladin;
 
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.geom.AffineTransform;
 import java.awt.image.*;
 import java.net.*;
 import java.io.*;
 import java.util.*;
 
+import javax.swing.JTextField;
+
 import cds.aladin.Hist.HistItem;
+import cds.aladin.prop.Prop;
+import cds.aladin.prop.PropAction;
 import cds.tools.Util;
 
 /**
@@ -97,10 +103,14 @@ public class Ligne extends Position {
    }
    
    protected Ligne(double ra, double dec, Plan plan, ViewSimple v, Ligne debligne) {
-       super(plan,v,0.0,0.0,ra,dec,RADE,null);
-       this.debligne = debligne;
-       debligne.finligne = this;
+      this(ra,dec,plan,v,null,debligne);
    }
+   
+   protected Ligne(double ra, double dec, Plan plan, ViewSimple v, String id,Ligne debligne) {
+      super(plan,v,0.0,0.0,ra,dec,RADE,id);
+      this.debligne = debligne;
+      if( debligne!=null ) debligne.finligne = this;
+  }
 
   /** Continuation d'une ligne.
    * @param plan     plan d'appartenance de la ligne
@@ -111,7 +121,7 @@ public class Ligne extends Position {
    protected Ligne(Plan plan,ViewSimple v, double x, double y, String id, Ligne debligne) {
       super(plan,v,x,y,0.,0.,XY|RADE_COMPUTE,id);
       this.debligne = debligne;
-      debligne.finligne = this;
+      if( debligne!=null ) debligne.finligne = this;
    }
 
    ///// Constructeurs permettant de preciser la couleur de la ligne /////
@@ -160,7 +170,26 @@ public class Ligne extends Position {
       debligne.finligne = this;
       this.couleur=new Color(c.getRGB());
    }
-
+   
+   public Vector getProp() {
+      Vector propList = super.getProp();
+      
+      final Couleur col = new Couleur(couleur,true);
+      final PropAction changeCouleur = new PropAction() {
+         public int action() { 
+            Color c= col.getCouleur();
+            if( c==couleur ) return PropAction.NOTHING;
+            setColor(c);
+            return PropAction.SUCCESS;
+         }
+      };
+      col.addActionListener( new ActionListener() {
+         public void actionPerformed(ActionEvent e) { changeCouleur.action(); plan.aladin.view.repaintAll(); }
+      });
+      propList.add( Prop.propFactory("color","Color","Alternative color",col,null,changeCouleur) );
+      return propList;
+  }
+  
    ///// FIN des constructeurs /////
    
    /** Retourne le type d'objet */
@@ -202,17 +231,25 @@ public class Ligne extends Position {
    }
    
    /** Positionne les variables nécessaires au dernier segment d'un polygone */
-   protected void makeLastLigneForPolygone(ViewSimple v) {
+   protected void makeLastLigneForPolygone(ViewSimple v,boolean select) {
       getFirstBout().bout=0;
       bout=3;
-      setSelected(true);
+      setSelected(select);
       Ligne tmp = getFirstBout();
       raj=tmp.raj;
       dej=tmp.dej;
-      tmp.setSelected(true);
+      tmp.setSelected(select);
       projection(v);
    }
    
+   /** Positionne les variables nécessaires au dernier segment d'une polyligne fermée */
+   protected void makeLastLigneForClose(ViewSimple v) {
+      Ligne tmp = getFirstBout();
+      raj=tmp.raj;
+      dej=tmp.dej;
+      projection(v);
+   }
+
    /** Il faut faire 2 polylignes disjointes */
    protected void remove() {
       Ligne avant = debligne;
@@ -226,6 +263,25 @@ public class Ligne extends Position {
     * avec un flag bout==3 */
    protected boolean isPolygone() {
       return getLastBout().bout==3;
+   }
+   
+   public String getCommand() {
+      StringBuffer s = new StringBuffer("draw");
+      boolean isPolygon = isPolygone();
+      if( isPolygon ) s.append(" polygon(");
+      else if( this instanceof Cote) s.append(" dist(");
+      else s.append(" line(");
+      boolean first=true;
+      Ligne lig = getFirstBout();
+      while( isPolygon && lig!=null && lig.finligne!=null || !isPolygon && lig!=null ) {
+         if( !first ) s.append(", ");
+         s.append(lig.getLocalisation());
+         first=false;
+         lig=lig.finligne;
+      }
+      if( !(this instanceof Cote) && id!=null && id.trim().length()>0 ) s.append(","+Tok.quote(id));
+      s.append(')');
+      return s.toString();
    }
    
    /** Retourne true si l'objet contient des informations de photométrie  */
@@ -409,7 +465,7 @@ public class Ligne extends Position {
    protected int clipYId() { return 0; }
   
    /** Détermination de la couleur de l'objet */
-   protected Color getColor() {
+   public Color getColor() {
    	  if( couleur!=null ) return couleur;
    	  if( plan!=null && plan.type==Plan.APERTURE ) {
    	  	couleur = ((PlanField)plan).getColor(this);
@@ -467,7 +523,9 @@ public class Ligne extends Position {
    }
    
    /** Set specifical color (dedicated for catalog sources) */
-   public void setColor(Color c) { couleur=c; }
+   public void setColor(Color c) { 
+      for( Ligne lig = getFirstBout(); lig!=null; lig = lig.finligne) lig.couleur=c;
+   }
    
    /**
     * Méthode:
@@ -481,7 +539,15 @@ public class Ligne extends Position {
     * "banane", où le barycentre est en dehors du polygone
     */
    protected boolean statCompute(Graphics g,ViewSimple v) {
-      if( bout!=3 || !v.pref.hasAvailablePixels() ) return false;
+      
+      if( bout!=3 ) return false;
+      
+//      if( v!=null && !v.isFree() && v.pref.type==Plan.ALLSKYIMG ) {
+//         ((PlanBG)v.pref).setDebugIn(this);
+//         return false;
+//      }
+
+      if( !v.pref.hasAvailablePixels() ) return false;
       statInit();    
 
       int x,y,i;
@@ -497,10 +563,10 @@ public class Ligne extends Position {
       Segment [] seg = new Segment[nb];
       
       for( i=0, tmp=deb; tmp.finligne!=null; tmp=tmp.finligne, i++ ) {
-         int fx=ViewSimple.floor(tmp.xv[v.n]-0.5);
-         int tx=ViewSimple.top(tmp.xv[v.n]-0.5);
-         int fy=ViewSimple.floor(tmp.yv[v.n]-0.5);
-         int ty=ViewSimple.top(tmp.yv[v.n]-0.5);
+         int fx=(int)Math.floor(tmp.xv[v.n]-0.5);
+         int tx=(int)Math.ceil(tmp.xv[v.n]-0.5);
+         int fy=(int)Math.floor(tmp.yv[v.n]-0.5);
+         int ty=(int)Math.ceil(tmp.yv[v.n]-0.5);
          if( tx>maxx ) maxx=tx;
          if( fx<minx ) minx=fx;
          if( ty>maxy ) maxy=ty;
@@ -522,7 +588,7 @@ public class Ligne extends Position {
          else flagHist=false;
       }
       
-      // Position prévue pour l'accrochage de la légence
+      // Position prévue pour l'accrochage de la légende
       int deuxTiersX = (int)( minx+2*(maxx-minx)/3. );
       int unTierY    = (int)( miny+(maxy-miny)/3. );
       
@@ -531,7 +597,6 @@ public class Ligne extends Position {
          for( ; n<nb && seg[n].out; n++ );
          for( i=n; i<nb; i++ ) seg[i].init();
          if( posy==-1 && y==unTierY ) posy=y;
-//         for( x=minx-1; x<=maxx+1; x++ ) {
          for( x=maxx+1; x>=minx-1; x-- ) {
             int inter=0;  // Nombre de segments intersectés
             for( i=n; i<nb; i++ ) {
@@ -547,7 +612,7 @@ public class Ligne extends Position {
          }
       }
       
-      if( flagHist ) plan.aladin.view.zoomview.createPixelHist();
+      if( flagHist ) plan.aladin.view.zoomview.createPixelHist("Pixels");
 
       
       // Calculs des statistiques => sera utilisé immédiatement par le paint
@@ -567,9 +632,90 @@ public class Ligne extends Position {
       } catch( Exception e ) { e.printStackTrace(); }
       
       return true;
-
    }
-          
+         
+   /** Retourne true que sur le dernier segment du polygone pour éviter les doublons */
+   public boolean hasSurface() { return bout==3; }
+   
+   public double [] getStatistics(Plan p) throws Exception {
+      
+      Projection proj = p.projd;
+      if( !p.hasAvailablePixels() ) throw new Exception("getStats error: image without pixel values");
+      if( !Projection.isOk(proj) ) throw new Exception("getStats error: image without astrometrical calibration");
+      if( getLastBout().bout!=3 ) throw new Exception("getStats error: it is not a polygon");
+      
+      int x,y,i;
+      int nb;
+      Coord ac = new Coord();
+      Coord bc = new Coord();
+      Ligne tmp,deb;
+      
+      tmp = deb=getFirstBout();
+      for( nb=0; tmp.finligne!=null; tmp=tmp.finligne) nb++;
+      Segment [] seg = new Segment[nb];
+      
+      int minx,maxx;
+      int miny,maxy;
+      minx=miny=Integer.MAX_VALUE;
+      maxx=maxy=Integer.MIN_VALUE;
+      
+      for( i=0, tmp=deb; tmp.finligne!=null; tmp=tmp.finligne, i++ ) {
+         ac.al = tmp.raj;
+         ac.del = tmp.dej;
+         proj.getXY(ac);
+         
+         bc.al = tmp.finligne.raj;
+         bc.del = tmp.finligne.dej;
+         proj.getXY(bc);
+         
+         int fx=(int)Math.floor(ac.x-0.5);
+         int tx=(int)Math.ceil(ac.x-0.5);
+         int fy=(int)Math.floor(ac.y-0.5);
+         int ty=(int)Math.ceil(ac.y-0.5);
+         if( tx>maxx ) maxx=tx;
+         if( fx<minx ) minx=fx;
+         if( ty>maxy ) maxy=ty;
+         if( fy<miny ) miny=fy;
+         
+         if( ac.y > bc.y ) seg[i] = new Segment(bc.x-0.5,bc.y-0.5, ac.x-0.5,ac.y-0.5);
+         else seg[i] = new Segment(ac.x-0.5,ac.y-0.5, bc.x-0.5,bc.y-0.5);
+      }
+      
+      Arrays.sort(seg, seg[0]);
+      
+      double nombre=0;
+      double carre=0;
+      double total=0;
+      double moyenne, variance, sigma ,surface;
+      
+      int n=0;   // Premier segment à tester
+      for( y=miny; y<=maxy; y++ )  {
+         for( ; n<nb && seg[n].out; n++ );
+         for( i=n; i<nb; i++ ) seg[i].init();
+         for( x=maxx+1; x>=minx-1; x-- ) {
+            int inter=0;  // Nombre de segments intersectés
+            for( i=n; i<nb; i++ ) {
+               if( seg[i].cut((double)x,(double)y) ) inter++;
+            }
+            if( inter%2==1 ) {
+               double pix= ((PlanImage)p).getPixelInDouble(x,y);
+               if( Double.isNaN(pix) ) continue;
+               nombre++;
+               total+=pix;
+               carre+=pix*pix;
+            }
+         }
+      }
+      
+      double pixelSurf = proj.getPixResAlpha()*proj.getPixResDelta();
+      surface = nombre*pixelSurf;
+      moyenne = total/nombre;
+      variance = carre/nombre - moyenne*moyenne;
+      sigma = Math.sqrt(variance);
+      
+      return new double[]{ nombre, total, sigma, surface };
+   }
+
     protected void drawID(Graphics g ,Point p1,Point p2) { }
        
    /** Retourne la fin de la polyligne */

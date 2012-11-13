@@ -137,6 +137,8 @@ public class AladinData {
       testHuge();
       if( !((PlanImage)plan).hasOriginalPixels()
             || !((PlanImage)plan).pixelsOriginFromCache() ) throw new AladinException(ERR004);
+      if( x<0 || x>=((PlanImage)plan).naxis1
+       || y<0 || y>=((PlanImage)plan).naxis2 ) return Double.NaN;
       return ((PlanImage)plan).getPixelOriginInDouble(x, y);
    }
 
@@ -393,7 +395,7 @@ public class AladinData {
     * @return the double pixel representation
     */
    static public double CodedPixelsToDouble(byte [] codedPixels, int bitpix, int pos) {
-      return PlanImage.getPixVal(codedPixels,bitpix,pos);
+      return PlanImage.getPixVal1(codedPixels,bitpix,pos);
    }
 
    /**
@@ -454,7 +456,7 @@ public class AladinData {
    public double[] getCoord(double x, double y) throws AladinException {
       testImage();
       if( !Projection.isOk(plan.projd) ) throw new AladinException(ERR006);
-      coo.x = x; coo.y = y;
+      coo.x = x-0.5; coo.y = y-0.5;
       coo.y = ((PlanImage)plan).naxis2 - coo.y ;
       plan.projd.getCoord(coo);
       return new double[]{coo.al,coo.del};

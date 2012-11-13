@@ -30,7 +30,7 @@ import java.util.*;
  *
  * @version 1.0 : juillet 2006
  */
-public final class PlanImageCube extends PlanImageBlink {
+public class PlanImageCube extends PlanImageBlink {
    
    private double crval3,crpix3,cdelt3;
    protected boolean fromCanal;
@@ -39,8 +39,8 @@ public final class PlanImageCube extends PlanImageBlink {
     * @param in le stream
     */
    protected PlanImageCube(Aladin aladin,String file,MyInputStream in,String label,String from,
-         Obj o,ResourceNode imgNode,boolean skip,Plan forPourcent) {
-      super(aladin,file,in,label,from,o,imgNode,skip,forPourcent);
+         Obj o,ResourceNode imgNode,boolean skip,boolean doClose,Plan forPourcent) {
+      super(aladin,file,in,label,from,o,imgNode,skip,doClose,forPourcent);
       type=IMAGECUBE;
       initDelay=400;
    }
@@ -58,12 +58,11 @@ public final class PlanImageCube extends PlanImageBlink {
    }
    
    protected boolean cacheImageFits(MyInputStream dis) throws Exception {
-
       int naxis;
       long taille;		// nombre d'octets a lire
       int n;			// nombre d'octets pour un pixel
       
-Aladin.trace(2,"Loading FITS cube");
+Aladin.trace(2,"Loading FITS "+Tp[type]);
 
       // Lecture de l'entete Fits si ce n'est deja fait
       if( headerFits==null ) headerFits = new FrameHeaderFits(dis);
@@ -231,7 +230,7 @@ Aladin.trace(3," => Cube autocut uses the frame "+m);
             }
             
             to8bits(getBufPixels8(),0,pixelsOrigin,pixelsOrigin.length/npix,bitpix,
-                  isBlank,blank,pixelMin,pixelMax,true);
+                  /*isBlank,blank,*/pixelMin,pixelMax,true);
             
             invImageLine(width,height,getBufPixels8());
             String s = (fromCanal ? getCanalValue(i): label);
@@ -258,7 +257,7 @@ Aladin.trace(3," => Cube autocut uses the frame "+m);
             setPourcent((99.*i)/depth);       
             
             // On calcule l'imagette du zoom
-            if( i==0 ) calculPixelsZoom(getBufPixels8());
+            if( i==0 ) calculPixelsZoom();
 
          }
          if( f!=null ) f.close();

@@ -238,9 +238,18 @@ public final class Legende extends AbstractTableModel  {
    
    /** J'ajuste le numéro du champ dans le cas où il y aurait des champs non visibles avant */
    protected int getRealFieldNumber(int nField) {
-      int n=0;
-      for( int i=0; i<nField; i++ ) if( !field[i].visible ) n++;
-      return nField+n;
+      int nVisible=0;
+      int nInvisible=0;
+      
+      if( nField==0 ) {
+         for( int i=0; !field[i].visible; i++ ) nInvisible++;
+      } else {
+         for( int i=0; nVisible<nField; i++ ) {
+            if( !field[i].visible ) nInvisible++;
+            else nVisible++;
+         }
+      }
+      return nField+nInvisible;
    }
 
    /** Change le champ qui porte le tri */
@@ -471,7 +480,7 @@ public final class Legende extends AbstractTableModel  {
    public Object getValueAt(int row, int col) {
       switch(col) {
          case N:           return (row+1)+"";
-         case COO:         return field[row].getCooSign();
+         case COO:         return field[row].getCooSignature();
          case VISIBLE:     return new Boolean(field[row].visible);
          case NAME:        return field[row].name;
          case UNIT:        return field[row].unit;
@@ -491,7 +500,7 @@ public final class Legende extends AbstractTableModel  {
       switch(col) {
          case NAME:        field[row].name = (String)value; break;
          case COO:         String s = (String) value; 
-                           if( !s.equals( field[row].getCooSign() ) ) {
+                           if( !s.equals( field[row].getCooSignature() ) ) {
                               int coo = Util.indexInArrayOf(s, Field.COOSIGN);
                               modifyRaDecXYField(row,coo);
                            }
@@ -553,7 +562,7 @@ public final class Legende extends AbstractTableModel  {
             if( f.coo==Field.X || f.coo==Field.Y ) f.coo=0;
          }
          field[index].coo = coo;
-         System.out.println("nra="+nra+" ndec="+ndec);
+//         System.out.println("nra="+nra+" ndec="+ndec);
          if( nra>=0 && ndec>=0 && coo!=0 ) plan.pcat.modifyRaDecField(this, nra, ndec);
          
       // Pour les coordonnées cartésiennes
@@ -575,7 +584,7 @@ public final class Legende extends AbstractTableModel  {
             if( f.coo==Field.RA || f.coo==Field.DE ) f.coo=0;
          }
          field[index].coo = coo;
-         System.out.println("nx="+nx+" ny="+ny);
+//         System.out.println("nx="+nx+" ny="+ny);
          if( nx>=0 && ny>=0 && coo!=0 ) plan.pcat.modifyXYField(this, nx, ny);
          
       }

@@ -53,18 +53,20 @@ public class CropTool  {
    static final private int OK = 0;
    static final private int CLOSE = 1;
    static final private int LABEL_POS   = 2;
-   static final private int LABEL_WIDTH = 3;
-   static final private int LABEL_HEIGHT= 4;
-   static final private int LABEL_RES   = 5;
+   static final private int LABEL_RES   = 3;
+   static final private int LABEL_WIDTH = 4;
+   static final private int LABEL_HEIGHT= 5;
+   static final private int CHECKBOX_RES   = 6;
    
    // Taille de la poignée d'étirement
    static final int W=20;
    
    private Aladin aladin;
    private Color color = Color.red;
-   private RectangleD r;             // La taille du rectangle dans les coordonnées de l'image
+   private RectangleD r;            // La taille du rectangle dans les coordonnées de l'image
    private double resMult;          // Facteur multiplicatif pour la résolution finale (uniquement pour PlanBG)
-   private boolean withResMult;     // true si on utilise resMult
+   private boolean withFullRes;     // true si on utilise fullRes
+   private boolean fullRes;         // Statut du checkbox du full résolution
    private boolean visible=false;   // true si l'outil de cadrage est visible
    private int edit=-1;             // indique le code du label en cours d'édition
    private StringBuffer stringEdit=null;  // La chaine en cours d'édition dans le label indiqué par "edit"
@@ -74,23 +76,42 @@ public class CropTool  {
    private int dragPoignee=-1;      // Poignée active du clic & drag en cours
    private double dragX=-1,dragY=-1;   // Coordonnées de référence d'un clic & drag
    
-   private RectangleD rectButton[] = new RectangleD[6];  // Zone couverte par chaque boutons et labels (coordonnées view)
+   private RectangleD rectButton[] = new RectangleD[7];  // Zone couverte par chaque boutons et labels (coordonnées view)
    private boolean hasButton=false;                    // true si les boutons sont affichés
 
 
    /** Création de l'outil, à la position indiquée - on suppose qu'on démarre
     * immédiatement un clic & drag d'extension (équivalent à la poignée BD (Bas-Droit) */
-   public CropTool(Aladin aladin,PointD p,boolean withResMult) {
+   public CropTool(Aladin aladin,ViewSimple v,double xview,double yview,boolean withFullRes) {
       this.aladin=aladin;
-      r = new RectangleD(p.x, p.y, 1, 1);
+      PointD p = v.getPosition(xview,yview);
+      r = new RectangleD(p.x, p.y, 1/v.zoom, 1/v.zoom);
       dragX=p.x;
       dragY=p.y;
       dragPoignee=START;
       visible=true;
-      this.withResMult=withResMult;
+      this.withFullRes=withFullRes;
+      fullRes=false;
       resMult=1;
    }
    
+   /** Déplacement du rectangle du crop notamment dans le cas d'un changement de projection
+    * d'un plan PlanBG */
+//   public void deltaCoord(ViewSimple v, double deltaRa, double deltaDec) {
+//      Coord c = new Coord();
+//      c.x=r.x; c.y=r.y;
+//      v.getProj().getCoord(c);
+//      c.al-=deltaRa;
+//      c.del-=deltaDec;
+//      v.getProj().getXY(c);
+//      r.x=c.x; r.y=c.y;
+//   }
+   
+   /** Déplacement du rectangle du crop notamment dans le cas d'un changement de projection
+    * d'un plan PlanBG */
+   public void deltaXY(double x, double y) {
+      r.x+=x; r.y+=y;
+   }
    
    /** Traitement d'un clic sur un bouton. Retourne true i on a cliqué dans un boutons
     * sinon false */
@@ -106,24 +127,59 @@ public class CropTool  {
       
       if( rectButton[CLOSE].contains(xview, yview) ) return true;
       
-      for( int i=LABEL_POS; i<=LABEL_RES; i++ ) {
+      // Dans un label éditable ?
+      for( int i=LABEL_POS; i<CHECKBOX_RES; i++ ) {
          if( rectButton[i]!=null && rectButton[i].contains(xview, yview) ) startEdit(i,v);
       }
+      
+      // Dans la checkbox de résolution ?
+      if( rectButton[CHECKBOX_RES]!=null && rectButton[CHECKBOX_RES].contains(xview, yview) ) switchCheckFullRes(v);
       
       return false;
    }
    
    /** Effectue le crop sur l'image courante */
    public void doCrop(ViewSimple v) {
-      aladin.calque.newPlanImageByCrop(v, getRectangle(), getResMult() );
+      aladin.calque.newPlanImageByCrop(v, getRectangle(), getResMult(),fullRes );
       aladin.log("Crop",v.pref.getLogInfo());
+   }
+   
+   /** Permute la checkbox de full résolution */
+   public void switchCheckFullRes(ViewSimple v) {
+      fullRes = !fullRes;
+      resMult = computeResMult(v);
+      aladin.view.repaintAll();
+   }
+   
+   /** Taille angulaire du pixel de la vue pour le crop en cours */
+   private double getPixelSizeInView(ViewSimple v) {
+      double tailleDE;
+      Coord coo1 = new Coord();
+      Coord coo2 = new Coord();
+      Projection proj = v.getProj();
+      coo1.x = r.x+r.width/2; coo1.y = r.y+r.height/2;
+      coo2.x = r.x+r.width/2; coo2.y = r.y+r.height;
+      proj.getCoord(coo1);
+      proj.getCoord(coo2);
+      tailleDE=Coord.getDist(coo1,coo2)*2;
+      return tailleDE/(r.height*v.zoom);
+   }
+   
+   /** Détermine le facteur multiplicatif du crop pour avoir une full résolution */
+   private double computeResMult(ViewSimple v) {
+      if( !fullRes ) return 1.;
+      double resPixelView = getPixelSizeInView(v); //v.getPixelSize(); // Taille du pixel écran
+      double resPixelSurvey = ((PlanBG)v.pref).getPixelResolution();  // Taille du pixel du survey HEALPix
+      return resPixelView/resPixelSurvey;
    }
    
    /** Démarre l'édition du label i */
    public void startEdit(int i,ViewSimple v) {
       edit=i;
-      stringEdit = new StringBuffer(""+(i==LABEL_POS ? r.x+","+(((PlanImage)v.pref).naxis2-(r.y+r.height)) : 
-         i==LABEL_HEIGHT ? getHeight(v) : i==LABEL_WIDTH ?  getWidth(v) : getResMult() ));
+      stringEdit = new StringBuffer(""+(
+            i==LABEL_POS ? Util.myRound(r.x+"",0)+","+Util.myRound( (((PlanImage)v.pref).naxis2-(r.y+r.height))+"",0) : 
+            i==LABEL_HEIGHT ? Util.myRound(""+getHeight(v),0) : i==LABEL_WIDTH ?  
+                  Util.myRound(""+getWidth(v)) : getResMult() ));
       aladin.view.startTimer(500);
    }
    
@@ -189,14 +245,14 @@ public class CropTool  {
    /** retourne la largeur du rectangle (dans les coordonnées de l'image sauf s'il s'agit d'un planBG.
     * Dans ce cas ce sont les coordonnées de la vue) */
    public double getWidth(ViewSimple v) {
-      if( v.pref instanceof PlanBG ) return r.width*v.zoom*getResMult(); //v.top(r.width*v.zoom*getResMult());
+      if( v.pref instanceof PlanBG ) return Math.round(r.width*v.zoom*getResMult()); //v.top(r.width*v.zoom*getResMult());
       return r.width;
    }
    
    /** retourne la hauteur du rectangle (dans les coordonnées de l'image sauf s'il s'agit d'un planBG.
     * Dans ce cas ce sont les coordonnées de la vue) */
    public double getHeight(ViewSimple v) {
-      if( v.pref instanceof PlanBG ) return r.height*v.zoom*getResMult(); //v.top(r.height*v.zoom*getResMult());
+      if( v.pref instanceof PlanBG ) return Math.round(r.height*v.zoom*getResMult()); //v.top(r.height*v.zoom*getResMult());
       return r.height;
    }
    /** retourne le rectangle du crop (dans les coordonnées de l'image) */
@@ -205,7 +261,7 @@ public class CropTool  {
    } 
    
    /** Retourne le facteur multiplicateur de la résolution (uniquement pour les PlanBG) */
-   public double getResMult() { return !withResMult ? 1. : resMult; }
+   public double getResMult() { return !withFullRes ? 1. : resMult; }
    
    /** Réutilisation "en l'état" */
    public void reset() { setVisible(true); }
@@ -241,20 +297,20 @@ public class CropTool  {
    }
    
    /** Evènement débutant un clic & drag */
-   public boolean startDrag(PointD p,ViewSimple v) {
+   public boolean startDrag(ViewSimple v,double xview,double yview) {
       if( !visible ) return false;
-      double x = p.x;
-      double y = p.y;
-      dragPoignee = getPoignee(x,y,v);
+      PointD p = v.getPosition(xview,yview);
+      dragPoignee = getPoignee(p.x,p.y,v);
       if( dragPoignee==-1 ) { dragX=dragY=-1; return false; }
-      dragX=x;
-      dragY=y;
+      dragX=p.x;
+      dragY=p.y;
       return true;
    }
    
    /** Evènement lors d'un clic & drag => extension du rectangle */
-   public void mouseDrag(PointD p,boolean shift) {
+   public void mouseDrag(ViewSimple vs, int xview, int yview,boolean shift) {
       if( !visible ) return;
+      PointD p = vs.getPosition((double)xview,(double)yview);
       double x = p.x;
       double y = p.y;
       double dx = x-dragX;
@@ -278,23 +334,38 @@ public class CropTool  {
       }
       
       // On ne peut donner une taille inf à 1
-      if( r.width<1 ) r.width=1;
-      if( r.height<1 ) r.height=1;
-      
+      if( r.width*vs.zoom<1 ) r.width=1/vs.zoom;
+      if( r.height*vs.zoom<1 ) r.height=1/vs.zoom;
+            
       dragX=x;
       dragY=y;
    }
    
    /** Fin d'un clic & drag */
-   public void endDrag() {
+   public void endDrag(ViewSimple vs) {
       dragPoignee=-1;
       dragX=dragY=-1;
+      
+      // On s'aligne sur des pixels entiers
+      if( vs.pref instanceof PlanBG /* fullRes */ ) {
+         double f = vs.zoom*getResMult();
+         r.x = Math.round(r.x*f)/f;
+         r.y = Math.round(r.y*f)/f;
+         r.height = Math.round(r.height*f)/f;
+         r.width = Math.round(r.width*f)/f;
+      } else {
+         r.x=Math.round(r.x);    
+         r.y=Math.round(r.y);
+         r.width=Math.round(r.width);  
+         r.height=Math.round(r.height);
+      }
    }
    
    // Retourne le numéro du label sous la souris (coordonnées de la vue)
    private int getLabel(double xview,double yview) {
       try {
          for( int i=LABEL_POS; i<=LABEL_HEIGHT; i++ ) {
+            if( !fullRes && i==LABEL_RES ) continue;
             if( rectButton[i].contains(xview,yview) ) return i;
          }
       } catch( Exception e ) { }
@@ -331,8 +402,25 @@ public class CropTool  {
       return null;
    }
    
+   // Dessin du checkbox dans les coordonnées de la vue
+   private void drawCheckbox(Graphics g,int x,int y) {
+      if( !withFullRes ) return;
+      String s = "original resolution";
+      FontMetrics f = g.getFontMetrics();
+      int w = f.stringWidth(s)+17;
+      int h = f.getHeight();
+      Util.drawCartouche(g, x, y, w, h, 0.6f,  null, Color.white);
+      Util.drawCheckbox(g, x, y+3, null, null, Color.red, fullRes);
+      g.setColor(Color.black);
+      Font ft = g.getFont();
+      g.setFont(ft.deriveFont(Font.BOLD));
+      g.drawString(s,x+15,y+h/2+5);
+      g.setFont(ft);
+      rectButton[CHECKBOX_RES] = new RectangleD(x,y,w,h);
+   }
+   
    // Dessin des boutons dans les coordonnées de la view
-   // @code OK ou CLOSE
+   // @param code OK ou CLOSE
    private void drawButton(Graphics g,int code,int x,int y,int w,int h) {
       g.setColor(Aladin.BKGD );
       g.fillRect(x, y, w, h);
@@ -354,11 +442,10 @@ public class CropTool  {
       String s= ed ? stringEdit.toString() : null;
       switch(code) {
          case LABEL_RES:
-            if( !withResMult ) return;
+            if( fullRes || !withFullRes ) return;
             if( s==null ) {
                double r = getResMult();
-               String s1 = r==(int)r ? (int)r+"" : r+"";
-               s="res. x "+s1;
+               s="res. x "+Util.myRound(r+"",2);
             }
             w=g.getFontMetrics().stringWidth(s);
             x=(int)(hg.x+h/2+2); y=(int)(bd.y-h-3);
@@ -402,6 +489,9 @@ public class CropTool  {
    /** Dessin de l'outil de cadrage: le cadre, les labels de tailles, les boutons de contrôle */
    public void draw(Graphics g,ViewSimple v) {
       if( !visible ) return;
+      
+      withFullRes = v.pref instanceof PlanBG && v.pref.hasAvailablePixels();
+      
       g.setColor(color);
       
       // Conversion dans les coordonnées de la vue
@@ -420,7 +510,7 @@ public class CropTool  {
       // si le rectangle est trop petit (il est tjs possible de zoomer)
       hasButton=false;
       if( (bd.x-hg.x)>80 && (bd.y-hg.y)>50 ) {
-         
+
          // Tracé des labels
          drawLabel(g,LABEL_RES,v);
          drawLabel(g,LABEL_POS,v);
@@ -428,15 +518,20 @@ public class CropTool  {
          drawLabel(g,LABEL_HEIGHT,v);
       }
 
-         // Tracé des boutons
-         if( dragX==-1 ) {
-            int x = (int)((bd.x+hg.x)/2-45);
-            int y = (int)( bd.y+ (bd.y-hg.y>2.*v.getHeight()/3 ? -25 : 15) );
-            drawButton(g,OK,x,y,45,15);
-            drawButton(g,CLOSE,x+45+5,y,50,15);
-            hasButton=true;
-         }
-       
+      // Tracé des boutons
+      int x = (int)((bd.x+hg.x)/2-45);
+      int y = (int)( bd.y+ (bd.y-hg.y>2.*v.getHeight()/3 ? -25 : 15) );
+      if( dragX==-1 ) {
+         drawButton(g,OK,x,y,45,15);
+         drawButton(g,CLOSE,x+45+5,y,50,15);
+         hasButton=true;
+      }
+      
+      // Tracé de la checkbox
+      x = (int)( hg.x+10 );
+      y = (int)( hg.y+ (bd.y-hg.y>2.*v.getHeight()/3 ? 4: -20) );
+      drawCheckbox(g,x,y);
+
       // Mise en forme du curseur
       int cursor = Cursor.DEFAULT_CURSOR;
       if( moveLabel!=-1 ) cursor=Cursor.TEXT_CURSOR;
@@ -446,6 +541,6 @@ public class CropTool  {
       }
       if( cursor!=oCursor ) { oCursor=cursor; v.setCursor(new Cursor(cursor)); }
    }
-   
+
    private int oCursor=-1;
 }

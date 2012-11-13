@@ -50,7 +50,7 @@ public final class Tool {
    // Differents modes possible d'un bouton
    static final int UNAVAIL =  0;           //   0 - UP/non-selectionnable
    static final int UP      =  1;           //   1 - UP/selectionnable
-   static final int DOWN    = -1;           //  -1 - DOWN/selectionnable
+   public static final int DOWN    = -1;           //  -1 - DOWN/selectionnable
 
    // Reference aux autres objets
    Aladin aladin;
@@ -65,7 +65,7 @@ public final class Tool {
    protected String nom;               // nom du bouton
    int ntool;                          // Type de l'outil
    int omode;                          // Precedent mode;
-   int mode;                           // Mode du bouton
+   public int mode;                           // Mode du bouton
 
     // Liste des outils n'ayant pas d'une icone
    static final int [] noIcone = { };
@@ -101,6 +101,7 @@ public final class Tool {
 /*17 */      15,
 /*18 */      15,
 /*19 */      9,
+/*20 */      9,
    };
 
    // Décalage du logo par rapport au centre du bouton (vers le haut)
@@ -125,6 +126,7 @@ public final class Tool {
 /*17 */      12,
 /*18 */      15,
 /*19 */      9,
+/*20 */      9,
    };
 
    // La fleche de selection
@@ -285,6 +287,9 @@ public final class Tool {
    static final int [] m2Y = { 18,  7};
    static final int [][] m3X = { {16,18,2},{15,15,3},{18,19,3}, // Le bout rouge (X1,X2,Y)
       {14,19,4},{14,19,5},{15,18,6},{16,17,7}};
+
+   // Les points pour le diagramme de dispersion
+   int [][] plot = { { 2,3 }, {4,4}, {5,5}, {5,7}, { 7,5}, {6,4}, {7,9}, {9,10}, {11,12}, {13,13}, {14, 5} };
    
 /*
    // Le graphique pour le SED
@@ -331,6 +336,7 @@ public final class Tool {
             aladin.chaine.getString("MXMATCH"),
             aladin.chaine.getString("RSAMP"),
             aladin.chaine.getString("CROP"),
+            aladin.chaine.getString("PLOT"),
       };
       
       explanation=new String[]{
@@ -354,6 +360,7 @@ public final class Tool {
             aladin.chaine.getString("HXMATCH"),
             aladin.chaine.getString("HRSAMP"),
             aladin.chaine.getString("HCROP"),
+            aladin.chaine.getString("HPLOT"),
       };
    }
 
@@ -442,7 +449,7 @@ public final class Tool {
       X=idx;
       Y=idy;
       
-      Color CBG = aladin.toolbox.getBackground();
+      Color CBG = aladin.toolBox.getBackground();
       Color CBU = new Color(250,249,254);
       
       g.setColor( mode==DOWN ? CU : currentButton && mode!=UNAVAIL ? CBU : CBG);
@@ -585,9 +592,9 @@ public final class Tool {
                g.drawLine(dx+m3X[1][0]+1,dy+m3X[1][2],dx+m3X[1][1]+2,dy+m3X[1][2]);
             }
             break;
-//         case ToolBox.RESAMP:
-//            drawRsampIcon(g,c1,dx,dy,true);
-//            break;
+         case ToolBox.RESAMP:
+            drawRsampIcon(g,c1,dx,dy,true);
+            break;
          case ToolBox.PROP:
 //            g.setColor(c1);
             g.setColor( mode==UNAVAIL ? c1 : new Color( 85,121,203) );
@@ -693,6 +700,19 @@ public final class Tool {
             for(i=16; i<CROPN.length; i++) { int s[] = CROPN[i]; g.drawLine(dx+s[0],dy+s[2],dx+s[1],dy+s[2]); }
             g.setColor( cPapier );
             for(i=0; i<CROPB.length; i++) { int s[] = CROPB[i]; g.drawLine(dx+s[0],dy+s[2],dx+s[1],dy+s[2]); }
+            break;
+         case ToolBox.PLOT:
+            int h=W-17;
+            int w=18;
+            if( mode!=UNAVAIL ) {
+               g.setColor(cPapier);
+               g.fillRect(dx,dy+3,w-2,h-3);
+            }
+            g.setColor(c1);
+            g.drawLine(dx,dy,dx,dy+h); g.drawLine(dx-1,dy+1,dx+1,dy+1);
+            g.drawLine(dx,dy+h,dx+w,dy+h); g.drawLine(dx+w-1,dy+h-1,dx+w-1,dy+h+1);
+            g.setColor( mode==UNAVAIL ? c1 : Color.red ); //new Color( 85,121,203) );
+            for( i=0; i<plot.length; i++ ) g.drawLine(plot[i][0]+dx,dy+h-plot[i][1],plot[i][0]+dx,dy+h-plot[i][1]);
             break;
       }
 

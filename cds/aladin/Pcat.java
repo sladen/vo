@@ -72,7 +72,8 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
 //   int nRa,nDec;           // Indice des columnes RA et DEC si connues, sinon -1
    int nId=-1;		       // Indice de la colonne de l'identificateur
    int nIdVraisemblance=0; // 10-nom commence par ID, 20-nom contient "name" ou "designation", 30-ucd=ID_main 40-ucd=meta.id,meta.main
-   boolean flagVOTable=false;      // True si on est sûr a priori que c'est du VOTable (évite le test)
+   boolean badRaDecDetection;       // true si la détection des colonnes RA et DEC est plus qu'incertaine
+   boolean flagVOTable=false;       // True si on est sûr a priori que c'est du VOTable (évite le test)
    boolean flagLabelFromData=false; // True si on laisse possible le renommage du plan par le contenu
 
    protected StringBuffer parsingInfo=null;    // Information éventuelle sur le parsing des données
@@ -153,6 +154,7 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
       drawnInViewSimple[v.n]=false;    // Par défaut, pas projetable
 
       if( v.isFree() ) return;
+
 
       Projection proj = v.getProj();
       if( plan.proj[v.n]==proj && Projection.isOk(proj)
@@ -302,7 +304,7 @@ Aladin.trace(3,"Recalibration \""+proj.label+"\" XY->ra/dec on \""+plan.label+"\
                                       rajc,dejc,rm*2,
                                       250.0,250.0,500.0,
                                       0.0,false,
-                                      typeProj));
+                                      typeProj,Calib.FK5));
 
       // Positionnement du centre
       plan.co=new Coord(rajc,dejc);
@@ -324,9 +326,9 @@ Aladin.trace(3,"startTable "+name);
       nIdVraisemblance=0;
       group=null;
    }
-   
+
    private Vector<String> group=null;  // Liste des GROUP servant aux définitions des systèmes de coordonnées ou des Flux
-   
+
    // Ajoute un GROUP à la liste des GROUPs à associer à la prochaine légende qui sera créée
    private void addGroup(String s) {
       if( s==null ) { group=null; return; } // reset forcé
@@ -366,11 +368,6 @@ Aladin.trace(3,"setField "+f);
          else if( f.name!=null && f.name.length()>1
                && (f.name.charAt(0)=='I' ||  f.name.charAt(0)=='i') && (f.name.charAt(1)=='D' ||  f.name.charAt(1)=='d')
                && nIdVraisemblance<20 ) { nIdVraisemblance=10; nId=pos; }
-
-//         if( f.name!=null && f.name.length()>1 &&
-//             (f.name.charAt(0)=='I' ||  f.name.charAt(0)=='i') && (f.name.charAt(1)=='D' ||  f.name.charAt(1)=='d') ) numId=vField.size();
-//         else if( f.name!=null && (f.name.equalsIgnoreCase("name") || f.name.equalsIgnoreCase("designation"))) numId=vField.size();
-//         else if( f.ucd!=null && (f.ucd.equals("ID_MAIN") || f.ucd.startsWith("meta.id")) ) numId=vField.size();
       }
       vField.addElement(f);
    }
@@ -608,7 +605,7 @@ Aladin.trace(3,"setField "+f);
                leg = new Legende(v);
                leg.name=table;
             }
-            
+
             // Ajout de GROUPs éventuels
             if( group!=null ) leg.setGroup(group);
 
@@ -671,15 +668,19 @@ Aladin.trace(3,"setField "+f);
 
             String tag = (gref != null) ? gref : (href != null) ? "Http "
                   + href : null;
-            if( tag != null && flagArchive != null
-                   && flagArchive.indexOf('/')>0  ) tag = "^" + tag;
+            
+            // JE LE REMETS ACTIF DE MANIERE GENERIQUE POUR N'IMPORTE QUEL SPECTRE - PF sept 2012
+            if( tag!=null && flagArchive!=null && (flagArchive.startsWith("spectr") && flagArchive.indexOf('/')>0) ) tag="£"+tag;
+            
+            else if( tag != null && flagArchive != null && flagArchive.indexOf('/')>0  ) tag = "^" + tag;
+            
             // AVO, support de Specview, je dois tester sur spectrumavo car les
             // spectres
             // accessibles à partir de VizieR sont gzippés et ne rentrent pas
             // directement dans Specview
             // TODO
-            //else if( tag!=null && flagArchive!=null &&
-            // flagArchive.startsWith("spectrumavo/") ) tag="*"+tag;
+            //else if( tag!=null && flagArchive!=null && flagArchive.startsWith("spectrumavo/") ) tag="*"+tag;
+            
 
             String text = (refText != null) ? refText : value[i];
 
@@ -717,6 +718,17 @@ Aladin.trace(3,"setField "+f);
          else source = new Source(plan, ra, dec, lab, line.toString(), leg);
          if( oid != null ) source.setOID(oid);
          o[nb_o++] = source;
+
+         // Fov STCS attaché ?
+         int idxSTCS = source.findUtype(TreeBuilder.UTYPE_STCS_REGION);
+         if (idxSTCS>=0) {
+             try {
+                 source.setFootprint(source.getValue(idxSTCS));
+             }
+             catch(Exception e) {
+                 e.printStackTrace();
+             }
+         }
 
          // Pour laisser la main aux autres threads
          if( Aladin.isSlow && nb_o%200==0 ) Util.pause(10);
@@ -776,12 +788,13 @@ Aladin.trace(3,"setField "+f);
    /** This method is called by the TableParserConsumer for
     * delivering RA,DEC,X,Y column index (-1 means not found)
     */
-   public void setTableRaDecXYIndex(int nRa, int nDec, int nX, int nY) {
+   public void setTableRaDecXYIndex(int nRa, int nDec, int nX, int nY, boolean badDetection) {
       int n=vField.size();
       if( nRa>=0  && nRa<n  ) ((Field)vField.elementAt(nRa)).coo=Field.RA;
       if( nDec>=0 && nDec<n ) ((Field)vField.elementAt(nDec)).coo=Field.DE;
       if( nX>=0   && nX<n   ) ((Field)vField.elementAt(nX)).coo=Field.X;
       if( nY>=0   && nY<n   ) ((Field)vField.elementAt(nY)).coo=Field.Y;
+      badRaDecDetection = badDetection;
    }
 
 //   /** Retourne l'indice de la colonne RA si connu, sinon -1 */
@@ -878,9 +891,13 @@ Aladin.trace(3,"setField "+f);
 
       // Parsing XML/CSV
       } else {
-         res = new TableParser(aladin,this, plan instanceof PlanBGCat ? "\t" :
-                                           (type&MyInputStream.BSV) == MyInputStream.BSV  ? " " :
-                                            aladin.CSVCHAR);
+         String sep;
+         if( plan instanceof PlanBGCat ) sep = "\t";
+         else if( (type&MyInputStream.BSV) == MyInputStream.BSV  ) sep = " ";
+         else if( dis.getSepCSV()!=-1 ) sep = dis.getSepCSV()+"";
+         else sep = aladin.CSVCHAR;
+
+         res = new TableParser(aladin,this, sep);
          ok = res.parse(dis,endTag);
       }
 
@@ -889,7 +906,7 @@ Aladin.trace(3,"setField "+f);
 
       if( ok ) {
          if( !flagEndResource ) endResource();
-         long duree=System.currentTimeMillis()-d;;
+         long duree=System.currentTimeMillis()-d;
          String s = "Catalog parsed in "+Util.myRound(""+duree/1000.,3)+"s"+(nb_o<1000?"":" ("
                   +Util.myRound(""+1000.*nb_o/duree)+" objects per sec)");
          tableParserInfo("\n"+s);
@@ -1047,12 +1064,16 @@ Aladin.trace(3,"computeTarget ra=["+minRa+".."+maxRa+"]=>"+rajc+" de=["+minDec+"
          nb=-1;
       }
 
-
        // s'il s'agit d'un stream FOV, on doit encore parser la suite !!
        if( flagFootprint ) {
            FootprintParser fParser = new FootprintParser(dis, res.getUnreadBuffer());
            Hashtable<String, FootprintBean> idToFootprint = fParser.getFooprintHash();
            attachFootprintToSources(idToFootprint);
+       }
+
+       // par défaut, on montre les footprints associés à un plan catalogue
+       if (plan instanceof PlanCatalog && ((PlanCatalog) plan).hasAssociatedFootprints()) {
+           ((PlanCatalog) plan).showFootprints(true);
        }
 
        return nb;
@@ -1232,7 +1253,7 @@ Aladin.trace(3,"computeTarget ra=["+minRa+".."+maxRa+"]=>"+rajc+" de=["+minDec+"
          plan.type==Plan.APERTURE || plan.type==Plan.FOV ) projection(v);
 
       // Ces objets sont-ils projetables dans cette vue ?
-      if( !drawnInViewSimple[v.n] ) return /* draw; */ false;
+      if( !drawnInViewSimple[v.n] ) return false;
 
       return draw;
    }

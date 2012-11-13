@@ -150,7 +150,7 @@ public final class Mesure extends JPanel implements Runnable {
     }
     
     /** Extrait un tableau de valeurs sous la forme de doubles
-     * @param x Le tableau à remplir ou null s'il faut le régénérer
+     * @param xCell Le tableau à remplir ou null s'il faut le régénérer
      * @param o l'objet qui sert d'étalon pour connaitre le type de Source
      * @param nField l'indice du champ
      * @return le tableau x ou sa regénération si x==null au préalable ou x.length modifié
@@ -185,7 +185,7 @@ public final class Mesure extends JPanel implements Runnable {
     }
     
     /** Extrait un tableau de valeurs sous la forme de Chaine
-     * @param x Le tableau à remplir ou null s'il faut le régénérer
+     * @param xCell Le tableau à remplir ou null s'il faut le régénérer
      * @param o l'objet qui sert d'étalon pour connaitre le type de Source
      * @param nField l'indice du champ
      * @return le tableau x ou sa regénération si x==null au préalable ou x.length modifié
@@ -326,17 +326,19 @@ public final class Mesure extends JPanel implements Runnable {
        if( !flagSame ) nOccurence=0;
        oMasq=masq;
        
-       if( mcanvas.currentsee!=-1 || lastOcc==null || mcanvas.objSelect==null ) n=mcanvas.currentsee;
-       else { 
+       
+       if( mcanvas.objSelect!=null ) lastOcc=mcanvas.objSelect;
+//       if( mcanvas.currentsee==-1 || lastOcc==null || mcanvas.objSelect==null ) n=mcanvas.currentsee;
+//       else { 
           for( int i=0; i<nbSrc; i++ ) {
              if( src[i]==lastOcc ) { n = i; break; }
           }
-       }
+//       }
        
        n+=sens;
        if( n==-1 ) n=sens<0 ? nbSrc-1: 0;
        
-//System.out.println("Je cherche ["+masq+"] à partir de "+n+" nOccurence="+nOccurence);       
+//System.out.println("Je cherche ["+masq+"] à partir de "+n+" nOccurence="+nOccurence+" flagSame="+flagSame);       
 
        // Analyse de la recherche (ex: FLU*>10, OTYPE=X, Star, ...)
        StringBuffer col = new StringBuffer();    // pour récupérer un éventuel nom de colonne
@@ -619,11 +621,12 @@ public final class Mesure extends JPanel implements Runnable {
          haut.setVisible(true);
          status.setSize(status.getSize().width,status.H);
          mcanvas.setSize(mcanvas.getSize().width, 600);
-         scrollV.setSize(scrollV.getSize().width, 600/* -cross.getSize().height*/);
+         scrollV.setSize(scrollV.getSize().width, 600);
      } else {
          haut.setVisible(false);
          mcanvas.setSize(mcanvas.getSize().width, previousHeight);
-         scrollV.setSize(scrollV.getSize().width, previousHeight/*-cross.getSize().height*/);
+         scrollV.setSize(scrollV.getSize().width, previousHeight);
+         if( !flagReduced ) aladin.splitH.restoreMesureHeight();
       }
       setSize( getPreferredSize());
    }
@@ -643,7 +646,6 @@ public final class Mesure extends JPanel implements Runnable {
    protected void setReduced(boolean flag) {
       if( flagReduced==flag ) return;
       flagReduced=flag;
-      int h = aladin.splitH.getHeight();
       if( flagReduced ) {
          aladin.search.hideSearch(true);
          if( aladin.splitH.getBottomComponent()!=null ) aladin.splitH.remove(this);
@@ -651,7 +653,7 @@ public final class Mesure extends JPanel implements Runnable {
          aladin.search.hideSearch(false);
          if( aladin.splitH.getBottomComponent()==null ) aladin.splitH.setBottomComponent(this);
          flagDorepaintForScroll=true;
-         aladin.splitH.setDividerLocation(h-150);
+         aladin.splitH.restoreMesureHeight();
       }
    }
    
@@ -771,33 +773,6 @@ public final class Mesure extends JPanel implements Runnable {
       rmAllSrc();
       scrollV.setValues(0,1,0,1);
    }
-
-  /** Purge.    SANS DOUTE INUTILE DEPUIS Calque.deSelect(Plan)
-   * Purge des Sources dont les plans d'appartenance ont ete
-   * vides ou ne sont pas selectionnes
-   */
-//   protected void removeOldElements() {
-//      boolean dopaint = false;
-//      // Le lock sur text est necessaire en raison du thread qui calcule les filtres --> risque de pb sans ce lock
-//      synchronized(this) {
-//         for( int i=0; i<nbSrc; i++ ) {
-//            Source o = src[i];
-//            if( o.getPlan().type==Plan.NO || !o.getPlan().active ) {
-//               dopaint=true;
-//               rmSrc(i);
-//               i--;
-//               o.select=false;
-//               aladin.calque.view.vselobj.removeElement(o);
-//            }
-//         }
-//      }
-//      if( dopaint ) {
-//         mcanvas.currentsee=-1;
-//         mcanvas.currentselect=-2;
-//         scrollV.setValue(nbSrc);
-//         mcanvas.fullRepaint();
-//      }
-//   }
 
   /** Suppression de la ligne d'une source particulière
    */

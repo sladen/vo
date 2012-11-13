@@ -23,6 +23,7 @@ package cds.aladin;
 import java.util.Enumeration;
 import java.util.Vector;
 
+import cds.fits.HeaderFits;
 import cds.tools.Util;
 
 /**
@@ -61,6 +62,7 @@ public final class Projection {
    protected double r1; 			// hauteur du champ en pixels
    protected double rot;	        // rotation en degres (sens horaire / nord )
    protected boolean sym;	        // symetrie des alphas
+   protected int system;            // le système de coordonnée selon Bof
    protected int t;		            // type de la projection (SIN|TAN...)
    protected int modeCalib;			// mode de projection (NO,ALADIN,WCS);
    protected boolean toNorth;       // True s'il s'agit d'une calibration orientée vers le Nord
@@ -99,7 +101,7 @@ public final class Projection {
 
    /** Aucune projection */
    protected Projection() { modeCalib=NO; }
-
+   
   /** Creation d'une projection à partir d'une autre projection */
    protected Projection(Projection p) {
       c=p.c;
@@ -198,15 +200,15 @@ public final class Projection {
    protected Projection(String label,int type,
          double alphai, double deltai, double rm,
          double cx, double cy,double r,
-         double rot,boolean sym,int t) {
-      this(label,type,alphai,deltai,rm,rm,cx,cy,r,r,rot,sym,t);
+         double rot,boolean sym,int t,int system) {
+      this(label,type,alphai,deltai,rm,rm,cx,cy,r,r,rot,sym,t,system);
    }
    protected Projection(String label,int type,
                         double alphai, double deltai, double rm,double rm1,
                         double cx, double cy,double r, double r1,
-                        double rot,boolean sym,int t) {
+                        double rot,boolean sym,int t,int system) {
 
-      c=new Calib(alphai,deltai,cx,cy,r,r1,rm,rm1,rot,t,sym);
+      c=new Calib(alphai,deltai,cx,cy,r,r1,rm,rm1,rot,t,sym,system);
       adjustParamByCalib(c);
       this.modeCalib=type;
       this.label=label;
@@ -235,7 +237,7 @@ public final class Projection {
       p.rm=rm;			p.r=r;
       p.rm1=rm1;		p.r1=r1;
       p.rot=rot;		p.sym=sym;
-      p.t=t;			// p.fct=fct;
+      p.t=t;			p.system=system;
       p.modeCalib=modeCalib;		p.label=label==null?null:new String(label);
       if( coo!=null ) {
          p.coo = new Coord[coo.length];
@@ -254,7 +256,7 @@ public final class Projection {
       if( rot==angle ) return this;
       if( projNorth==null || projNorth.c.getProjRot()!=angle ) {
          projNorth = new Projection();
-         projNorth.c=new Calib(alphai,deltai,cx,cy,r,r1,rm,rm1,angle,t,false);
+         projNorth.c=new Calib(alphai,deltai,cx,cy,r,r1,rm,rm1,angle,t,false,system);
          projNorth.adjustParamByCalib(projNorth.c);
          projNorth.modeCalib=modeCalib;
          projNorth.label = getName(modeCalib,t);
@@ -276,17 +278,17 @@ public final class Projection {
    }
 
    /** Modification d'une projection */
-   protected void modify(String label,int modeCalib,
-         double alphai, double deltai, double rm,
-         double cx, double cy,double r,
-         double rot,boolean sym,int t) {
-      modify(label,modeCalib,alphai,deltai,rm,rm,cx,cy,r,r,rot,sym,t);
-   }
+//   protected void modify(String label,int modeCalib,
+//         double alphai, double deltai, double rm,
+//         double cx, double cy,double r,
+//         double rot,boolean sym,int t,int system) {
+//      modify(label,modeCalib,alphai,deltai,rm,rm,cx,cy,r,r,rot,sym,t,system);
+//   }
    protected void modify(String label,int modeCalib,
             double alphai, double deltai, double rm,double rm1,
             double cx, double cy,double r,double r1,
-            double rot,boolean sym,int t) {
-      c=new Calib(alphai,deltai,cx,cy,r,r1,rm,rm1,rot,t,sym);
+            double rot,boolean sym,int t,int system) {
+      c=new Calib(alphai,deltai,cx,cy,r,r1,rm,rm1,rot,t,sym,system);
       adjustParamByCalib(c);
       this.modeCalib=modeCalib;
       if( label==null ) this.label = getName(modeCalib,t);
@@ -296,14 +298,18 @@ public final class Projection {
    protected void setProjCenter(double ra,double dec) {
       Coord c = new Coord(ra,dec);
       if( frame!=Localisation.ICRS ) c = Localisation.frameToFrame(c, Localisation.ICRS, frame);
-      modify(label,modeCalib,c.al,c.del,rm,rm1,cx,cy,r,r1,rot,sym,t);
+      modify(label,modeCalib,c.al,c.del,rm,rm1,cx,cy,r,r1,rot,sym,t,system);
    }
-
+   
+   protected void setProjRot(double rota) {
+      modify(label,modeCalib,alphai,deltai,rm,rm,cx,cy,r,r,rota,sym,t,system);
+   }
+   
    protected void deltaProjRot(double drot) {
       double rota = rot+drot;
       if( rota>360 ) rota-=360;
       else if( rota<0 ) rota+=360;
-      modify(label,modeCalib,alphai,deltai,rm,rm,cx,cy,r,r,rota,sym,t);
+      modify(label,modeCalib,alphai,deltai,rm,rm,cx,cy,r,r,rota,sym,t,system);
    }
 
    protected void deltaProjCenter(double dra,double ddec) {
@@ -316,7 +322,7 @@ public final class Projection {
       else if( ra<0 ) ra+=360;
       if( rota>360 ) rota-=360;
       else if( rota<0 ) rota+=360;
-      modify(label,modeCalib,ra,de,rm,rm,cx,cy,r,r,rota,sym,t);
+      modify(label,modeCalib,ra,de,rm,rm,cx,cy,r,r,rota,sym,t,system);
    }
 
    protected void deltaProjXYCenter(double deltaX,double deltaY) {
@@ -363,6 +369,11 @@ public final class Projection {
       this.modeCalib=WCS;
       this.coo=coo;
       this.c = c;
+//      if( frame!=Localisation.ICRS ) {
+//         Coord c1 = Localisation.frameToFrame(new Coord(c.alphai,c.deltai), Localisation.ICRS, frame);
+//         c.alphai=c1.al;
+//         c.deltai=c1.del;
+//      }
       this.coo = null;
       adjustParamByCalib(c);
    }
@@ -379,6 +390,10 @@ public final class Projection {
          alphai = co.al;
          deltai = co.del;
          co = c.getImgCenter();
+         if( frame!=Localisation.ICRS ) co = Localisation.frameToFrame(co, frame,Localisation.ICRS);
+//         co.x = c.xnpix/2.;
+//         co.y = c.ynpix/2.;
+//         getCoord(co);
          raj = co.al;
          dej = co.del;
       } catch( Exception e ) {
@@ -393,8 +408,11 @@ public final class Projection {
       r1=c.getImgSize().height;
       rot=c.getProjRot();
       sym=c.getProjSym();
+      system=c.getSystem();
       t=c.getProj();
    }
+   
+
 
    /** Retourne la résolution angulaire en degrées en pixel en alpha */
    protected double getPixResAlpha() throws Exception {
@@ -437,6 +455,7 @@ public final class Projection {
              "("+rm+"x"+rm1+")/("+r+"x"+r1+") "+
              (rot!=0.?"rot="+rot+"deg ":"")+
              (sym?"RA_symetry ":"")+
+             "system="+system+
              " "+Localisation.REPERE[frame];
    }
 
@@ -477,7 +496,8 @@ public final class Projection {
 
       Vector key   = new Vector(20);
       Vector value = new Vector(20);
-      try { c.GetWCS(key,value); }
+//      try { c.GetWCS(key,value); }
+      try { getWCS(key,value); }
       catch( Exception e ) { System.err.println("GetWCS error"); return null; }
       Enumeration ekey   = key.elements();
       Enumeration evalue = value.elements();
@@ -488,7 +508,68 @@ public final class Projection {
       }
       return s.toString();
    }
+   
+   /** La liste des mots clés WCS retournée par Calib va être modifié en fonction du frame propre à la classe Projection
+    * Ceci est nécessaire parce que par défaut Calib ne supportait que l'équatorial et qu'il avait fallu
+    * traiter les changement de référentiel pour le mode Allsky au niveau de la classe Projection (variable frame)
+    * Le but est de fournir la Calib WCS dans le frame de visu courante (sélecteur Localisation)
+    * A noter que le centre de la projection CRVAL1 et CRVAL2 est déjà exprimé dans le frame de la projection (beurk)
+    * et n'a donc plus à être converti (cf setProjCenter(...))
+    * 
+    * Lorsque Calib saura correctement gérer tous les référentiels, on pourra directement l'utiliser
+    *
+    * @param key Liste des mots clés WCS
+    * @param value Liste des valeurs correspondantes
+    * @throws Exception
+    */
+   protected void getWCS(Vector key, Vector value) throws Exception {
+      c.GetWCS(key,value);
+      if( isEquatorial() /* isFrameEqualsCalibSyst() */ ) return;
+      
+      Enumeration ekey   = key.elements();
+      Enumeration evalue = value.elements();
+      for( int i=0; ekey.hasMoreElements(); i++ ) {
+         String skey   = (String)ekey.nextElement();
+         String svalue = (String)evalue.nextElement();
+         
+         if( skey.startsWith("CTYPE1") ) {
+            String ctype = Localisation.CTYPE1[frame];
+            svalue = ctype+svalue.substring(ctype.length());
+            value.setElementAt(svalue,i);
+         }
+         
+         else if( skey.startsWith("CTYPE2") ) {
+            String ctype = Localisation.CTYPE2[frame];
+            svalue = ctype+svalue.substring(ctype.length());
+            value.setElementAt(svalue,i);
+         }
 
+         else if( skey.startsWith("RADECSYS") ) {
+            String radecsys = Localisation.RADECSYS[frame];
+            if( radecsys==null ) { key.remove(i); value.remove(i); }
+            else value.setElementAt(radecsys,i);
+         }
+      }
+   }
+   /** Construction d'une projection dont le frame est géré par Calib et non par Projection 
+    * => Actuellement uniquement possible pour Equatorial et Galactique => J'attends FB pour le reste
+    */
+   static protected Projection getEquivalentProj(Projection p) throws Exception {
+      if( p.isEquatorial() || p.system!=Calib.GALACTIC /* p.isFrameEqualsCalibSyst() */ ) return p;        // Rien à faire, pas encore possible
+      p.c = new Calib( new HeaderFits(p.getWCS()) );
+      p.adjustParamByCalib(p.c);
+      p.frame=Localisation.ICRS;
+      return p;
+   }
+   
+   private boolean isEquatorial() {
+      return frame==Localisation.ICRS || frame==Localisation.ICRSD
+      || frame==Localisation.J2000 || frame==Localisation.J2000D
+      || frame==Localisation.B1950 || frame==Localisation.B1950D
+      || frame==Localisation.B1900
+      || frame==Localisation.B1875 ;
+   }
+   
   /** Arrondi.
    * Applique au centre de la projection pour permettre les superpositions
    * legerement decalees (lors de l'interrogation)
@@ -507,9 +588,12 @@ public final class Projection {
    * avec l'objet projection
    * @param p la projection a comparer avec la projection courante
    * @param v la vue courante
+   * @param testBG true si on écarte le cas d'une superposition sur un plan BG, notamment
+   *               pour éviter que les losanges de PlanBGCat ne puissent être affichés
    * @return <I>true</I> c'est ok - <I>false</I> c'est mauvais
    */
-   protected boolean agree(Projection p,ViewSimple v) {
+   protected boolean agree(Projection p,ViewSimple v) { return agree(p,v,true); }
+   protected boolean agree(Projection p,ViewSimple v,boolean testBG) {
 
       if( p==null ) return false;
 
@@ -519,7 +603,7 @@ public final class Projection {
       double z=1;
       if( v!=null ) {
          // sur un background
-         if( v.pref!=null && v.pref instanceof PlanBG ) return true;
+         if( testBG && v.pref!=null && v.pref instanceof PlanBG ) return true;
          z = v.getZoom();
       }
 
@@ -584,7 +668,7 @@ public final class Projection {
    * @param coo position dans la projection (alphai,deltai doivent y etre renseignes)
    * @return    les coordonnees (class Coord) ou null si pb
    */
-   protected Coord getXY(Coord coo) {
+   public Coord getXY(Coord coo) {
       if( modeCalib==PLOT )  return getXYPlot(coo);
       if( Double.isNaN(coo.al) ) { coo.x=Double.NaN; coo.y=Double.NaN; return coo; }
       

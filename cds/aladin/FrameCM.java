@@ -29,6 +29,7 @@ import java.util.*;
 
 import javax.swing.*;
 
+import cds.aladin.prop.Filet;
 import cds.tools.Util;
 
 
@@ -158,7 +159,7 @@ public final class FrameCM extends JFrame implements ActionListener {
    protected void majCM() { majCM(false); }
    protected void majCM(boolean force) {
       if( force ) pimg=null;
-      if( aladin.toolbox.tool[ToolBox.HIST].mode==Tool.DOWN ) {
+      if( aladin.toolBox.tool[ToolBox.HIST].mode==Tool.DOWN ) {
          boolean flagRGB = pimg instanceof PlanImageRGB;
          memoControl();
 
@@ -449,7 +450,7 @@ public final class FrameCM extends JFrame implements ActionListener {
       JPanel x;
       JButton b;
       boolean isPlanRGB = pimg instanceof PlanImageRGB;
-      boolean isPlanBlink = pimg.type==Plan.IMAGEBLINK || pimg.type==Plan.IMAGECUBE;
+      boolean isPlanBlink = pimg instanceof PlanImageBlink;
 
       // J'enleve toute les precedentes composantes
       if( p!=null ) getContentPane().remove(p);
@@ -931,8 +932,8 @@ public final class FrameCM extends JFrame implements ActionListener {
       pimg=null;
       imgID=-1;
       if( isVisible() ) {
-         aladin.toolbox.tool[ToolBox.HIST].setMode(Tool.UP);
-         aladin.toolbox.repaint();
+         aladin.toolBox.tool[ToolBox.HIST].setMode(Tool.UP);
+         aladin.toolBox.repaint();
          setVisible(false);
       }
    }
@@ -942,23 +943,23 @@ public final class FrameCM extends JFrame implements ActionListener {
     * des properties
     */
    @Override
-public void dispose() {
+   public void dispose() {
       setVisible(false);
       aladin.gc();
       memoControl();
-      if( aladin.calque.getPlanBase()!=null )  aladin.toolbox.tool[ToolBox.HIST].setMode(Tool.UP);
-      else aladin.toolbox.tool[ToolBox.HIST].setMode(Tool.UNAVAIL);
-      aladin.toolbox.repaint();
+      if( aladin.calque.getPlanBase()!=null )  aladin.toolBox.tool[ToolBox.HIST].setMode(Tool.UP);
+      else aladin.toolBox.tool[ToolBox.HIST].setMode(Tool.UNAVAIL);
+      aladin.toolBox.repaint();
       imgID=-1;
    }
 
   /** Trap sur l'evenement WINDOW_DESTROY    */
    @Override
-protected void processWindowEvent(WindowEvent e) {
+   protected void processWindowEvent(WindowEvent e) {
       if( e.getID()==WindowEvent.WINDOW_CLOSING ) dispose();
       super.processWindowEvent(e);
    }
-
+   
    public void actionPerformed(ActionEvent e) {
       String s = e.getActionCommand();
            if( CLOSE.equals(s) )     dispose();
@@ -969,6 +970,9 @@ protected void processWindowEvent(WindowEvent e) {
       else if( ALL.equals(s) )       all();
       else if( e.getSource() instanceof JRadioButton ) changeTransfertFct();
       else if( e.getSource() instanceof JComboBox ) changeCM((JComboBox)e.getSource() );
+           
+     if( aladin.frameAllsky!=null ) aladin.frameAllsky.updateCurrentCM();
+
    }
 
 }

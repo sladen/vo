@@ -57,28 +57,75 @@ import cds.tools.Util;
  */
 public final class Localisation extends MyBox {
    // les constantes associees a chaque repere
-   static final int ICRS   = 0;
-   static final int ICRSD  = 1;
-   static final int J2000  = 2;
-   static final int J2000D = 3;
-   static final int B1950  = 4;
-   static final int B1950D = 5;
-   static final int ECLIPTIC = 6;
-   static final int GAL    = 7;
-   static final int SGAL   = 8;
-   static final int XY     = 9;
-   static final int XYLINEAR  = 10;
+   static final public int ICRS   = 0;
+   static final public int ICRSD  = 1;
+   static final public int ECLIPTIC = 2;
+   static final public int GAL    = 3;
+   static final public int SGAL   = 4;
+   static final public int J2000  = 5;
+   static final public int J2000D = 6;
+   static final public int B1950  = 7;
+   static final public int B1950D = 8;
+   static final public int B1900  = 9;
+   static final public int B1875  = 10;
+   static final public int XY     = 11;
+   static final public int XYNAT  = 12;
+   static final public int XYLINEAR  = 13;
   
    // Le label pour chaque repere (dans l'ordre des constantes ci-dessus)
    static final String [] REPERE = {
-      "ICRS","ICRSd","J2000","J2000d","B1950",
-      "B1950d","Ecliptic","Gal","SGal",
-      "XY image","XY linear",
+      "ICRS","ICRSd","Ecliptic","Gal","SGal",
+      "J2000","J2000d","B1950","B1950d","B1900","B1875",
+      "XY Fits","XY image","XY linear"
+   };
+   
+   // Le mot clé RADECSYS Fits correspondant au système de coordonnée
+   static final String [] RADECSYS = {
+      "ICRS","ICRS",null,null,null,
+      "FK5","FK5","FK4","FK4","FK4","FK4",
+      null,null,null,
+   };
+   
+   // Le préfixe du mot clé CTYPE1 Fits correspondant au système de coordonnée
+   static final String [] CTYPE1 = {
+      "RA---","RA---","ELON-","GLON-","SLON-",
+      "RA---","RA---","RA---","RA---","RA---","RA---",
+      null,null,"SOLAR",
+   };
+
+   // Le préfixe du mot clé CTYPE2 Fits correspondant au système de coordonnée
+   static final String [] CTYPE2 = {
+      "DEC--","DEC--","ELAT-","GLAT-","SLAT-",
+      "DEC--","DEC--","DEC--","DEC--","DEC--","DEC--",
+      null,null,"SOLAR",
    };
    
    // Les différents Frames possibles (mode AllSky)
    static final String [] FRAME = { "Default", REPERE[ICRS], REPERE[ECLIPTIC], REPERE[GAL], REPERE[SGAL] };
    static JComboBox createFrameCombo() {return new JComboBox(FRAME); }
+   
+   // Les différents Frames possibles (pour la recalibration)
+   static final String [] FRAMEBIS = { "Equatorial", "Galactic", "Ecliptic", "SuperGal" };
+   static final int [] FRAMEBISVAL = { Calib.FK5, Calib.GALACTIC, Calib.ECLIPTIC, Calib.SUPERGALACTIC };
+   static final int [] FRAMEVAL = { ICRS, GAL, ECLIPTIC, SGAL };
+   static JComboBox createFrameComboBis() {return new JComboBox(FRAMEBIS); }
+   static int getFrameComboBisValue(String s) {
+      int i = Util.indexInArrayOf(s, FRAMEBIS, true);
+      if( i<0 ) return 0;
+      return FRAMEBISVAL[i];
+   }
+   static int getFrameComboValue(String s) {
+      int i = Util.indexInArrayOf(s, FRAMEBIS, true);
+      if( i<0 ) return 0;
+      return FRAMEVAL[i];
+   }
+ 
+   // Retourne true s'il s'agit du même système de référence (en ignorant la différence degrés et sexa)
+   static final boolean isSameFrame(int frame1,int frame2) {
+      if( frame1==ICRSD || frame1==J2000D || frame1==B1950D ) frame1--;
+      if( frame2==ICRSD || frame2==J2000D || frame2==B1950D ) frame2--;
+      return frame1==frame2;
+   }
    
    static final String NOREDUCTION = "No astrometrical reduction";
    static final String NOHPX = "No HEALPix map";
@@ -211,22 +258,29 @@ public final class Localisation extends MyBox {
    protected void focus(String s) {
        setMode(SAISIE);
        text.setText(s);
+
       (new Thread() {
          Color def = text.getBackground();
          Color deff = text.getForeground();
          public void run() {
-            for( int i=0; i<3; i++ ) {
+            for( int i=0; i<2; i++ ) {
                text.setBackground(Color.green);
                text.setForeground(Color.black);
-               Util.pause(200);
+               Util.pause(1000);
                text.setBackground(def);
                text.setForeground(deff);
-               Util.pause(200);
+               Util.pause(100);
             }
             text.setText("");
             text.requestFocusInWindow();
          }
       }).start();
+   }
+   
+   protected void setInitialFocus() {
+      setMode(SAISIE);
+      text.requestFocusInWindow();
+      text.setCaretPosition(text.getText().length());
    }
    
    protected void infoStart() {
@@ -248,7 +302,7 @@ public final class Localisation extends MyBox {
               }
               if( !flagStopInfo ) {
                  text.setText(s);
-                 Util.pause(600);
+                 Util.pause(1000);
               }
            }
            if( flagStopInfo ) {
@@ -306,7 +360,7 @@ public final class Localisation extends MyBox {
    
    /** Retourne le nom du frame passé en paramètre */
    protected String getFrameName() { return getFrameName(frame); }
-   protected String getFrameName(int frame) { return frame<0 ? "" : REPERE[frame]; }
+   static public String getFrameName(int frame) { return frame<0 ? "" : REPERE[frame]; }
 
    /** Retourne la position du menu deroulant */
    protected int getFrame() { return frame; }
@@ -315,7 +369,7 @@ public final class Localisation extends MyBox {
     * POSITION histoire que cela se comprenne */
    protected void setSesameResult(String s) {
       aladin.localisation.setTextSaisie(s);
-      aladin.localisation.label.setText(POSITION);
+//      aladin.localisation.label.setText(POSITION);
       aladin.localisation.readyToClear();
    }
 
@@ -335,11 +389,17 @@ public final class Localisation extends MyBox {
       PointD p   = v.getPosition(x,y);
       String s=null;
       
-      // Position (X,Y) simplement
+      // Position (X,Y) simplement (mode FITS)
       if( i==XY || proj!=null && proj.modeCalib==Projection.NO ) {
          if( plan.isImage() )  s=Util.myRound(""+(p.x+0.5),4)
                       +"  "+Util.myRound(""+(((PlanImage)plan).naxis2-p.y+0.5),4);
          else s="";
+
+         // Position (X,Y) simplement (mode Natif)
+      } else if( i==XYNAT || proj!=null && proj.modeCalib==Projection.NO ) {
+            if( plan.isImage() )  s=Util.myRound(""+p.x,0)
+                         +"  "+Util.myRound(""+p.y,0);
+            else s="";
 
       // Calcul de la projection 
       } else {
@@ -395,7 +455,9 @@ public final class Localisation extends MyBox {
    static final Astroframe AF_SGAL = new Supergal();
    static final Astroframe AF_ICRS = new ICRS();
    static final Astroframe AF_ECLI = new Ecliptic();
-   
+   static final Astroframe AF_FK4_1900 = new FK4(1900);
+   static final Astroframe AF_FK4_1875 = new FK4(1875);
+
    // Retourne la valeur du frame prevue dans Astroframe
    // en fonction de la valeur courante du menu deroulant
    static protected Astroframe getAstroframe(int i) {
@@ -403,6 +465,8 @@ public final class Localisation extends MyBox {
              (i==GAL)?AF_GAL:
              (i==J2000 || i==J2000D)?AF_FK5:
              (i==B1950 || i==B1950D)?AF_FK4:
+             (i==B1900)?AF_FK4_1900:
+             (i==B1875)?AF_FK4_1875:
              (i==ECLIPTIC)?AF_ECLI:
              (i==SGAL)?AF_SGAL:AF_ICRS;
    }
@@ -519,17 +583,37 @@ public final class Localisation extends MyBox {
    */
    protected void seeCoord(Position o) { seeCoord(o,0); }
    protected void seeCoord(Position o,int methode) {
-      String s="";
-      switch( getFrame() ) {
-         case XY:
-            int n= aladin.view.getCurrentNumView();
-            if( n==-1 ) return;
-            if( o.plan!=null && o.plan.hasXYorig ) s = s+ o.x+"  "+o.y;
-            break;
-         default : s = s+ J2000ToString(o.raj,o.dej);
-      }
+      String s=getLocalisation(o);
+      if( s==null ) return;
       if( methode==0 ) { setTextAffichage(s); setMode(AFFICHAGE); }
       else { Aladin.copyToClipBoard(s); setTextSaisie(s); setMode(SAISIE); aladin.console.setInPad(s+"\n"); }
+   }
+   
+   /** Localisation de la source en fonction du frame courant */
+   protected String getLocalisation(Obj o) {
+      String s="";
+      switch( getFrame() ) {
+//         case XY:
+//            int n= aladin.view.getCurrentNumView();
+//            if( n==-1 ) return null;
+//            if( o.plan!=null && o.plan.hasXYorig ) s = s+ o.x+"  "+o.y;
+//            break;
+            
+         case XY:
+            ViewSimple v = aladin.view.getCurrentView();
+            Projection proj = v.getProj();
+            Coord c = new Coord(o.getRa(),o.getDec());
+            proj.getXY(c);
+            double x = c.x;
+            double y = c.y;
+            Plan plan = v.pref;
+            if( plan.isImage() ) s=Util.myRound(""+(x+0.5),2) 
+               +" "+Util.myRound(""+(((PlanImage)plan).naxis2-(y-0.5)),2);
+            else s=null;
+            break;
+         default : s = s+ J2000ToString(o.getRa(),o.getDec());
+      }
+      return s;
    }
    
    // retourne true s'il s'agit d'un nom de fichier local

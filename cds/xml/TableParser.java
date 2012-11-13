@@ -72,10 +72,11 @@ final public class TableParser implements XMLConsumer {
    private int nRecord;               // Numéro de l'enregistrement courant
    private int nRA,nDEC;	      	  // Numéro de la colonne RA et DEC (-1 si non encore trouvée)
    private int nX,nY;	      	      // Numéro de la colonne X et Y (-1 si non encore trouvée)
-   private int qualRA,qualDEC;	      // La qualité de détection des colonnes RA et DEC (100 mauvais, 0 excellent)
-   private int qualX,qualY;	          // La qualité de détection des colonnes X et Y (100 mauvais, 0 excellent)
+   private int qualRA,qualDEC;	      // La qualité de détection des colonnes RA et DEC (1000 mauvais, 0 excellent)
+   private int qualX,qualY;	          // La qualité de détection des colonnes X et Y (1000 mauvais, 0 excellent)
    private Field f;		              // Le champ courant
    private Vector<Field> memoField;   // Mémorisation des Fields en cas de parsing binaire ultérieur
+   private Field[] tsvField;          // Idem dans le cas d'un TSV (sans doute à fusionner avec memoField si le coeur m'en dit)  
    private String fieldSub=null;      // contient le nom du tag courant fils de <FIELD>, sinon null
    private String tableSub=null;      // contient le nom du tag courant fils de <TABLE>, sinon null
    private String resourceSub=null;   // contient le nom du tag courant fils de <RESOURCE>, sinon null
@@ -110,6 +111,7 @@ final public class TableParser implements XMLConsumer {
    private Hashtable<String,String> coosys;          // Liste des systèmes de coordonnées trouvés dans la VOTable
    private Hashtable<String,String> cooepoch;        // Liste des epoques trouvés dans la VOTable
    private Hashtable<String,String> cooequinox;      // Liste des équinoxes trouvés dans la VOTable
+   private Hashtable<String,String> cooFieldref;     // Liste des références de FIELD pour un coosys partitulier
    private boolean inAstroCoords;     // true si on est dans un GROUP de définition d'un système de coordonnées
    private String astroCoordsID;      // Dernier ID d'une définition d'un système de coordonnées
    private Astroframe srcAstroFrame = null;     // Systeme de coord initial
@@ -156,9 +158,12 @@ final public class TableParser implements XMLConsumer {
       
       // Cas BINARY HREF
       if( inBinary ) {
-         byte [] buf = new byte[100000];
-         int n;
-         while( (n=in.read(buf))>0 ) parseBin(buf,0,n);
+         byte [] buf = in.readFully();
+         parseBin(buf,0,buf.length);
+         
+//         byte [] buf = new byte[100000];
+//         int n;
+//         while( (n=in.readFully(buf))>0 ) parseBin(buf,0,n);
          
       // Cas FITS HREF
       } else if( inFits ) {
@@ -333,6 +338,11 @@ final public class TableParser implements XMLConsumer {
             try { s = headerFits.getStringFromHeader("TUNIT"+(i+1)); } catch( Exception e1 ) {}
             if( s!=null ) f.unit=s;
 
+            // Récupération d'une éventuelle descriptino
+            s=null;
+            try { s = headerFits.getStringFromHeader("TCOMM"+(i+1)); } catch( Exception e1 ) {}
+            if( s!=null ) f.description=s;
+
             // Récupération d'un éventuel TZERO
             x=0;
             try { x = headerFits.getDoubleFromHeader("TZERO"+(i+1)); } catch( Exception e1 ) {}
@@ -359,7 +369,6 @@ final public class TableParser implements XMLConsumer {
 //System.out.println("TZERO"+(i+1)+"="+tzero[i]+" TSCAL"+(i+1)+"="+tscal[i]
 //                      +(tnull[i]!=null?" TNULL"+(i+1)+"="+tnull[i] : ""));                      
             
-            
             // Récupération du format. Dans le cas de l'ASCII, donne le format de sortie
             // alors que dans le cas du binaire, donne le format d'entrée
             s=null;
@@ -368,7 +377,10 @@ final public class TableParser implements XMLConsumer {
                
                // Mode ASCII
                if( !flagBin ){
-                  f.datatype="BIJFED".indexOf(s.charAt(0))>=0 ? "D":"A";
+//                  f.datatype="BIJFKED".indexOf(s.charAt(0))>=0 ? "D":"A";
+                  char code = s.charAt(0);
+                  if( code=='E' || code=='F' ) code='D';
+                  f.datatype=code+"";
                  
                   // Détermination de la taille du champ
                   int k = s.indexOf('.');
@@ -402,15 +414,15 @@ final public class TableParser implements XMLConsumer {
                   else f.arraysize = len[i]+"";
                   type[i] = s.charAt(k);
                   pos[i] = i==0 ? 0 : pos[i-1]+binSizeOf(type[i-1],len[i-1]);
-System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i]);    
-                  f.datatype="FBIJEDK".indexOf(type[i])>=0 ? "D":"A";   // Si TDISPn n'est pas donné
+//System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i]);    
+//                  f.datatype="FBIJEDK".indexOf(type[i])>=0 ? "D":"A";   // Si TDISPn n'est pas donné
                }
             }
             
             // Petites particularités BINAIRE
             if( flagBin ) {
-               prec[i]=6;
-               if( f.datatype==null ) f.datatype="FGBIJEDK".indexOf(type[i])>=0 ? "D":"A";  // BIZARRE ! MAIS CA NE MANGE PAS DE PAIN
+//               if( f.datatype==null ) f.datatype="FGBIJEDK".indexOf(type[i])>=0 ? "D":"A";  // BIZARRE ! MAIS CA NE MANGE PAS DE PAIN
+               if( f.datatype==null ) f.datatype=type[i]+"";
             }
             
             // Récupération du display dans le cas BINAIRE
@@ -500,10 +512,12 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
                      
                      // cas BINAIRE
                   } else {
-                     record[j] = getBinField(buf,offset+pos[j],len[j],type[j],prec[j],
+//                     String val = 
+                        record[j] = getBinField(buf,offset+pos[j],len[j],type[j],prec[j],
                            flagTzeroTscal?tzero[j]:0.,
                                  flagTzeroTscal?tscal[j]:1.,
                                        tnull[j]!=null,tinull[j]);                  
+//                     System.out.println("Lecture champ "+(j+1)+" pos="+pos[j]+" type="+len[j]+type[j]+" => "+val);
                   }
                }
                
@@ -542,6 +556,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
             type=='B'? 1:
             type=='I'? 2:
             type=='J'? 4:
+            type=='K'? 8:
             type=='A'? 1:
             type=='E'? 4:
             type=='D'? 8:
@@ -579,6 +594,13 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
       return a+"";
    }
    
+   final private String getBinField(byte t[],int i, char type,int p,double z,double s,
+         boolean hasNull, int n) {
+      
+      String a = getBinField1(t,i,type,p,z,s,hasNull,n);
+      return a;
+   }
+   
    /**
     * Conversion d'un champ d'octets en valeur sont la forme d'un String
     * @param t le tableau des octets
@@ -591,7 +613,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
     * @param n valeur indéfinie (uniquement pour les types B,I, et J
     * @return la chaine correspondante à la valeur
     */
-   final private String getBinField(byte t[],int i, char type,int p,double z,double s,
+   final private String getBinField1(byte t[],int i, char type,int p,double z,double s,
                   boolean hasNull, int n) {
       long a,b;
       int c;
@@ -601,18 +623,21 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
          case 'B': return fmt( ((t[i])&0xFF),p,z,s,hasNull,n);
          case 'I': return fmt( getShort(t,i),p,z,s,hasNull,n);
          case 'J': return fmt( getInt(t,i),p,z,s,hasNull,n);
+         case 'K': a = (((long)getInt(t,i))<<32) 
+                          | (((long)getInt(t,i+4))&0xFFFFFFFFL);
+                   return fmt(a,p,z,s,hasNull,n);
          case 'E': return fmt( Float.intBitsToFloat( getInt(t,i) ),p,z,s );
          case 'D': a = (((long)getInt(t,i))<<32)
-                          | (((long)getInt(t,i+4))&0xFFFF);
+                          | (((long)getInt(t,i+4))& 0xFFFFFFFFL);
                    return fmt( Double.longBitsToDouble(a),p,z,s );
          case 'C': c =  getInt(t,i+4);
                    return fmt( Float.intBitsToFloat( getInt(t,i) ),p,z,s )
                           +(c>=0?"+":"-")
                           +fmt( Float.intBitsToFloat(c),p,z,s )+"i";
          case 'M': a = (((long)getInt(t,i))<<32)
-                          | (((long)getInt(t,i+4))&0xFFFF);
+                          | (((long)getInt(t,i+4))&0xFFFFFFFFL);
                    b = (((long)getInt(t,i+8))<<32)
-                          | (((long)getInt(t,i+12))&0xFFFF);
+                          | (((long)getInt(t,i+12))&0xFFFFFFFFL);
                    return fmt( Double.longBitsToDouble(a),p,z,s )
                           +(b>=0?"+":"-")
                           +fmt( Double.longBitsToDouble(b),p,z,s )+"i";
@@ -620,6 +645,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
          default: return "[???]";            
       }
    }   
+   
    
    /**
     * Mise en forme d'un entier
@@ -631,7 +657,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
     * @param tnull la valeur pour non définie
     * @return la valeur formatée
     */
-   final private String fmt(int x,int prec,double tzero,double tscale,
+   final private String fmt(long x,int prec,double tzero,double tscale,
                             boolean hasNull,int tnull)  {
       if( hasNull && tnull==x ) return "";
       double y=x;
@@ -713,8 +739,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
     * @return chaine extraite trimmée
     */
    static final public String getStringTrim(char s[],int offset,int len) {
-      return (new String(s,offset,len)).trim();
-
+         return (new String(s,offset,len)).trim();
    }
    
    /** Création
@@ -760,6 +785,8 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
       coosys = new Hashtable<String,String>(10);
       cooepoch = new Hashtable<String,String>(10);
       cooequinox = new Hashtable<String,String>(10);
+      cooFieldref = new Hashtable<String,String>(10);
+      
       return (xmlparser.parse(dis,endTag) && error==null /* && nField>1 */ );
     }
    
@@ -815,6 +842,8 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
       System.err.println("TableParser.resetGroupe => FIELD GROUP not yet supported => remove all GROUP definition !");
       consumer.setTableInfo("GROUP",null);
    }
+   
+   static private int ASTROID=1;
       
    /** XMLparser interface.
     * Pour accélerer le parsing, on se base sur la profondeur du document XML pour
@@ -822,6 +851,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
     */
    public void startElement (String name, Hashtable atts) {
       String att;
+      String v;
 //      int depth = xmlparser.getStack().size();
       int depth = xmlparser.getDepth(); 
       
@@ -840,11 +870,11 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
          // <GROUP ID="id" utype="stc:AstroCoords" ref="ivo://STClib/CoordSys#UTC-ICRS-TOPO"...>
          att =  (String)atts.get("utype");
          if( att!=null && (att.equalsIgnoreCase("stc:AstroCoords") 
-                        || att.equalsIgnoreCase("stc:AstroCoordSystem")) ) {
+               || att.equalsIgnoreCase("stc:AstroCoordSystem") || att.equalsIgnoreCase("stc:CatalogEntryLocation")) ) {
             inAstroCoords=true;
             astroCoordsID = (String)atts.get("ID");
-            att = (String)atts.get("ref");
-            if( att!=null && astroCoordsID!=null ) coosys.put(astroCoordsID,att);
+            v = (String)atts.get("ref");
+            if( v!=null && astroCoordsID!=null ) coosys.put(astroCoordsID,v);
          }
          return;
       }      
@@ -852,26 +882,64 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
       
       // Support systèmes de coordonnées du genre:
       // <GROUP ID="Coo1" utype="stc:AstroCoords" >
-      //    <PARAM ... utype="stc:AstroCoords.coord_sys_id" value="UTC-ICRS-TOPO" />
-      if( inAstroCoords && name.equalsIgnoreCase("PARAM") ) {
-         att =  (String)atts.get("utype");
+      //    <PARAM ... utype="stc:AstroCoords.coord_system_id" value="UTC-ICRS-TOPO" />
+      // ou bien
+      // <GROUP utype="stc:CatalogEntryLocation">
+      //    <PARAM ... />
+      //    <FIELDref ref="ra" utype="stc:AstroCoords.Position2D.Value2.C1" />
+      if( inAstroCoords ) {
          
-         if( att!=null && (att.equalsIgnoreCase("stc:AstroCoords.coord_sys_id")
-               || att.equalsIgnoreCase("stc:AstroCoordSystem.SpaceFrame.CoordRefFrame")) ) {
-            att = (String)atts.get("value");
-            if( att!=null && astroCoordsID!=null ) coosys.put(astroCoordsID,att);
+         // Pas d'ID pour le système de coord, on en invente un
+         if( astroCoordsID==null ) {
+            astroCoordsID = "_ASTROID_"+(ASTROID++);
          }
          
-         if( att!=null && att.equalsIgnoreCase("stc:AstroCoords.SpaceFrame.Epoch") ) {
-            att = (String)atts.get("value");
-            if( att!=null && astroCoordsID!=null ) cooepoch.put(astroCoordsID,att);
-         }
+         if( name.equalsIgnoreCase("PARAM") ) {
+            att =  (String)atts.get("utype");
 
-         if( att!=null && att.equalsIgnoreCase("stc:AstroCoordSystem.SpaceFrame.CoordRefFrame.Equinox") ) {
-            att = (String)atts.get("value");
-            if( att!=null && astroCoordsID!=null ) cooequinox.put(astroCoordsID,att);
-         }
+            if( att!=null && (att.equalsIgnoreCase("stc:AstroCoords.coord_sys_id")
+                  || att.equalsIgnoreCase("stc:AstroCoords.coord_system_id")
+                  || att.equalsIgnoreCase("stc:AstroCoordSystem.href")
+                  || att.equalsIgnoreCase("stc:AstroCoordSystem.SpaceFrame.CoordRefFrame")) ) {
+               v = (String)atts.get("value");
+               if( v!=null ) {
+//                  consumer.tableParserInfo("   -"+att+" => "+v);
+                  coosys.put(astroCoordsID,v);
+               }
+            }
 
+            else if( att!=null &&
+                  (att.equalsIgnoreCase("stc:AstroCoords.SpaceFrame.Epoch") || att.equalsIgnoreCase("stc:AstroCoords.Position2D.Epoch") )) {
+               v = (String)atts.get("value");
+               if( v!=null ) {
+//                  consumer.tableParserInfo("   -"+att+" => "+v);
+                  cooepoch.put(astroCoordsID,v);
+               }
+            }
+
+            else if( att!=null && att.equalsIgnoreCase("stc:AstroCoordSystem.SpaceFrame.CoordRefFrame.Equinox") ) {
+               v = (String)atts.get("value");
+               if( v!=null ) {
+//                  consumer.tableParserInfo("   -"+att+" => "+v);
+                  cooequinox.put(astroCoordsID,v);
+               }
+            }
+
+            else if( att!=null ) consumer.tableParserInfo("      *** AstroCoord PARAM utype unknown => ignored: ["+att+"]");
+            
+         } else if( name.equalsIgnoreCase("FIELDref") ) {
+            att =  (String)atts.get("utype");
+            if( att!=null && att.startsWith("stc:AstroCoords.Position2D.Value2") ) {
+               v = (String)atts.get("ref");
+               if( v!=null ) {
+//                  consumer.tableParserInfo("   -"+att+" => ref="+v);
+                  cooFieldref.put(v,astroCoordsID);
+               }
+            }
+
+            else if( att!=null ) consumer.tableParserInfo("      *** AstroCoord FIELDref utype unknown => ignored: ["+att+"]");
+
+         }
       }
       
       // Traitement de quelques balises qui peuvent avoir des profondeurs diverses
@@ -1034,13 +1102,11 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
          else consumer.setTableInfo("__XYPOS","true");
       }
       
-      consumer.setTableRaDecXYIndex(nRA,nDEC,nX,nY);
+      consumer.setTableRaDecXYIndex(nRA,nDEC,nX,nY, qualRA==1000 || qualDEC==1000 );
       if( flagXY ) consumer.tableParserInfo("   -assuming XY positions (column "+(nX+1)+" for X and "+(nY+1)+" for Y)");
       else if( nRA>=0 ) {
          consumer.tableParserInfo("   -assuming RADEC"+(format==FMT_UNKNOWN?" " : (format==FMT_SEXAGESIMAL?" in sexagesimal":" in degrees"))+
                " (column "+(nRA+1)+" for RA and "+(nDEC+1)+" for DEC)");
-//         consumer.tableParserInfo("   -assuming RADEC"+(!knowFormat?" " : (flagSexa?" in sexagesimal":" in degrees"))+
-//               " (column "+(nRA+1)+" for RA and "+(nDEC+1)+" for DEC)");
       }
       consumer.tableParserInfo("      [RA="+nRA+" ("+qualRA+") DE="+nDEC+" ("+qualDEC+") "+
             "X="+nX+" ("+qualX+") Y="+nY+" ("+qualY+")]");
@@ -1059,9 +1125,19 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
          }
          
          try {
-            Field f = memoField.elementAt(nRA);
-            setSourceAstroFrame(f.ref,null,null,0);
+            Field f = memoField.elementAt(nRA);      
+            
+            // Assignation du système de coord par "ref" classique
+            if( f.ref!=null ) setSourceAstroFrame(f.ref,null,null,0);
+            
+            // Assignation du système de coord par FIELDref (voir startElement())
+            else {
+               String coosysID = (String)cooFieldref.get(f.ID);
+               if( coosysID!=null ) setSourceAstroFrame(coosysID,null,null,0);
+            }
          } catch( Exception e) {
+            
+            // Pas de désignation du système, mais un seul système défini => on le prend
             if( coosys.size()==1 ) {
                try { setSourceAstroFrame(coosys.keys().nextElement(),null,null,0); }
                catch( Exception e1 ) {}
@@ -1129,8 +1205,10 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
    
    /** Positionne des noms de colonne par défaut pour palier à une absence d'entête */
    private void setDefaultField() {
+      tsvField = new Field[nField];
       for( int i=0; i<nField; i++ ) {
-         Field f = new Field("C"+(i+1));
+         Field f = tsvField[i] = new Field("C"+(i+1));
+         f.datatype="D";
          consumer.setField(f);
       }
    }
@@ -1148,14 +1226,19 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
       
       // Détermination du format si non spécifié
       if( format==FMT_UNKNOWN ) {
-         char ss = dec.charAt(0);
-         format= isSexa(ra+( ss!='-' && ss!='+' ? " +":" " )+dec) ? FMT_SEXAGESIMAL : FMT_DECIMAL;
+         try {
+            char ss = dec.charAt(0);
+            format= isSexa(ra+( ss!='-' && ss!='+' ? " +":" " )+dec) ? FMT_SEXAGESIMAL : FMT_DECIMAL;
+         }catch( Exception e ) {
+            if( Aladin.levelTrace>3 ) e.printStackTrace();
+         } 
       }
       
       // Parsing en sexagésimal
       if( format==FMT_SEXAGESIMAL ) {
-         char ss = dec.charAt(0);
-         try { c.set(ra+( ss!='-' && ss!='+' ? " +":" " )+dec); }
+         try {
+            char ss = dec.charAt(0);
+            c.set(ra+( ss!='-' && ss!='+' ? " +":" " )+dec); }
          catch( Exception e ) {
             if( Aladin.levelTrace>3 ) e.printStackTrace();
          } 
@@ -1406,7 +1489,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
          if( !valueInTD ) record[row]=null;    // Dans le cas d'un champ vide
          valueInTD=false;
          row++;
-    } else if( depth==6 && name.equalsIgnoreCase("TR")  )          consumeRecord(record,-1);
+    } else if( depth==6 && name.equalsIgnoreCase("TR")  )         consumeRecord(record,-1);
       else if( depth==6 && name.equalsIgnoreCase("STREAM") )      inEncode64=false;
       else if( depth==3 && name.equalsIgnoreCase("TABLE") )     {
          fieldSub=tableSub=null;
@@ -1526,9 +1609,14 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
 //for( int w=0; w<rec.length; w++ ) System.out.println("   rec["+w+"]="+rec[w]);
             
             // Changement de repere si nécessaire
-            if( srcAstroFrame!=null ) c.convertTo(trgAstroFrame);
-            
-            consumer.setRecord(c.getLon(),c.getLat(), rec);
+            if( srcAstroFrame!=null ) {
+//               System.out.println("BEFORE c="+c);
+               c.convertTo(trgAstroFrame);
+//               System.out.println("AFTER c="+c);
+              consumer.setRecord(c.getLon(),c.getLat(), rec);
+              c = new Astrocoo(srcAstroFrame);
+              
+           } else consumer.setRecord(c.getLon(),c.getLat(), rec);
          }
 
 
@@ -1580,31 +1668,54 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
    		throws Exception {
       int start=cur;
       char sep=0;   // le séparateur effectivement utilisé
+      boolean excelCSV = cs.length>0 && cs[0]==',';
       
-      while( cur<end && (sep=isColSep(ch[cur],cs))==0 && ch[cur]!=rs ) cur++;
+//      System.out.println("getField ["+getStringTrim(ch,start,end-start)+"]");
       
-      // Dans le cas d'un séparateur espace, on va shifter tous les blancs suivants
-      if( sep==' ' ) {
-         cur++;
-         while( cur<end && ch[cur]==' ' && ch[cur]!=rs ) cur++;
-         cur--;
+      // Cas particulier du CSV mode Excel "xxx","yyyy",zzzz
+      if( excelCSV ) {
+         boolean inQuote=false;
+         for( ; cur<end; cur++ ) {
+            if( ch[cur]=='"' ) inQuote=!inQuote;
+            if( !inQuote && !( (sep=isColSep(ch[cur],cs))==0 && ch[cur]!=rs ) ) break;
+         }
+         if( inQuote ) throw new Exception("Bad CSV: Excel quote delimiters not balanced (record "+(nbRecord+1)+" field["+row+"]=["+getStringTrim(ch,start,cur-start)+"])");
+         
+         
+      // Mode TSV, CSV courant
+      } else {
+         while( cur<end && (sep=isColSep(ch[cur],cs))==0 && ch[cur]!=rs ) cur++;
       }
+      
+      String value;
+      if( excelCSV ) {
+         if( cur-start>1 && ch[start]=='"' && ch[cur-1]=='"' ) value = getStringTrim(ch,start+1,cur-start-2);
+         else value = getStringTrim(ch,start,cur-start);
+      } else {
 
-      String value = getStringTrim(ch,start,cur-start);
+         // Dans le cas d'un séparateur espace, on va shifter tous les blancs suivants
+         if( sep==' ' ) {
+            cur++;
+            while( cur<end && ch[cur]==' ' && ch[cur]!=rs ) cur++;
+            cur--;
+         }
+         value = getStringTrim(ch,start,cur-start);
+      }
       
       // s'il y a un séparateur avant la première valeur, on doit simplement l'ignorer
       if( sep==' ' && row==0 && value.length()==0 ) return cur;
       
       if( record!=null ) {
-//         if( nbRecord==0 ) System.out.println("record["+row+"]=["+value+"]");
-         if( row==record.length ) throw new Exception("Not aligned CSV catalog section (record "+(nbRecord+1)+" field["+row+"]=["+value+"])");
-         record[row++]=value;
+         if( row>=record.length ) {
+            String s = "Not aligned CSV catalog (record="+(nbRecord+1)+" extra row value=\""+value+"\") => ignored\n";
+            aladin.command.printConsole(s);
+         } else record[row]=value;
       }
       else {
          if( vRecord==null ) vRecord = new Vector<String>();
          vRecord.addElement(value);
-         row++;
       }
+      row++;
 
       return cur;
    }
@@ -1624,8 +1735,11 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
       // Extraction de chaque champ
       int un=0;
       while( cur<end && ch[cur]!=rs ) { cur=getField(ch,cur+un,end,rs,cs,nbRecord); un=1; }
-      if( record!=null && row<record.length && 
-            !(row==1 && record[0].equals("[EOD]")) ) throw new Exception("Not aligned CSV catalog section\n(row="+row+"/"+record.length+" record "+nbRecord+")");
+      if( record!=null && row<record.length &&  !(row==1 && record[0].equals("[EOD]")) ) {
+//         throw new Exception("Not aligned CSV catalog section\n(row="+row+"/"+record.length+" record "+nbRecord+")");
+         String s = "Not aligned CSV catalog (record="+(nbRecord+1)+" missing rows) => ignored";
+         aladin.command.printConsole(s);
+      }
       return cur;
    }
 
@@ -1660,7 +1774,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
    */
    private boolean vide(char ch[],int cur, int end,char rs) {
       if( ch[cur]=='#' ) return true;	//commentaire
-      while( cur<end && (ch[cur]==' ' || ch[cur]=='\t')) cur++;
+      while( cur<end && (ch[cur]==' ' || ch[cur]=='\t' || ch[cur]=='\r') ) cur++;
       return ch[cur]==rs;
    }
    
@@ -1681,7 +1795,8 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
       }
       return s;
    }
-
+   
+   
    /** Dans le mode CSV, parsing des données passées en paramètre. Cette méthode
     * peut être appelé plusieurs fois de suite pour un même tableau CSV
     * @param ch,start,length désignation de la chaine à perser
@@ -1739,6 +1854,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
          }
 
          // Analyse de la ligne
+         int curOld=cur;    // Juste pour se rappeler où on était.
          cur = getRecord(ch,cur,end,rs,cs,nbRecord);
          
          // Dans le cas DU TSV natif, ce n'est qu'à ce moment là
@@ -1789,7 +1905,7 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
                char a[] = record[k].toCharArray();
                for( j=0; j<a.length; j++ ) {
                   char q = a[j];
-                  if( (q<'0' || q>'9') && q!='.' && q!='+'
+                  if( (q<'0' || q>'9') && q!='.' && q!='+' && q!='e' && q!='E'
                       && q!='-' && q!=':' && q!=' ' ) break;
                }
                if( j==0 || j<a.length ) { flagHeader=true; break; }
@@ -1808,11 +1924,12 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
          // Détermination des colonnes de position RA,DEC ou X,Y
          // en fonction de l'entête CSV
          if( flagHeader && n==0 && (nRA<0 || flagTSV) ) {
+            tsvField = new Field[nField];
             for( i=0; i<nField; i++ ) {
-               Field f = new Field(record[i]/*.trim()*/);
+               Field f = tsvField[i] = new Field(record[i]/*.trim()*/);
+               f.datatype="D";
                detectPosField(f,i);
                if( flagTSV ) { consumer.setField(f); } // TSV natif
-//               flagPos=true;
             }
             posChooser();
          }
@@ -1844,6 +1961,20 @@ System.out.println("TFORM"+(i+1)+" len="+len[i]+" type="+type[i]+" pos="+pos[i])
          
          // Bourrage si champ manquant en fin de ligne
          while( row<nField ) record[row++]="???";
+         
+         // Vérification "manuelle" a posteriori du datatype (par défaut double)
+         if( tsvField!=null ) {
+            for( i=0; i<tsvField.length; i++ ) {
+               if( tsvField[i].datatype!=null && tsvField[i].datatype.equals("D") ) {
+                  try { 
+                     String s1=record[i].trim();
+                     if( s1.length()>0 && !s1.equals("-") && !s1.equalsIgnoreCase("null")  ) Double.parseDouble(s1); 
+                  } catch( Exception e ) { 
+                     tsvField[i].datatype=null;
+                  }
+               }
+            }
+         }
          
          consumeRecord(record,nbRecord);
          cur=skipRecSep(ch,cur,rs);

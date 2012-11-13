@@ -259,6 +259,8 @@ public final class XMLParser {
       System.arraycopy(tmp,offset,buf,0,max-offset);
       return buf;
    }
+   
+   static private final char EOF = 26;
 
   /** Get the next character from the stream
    *
@@ -267,8 +269,8 @@ public final class XMLParser {
    private char xmlGetc() {
       if( offset>=max ) {
          try { max=dis.read(tmp); }
-         catch( IOException e ) { setError("Stream error: "+e); return 0; }
-         if( max==-1 ) return 0;   // end of stream
+         catch( IOException e ) { setError("Stream error: "+e); return EOF; }
+         if( max==-1 ) return EOF;   // end of stream
          offset=0;
       }
       return (char)tmp[offset++];
@@ -289,7 +291,7 @@ public final class XMLParser {
    
    private StringBuffer curString = new StringBuffer();
    private StringBuffer macro = new StringBuffer();
-   
+      
   /** Recherche la chaine courante en fonction du mode du parsing
    * La mémorisation se fait dans le tableau ch[], et les variables start et length.
    * Par défaut les blancs sont concaténés en 1 unique espace et les macros XML sont résolues
@@ -300,7 +302,7 @@ public final class XMLParser {
    *             4 jusqu'à "-->" (pas de concaténation des blancs ni de résolution des macros)
    *             5 jusqu'à "<?xml....>" ou <?XML...>
    *              (pas de concaténation des blancs ni de résolution des macros)
-   * @return le dernier caractère ou 0 si fin du stream ou error (=> error!=null)
+   * @return le dernier caractère ou EOF si fin du stream ou error (=> error!=null)
    * @throws Exception
    */
    private char xmlGetString(int mode) throws Exception {
@@ -327,7 +329,7 @@ public final class XMLParser {
       Util.resetString(macro);             // Pour mémoriser la macro courante
       
 //System.out.print("mode="+mode+": [");
-      while( encore && (c1=c=xmlGetc())!=0 ) {
+      while( encore && (c1=c=xmlGetc())!=EOF ) {
 //System.out.print(c);
          
          // Traitement des macros (si besoin est)
@@ -709,7 +711,7 @@ public final class XMLParser {
          if( length>0 && !(length==1 && ch[start]==' '))
                ac.characters(ch,start,length);	   // Envoi au consommateur
          if( beforeXML ) { beforeXML=false; continue; }
-         if( c==0 ) return (error==null);	       // Fin du stream
+         if( c==EOF ) return (error==null);	       // Fin du stream
          switch( xmlInTag() ) { 
             case 0: return false;	// Fin sur erreur
             case -1:

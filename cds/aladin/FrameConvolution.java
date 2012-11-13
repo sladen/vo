@@ -39,6 +39,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
+import cds.aladin.prop.PropPanel;
 import cds.tools.Util;
 
 /**
@@ -97,7 +98,7 @@ protected void createChaine() {
       tb[0] = show = new JButton("Show");
       show.setEnabled(false);
       tb[0].addActionListener(new ActionListener() {
-         public void actionPerformed(ActionEvent e) { showKernel( getPlan(ch[0]) ); }
+         public void actionPerformed(ActionEvent e) { showKernel( (PlanImage)getPlan(ch[0]) ); }
       });
       return tb;
    }
@@ -137,7 +138,7 @@ protected void createChaine() {
       JPanel p=new JPanel();
       p.setLayout(g);
       
-      Properties.addFilet(p, g, c, 15,0);
+      PropPanel.addFilet(p, g, c, 15,0);
       
       c.anchor=GridBagConstraints.EAST;
       JRadioButton r = gaussian = new JRadioButton(GAUSSIAN,true);
@@ -202,7 +203,7 @@ protected void createChaine() {
       g.setConstraints(pp,c);
       p.add(pp);
       
-      Properties.addFilet(p, g, c, 10, 0);
+      PropPanel.addFilet(p, g, c, 10, 0);
       
       c.anchor=GridBagConstraints.EAST;
       r = kernels = new JRadioButton(KERNEL);
@@ -223,7 +224,7 @@ protected void createChaine() {
       g.setConstraints(comboKernel,c);
       p.add(comboKernel);
       
-      Properties.addFilet(p, g, c, 15, 0);
+      PropPanel.addFilet(p, g, c, 15, 0);
       
      return p;
    }
@@ -316,7 +317,7 @@ protected void createChaine() {
    @Override
 protected void submit() {
       try {
-         PlanImage p1=getPlan(ch[0]);
+         PlanImage p1=(PlanImage)getPlan(ch[0]);
          String conv = getConvCmd();
          a.calque.newPlanImageAlgo(conv,p1,null,PlanImageAlgo.CONV,0,conv,0);
 //         hide();
@@ -344,7 +345,7 @@ protected void submit() {
    @Override
    protected void adjustWidgets() {
       
-      PlanImage p1=getPlan(ch[0]);
+      PlanImage p1=(PlanImage)getPlan(ch[0]);
       String resolution="--";
       if( p1!=null ) {
          try {

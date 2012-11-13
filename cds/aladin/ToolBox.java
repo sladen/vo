@@ -57,7 +57,7 @@ public final class ToolBox extends JComponent implements
    static final int WEN   = 6;
    static final int PROP  = 7;
    static final int PAN   = 8;
-   static final int HIST  = 9;
+   public static final int HIST  = 9;
    static final int BNOTE = 10;
    static final int RGB   = 11;
    static final int CONTOUR=12;
@@ -68,12 +68,13 @@ public final class ToolBox extends JComponent implements
    static final int XMATCH= 17;
    static final int RESAMP= 18;
    static final int CROP  = 19;
+   static final int PLOT  = 20;
 
-   static int NBTOOL = 20;        // Nombre d'outils existants
+   static int NBTOOL = 21;        // Nombre d'outils existants
 
    // Ordre d'apparition des boutons
    private int [] drawn = {SELECT,PAN,ZOOM,DIST,PHOT,DRAW,TAG,
-                         FILTER,XMATCH,RGB,BLINK,CROP,CONTOUR,WEN,HIST,PROP,
+                         FILTER,XMATCH,PLOT,RGB,BLINK,CROP,CONTOUR,HIST,PROP,
                          DEL };
 
    // Ordre d'apparition des boutons
@@ -92,21 +93,21 @@ public final class ToolBox extends JComponent implements
    static int [] forTool = { DRAW,TAG,PHOT,DIST };
 
    // liste des boutons toujours up (simple clic)
-   static int [] up = { BNOTE,DEL,PROP,FILTER };
+   static int [] up = { BNOTE,DEL,PROP,FILTER,PLOT };
 
    // Liste des tools non-autorisees en fonction du type de plan
-   static int [] imgmode  = { /*DRAW,TAG,PHOT,DIST*//*, LABEL */ };   // pour Image
-   static int [] imghugemode  = { /*DRAW,TAG,PHOT,DIST,*/RGB,BLINK,/*RESAMP,*/WEN};   // pour Image huge
-   static int [] contourmode = { HIST,DRAW,TAG,PHOT,DIST,CROP/* ,LABEL */ }; // pour un PlanContour
-   static int [] toolmode = { HIST,CROP };                       // pour Tool
+   static int [] imgmode  = { /*DRAW,TAG,PHOT,DIST*//*, LABEL */ PLOT};   // pour Image
+   static int [] imghugemode  = { /*DRAW,TAG,PHOT,DIST,*/RGB,BLINK,/*RESAMP,*/WEN,PLOT};   // pour Image huge
+   static int [] contourmode = { HIST,DRAW,TAG,PHOT,DIST,CROP/* ,LABEL */,PLOT }; // pour un PlanContour
+   static int [] toolmode = { HIST,CROP,PLOT };                       // pour Tool
    static int [] catmode  = { HIST,CROP /*,DRAW,TAG,PHOT,DIST*/ };         // pour Catalogue
-   static int [] fieldmode= { HIST,CROP /*,DRAW,TAG,PHOT,DIST,HIST*/ };   // pour Field
+   static int [] fieldmode= { HIST,CROP,PLOT /*,DRAW,TAG,PHOT,DIST,HIST*/ };   // pour Field
 
 
    // Les parametres generaux
    static int W        = 34;      // Largeur d'un bouton
    static int HMIN     = W-5;     // Hauteur minimale d'un bouton
-   static int HREC     = W;       // Hauteur recommandee d'un bouton
+   static int HREC     = W+2;       // Hauteur recommandee d'un bouton
    static int L        = 3;       // Demi-taille du carre de changt de prop.
    static int ICONEGAP = 12;      // Nombre de pixels reserves pour le changement de proportions
 
@@ -125,7 +126,7 @@ public final class ToolBox extends JComponent implements
    int H;                         // Hauteur courante d'un bouton
 
    // Les composantes de l'objet
-   Tool [] tool;                  // Les outils de la boite
+   public Tool [] tool;                  // Les outils de la boite
 
    // Les variables de travail
    boolean flagDelAll;            // Vrai si on doit effacer ts les plans apres confirmation
@@ -238,7 +239,7 @@ public final class ToolBox extends JComponent implements
       for( i=0; i<allPlan.length; i++ ) {
         if( allPlan[i].type==Plan.NO || !allPlan[i].flagOk ) continue;
         if( allPlan[i].hasAvailablePixels() || allPlan[i] instanceof PlanImageRGB )  nbSimpleImg++;
-        if( allPlan[i].type==Plan.IMAGEBLINK || allPlan[i].type==Plan.IMAGECUBE )  nbBlinkImg++;
+        if( allPlan[i] instanceof PlanImageBlink )  nbBlinkImg++;
         if( allPlan[i].type==Plan.CATALOG ) nbSimpleCat++;
         if( allPlan[i].isCatalog() ) nbCat++;
         aucun=false;
@@ -249,6 +250,7 @@ public final class ToolBox extends JComponent implements
            case Plan.IMAGERSP:
            case Plan.IMAGEALGO:
            case Plan.IMAGECUBE:
+           case Plan.IMAGECUBERGB:
            case Plan.IMAGEBLINK:
            case Plan.IMAGEMOSAIC:
            case Plan.ALLSKYIMG:
@@ -289,7 +291,8 @@ public final class ToolBox extends JComponent implements
 
       // Si la vue courante a un plan de référence qui n'a pas de pixels accessibles
       // on invalide CONTOUR
-      if( v==null || v.isFree() || !v.pref.hasAvailablePixels() || v.pref instanceof PlanBG ) {
+//      if( v==null || v.isFree() || !v.pref.hasAvailablePixels() || v.pref instanceof PlanBG ) {
+      if( aladin.calque.getFirstSelectedSimpleImage()==null ) {
          mode[ToolBox.CONTOUR]=Tool.UNAVAIL;
       }
       
@@ -298,12 +301,17 @@ public final class ToolBox extends JComponent implements
 
       // Si la vue courante a un plan de référence qui n'est pas une image simple
       // ni RGB on invalide HIST et PHOT
-      if( v==null || v.isFree()
-        || !v.pref.hasAvailablePixels()
-        && v.pref.type!=Plan.IMAGERGB && v.pref.type!=Plan.ALLSKYIMG ) mode[ToolBox.HIST]=Tool.UNAVAIL;
-      if( v!=null && !v.isFree() && v.pref instanceof PlanBG && ((PlanBG)v.pref).color ) {
-         mode[ToolBox.HIST]=Tool.UNAVAIL;
-      }
+      Plan p = aladin.calque.getFirstSelectedPlan();
+      if( p==null || !p.hasAvailablePixels() && p.type!=Plan.IMAGERGB && p.type!=Plan.ALLSKYIMG ) mode[ToolBox.HIST]=Tool.UNAVAIL;
+      else if( p!=null && p.type==Plan.ALLSKYIMG && p instanceof PlanBG && ((PlanBG)p).color ) mode[ToolBox.HIST]=Tool.UNAVAIL;
+      
+//      if( v==null || v.isFree() 
+//            || !v.pref.hasAvailablePixels()
+//        && v.pref.type!=Plan.IMAGERGB && v.pref.type!=Plan.ALLSKYIMG ) mode[ToolBox.HIST]=Tool.UNAVAIL;
+     
+//      if( v!=null && !v.isFree() && v.pref instanceof PlanBG && ((PlanBG)v.pref).color ) {
+//         mode[ToolBox.HIST]=Tool.UNAVAIL;
+//      }
 
       if( v!=null && !v.isFree() && (v.pref instanceof PlanBG || v.northUp) ) mode[ToolBox.WEN]=Tool.UNAVAIL;
       
@@ -386,7 +394,11 @@ public final class ToolBox extends JComponent implements
 
       switch(i) {
          case PROP :
-            aladin.calque.select.propertiesOfSelectedPlanes();
+            // Propriétés sur un objet sélectionné
+            if( aladin.view.isPropObjet() ) aladin.view.propSelectedObj();
+            
+            // sinon sur le ou les plans sélectionnés
+            else aladin.calque.select.propertiesOfSelectedPlanes();
             break;
         case HIST :
            aladin.updatePixel();
@@ -400,6 +412,9 @@ public final class ToolBox extends JComponent implements
         case XMATCH :
            if( tool[i].mode==Tool.DOWN ) aladin.xmatch();
            else if( aladin.frameCDSXMatch!=null ) aladin.frameCDSXMatch.setVisible(false);
+           break;
+        case PLOT :
+           if( tool[i].mode==Tool.DOWN ) aladin.createPlotCat();
            break;
 //        case RESAMP :
 //           new FrameResample(aladin);
@@ -611,7 +626,7 @@ public final class ToolBox extends JComponent implements
          H = hs/nbtoolParCol;                     // hauteur qu'aurait un bouton
          if( H>=HMIN ) break;
       }
-
+      
       // On ajuste la hauteur du bouton pour equilibrer les colonnes
       // en jouant sur la taille du bouton (entre minimal et recommandee)
       for( H=HREC; H>HMIN ; H--) {

@@ -38,7 +38,7 @@ import java.util.*;
  * @version 1.1 : janvier 2002 ajustements pour la version officielle (P.Fernique)
  * @version 1.0 : decembre 2001 creation
  */
-public class PlanImageRGB extends PlanImage {
+public class PlanImageRGB extends PlanImage implements PlanRGBInterface {
 
    protected int [] pixelsRGB;        // Tableau des pixels de l'image (sur 4x8 bits)
    protected int [] pixelsZoomRGB; // Tableau des pixels de l'imagette sur 4*8 bits
@@ -51,7 +51,7 @@ public class PlanImageRGB extends PlanImage {
    protected int [] pi = new int[3];
    protected String [] labels = new String[3];
    protected String labelRed,labelGreen,labelBlue; // Temporaires lors du chargement via un fichier AJ
-   protected PlanImage planRed,planGreen,planBlue,Ref; // Les plans d'origines
+   protected PlanImage planRed,planGreen,planBlue,pRef; // Les plans d'origines
    protected boolean flagRed,flagGreen,flagBlue;  // true si la composante est donnée
    protected boolean diff;	// true s'il s'agit d'une difference sur 2 plans
 
@@ -95,11 +95,11 @@ public class PlanImageRGB extends PlanImage {
          }
       }
 
-      Ref=ref;
+      pRef=ref;
       diff=d;
 
       // Initialisation des parametres communs
-      init(label,Ref);
+      init(label,pRef);
 
       synchronized( this ) {
          runme = new Thread(this,"AladinBuildRGB");
@@ -109,28 +109,28 @@ public class PlanImageRGB extends PlanImage {
       }
     }
    
-   public PlanImageRGB(Aladin aladin, String fRed, double [] minMaxRed, 
-                                         String fGreen, double [] minMaxGreen, 
-                                         String fBlue, double [] minMaxBlue) throws Exception {
-      super(aladin);
-      type=IMAGERGB;
-      
-      planRed   = fRed==null ? null : new PlanImage(aladin,fRed);
-      planGreen = fGreen==null ? null : new PlanImage(aladin,fGreen);
-      planBlue  = fBlue==null ? null : new PlanImage(aladin,fBlue);
-      flagRed = planRed!=null;
-      flagGreen = planGreen!=null;
-      flagBlue = planBlue!=null;
-      Ref=(planRed!=null)?planRed:(planGreen!=null)?planGreen:planBlue;
-      if( flagRed && minMaxRed!=null ) planRed.recut(minMaxRed[0], minMaxRed[1], false);
-      if( flagGreen && minMaxGreen!=null ) planGreen.recut(minMaxGreen[0], minMaxGreen[1], false);
-      if( flagBlue && minMaxBlue!=null ) planBlue.recut(minMaxBlue[0], minMaxBlue[1], false);
-      if( !flagRed ) Ref=planGreen;
-      diff=false;
-      init("RGB",Ref);
-      mustResample=true;
-      waitForPlan();
-   }
+//   public PlanImageRGB(Aladin aladin, String fRed, double [] minMaxRed, 
+//                                         String fGreen, double [] minMaxGreen, 
+//                                         String fBlue, double [] minMaxBlue) throws Exception {
+//      super(aladin);
+//      type=IMAGERGB;
+//      
+//      planRed   = fRed==null ? null : new PlanImage(aladin,fRed);
+//      planGreen = fGreen==null ? null : new PlanImage(aladin,fGreen);
+//      planBlue  = fBlue==null ? null : new PlanImage(aladin,fBlue);
+//      flagRed = planRed!=null;
+//      flagGreen = planGreen!=null;
+//      flagBlue = planBlue!=null;
+//      pRef=(planRed!=null)?planRed:(planGreen!=null)?planGreen:planBlue;
+//      if( flagRed && minMaxRed!=null ) planRed.recut(minMaxRed[0], minMaxRed[1], false);
+//      if( flagGreen && minMaxGreen!=null ) planGreen.recut(minMaxGreen[0], minMaxGreen[1], false);
+//      if( flagBlue && minMaxBlue!=null ) planBlue.recut(minMaxBlue[0], minMaxBlue[1], false);
+//      if( !flagRed ) pRef=planGreen;
+//      diff=false;
+//      init("RGB",pRef);
+//      mustResample=true;
+//      waitForPlan();
+//   }
 
    protected PlanImageRGB(Aladin aladin, String file,URL u,MyInputStream inImg, ResourceNode imgNode) {
       this(aladin,file,u,inImg);
@@ -173,12 +173,15 @@ public class PlanImageRGB extends PlanImage {
       super(aladin,p);
       type=IMAGERGB;
    }
+   
+   public int [] getPixelsRGB() { return pixelsRGB; }
+   public int [] getPixelsZoomRGB() { return pixelsZoomRGB; }
 
    protected void copy(Plan p1) {
       super.copy(p1);
       if( !(p1 instanceof PlanImageRGB) ) return;
       PlanImageRGB p = (PlanImageRGB)p1;
-      p.pixelsRGB = pixelsRGB;
+      p.pixelsRGB = getPixelsRGB();
       p.red = red;
       p.green = green;
       p.blue = blue;
@@ -196,9 +199,10 @@ public class PlanImageRGB extends PlanImage {
       p.flagBlue=flagBlue;
       p.diff=diff;
       p.mustResample=mustResample;
+      p.cm = cm;
    }
 
-   protected boolean crop(int x,int y, int w, int h,boolean repaint) {
+   protected boolean crop(double x,double y, double w, double h,boolean repaint) {
 
       // En cas de hors image
       int test=0;
@@ -207,21 +211,21 @@ public class PlanImageRGB extends PlanImage {
       if( x+w>=width ) { w = width-x; test++; }
       if( y+h>=height ) { h = height-y; test++; }
 
-      // inutile, le zoom couvre toute l'image
+      // inutile, le crop couvre toute l'image
       if( test==4 ) return false;
 
       // Extraction des pixelsRGB
-      int [] npixelsRGB = new int[w*h];
+      int [] npixelsRGB = new int[(int)(w*h)];
       for( int j=0; j<h; j++ ) {
-         int srcPos = (y+j)*width+x;
-         int destPos = j*w;
-         System.arraycopy(pixelsRGB, srcPos, npixelsRGB, destPos, w);
+         int srcPos = (int)( (y+j)*width+x );
+         int destPos = (int)( j*w );
+         System.arraycopy(pixelsRGB, srcPos, npixelsRGB, destPos, (int)w);
       }
       pixelsRGB = npixelsRGB;
 
       // On perd la référence aux pixels d'origine (A VOIR ?)
       red = green = blue = null;
-      flagRed = flagGreen = flagBlue = false;
+//      flagRed = flagGreen = flagBlue = false;
 
       crop1(x,y,w,h,repaint);
       return true;
@@ -240,12 +244,17 @@ Aladin.trace(2,"Loading "+(isARGB?"A":"")+"RGB FITS image");
       // Lecture de l'entete Fits si ce n'est deja fait
       if( headerFits==null ) headerFits = new FrameHeaderFits(dis);
 
-      bitpix = 8;
+      bitpix = headerFits.getIntFromHeader("BITPIX");
+      if( bitpix==0 ) {
+         aladin.command.printConsole("!!! RGB BITPIX=0 => assuming BITPIX=8 !\n");
+         bitpix=8;
+      }
+      if( bitpix!=8 && !isARGB ) aladin.command.printConsole("!! RGB BITPIX!=8 => autocutting each color component !\n");
       naxis1=width = headerFits.getIntFromHeader("NAXIS1");
       if (width  <= 0) return false;
       naxis2=height = headerFits.getIntFromHeader("NAXIS2");
       if (height  <= 0) return false;
-      npix = 1;
+      npix = Math.abs(bitpix)/8;
       taille=width*height*3;	// Nombre d'octets
       setPourcent(0);
 Aladin.trace(3," => NAXIS1="+width+" NAXIS2="+height+" NAXIS3=3 BITPIX="+bitpix+" => size="+taille);
@@ -285,10 +294,11 @@ Aladin.trace(3," => NAXIS1="+width+" NAXIS2="+height+" NAXIS3=3 BITPIX="+bitpix+
          
       // mode RGB => les valeurs des composantes sont rangées dans trois tableaux consécutifs R, G et B
       } else {
+         
          byte [] buf;
          for( i=0; i<3; i++ ) {
             buf = i==0 ? red : i==1 ? green : blue;
-            dis.readFully(buf);
+            readColor(buf,dis,width,height,bitpix);
             setPourcent(pourcent+33);
          }
       }
@@ -308,12 +318,26 @@ Aladin.trace(3," => Reading in "+temps+" ms");
       setPourcent(99);
       return true;
    }
+   
+   // Lecture d'une couleur
+   private void readColor(byte [] pOut, MyInputStream dis, int width, int height, int bitpix) throws Exception {
+      if( bitpix==8 ) dis.readFully(pOut);
+      else {
+         int taille = width*height * Math.abs(bitpix)/8;
+         byte [] pIn = new byte[taille];
+         dis.readFully(pIn);
+         getPix8Bits(pOut,pIn,bitpix,width,height,0.,0.,true);
+         pIn=null;
+      }
+   }
 
    /**
     * Calcul les pixels de l'imagette pour le ZoomView en prenant le pixel au plus proche
     * C'est très rapide et le rendu visuel est quasi le même que par interpolation
     */
-   protected void calculPixelsZoomRGB(int pixelsRGB[]) {
+   public void calculPixelsZoomRGB() { pixelsZoomRGB = calculPixelsZoomRGB1(pixelsZoomRGB,pixelsRGB,width,height); }
+   
+   static public int [] calculPixelsZoomRGB1(int [] pixelsZoomRGB,int [] pixelsRGB,int width,int height) {
       // calcul du rapport Largeur/Hauteur de l'image
       int W = ZoomView.SIZE;
       int H = (int)(((double)ZoomView.SIZE/width)*height);
@@ -335,6 +359,7 @@ Aladin.trace(3," => Reading in "+temps+" ms");
             pixelsZoomRGB[i++] = pixelsRGB[ j*width + (int)(x*fctX) ];
          }
       }
+      return pixelsZoomRGB;
    }
 
    synchronized void changeImgID() { super.changeImgID(); pixelsZoomRGB=null; }
@@ -366,7 +391,7 @@ Aladin.trace(3," => Reading in "+temps+" ms");
    /** Retourne la chaine d'explication de la taille et du codage de l'image
     * d'origine */
    protected String getSizeInfo() {
-      return width + "x" + height +"x3 pixels (8bits kept)" ;
+      return width + "x" + height +"x3 pixels" ;
    }
 
 //   /** Crée les tableaux des composantes en fonction de l'image courante */
@@ -563,51 +588,57 @@ Aladin.trace(3," => Reading in "+temps+" ms");
    protected boolean waitForPlan() {
       if( !mustResample ) {
          if( !super.waitForPlan() ) return false;
-         calculPixelsZoomRGB(pixelsRGB);
+         calculPixelsZoomRGB();
          return true;
       }
 
-      Aladin.trace(3,"Resampling (R:"+labels[0]+",G:"+labels[1]+",B:"+labels[2]+" astro from "+Ref.label+")...");
+      Aladin.trace(3,"Resampling (R:"+labels[0]+",G:"+labels[1]+",B:"+labels[2]+" astro from "+pRef.label+")...");
       int tR=0,tA=1,tB=2;
       PlanImage pA=null,pB=null;
+      byte [] refCm,pACm,pBCm;
 
-           if( Ref==planRed )   { pA=planGreen; pB=planBlue;  tR=0; tA=1; tB=2; }
-      else if( Ref==planGreen ) { pA=planRed;   pB=planBlue;  tR=1; tA=0; tB=2; }
-      else if( Ref==planBlue )  { pA=planRed;   pB=planGreen; tR=2; tA=0; tB=1; }
+           if( pRef==planRed )   { pA=planGreen; pB=planBlue;  tR=0; tA=1; tB=2; }
+      else if( pRef==planGreen ) { pA=planRed;   pB=planBlue;  tR=1; tA=0; tB=2; }
+      else if( pRef==planBlue )  { pA=planRed;   pB=planGreen; tR=2; tA=0; tB=1; }
 
      //Reechantillonage
       Coord coo = new Coord();
       int x=0,y=0;
-      int w = Ref.width;
+      int w = pRef.width;
       int i;
 
-      pixelsRGB = new int[ Ref.width*Ref.height ];
+      pixelsRGB = new int[ pRef.width*pRef.height ];
       for( i=0; i<pixelsRGB.length; i++ ) pixelsRGB[i]=0xFF000000;
 
       // Pour s'eviter des calculs inutiles
       boolean pAeqRef=true, pBeqRef=true;
-      if( !( pA!=null && !Projection.isOk(pA.projd) || pB!=null && !Projection.isOk(pB.projd) || !Projection.isOk(Ref.projd) ) ) {
-         pAeqRef = pA!=null && Ref.projd.c.TheSame(pA.projd.c);
-         pBeqRef = pB!=null && Ref.projd.c.TheSame(pB.projd.c);
+      if( !( pA!=null && !Projection.isOk(pA.projd) || pB!=null && !Projection.isOk(pB.projd) || !Projection.isOk(pRef.projd) ) ) {
+         pAeqRef = pA!=null && pRef.projd.c.TheSame(pA.projd.c);
+         pBeqRef = pB!=null && pRef.projd.c.TheSame(pB.projd.c);
       }
 
       // Pour inverser les pixels le cas échéant
-      boolean refRev = Ref.video==PlanImage.VIDEO_INVERSE;
+      boolean refRev = pRef.video==PlanImage.VIDEO_INVERSE;
       boolean pARev = pA!=null && pA.video==PlanImage.VIDEO_INVERSE;
       boolean pBRev = pB!=null && pB.video==PlanImage.VIDEO_INVERSE;
+      
+      // Pour accélérer l'accès aux tables des couleurs
+      refCm = pRef==null ? null : Util.getTableCM(pRef.cm, 2);
+      pACm  = pA==null   ? null : Util.getTableCM(pA.cm, 2);
+      pBCm  = pB==null   ? null : Util.getTableCM(pB.cm, 2);
 
-      for( i=0; i<Ref.getBufPixels8().length; i++ ) setPixRGB( pixelsRGB, i, tR,
-            refRev ? 255-Ref.cm.getBlue(0xff & Ref.getBufPixels8()[i]) : Ref.cm.getBlue(0xff & Ref.getBufPixels8()[i]) );
-      if( pAeqRef && pA!=null ) for( i=0; i<pA.getBufPixels8().length; i++ ) setPixRGB( pixelsRGB, i, tA,
-            pARev ? 255-pA.cm.getBlue(0xff & pA.getBufPixels8()[i]) : pA.cm.getBlue(0xff & pA.getBufPixels8()[i])) ;
-      if( pBeqRef && pB!=null ) for( i=0; i<pB.getBufPixels8().length; i++ ) setPixRGB( pixelsRGB, i, tB,
-            pBRev ? 255-pB.cm.getBlue(0xff & pB.getBufPixels8()[i]) : pB.cm.getBlue(0xff & pB.getBufPixels8()[i]) );
+      for( i=0; i<pRef.pixels.length; i++ ) setPixRGB( pixelsRGB, i, tR,
+            refRev ? 255-refCm[0xff & pRef.pixels[i]] : refCm[0xff & pRef.pixels[i]] );
+      if( pAeqRef && pA!=null ) for( i=0; i<pA.pixels.length; i++ ) setPixRGB( pixelsRGB, i, tA,
+            pARev ? 255-pACm[0xff & pA.pixels[i]] : pACm[0xff & pA.pixels[i]]) ;
+      if( pBeqRef && pB!=null ) for( i=0; i<pB.pixels.length; i++ ) setPixRGB( pixelsRGB, i, tB,
+            pBRev ? 255-pBCm[0xff & pB.pixels[i]] : pBCm[0xff & pB.pixels[i]] );
 
       if( !pAeqRef || !pBeqRef ) {
-         for( i=0; i<Ref.getBufPixels8().length; i++ ) {
+         for( i=0; i<pRef.pixels.length; i++ ) {
             coo.x = i%w;
             coo.y = i/w;
-            Ref.projd.getCoord(coo);
+            pRef.projd.getCoord(coo);
             if( Double.isNaN(coo.al) ) continue;
 
             if( !pAeqRef ) {
@@ -618,8 +649,8 @@ Aladin.trace(3," => Reading in "+temps+" ms");
                      y=(int)Math.round(coo.y);
                      if( x>=0 && x<pA.width && y>=0 && y<pA.height )
                         setPixRGB( pixelsRGB, i, tA,
-                              pARev ? 255-pA.cm.getBlue(0xff & pA.getBufPixels8()[y*pA.width+x])
-                                    : pA.cm.getBlue(0xff & pA.getBufPixels8()[y*pA.width+x]) );
+                              pARev ? 255-pACm[0xff & pA.pixels[y*pA.width+x]]
+                                    : pACm[0xff & pA.pixels[y*pA.width+x]] );
                   }
                }
             }
@@ -632,8 +663,8 @@ Aladin.trace(3," => Reading in "+temps+" ms");
                      y=(int)Math.round(coo.y);
                      if( x>=0 && x<pB.width && y>=0 && y<pB.height )
                         setPixRGB( pixelsRGB, i, tB,
-                              pBRev ? 255-pB.cm.getBlue(0xff & pB.getBufPixels8()[y*pB.width+x])
-                                    : pB.cm.getBlue(0xff & pB.getBufPixels8()[y*pB.width+x]) );
+                              pBRev ? 255-pBCm[0xff & pB.pixels[y*pB.width+x]]
+                                    : pBCm[0xff & pB.pixels[y*pB.width+x]] );
                   }
                }
             }
@@ -641,7 +672,7 @@ Aladin.trace(3," => Reading in "+temps+" ms");
             // Pour laisser la main aux autres threads
             // et pouvoir afficher le changement de pourcentage
             if( i%10000==0 ) {
-               setPourcent(i*100L/Ref.getBufPixels8().length);
+               setPourcent(i*100L/pRef.pixels.length);
                if( Aladin.isSlow ) Util.pause(10);
             }
          }
@@ -661,7 +692,7 @@ Aladin.trace(3," => Reading in "+temps+" ms");
       else if( planGreen==null ) createLastColor(pixelsRGB,1);
       else if( planBlue==null )  createLastColor(pixelsRGB,2);
 
-      calculPixelsZoomRGB(pixelsRGB);
+      calculPixelsZoomRGB();
       changeImgID();
 
       sendLog("RGB"," [R:"+labels[0]+",G:"+labels[1]+",B:"+labels[2]+"]");
@@ -691,7 +722,7 @@ Aladin.trace(3," => Reading in "+temps+" ms");
 //      if( video==PlanImage.VIDEO_INVERSE ) inverseRGB();
 
       // Et on calcule encore l'imagette pour le zoomView
-      calculPixelsZoomRGB(pixelsRGB);
+      calculPixelsZoomRGB();
       changeImgID();
    }
 
@@ -972,7 +1003,7 @@ Aladin.trace(3," => Reading in "+temps+" ms");
        if( Projection.isOk(projd) ) projd.flip(methode);
        changeImgID();
 
-       calculPixelsZoomRGB(pixelsRGB);
+       calculPixelsZoomRGB();
        aladin.calque.zoom.zoomView.repaint();
 
        aladin.view.newView(1);
@@ -1015,7 +1046,7 @@ Aladin.trace(3," => Reading in "+temps+" ms");
 
     /** Return une Image (au sens Java). Mémorise cette image pour éviter de la reconstruire
      * si ce n'est pas nécessaire */
-    protected Image getImage(ViewSimple v) {
+    protected Image getImage(ViewSimple v,boolean now) {
        if( oImgID==imgID ) return image;
        image = Toolkit.getDefaultToolkit().createImage(
              new MemoryImageSource(width,height,cm, pixelsRGB, 0, width));
@@ -1024,7 +1055,7 @@ Aladin.trace(3," => Reading in "+temps+" ms");
     }
 
    /** Retourne les 3 composantes du pixel repéré dans l'image */
-   protected int getPixel8(int x,int y) {
+   public int getPixel8(int x,int y) {
       return pixelsRGB[y*width+x];
    }
    
@@ -1101,8 +1132,8 @@ Aladin.trace(3," => Reading in "+temps+" ms");
     * @param newpixels Le tableau a remplir (il doit etre assez grand)
     * @param x,y,w,h   Le rectangle de la zone a extraire
     */
-    protected void getPixels(byte [] newpixels,int x,int y,int w,int h) {
-       int i,n,m;
+   protected void getPixels(byte [] newpixels,int x,int y,int w,int h) {
+       int i,n;
        int k=0;
        int aw,ah;	// Difference en abs et ord lorsqu'on depasse l'image
 
@@ -1152,11 +1183,11 @@ Aladin.trace(3," => Reading in "+temps+" ms");
    * @param newpixels Le tableau a remplir (il doit etre assez grand)
    * @param x,y,w,h   Le rectangle de la zone a extraire
    */
-   protected void getPixels(int [] newpixels,int x,int y,int w,int h) {
-      int i,j,n,m;
+   public void getPixels(int [] newpixels,int x,int y,int w,int h) {
+      int i,n;
       int k=0;
       int aw,ah;   // Difference en abs et ord lorsqu'on depasse l'image
-
+      
       // Ajustement de la taille en cas de depassement
       aw=ah=0;
       if( x+w>width )  { aw = x+w-width;  w-=aw; }
@@ -1167,4 +1198,5 @@ Aladin.trace(3," => Reading in "+temps+" ms");
          k+=w+aw;
       }
    }
+
 }

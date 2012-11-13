@@ -24,13 +24,8 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Point;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
+import java.awt.event.*;
+import java.util.ArrayList;
 
 import javax.swing.JComponent;
 import javax.swing.JMenuItem;
@@ -379,12 +374,12 @@ public final class PlasticWidget extends JComponent  implements
             if( pc.type==Plan.IMAGEHUGE && pc.flagOk ) nbImg++;
         }
 
-        String[] imgApps = mgr.getAppsSupporting(AppMessagingInterface.ABSTRACT_MSG_LOAD_FITS);
-        String[] tabApps = mgr.getAppsSupporting(AppMessagingInterface.ABSTRACT_MSG_LOAD_VOT_FROM_URL);
+        ArrayList<String> imgApps = mgr.getAppsSupporting(AppMessagingInterface.ABSTRACT_MSG_LOAD_FITS);
+        ArrayList<String> tabApps = mgr.getAppsSupporting(AppMessagingInterface.ABSTRACT_MSG_LOAD_VOT_FROM_URL);
 
     	registerItem.setEnabled( ! isConnected );
     	unregisterItem.setEnabled( isConnected );
-    	broadcastItem.setEnabled( isConnected && (nbCatalog>0 || nbImg>0) && (imgApps.length>0 || tabApps.length>0));
+    	broadcastItem.setEnabled( isConnected && (nbCatalog>0 || nbImg>0) && (imgApps.size()>0 || tabApps.size()>0));
     	if( Aladin.BETA ) {
     		boolean plaskitRunning = aladin.getMessagingMgr().internalHubRunning();
     		startInternalHubItem.setEnabled(!plaskitRunning);
@@ -463,7 +458,7 @@ public final class PlasticWidget extends JComponent  implements
 	      	boolean pTrace;
 	      	aladin.appMessagingMgr.setPlasticTrace(pTrace=!aladin.appMessagingMgr.getPlasticTrace());
 	      	String protocolName = aladin.appMessagingMgr.getProtocolName();
-	      	aladin.command.toStdoutln(pTrace?"Activating "+protocolName+" trace":
+	      	aladin.command.println(pTrace?"Activating "+protocolName+" trace":
 	      	                                  "Desactivating "+protocolName+" trace");
 	      }
 	}

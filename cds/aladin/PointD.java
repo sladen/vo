@@ -30,13 +30,12 @@ import cds.tools.Util;
  */
 public class PointD {
 
-   protected double x,y;
-   protected PointD(double x, double y) { this.x=x; this.y=y; }
+   public double x,y;
+   public PointD(double x, double y) { this.x=x; this.y=y; }
 
    // Override of equals method
    public boolean equals(Object o) {
 	  if (o == null) return false;
-
 	  if (! o.getClass().equals(getClass())) return false;
       PointD p = (PointD) o;
       return (x == p.x) && (y == p.y);

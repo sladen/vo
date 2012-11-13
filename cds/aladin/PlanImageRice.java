@@ -35,13 +35,14 @@ import java.util.*;
  * Plan dedie a une image RICE
  *
  * @author Pierre Fernique [CDS]
+ * @version 1.1 : sept 2011 - Prise en compte ZSCALE, et ZZERO
  * @version 1.0 : mars 2008 - creation
  */
 public class PlanImageRice extends PlanImage {
    
    protected PlanImageRice(Aladin aladin, String file,MyInputStream inImg,String label,String from,
-         Obj o,ResourceNode imgNode,boolean skip,Plan forPourcent) {
-      super(aladin,file,inImg,label,from,o,imgNode,skip,forPourcent);
+         Obj o,ResourceNode imgNode,boolean skip,boolean doClose,Plan forPourcent) {
+      super(aladin,file,inImg,label,from,o,imgNode,skip,doClose,forPourcent);
    }
    
    protected boolean cacheImageFits(MyInputStream dis) throws Exception {
@@ -77,8 +78,13 @@ Aladin.trace(3," => NAXIS1="+width+" NAXIS2="+height+" BITPIX="+bitpix+" => size
       int pcount=headerFits.getIntFromHeader("PCOUNT");    // nombres d'octets a lire en tout
       int tile = headerFits.getIntFromHeader("ZTILE1");
       boolean cut = aladin.configuration.getCMCut();
+      
+      int nblock=32;
+      try { nblock = headerFits.getIntFromHeader("ZVAL1"); } catch( Exception e ) {}
 
-      Aladin.trace(2,"Loading RICE FITS image extension");
+      int bsize=4;
+      try { bsize = headerFits.getIntFromHeader("ZVAL2"); } catch( Exception e ) {}
+      
       
       setBufPixels8(new byte[width*height]);
       
@@ -87,31 +93,58 @@ Aladin.trace(3," => NAXIS1="+width+" NAXIS2="+height+" BITPIX="+bitpix+" => size
       
       } else {
                   
+         Aladin.trace(2,"Loading RICE FITS image extension (NBLOCK="+nblock+" BSIZE="+bsize+")");
+         
+         int posCompress=0;
+         int posZscale=-1;
+         int posZzero=-1;
+         int posUncompress=-1;
+         
+         int tfields = headerFits.getIntFromHeader("TFIELDS");
+         for( int i=1,pos=0; i<=tfields; i++ ) {
+            String type = headerFits.getStringFromHeader("TTYPE"+i);
+            if( type.equals("COMPRESSED_DATA") ) posCompress = pos;
+            if( type.equals("ZSCALE") ) posZscale = pos;
+            if( type.equals("ZZERO") ) posZzero = pos;
+            if( type.equals("UNCOMPRESSED_DATA") ) posUncompress = pos;
+            String form = headerFits.getStringFromHeader("TFORM"+i);
+            pos+=Util.binSizeOf(form);
+         }
+         Aladin.trace(2,"Loading RICE FITS image extension (TFIELDS="+tfields+" NBLOCK="+nblock+" BSIZE="+bsize+")");
+         
          pixelsOrigin = new byte[taille];
          
-         byte [] table = new byte[nnaxis2*4*2];
-         byte [] buf = new byte[pcount];
+         byte [] table = new byte[nnaxis1*nnaxis2];
+         byte [] heap = new byte[pcount];
          
          try {
             dis.readFully(table);
-            dis.readFully(buf);
-            
-System.out.println("table size="+table.length);
-System.out.println("heap size="+buf.length);
+            dis.skip(theap - nnaxis1*nnaxis2);  
+            dis.readFully(heap);
             
             int offset=0;
             for( int row=0; row<nnaxis2; row++ ) {
-               int len = getInt(table,row*8);
-               int pos = getInt(table,row*8+4);
-               decomp(buf,pos,pixelsOrigin,offset,tile,32,bitpix);
+               int offsetRec = row*nnaxis1;
+               int size = getInt(table,offsetRec+posCompress);
+               int pos = getInt(table,offsetRec+posCompress+4);
+               double bzero = posZscale<0 ? 0 : getDouble(table,offsetRec+posZzero);
+               double bscale = posZscale<0 ? 1 : getDouble(table,offsetRec+posZscale);
+               
+               // Non compressé
+               if( size==0 && posUncompress>=0 ) {
+                  size = getInt(table,offsetRec+posUncompress);
+                  pos  = getInt(table,offsetRec+posUncompress);
+                  direct(heap,pos,pixelsOrigin,offset,tile,bitpix,bzero,bscale);
+                  
+               // Compressé
+               } else decomp(heap,pos,pixelsOrigin,offset,tile,bsize,nblock,bitpix,bzero,bscale);
+               
                offset+=tile;
             }
-            
          }catch (Exception e ) { e.printStackTrace(); }
 
          findMinMax(pixelsOrigin,bitpix,width,height,dataMinFits,dataMaxFits,cut,0);
-         to8bits(getBufPixels8(),0,pixelsOrigin,width*height,bitpix,
-               isBlank,blank,pixelMin,pixelMax,true);
+         to8bits(getBufPixels8(),0,pixelsOrigin,width*height,bitpix, pixelMin,pixelMax,true);
       } 
       
       
@@ -163,28 +196,24 @@ System.out.println("heap size="+buf.length);
                   break;
      }
   }
+  
+  public static void direct(byte buf[],int pos,byte array[], int offset,int nx,
+        int bitpix,double bzero,double bscale) throws Exception {
+     int size = Math.abs(bitpix)/8;
+     for( int i=0; i<nx; i+=size ) {
+        double val = getPixVal1(buf, bitpix, pos+i);
+        setPixVal(array, bitpix, offset+i, val*bscale+bzero);
+     }
+  }
    
-   public static void decomp(byte buf[],int pos,byte array[], int offset,int nx,int nblock,int bitpix) throws Exception {
-      int bsize, i, k, imax;
+   public static void decomp(byte buf[],int pos,byte array[], int offset,int nx,int bsize,int nblock,
+         int bitpix,double bzero,double bscale) throws Exception {
+      int i, k, imax;
       int nbits, nzero, fs;
       int b, diff, lastpix;
       int bytevalue;
       int fsmax, fsbits, bbits;
-
-      /*
-       * Original size of each pixel (bsize, bytes) and coding block
-       * size (nblock, pixels)
-       * Could make bsize a parameter to allow more efficient
-       * compression of short & byte images.
-       */
-      bsize = 4;
-      /*    nblock = 32; */
-      /*
-       * From bsize derive:
-       * FSBITS = # bits required to store FS
-       * FSMAX = maximum value for FS
-       * BBITS = bits/pixel for direct coding
-       */
+      
       switch (bsize) {
          case 1:
             fsbits = 3;
@@ -198,7 +227,7 @@ System.out.println("heap size="+buf.length);
             fsbits = 5;
             fsmax = 25;
             break;
-         default: throw new Exception("Rice.decomp error: bsize must be 1, 2, or 4 bytes");
+         default: throw new Exception("Rice.decomp error: bitpix must be 8, 16 or 32");
       }
       bbits = 1<<fsbits;
    
@@ -220,20 +249,12 @@ System.out.println("heap size="+buf.length);
       /*
        * Decode in blocks of nblock pixels
        */
-
-      /* first 4 bytes of input buffer contain the value of the first */
-      /* 4 byte integer value, without any encoding */
-
-//      lastpix = getInt(buf,pos+=4);
-      lastpix = 0;      
-      bytevalue = 0xFF & (int)buf[pos++];
-      lastpix = lastpix | (bytevalue<<24);
-      bytevalue = 0xFF & (int)buf[pos++];
-      lastpix = lastpix | (bytevalue<<16);
-      bytevalue = 0xFF & (int)buf[pos++];
-      lastpix = lastpix | (bytevalue<<8);
-      bytevalue = 0xFF & (int)buf[pos++];
-      lastpix = lastpix | bytevalue;
+      
+      lastpix = 0;
+      for( i=0; i<bsize; i++ ) {
+         bytevalue = 0xFF & (int)buf[pos++];
+         lastpix = (lastpix<<8) | bytevalue;
+      }
 
       b = 0xFF & (int)buf[pos++];         /* bit buffer           */
       nbits = 8;                 /* number of bits remaining in b    */
@@ -252,7 +273,7 @@ System.out.println("heap size="+buf.length);
          if (imax > nx) imax = nx;
          if (fs<0) {
             /* low-entropy case, all zero differences */
-            for ( ; i<imax; i++) setPixVal(array,bitpix,i+offset,lastpix);
+            for ( ; i<imax; i++) setPixVal(array,bitpix,i+offset,lastpix*bscale+bzero);
          } else if (fs==fsmax) {
             /* high-entropy case, directly coded pixel values */
             for ( ; i<imax; i++) {
@@ -281,7 +302,7 @@ System.out.println("heap size="+buf.length);
                   diff = ~(diff>>>1);
                }
                lastpix = diff+lastpix;
-               setPixVal(array,bitpix,i+offset,lastpix);
+               setPixVal(array,bitpix,i+offset,lastpix*bscale+bzero);
             }
          } else {
             /* normal case, Rice coding */
@@ -310,14 +331,10 @@ System.out.println("heap size="+buf.length);
                   diff = ~(diff>>>1);
                }
                lastpix = diff+lastpix;
-               setPixVal(array,bitpix,i+offset,lastpix);
-
+               setPixVal(array,bitpix,i+offset,lastpix*bscale+bzero);
             }
          }
       }
    }
-
-
-
 }
  
