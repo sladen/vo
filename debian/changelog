@@ -1,0 +1,5 @@
+aladin (7.5-1) stable; urgency=low
+
+  * Initial release. (Closes: #100011)
+
+ -- Florian Rothmaier <gavo@ari.uni-heidelberg.de>  Sat, 15 Jun 2013 17:50:22 +0200
