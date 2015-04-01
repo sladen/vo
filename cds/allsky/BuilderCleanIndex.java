@@ -49,7 +49,14 @@ public class BuilderCleanIndex extends BuilderClean {
    public boolean isAlreadyDone() { return !(new File(context.getHpxFinderPath())).exists(); }
    
    public void run() throws Exception {
-      if( context instanceof ContextGui ) Util.pause(1000); // Juste our faire beau
+      if( context instanceof ContextGui ) Util.pause(1000); // Juste pour faire beau
       deleteDir( new File(context.getHpxFinderPath()) );
    }
+   
+   public boolean mustBeDeleted(File f) {
+      String name = f.getName();
+      if( name.equals(Context.METADATA) ) return false;
+      return true;
+   }
+
 }

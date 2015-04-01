@@ -30,6 +30,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
 import cds.astro.Astrocoo;
+import cds.astro.Astropos;
+import cds.tools.Astrodate;
 import cds.tools.Util;
 import cds.xml.Field;
 import cds.xml.TableParser;
@@ -238,7 +240,7 @@ Aladin.trace(3,"Recalibration \""+proj.label+"\" XY->ra/dec on \""+plan.label+"\
       catalog=plan.label;
       table=plan.label;
    }
-
+   
    /** Interface pour le positionnement d'un filtre dédié */
    public void setFilter(String filter) {
       plan.addFilter(filter);
@@ -354,7 +356,7 @@ Aladin.trace(3,"startTable "+name);
 
    /** L'interface AstroRes */
    public void setField(Field f) {
-Aladin.trace(3,"setField "+f);
+      Aladin.trace(3,"setField "+f);
 
       // tentatives de reperage de la position de l'identificateur
       if( nIdVraisemblance==0 ) {
@@ -479,63 +481,7 @@ Aladin.trace(3,"setField "+f);
    protected void setGenericLegende(Legende leg) {
       genericLeg=leg;
    }
-
-   /** Modification des champs utilisés pour la position céleste */
-   public void modifyRaDecField(Legende leg, int nra,int ndec) {
-      Astrocoo c = new Astrocoo();
-      int format = TableParser.FMT_UNKNOWN;
-
-      aladin.trace(3,leg.plan.label+" new J2000 => RA pos="+(nra+1)+" DE pos="+(ndec+1));
-      for( int i=0; i<nb_o; i++ ) {
-         try {
-            Source s = (Source)o[i];
-            if( s.leg!=leg ) continue;
-            String ra = s.getValue(nra);
-            String dec= s.getValue(ndec);
-            format = TableParser.getRaDec(c, ra, dec, format);
-            s.raj = c.getLon();
-            s.dej = c.getLat();
-         } catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
-      }
-
-      if( plan.hasXYorig ) {
-         plan.hasXYorig=false;
-         plan.error=null;
-      }
-
-      aladin.view.newView(1);
-      aladin.view.repaintAll();
-
-      aladin.info(aladin,"New J2000 fields for "+leg.plan.label+"\n=> RA column "+(nra+1)+" -  DE column "+(ndec+1)
-            +"\n (format: "+(format==TableParser.FMT_SEXAGESIMAL ? "sexagesimal":"decimal")+")");
-   }
-
-   /** Modification des champs utilisés pour la position en XY */
-   public void modifyXYField(Legende leg, int nx,int ny) {
-
-      aladin.trace(3,leg.plan.label+" new XY coordinate fields => X pos="+(nx+1)+" Y pos="+(ny+1));
-      for( int i=0; i<nb_o; i++ ) {
-         try {
-            Source s = (Source)o[i];
-            if( s.leg!=leg ) continue;
-            s.x = Double.parseDouble( s.getValue(nx) );
-            s.y = Double.parseDouble( s.getValue(ny) );
-         } catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
-      }
-
-      if( !plan.hasXYorig ) {
-         plan.hasXYorig=true;
-         plan.error=Plan.NOREDUCTION;
-      }
-
-      aladin.view.newView(1);
-      aladin.view.repaintAll();
-
-      aladin.info(aladin,"New XY fields for "+leg.plan.label+"\n=> X column "+(nx+1)+" -  Y column "+(ny+1) );
-   }
-
-
-
+   
    /** L'interface TableParserConsumer */
    public void setRecord(double ra, double dec, String[] value) {
       int n;
@@ -612,6 +558,9 @@ Aladin.trace(3,"setField "+f);
             nbTable++;
             flagFirstRecord = false;
          }
+         
+         // Dans le cas de la génération a posterio de la légende pour une table vide
+         if( value==null ) return;
 
          // Limite de chargement ?
          // On agrandi le tableau avec un petit gag sur l'indice de nb_o
@@ -724,6 +673,7 @@ Aladin.trace(3,"setField "+f);
          if (idxSTCS>=0) {
              try {
                  source.setFootprint(source.getValue(idxSTCS));
+                 source.setIdxFootprint(idxSTCS);
              }
              catch(Exception e) {
                  e.printStackTrace();
@@ -743,10 +693,12 @@ Aladin.trace(3,"setField "+f);
    protected boolean hasCatalogInfo() { return parsingInfo!=null || description!=null; }
 
    /** retourne true si au-moins un objet est sélectionné */
-   protected boolean hasSelectedObj() {
+   protected boolean hasSelectedOrTaggedObj() {
       Iterator<Obj> it = iterator();
       while( it.hasNext() ) {
-         if( (it.next()).isSelected() ) return true;
+         Obj o = (Obj)it.next();
+         if( o.isSelected() ) return true;
+         if( o instanceof Source && ((Source)o).isTagged() ) return true;
       }
       return false;
    }
@@ -788,13 +740,16 @@ Aladin.trace(3,"setField "+f);
    /** This method is called by the TableParserConsumer for
     * delivering RA,DEC,X,Y column index (-1 means not found)
     */
-   public void setTableRaDecXYIndex(int nRa, int nDec, int nX, int nY, boolean badDetection) {
+   public void setTableRaDecXYIndex(int nRa, int nDec, int nPmRa, int nPmDec,int nX, int nY, boolean badDetection) {
       int n=vField.size();
       if( nRa>=0  && nRa<n  ) ((Field)vField.elementAt(nRa)).coo=Field.RA;
       if( nDec>=0 && nDec<n ) ((Field)vField.elementAt(nDec)).coo=Field.DE;
+      if( nPmRa>=0 && nPmRa<n ) ((Field)vField.elementAt(nPmRa)).coo=Field.PMRA;
+      if( nPmDec>=0 && nPmDec<n ) ((Field)vField.elementAt(nPmDec)).coo=Field.PMDE;
       if( nX>=0   && nX<n   ) ((Field)vField.elementAt(nX)).coo=Field.X;
       if( nY>=0   && nY<n   ) ((Field)vField.elementAt(nY)).coo=Field.Y;
       badRaDecDetection = badDetection;
+      plan.hasPM=-1;
    }
 
 //   /** Retourne l'indice de la colonne RA si connu, sinon -1 */
@@ -863,8 +818,10 @@ Aladin.trace(3,"setField "+f);
    protected int tableParsing(MyInputStream dis,String endTag) throws Exception {
       o= new Obj[DEFAULTBLOC];
       nb_o = 0;
-      catalog=plan.label;
-      table=plan.label;
+      if( plan!=null ) {
+         catalog=plan.label;
+         table=plan.label;
+      }
       leg=null;
       flagTarget=false;
       minRa=minDec = Double.MAX_VALUE;
@@ -876,16 +833,9 @@ Aladin.trace(3,"setField "+f);
       long type=dis.getType();
       boolean ok;
 
-      // Parsing IPAC table
-      // ENCORE TOUT A FAIRE
-      if( false && (type & MyInputStream.IPAC)!=0 ) {
-//         plan.headerFits = new FrameHeaderFits(dis);
-         res = new TableParser(aladin,this,MyInputStream.IPAC);
-         ok = res.parse(dis);
-
       // Parsing FITS table
-      } else if( (type & (MyInputStream.FITST|MyInputStream.FITSB))!=0 ) {
-         plan.headerFits = new FrameHeaderFits(dis);
+       if( (type & (MyInputStream.FITST|MyInputStream.FITSB))!=0 ) {
+         plan.headerFits = new FrameHeaderFits(plan,dis);
          res = new TableParser(aladin,this,((PlanCatalog)plan).headerFits.getHeaderFits(),plan.flagSkip);
          ok = res.parse(dis);
 
@@ -902,7 +852,10 @@ Aladin.trace(3,"setField "+f);
       }
 
       // Cas particulier pour un plan hiérarchique
-      if( ok && plan instanceof PlanBGCat ) return nb_o;
+      if( ok && plan instanceof PlanBGCat ) {
+         if( nb_o==0 ) setRecord(0, 0, null);  // pour initialiser tout de même la légende
+         return nb_o;
+      }
 
       if( ok ) {
          if( !flagEndResource ) endResource();
@@ -1171,7 +1124,7 @@ Aladin.trace(3,"computeTarget ra=["+minRa+".."+maxRa+"]=>"+rajc+" de=["+minDec+"
          Cote c = (Cote)newobj;
          if( c.debligne!=null ) {
             c.setId();
-            aladin.console.setInPad(c.id+"\n");
+            aladin.console.printInPad(c.id+"\n");
          }
       }
       o[i] = newobj;
@@ -1266,31 +1219,30 @@ Aladin.trace(3,"computeTarget ra=["+minRa+".."+maxRa+"]=>"+rajc+" de=["+minDec+"
    *             sinon il n'y aura qu'un simple calcul de position
    * @param dx,dy Offset pour le tracage
    */
-   synchronized protected void draw(Graphics g, Rectangle r,ViewSimple v,boolean draw,int dx,int dy) {
+   protected int draw(Graphics g, Rectangle r,ViewSimple v,boolean draw,int dx,int dy) {
+      return draw(g,r,v,draw,false,dx,dy);
+   }
+   synchronized protected int draw(Graphics g, Rectangle r,ViewSimple v,boolean draw,boolean onlySelected,int dx,int dy) {
 
-      if( !computeAndTestDraw(v,draw) ) return;
+      if( !computeAndTestDraw(v,draw) ) return 0;
 
       long t1 = Util.getTime();
 
+      int nb=0;
       try  {
 
          // gestion de la transparence
          // Le test d'impression est fait par dx==0 car à l'écran, il n'y a pas d'offset
          if( dx==0 && plan!=null && Aladin.isFootprintPlane(plan) &&
                Aladin.ENABLE_FOOTPRINT_OPACITY && plan.getOpacityLevel()>0.02 && g instanceof Graphics2D ) {
-
             drawFovInTransparency(g, r, v, draw, dx, dy);
-
-         } // fin gestion de la transparence
-
-         // test pour sortie EPS des footprint en transparence
-         //      if( ! (g instanceof EPSGraphics) ) return;
+         } 
 
          g.setColor(c);
-         plan.statNbItems=0L;
          for( int i=0; i<nb_o; i++ ) {
             if( r!=null && !o[i].inClip(v,r) ) continue;
-            if( o[i].draw(g,v,dx,dy) ) plan.statNbItems++;
+            if( onlySelected && !o[i].isSelected() ) continue;
+            if( o[i].draw(g,v,dx,dy) ) nb++;
          }
 
          long t2 = Util.getTime();
@@ -1298,7 +1250,8 @@ Aladin.trace(3,"computeTarget ra=["+minRa+".."+maxRa+"]=>"+rajc+" de=["+minDec+"
       } catch( Exception e) {
          if( Aladin.levelTrace>=3 ) e.printStackTrace();
       }
-
+      plan.statNbItems=nb;
+      return nb;
    }
 
    private void drawFovInTransparency(Graphics g, Rectangle r, ViewSimple v, boolean draw, int dx, int dy) {
@@ -1397,7 +1350,7 @@ Aladin.trace(3,"computeTarget ra=["+minRa+".."+maxRa+"]=>"+rajc+" de=["+minDec+"
     }
 
    /** retourne le nombre d'objets */
-   protected int getCounts() { return nb_o; }
+   protected int getCount() { return nb_o; }
 
    /** retourne true si le plan contient des objets */
    protected boolean hasObj() { return nb_o>0; }

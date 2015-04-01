@@ -65,19 +65,21 @@ public class TabDesc extends JPanel implements ActionListener {
    private String INFOALLSKY;
    private String PARAMALLSKY;
    private String KEEPALLSKY,COADDALLSKY,OVERWRITEALLSKY,KEEPCELLALLSKY;
-   private String SPECIFALLSKY,BLANKALLSKY,BORDERALLSKY, SKYVALALLSKY ;
+   private String SPECIFALLSKY,BLANKALLSKY,BORDERALLSKY, SKYVALALLSKY,HDUALLSKY ;
 
    
    private JLabel paramLabel;
    private JRadioButton keepRadio,coaddRadio,overwriteRadio,keepCellRadio;
    private JCheckBox specifCheckbox;
    private JCheckBox blankCheckbox;
+   private JCheckBox hduCheckbox;
    private JCheckBox borderCheckbox;
-   private JCheckBox skyvalCheckbox;
+   private JRadioButton skyvalCheckbox;
    private JCheckBox frameCheckbox;
    
    private JTextField specifTextField;
    protected JTextField blankTextField;
+   protected JTextField hduTextField;
    protected JTextField borderTextField;
    private JTextField skyvalTextField;
 
@@ -196,6 +198,17 @@ public class TabDesc extends JPanel implements ActionListener {
 
       c.gridy++;
       px = new JPanel( new BorderLayout(0,0));
+      hduTextField.addKeyListener(new KeyAdapter() {
+         public void keyReleased(KeyEvent e) {
+            hduCheckbox.setSelected( hduTextField.getText().trim().length()>0 );
+         }
+      });
+      px.add(hduCheckbox,BorderLayout.WEST);
+      px.add(hduTextField,BorderLayout.CENTER);
+      pCenter.add(px,c); 
+
+      c.gridy++;
+      px = new JPanel( new BorderLayout(0,0));
       skyvalTextField.addKeyListener(new KeyAdapter() {
           public void keyReleased(KeyEvent e) {
               skyvalCheckbox.setSelected( skyvalTextField.getText().trim().length()>0 );
@@ -273,6 +286,7 @@ public class TabDesc extends JPanel implements ActionListener {
       OVERWRITEALLSKY = getString("OVERWRITEALLSKY");
       SPECIFALLSKY  = getString("SPECIFALLSKY");
       BLANKALLSKY  = getString("BLANKALLSKY");
+      HDUALLSKY  = getString("HDUALLSKY");
       BORDERALLSKY  = getString("BORDERALLSKY");
       SKYVALALLSKY  = getString("SKYVALALLSKY");
    }
@@ -327,10 +341,15 @@ public class TabDesc extends JPanel implements ActionListener {
       specifTextField = new JTextField();
       blankCheckbox = new JCheckBox(BLANKALLSKY); blankCheckbox.setSelected(false);
       blankTextField = new JTextField();
+      hduCheckbox = new JCheckBox(HDUALLSKY);hduCheckbox.setSelected(false);
+      hduTextField = new JTextField();
       borderCheckbox = new JCheckBox(BORDERALLSKY); borderCheckbox.setSelected(false);
       borderTextField = new JTextField();
-      skyvalCheckbox = new JCheckBox(SKYVALALLSKY); skyvalCheckbox.setSelected(false);
+      skyvalCheckbox = new JRadioButton(SKYVALALLSKY); skyvalCheckbox.setSelected(false);
       skyvalTextField = new JTextField();
+      skyvalCheckbox.addActionListener(new ActionListener() {
+         public void actionPerformed(ActionEvent e) { resumeWidgets(); }
+      });
 
       resetTiles.setText(REP_DEST_RESET);
       resetTiles.addActionListener(new ActionListener() {
@@ -381,7 +400,7 @@ public class TabDesc extends JPanel implements ActionListener {
          boolean indexExist  = context.isExistingIndexDir();
          boolean isRunning   = context.isTaskRunning();
          
-         resetTiles.setEnabled(allskyExist && !isRunning && !color);
+         resetTiles.setEnabled(allskyExist && !isRunning);
          resetIndex.setEnabled(indexExist && !isRunning);
 
          boolean flag = !resetTiles.isSelected() && resetTiles.isEnabled();
@@ -396,6 +415,8 @@ public class TabDesc extends JPanel implements ActionListener {
          reset.setEnabled( getInputField().trim().length()>0 );
          blankCheckbox.setEnabled(ready && !isRunning && !color);
          blankTextField.setEnabled(ready && !isRunning && !color);
+         hduCheckbox.setEnabled(ready && !isRunning && !color);
+         hduTextField.setEnabled(ready && !isRunning && !color);
          borderCheckbox.setEnabled(ready && !isRunning);
          borderTextField.setEnabled(ready && !isRunning);
          skyvalCheckbox.setEnabled(ready && !isRunning && !color);
@@ -406,6 +427,9 @@ public class TabDesc extends JPanel implements ActionListener {
          inputField.setEnabled(!isRunning);
          outputField.setEnabled(!isRunning);
          labelField.setEnabled(!isRunning);
+         
+         if( skyvalCheckbox.isSelected() 
+               && skyvalTextField.getText().trim().length()==0 ) skyvalTextField.setText("true");
          
          setCursor( isRunning ? Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR) : 
                                 Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR) );
@@ -504,6 +528,11 @@ public class TabDesc extends JPanel implements ActionListener {
       return blankTextField.getText();
    }
    
+   public String getHDU() {
+      if( !hduCheckbox.isSelected() ) return "";
+      return hduTextField.getText();
+   }
+   
    public String getBorderSize() {
       if( !borderCheckbox.isSelected() ) return "0";
       return borderTextField.getText();
@@ -511,7 +540,9 @@ public class TabDesc extends JPanel implements ActionListener {
 
    public String getSkyvalField() {
 	   if( !skyvalCheckbox.isSelected() ) return null;
-	   return skyvalTextField.getText();
+	   String s = skyvalTextField.getText().toUpperCase().trim();
+	   if( s.length()==0 )  s="true";  // automatic skyval substraction
+	   return s;
    }
    
    /**

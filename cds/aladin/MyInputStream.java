@@ -20,15 +20,17 @@
 package cds.aladin;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.StringTokenizer;
-import java.util.Vector;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.InflaterInputStream;
 
-import javax.imageio.stream.FileImageInputStream;
 
 import cds.fits.HeaderFits;
+import cds.image.Bzip2;
+import cds.tools.Util;
 import cds.xml.TableParser;
 
 /**
@@ -87,13 +89,15 @@ public final class MyInputStream extends FilterInputStream {
    static final public long PDS     = 1L<<35;
    static final public long HPXMOC  = 1L<<36;
    static final public long DS9REG  = 1L<<37;
+   static final public long SED     = 1L<<38;
+   static final public long BZIP2   = 1L<<39;
 
    static final String FORMAT[] = {
       "UNKNOWN","FITS","JPEG","GIF","MRCOMP","HCOMP","GZIP","XML","ASTRORES",
       "VOTABLE","AJ","AJS","IDHA","SIA","CSV","UNAVAIL","AJSx","PNG","XFITS",
       "FOV","FOV_ONLY","CATLIST","RGB","BSV","FITS-TABLE","FITS-BINTABLE","CUBE",
       "SEXTRACTOR","HUGE","AIPSTABLE","IPAC-TBL","BMP","RICE","HEALPIX","GLU","ARGB","PDS",
-      "HPXMOC","DS9REG" };
+      "HPXMOC","DS9REG","SED","BZIP2" };
 
    // Recherche de signatures particulieres
    static private final int DEFAULT = 0; // Detection de la premiere occurence
@@ -113,11 +117,12 @@ public final class MyInputStream extends FilterInputStream {
    private boolean fitsHeadRead; // true si on a déjà charger (ou essayé)
                                  // toute l'entête fits courante dans le cache (voir hasFitsKey())
 
-
+   static public int NBOPENFILE = 0;
+   
    public MyInputStream(InputStream in) throws IOException {
       this(in,UNKNOWN,true);
    }
-   private MyInputStream(InputStream in,long type,boolean withBuffer) throws IOException {
+   public MyInputStream(InputStream in,long type,boolean withBuffer) throws IOException {
       super(in);
       this.type=type;
       this.withBuffer = withBuffer;
@@ -125,14 +130,17 @@ public final class MyInputStream extends FilterInputStream {
       alreadyRead=false;
       fitsHeadRead=false;
       dejaLu=0L;
+      
       this.in= in!=null && withBuffer && !(in instanceof BufferedInputStream ) ?
                    new BufferedInputStream(in) : in;
+      NBOPENFILE++;
    }
    
    public void close() throws IOException {
+      NBOPENFILE--;
 //      if( Aladin.levelTrace>3 ) System.out.println("MyinputStream.close(): "+this);
       in.close();
-      super.close();
+//      System.out.println("MyInputStream NBOPENFILE = "+NBOPENFILE);
    }
 
    static protected long NativeImage() { return JPEG|GIF|PNG|BMP; }
@@ -146,8 +154,11 @@ public final class MyInputStream extends FilterInputStream {
     *          gzippe
     */
    public MyInputStream startRead() throws IOException {
-      if( isGZ() ) {
+      long t = isGZorBzip2();
+      if( (t & GZ)!=0 ) {
          return new MyInputStream(new GZIPInputStream(this),GZ,withBuffer);
+      } else if( (t & BZIP2)!=0 ) {
+         return new MyInputStream(new Bzip2(this),BZIP2,withBuffer);
       }
       return this;
    }
@@ -196,14 +207,18 @@ public final class MyInputStream extends FilterInputStream {
 
    }
 
-
-   /** Juste pour tester s'il s'agit d'un flux gzipé */
+   /** Juste pour tester s'il s'agit d'un flux gzippé */
    public boolean isGZ() throws IOException {
+      return (isGZorBzip2() & GZ)!=0;
+   }
+
+   /** Juste pour tester s'il s'agit d'un flux gzippé ou Bzippé2 */
+   public long isGZorBzip2() throws IOException {
       // le type de stream a deja ete detecte
-      if( flagGetType ) return (type&GZ)==GZ;
+      if( flagGetType ) return type;
 
       // Le stream a deja ete entame, impossible de determine le type
-      if( alreadyRead ) return false;
+      if( alreadyRead ) return 0;
 
       int c[] = new int[2];
       // On charge qq octets dans le tampon si nécessaire
@@ -214,8 +229,12 @@ public final class MyInputStream extends FilterInputStream {
       }
 
       // Detection de GZIP
-      if( c[0]==31  && c[1]==139 ) return true;
-      return false;
+      if( c[0]==31  && c[1]==139 ) return GZ;
+      
+      // Detection de BZIP2  (il faudrait aussi tester le "h" qui suit)
+      else if( c[0]=='B'  && c[1]=='Z' ) return BZIP2;
+      
+      return 0;
    }
 
    /** Sous-types particulier au FITS image */
@@ -234,7 +253,7 @@ public final class MyInputStream extends FilterInputStream {
       // Détection d'une extension FITS à suivre
       if( hasFitsKey("EXTEND",null) ) type |= XFITS;
 
-      else if( hasFitsKey("CTYPE3","RGB")
+      if( hasFitsKey("CTYPE3","RGB")
             || (type&CUBE)==CUBE && hasFitsKey("NAXIS3","3") ) type |= RGB;
 
       // Détection d'une image HUGE
@@ -242,13 +261,13 @@ public final class MyInputStream extends FilterInputStream {
          try {
             int naxis1 = Integer.parseInt(getFitsValue("NAXIS1"));
             int naxis2 = Integer.parseInt(getFitsValue("NAXIS2"));
-            //            int npix = Integer.parseInt(getFitsValue("BITPIX"));
-            if( (long)naxis1*naxis2/**Math.abs(npix)/8*/ > Aladin.LIMIT_HUGEFILE ) type |= HUGE;
+            int npix = Integer.parseInt(getFitsValue("BITPIX"));
+            if( (long)naxis1*naxis2*(Math.abs(npix)/8) > Aladin.LIMIT_HUGEFILE ) type |= HUGE;
          }catch( Exception e ) {}
       }
 
       // Healpix
-      if( (type & XFITS) !=0 && (hasFitsKey("HPXMOCM",null) || hasFitsKey("HPXMOC",null) 
+      if( (type & XFITS) !=0 && (hasFitsKey("MOCORDER",null) || hasFitsKey("HPXMOC",null) || hasFitsKey("HPXMOCM",null)
             || hasFitsKey("ORDERING","UNIQ") || hasFitsKey("ORDERING","NUNIQ")) ) type |= HPXMOC;
       else if( (hasFitsKey("PIXTYPE", "HEALPIX") || hasFitsKey("ORDERING","NEST") || hasFitsKey("ORDERING","RING"))
             && !hasFitsKey("XTENSION","IMAGE") )  type |= HEALPIX;
@@ -267,9 +286,11 @@ public final class MyInputStream extends FilterInputStream {
    * Cette methode ne peut etre appelee si le stream a deja ete entame.
    * Le champ de bit peut etre affiche en langage naturelle par la methode
    * decodeType().
+   * @param limit nombre d'octets max à lire pour détecter le type (0 sans limite)
    * @return un champ de bit decrivant le type de fichier
    */
-   public long getType() throws Exception {
+   public long getType() throws Exception { return getType(0); }
+   public long getType(int limit) throws Exception {
       int csv;
 //System.out.println("call getType()");
 
@@ -295,6 +316,9 @@ public final class MyInputStream extends FilterInputStream {
 
          // Detection de GZIP
          if( c[0]==31  && c[1]==139 ) type |= GZ;
+         
+         // Detection de BZIP2 => ACTUELLEMENT IL Y A UN BUG DANS LE DECOMPRESSEUR BZIP2
+         else if( Aladin.PROTO && c[0]=='B'  && c[1]=='Z' )  type |= BZIP2;
 
          // Détection PDS
          else if( c[0]=='P' && c[1]=='D' && c[2]=='S' ) type |=PDS;
@@ -307,9 +331,14 @@ public final class MyInputStream extends FilterInputStream {
                && c[5]=='i' && c[6]=='o' && c[7]=='n' && c[8]==' ' && c[9]=='f' 
                &&c[10]=='i' &&c[11]=='l'&& c[12]=='e' ) type |= DS9REG|AJS;
 
-         // Détection HPXMO (ASCII - nouvelle définition #HPXMOCM...)
+         // Détection HPXMO (ASCII - ancienne définition #HPXMOCM &  #HPXMOC...)
          else if( c[0]=='#' && c[1]=='H' && c[2]=='P' && c[3]=='X' 
                && c[4]=='M' && c[5]=='O' && c[6]=='C' ) type |=HPXMOC;
+         
+         // Détection MOCORDER (ASCII - nouvelle définition #MOCORDER...)
+         else if( c[0]=='#' && c[1]=='M' && c[2]=='O' && c[3]=='C' 
+               && c[4]=='O' && c[5]=='R' && c[6]=='D' ) type |=HPXMOC;
+
 
 //         // Detection de BMP
 //         else if( c[0]==66  && c[1]==77 ) type |= BMP;
@@ -317,7 +346,7 @@ public final class MyInputStream extends FilterInputStream {
          // Detection de JPEG
          else if( c[0]==255 && c[1]==216 ) {
             type |= JPEG;
-            lookForJpegCalib();
+            lookForJpegCalib(limit);
          }
 
          // Detection de GIF (GIF..a)
@@ -327,7 +356,7 @@ public final class MyInputStream extends FilterInputStream {
          else if( c[0]==137 && c[1]==80 && c[2]==78 && c[3]==71
                && c[4]==13 && c[5]==10 && c[6]==26 && c[7]==10) {
             type |= PNG;
-            lookForPNGCalib();
+            lookForPNGCalib(limit);
         }
 
          // Detection de MRCOMP
@@ -435,14 +464,14 @@ public final class MyInputStream extends FilterInputStream {
                         && lookForSignature("Access.Format", true)>0
                         && lookForSignature("DataID.Title", true)>0  )
             )
-               type |= SIA_SSA|XML;
+               type |= SIA_SSA;
 
             // Detection de FOV
             else if( lookForSignature("name=\"FoVRef\"",true)>0 ||
                      lookForSignature("ID=\"FoVRef\"",true)>0   ||
                      // pour nouveau format
                      lookForSignature("utype=\"dal:footprint.geom.id\"", true)>0
-            ) type |= FOV|XML;
+            ) type |= FOV;
 
             // Detection de FOV_ONLY
             // TODO : à modifier, beaucoup trop générique
@@ -453,6 +482,10 @@ public final class MyInputStream extends FilterInputStream {
 //                                        || (lookForSignature("FoV",true)>0 && lookForSignature("\"CARTESIAN\"",false)>0)
             ) {
                type |= FOV_ONLY;
+            }
+            
+            else if( lookForSignature("utype=\"photdm:PhotometryFilter.SpectralAxis.Coverage.Location.Value", true)>0 ) {
+               type |= SED;
             }
 
          }
@@ -650,8 +683,11 @@ public long skip(long n) throws IOException {
    */
    public byte [] readFully() {
       int size=8192;
-      Vector v = new Vector(10);
-      Vector vSize = new Vector(10);
+      
+      ArrayList<byte[]> v = new ArrayList<byte[]>(1000);
+      ArrayList<Integer> vSize = new ArrayList<Integer>(1000);
+//      Vector v = new Vector(10);
+//      Vector vSize = new Vector(10);
       int n=0,m=0,i=0,j=0;
       byte [] tmp;
 
@@ -660,8 +696,8 @@ public long skip(long n) throws IOException {
          while( (n=read(tmp,0,size))!=-1 ) {
             i++;
 //System.out.println("Je lis "+n+" octets (tranche "+i+")");
-            v.addElement(tmp);
-            vSize.addElement( new Integer(n) );
+            v.add(tmp);
+            vSize.add( new Integer(n) );
             m+=n;
             tmp = new byte[size];
          }
@@ -673,8 +709,8 @@ public long skip(long n) throws IOException {
       byte [] tab = new byte[m];
       j=v.size();
       for( n=i=0; i<j; i++ ) {
-         tmp = (byte[])v.elementAt(i);
-         m = ((Integer)vSize.elementAt(i)).intValue();
+         tmp = v.get(i);
+         m = vSize.get(i).intValue();
 //System.out.println("Je copie la tranche "+(i+1)+" => "+m+" octets");
          System.arraycopy(tmp,0,tab,n,m);
          n+=m;
@@ -687,7 +723,7 @@ public long skip(long n) throws IOException {
     * ou null si le flux est termin
     */
 //   public String readLine() throws IOException {
-//      StringBuffer res = new StringBuffer();
+//      StringBuilder res = new StringBuilder();
 //      int c;
 //      boolean first=true;
 //
@@ -728,7 +764,7 @@ public long skip(long n) throws IOException {
    * @return une chaine decrivant le type de fichier
    */
    static public String decodeType(long type) {
-      StringBuffer s = new StringBuffer();
+      StringBuilder s = new StringBuilder();
 
       long mode=0x1;
       for( int i=1; i<FORMAT.length; i++ ) {
@@ -783,7 +819,7 @@ public long skip(long n) throws IOException {
       }
 //System.out.println("Chargement de "+len+" octets dans cache: offsetCache="+offsetCache+" inCache="+inCache);
    }
-
+   
    /**
     * Substitution dans le cache.
     * Ne marche que si les caractères n'ont pas encore été lus.
@@ -888,6 +924,17 @@ public long skip(long n) throws IOException {
 //      System.out.println("c="+c);
       return c;
    }
+   
+   // Retourne true si la première ligne est un commentaire, et pas le reste
+   static private boolean isFirstLineComment(String [] s, int size ) {
+      boolean flagFirstComment=true;
+      for( int i=0; i<size; i++ ) {
+         flagFirstComment &= s.length>0 
+               && (i==0 && s[i].charAt(0)=='#' || i>0 && s[i].charAt(0)!='#');
+      }
+      return flagFirstComment;
+   }
+   
    static private int analyseCSV1(String [] s,int size,boolean flagQuote) {
       int [][] m = new int[size][];
       for( int i=0; i<size; i++ ) {
@@ -919,16 +966,44 @@ public long skip(long n) throws IOException {
    
    static public void main(String argv[]) {
       try {
-         // String s1 = argv[0];
-         String s1 = "C:\\Documents and Settings\\Standard\\Bureau\\test.dat";
-         DataInputStream dis = new DataInputStream(new FileInputStream(s1));
-         String [] s = new String[5];
-         for( int i=0;i<s.length; i++ ) {
-            s[i] = dis.readLine();
-            if( s[i].length()>0 && s[i].charAt(0)=='#' ) i--;
+         File dir = new File("C:\\Users\\Pierre\\Desktop\\Data\\Scuba");
+         File list [] = dir.listFiles();
+         long t1,t2;
+         long duree=0L,size=0L;
+         int n=0;
+         for( File f : list ) {
+            size += f.length();
+            t1 = System.currentTimeMillis();
+            //METHODE 1
+//            MyInputStream mi = new MyInputStream( new FileInputStream(f));
+//            Fits fits = new Fits();
+//            fits.loadFITS(mi);
+//            mi.close();
+            
+            //METHODE 2
+//            RandomAccessFile in = new RandomAccessFile(f, "r");
+//            byte [] b = new byte[(int)f.length()];
+//            in.readFully(b);
+//            in.close();
+            
+            //METHODE 3
+//            FileInputStream fi = new FileInputStream(f);
+//            FileChannel in = fi.getChannel();
+//
+//            ByteBuffer buf = ByteBuffer.allocateDirect(1024);
+//            while(in.read(buf) != -1) {
+//               buf.clear();
+//            }
+//            buf.clear();
+//            in.close();
+//            fi.close();
+            
+            t2 = System.currentTimeMillis();
+            n++;
+            duree+= (t2-t1);
+            if( n>0 && n%100==0) System.out.print(".");
          }
-         int c = analyseCSV(s);
-         System.out.println("CSV => "+c+" => "+(c==-1?"not CSV":"["+(char)c)+"]");
+         System.out.println("\nn="+n+" size="+Util.getUnitDisk(size)+" tps="+Util.getTemps(duree));
       } catch( Exception e ) {
          e.printStackTrace();
       }
@@ -939,8 +1014,8 @@ public long skip(long n) throws IOException {
     */
    private String translateSextraHeader(String head) {
       StringTokenizer st = new StringTokenizer(head,"\n\r");
-//      StringBuffer nHead = new StringBuffer("z");
-      StringBuffer nHead = new StringBuffer();
+//      StringBuilder nHead = new StringBuilder("z");
+      StringBuilder nHead = new StringBuilder();
 
       while( st.hasMoreTokens() ) {
          String s = st.nextToken();
@@ -991,7 +1066,7 @@ public long skip(long n) throws IOException {
        int max=4; // Nbre de lignes valides a tester
        boolean inHeader=true; // true si on est dans l'entete du fichier
        int rep=1;
-       StringBuffer debugMsg=null;
+       StringBuilder debugMsg=null;
        boolean flagSextra = false;   // true si on a détecté une entête Sextractor
        boolean flagIPAC = false;    // true si on a détecté une entête IPAC
        boolean firstComment = true; // True si on n'a pas encore traité le premier commentaire
@@ -1002,14 +1077,16 @@ public long skip(long n) throws IOException {
        
        int bufN = 0;
        String [] bufLigne = new String[max];
+       String firstLine=null;
+       int firstLinePos=deb;
 
 //       try { cs = Aladin.aladin.CSVCHAR.toCharArray(); }
 //       catch( Exception e ) { cs = "\t".toCharArray(); }
 //
-//       if( Aladin.levelTrace>=3 ) debugMsg = new StringBuffer("CSV test result:");
+//       if( Aladin.levelTrace>=3 ) debugMsg = new StringBuilder("CSV test result:");
 
        for( int i=0; bufN<max && deb!=-1; i++ ) {
-          StringBuffer ligneb = new StringBuffer(256);
+          StringBuilder ligneb = new StringBuilder(256);
           deb = getLigne(ligneb,deb);
           String ligne = ligneb.toString();
           bufLigne[bufN] = ligne;
@@ -1034,6 +1111,8 @@ public long skip(long n) throws IOException {
                 if( firstComment ) { flagSextra=true; firstComment=false; }
                 flagSextra = flagSextra & isSextra(ligne);
                 if( flagSextra ) sextraFin = deb;
+                if( i==0 ) firstLine=ligne;
+                else firstLine=null;
                 continue;
              }
              inHeader=false;
@@ -1043,7 +1122,7 @@ public long skip(long n) throws IOException {
        }
        
        // On vire les lignes blanches éventuelles à la fin
-       for( int i=bufN-1; i>=0; i-- ) if( bufLigne[i].length()==0 ) bufN--;
+       for( int i=bufN-1; i>=0; i-- ) if( bufLigne[i].trim().length()==0 ) bufN--;
        
        if( bufN<2 ) return 0;
        
@@ -1060,6 +1139,19 @@ public long skip(long n) throws IOException {
           char c = (char)findSep;
           setSepCSV(c);
           Aladin.trace(3,"CSV detected with ["+c+"] as delimitor");
+          
+          // On teste s'il n'y aurait pas une ligne header en commentaire juste avant
+          // a la CSV VizieR mode queryCat
+          if( firstLine!=null ) {
+             String buf1 [] = new String [bufN+1];
+             for( int i=1; i<buf1.length; i++ ) buf1[i]=bufLigne[i-1];
+             buf1[0]=firstLine;
+             if( analyseCSV(buf1,buf1.length)>=0 ) {
+                Aladin.trace(3,"First line is certainly a \"comment header\" a la CSV VizieR => remove #");
+                try { substitute(firstLinePos,1,""); }
+                catch( Exception e ) { }
+             }
+          }
           return 1;
        }
 
@@ -1087,7 +1179,7 @@ public long skip(long n) throws IOException {
     public char getSepCSV() { return sepCSV; }
     private void setSepCSV(char c) { sepCSV=c; }
     
-    private int getLigne(StringBuffer s,int offset) throws Exception {
+    private int getLigne(StringBuilder s,int offset) throws Exception {
        int c;
        char ch;
        do {
@@ -1099,7 +1191,7 @@ public long skip(long n) throws IOException {
        return offset;
     }
 
-//    private int getJSonLigne(StringBuffer s,int offset) throws Exception {
+//    private int getJSonLigne(StringBuilder s,int offset) throws Exception {
 //       int c;
 //       char ch;
 //       do {
@@ -1132,7 +1224,7 @@ public long skip(long n) throws IOException {
 
     /** Pour du débugging : affichage de  */
     private String ASC(byte buf[],int pos, int size) {
-       StringBuffer s = new StringBuffer();
+       StringBuilder s = new StringBuilder();
        for( int i=pos; i<pos+size  ; i++ ) {
           char c = (char)buf[i];
           s.append( !Character.isISOControl(c) ? c:'.');
@@ -1140,19 +1232,48 @@ public long skip(long n) throws IOException {
        }
        return s+"";
     }
-
+    
+    
+    private String lz77Uncompress(byte [] tmp) throws Exception {
+       ByteArrayInputStream in = new ByteArrayInputStream(tmp);
+       InflaterInputStream zIn = new InflaterInputStream(in);
+       byte [] buffer = new byte[8192];
+       int n;
+       StringBuilder res = new StringBuilder();
+       while( (n=zIn.read(buffer))!=-1 ) {
+          String s = new String(buffer,0,n);
+          res.append(s);
+       }
+       zIn.close();
+       return res.toString();
+    }
+    
     /** Mémorisation du segment PNG commentaire supposé contenir une Calib
      * @param pos position dans le cache
      * @param size taille du segment
      * @return true si ça ressemble au moins un peu à une entête FITS
      */
-    private boolean memoPNGCalib(int pos,int size) {
+    private boolean memoPNGCalib(int pos,int size,boolean compress) {
 
        // Un commentaire PNG commence par un mot clé, suivi d'un octet à 0, puis le commentaire libre
        while( cache[pos]!=0 && size>1 ) { pos++; size--; }
        pos++; size--;
 
-       commentCalib = new String(cache,pos,size);
+       // Mode non compressé
+       if( !compress ) commentCalib = new String(cache,pos,size);
+       
+       // Mode compressé en LZ77
+       else {
+          try {
+             pos++; size--;   // pour l'octet qui contient le type de compression (toujorus à 0 de fait)
+             byte tmp [] = new byte[size];
+             System.arraycopy(cache, pos, tmp, 0, size);
+             commentCalib= lz77Uncompress(tmp);
+         } catch( Exception e ) {
+            if( Aladin.levelTrace>=3 ) e.printStackTrace();
+            return false;
+         }
+       }
 //       System.out.println("CALIB=["+commentCalib+"]");
        if( commentCalib.indexOf("CTYPE1")<0 ) {
           commentCalib=null;
@@ -1160,6 +1281,7 @@ public long skip(long n) throws IOException {
        }
        return true;
     }
+
 
     /** Mémorisation du segment JPEG commentaire supposé contenir une Calib
      * @param pos position dans le cache
@@ -1179,7 +1301,7 @@ public long skip(long n) throws IOException {
     double avmRefWidth=-1;
 
     /** Mémorisation d'un mot clé/valeur AVM */
-    private void memoOneAVM(StringBuffer key, StringBuffer value) {
+    private void memoOneAVM(StringBuilder key, StringBuilder value) {
        if( avm==null ) avm=new Hashtable(30);
        avm.put(key.toString().trim(),value.toString().trim());
        if( Aladin.levelTrace>=3 ) System.out.println("AVM tag: "+key+"=["+value.toString().trim()+"] ");
@@ -1187,7 +1309,7 @@ public long skip(long n) throws IOException {
 
     /** Ajout d'un caractère à une chaine en évitant les doublons des blancs
      * et en remplaçant d'éventuels NL par un blanc */
-    private void appendValue(StringBuffer buf,char c) {
+    private void appendValue(StringBuilder buf,char c) {
        int n= buf.length();
        if( c=='\n' || c=='\r' ) c=' ';    // On remplace les NL par un blanc
        if( n==0 || !Character.isSpaceChar(c) ) { buf.append(c); return; }
@@ -1217,8 +1339,8 @@ public long skip(long n) throws IOException {
        int depth=0;
        avm=null;
        avmRefWidth=-1;
-       StringBuffer key=null;
-       StringBuffer value=null;
+       StringBuilder key=null;
+       StringBuilder value=null;
        boolean flag0,flag1,flag2,flag3,flag4;
        boolean flagXMP2=false;      // Pour distinguer les deux modes XMP
        flag4=flag3=flag2=flag1=flag0=false;
@@ -1238,14 +1360,14 @@ public long skip(long n) throws IOException {
                 flag0=c=='<' || c==' ';  // Pour suporter les 2 types d'XMP
                 if( flag0 ) flagXMP2= c==' ';
                 if( flag4 ) {
-                   key = new StringBuffer();
+                   key = new StringBuilder();
                    if( !flagXMP2 ) { mode=1; depth=1; }
                    else mode=10;
                 }
                 break;
              // Mémorisation du mot clé XXXX dans <avm:XXXX>
              case 1:
-                if( c=='>' ) { mode=2; value=new StringBuffer(); }
+                if( c=='>' ) { mode=2; value=new StringBuilder(); }
                 else key.append(c);
                 break;
              // Lecture du paramètre en évitant les éventuels tags
@@ -1269,7 +1391,7 @@ public long skip(long n) throws IOException {
                 break;
              // Mémorisation du mot clé XXXX dans avm:XXXX=
              case 10:
-                if( c=='=' ) { mode=11;  value=new StringBuffer(); }
+                if( c=='=' ) { mode=11;  value=new StringBuilder(); }
                 else key.append(c);
                 break;
              // Passage de la première quote avm:XXXX="YYYY"
@@ -1287,7 +1409,7 @@ public long skip(long n) throws IOException {
     }
 
     private void createJpegAVMCalib(int width) {
-       StringBuffer fits = new StringBuffer(1000);
+       StringBuilder fits = new StringBuilder(1000);
        StringTokenizer st;
        String s;
        double ratio=1;
@@ -1384,8 +1506,8 @@ public long skip(long n) throws IOException {
 
     /** Construction d'un HeaderFits à partir de l'entête JPEG si possible,
      * sinon génère une exception */
-    protected FrameHeaderFits createFrameHeaderFitsFromCommentCalib() {
-       return new FrameHeaderFits(commentCalib);
+    protected FrameHeaderFits createFrameHeaderFitsFromCommentCalib(Plan plan) {
+       return new FrameHeaderFits(plan,commentCalib);
     }
     
     /** Construction d'un HeaderFits à partir de l'entête JPEG si possible,
@@ -1400,22 +1522,24 @@ public long skip(long n) throws IOException {
     /** Recherche dans un flux JPEG le segment commentaire qui peut contenir une
      * calibration. La mémorise (voir getJpegCabib() )
      * Etend automatique le cache pour se faire.
+     * @param limit nombre d'octets max à lire pour détecter la calib, (0 jusqu'au bout)
      * @return true si on a trouvé un segment commentaire, false sinon
      */
-    private boolean lookForJpegCalib() {
+    private boolean lookForJpegCalib() { return lookForJpegCalib(0); }
+    private boolean lookForJpegCalib(int limit) {
 
        int i=2;   // Taille de la signature JPEG
        try {
-          while( getValAt(i)==0xFF ) {
+          while( getValAt(i)==0xFF && (limit<=0 || inCache<limit) ) {
              int mode = getValAt(i+1);
              int size = getValAt(i+2)<<8 | getValAt(i+3);
              try {
                 while( offsetCache+i+2+size>=inCache ) loadInCache(8192);
              } catch( EOFException e ) { }
-if( Aladin.levelTrace==4 ) {
-   Aladin.trace(4,"("+i+") Segment JPEG "+H(getValAt(i))+" "+H(getValAt(i+1))+" "+size+" octets : ");
-   Aladin.trace(4,ASC(cache,offsetCache+i+8,size>128 ? 128 : size));
-}
+//if( Aladin.levelTrace==4 ) {
+//   Aladin.trace(4,"("+i+") Segment JPEG "+H(getValAt(i))+" "+H(getValAt(i+1))+" "+size+" octets : ");
+//   Aladin.trace(4,ASC(cache,offsetCache+i+8,size>128 ? 128 : size));
+//}
              if( mode==0xE1 ) {
                 memoJpegAVMCalib(offsetCache+i+4,size-2);
 
@@ -1431,25 +1555,31 @@ if( Aladin.levelTrace==4 ) {
     /** Recherche dans un flux PNG le segment commentaire qui peut contenir une
      * calibration. La mémorise (voir getPNGCabib() )
      * Etend automatique le cache pour se faire.
+     * @param limit nombre d'octets max à lire pour détecter la calib, (0 jusqu'au bout)
      * @return true si on a trouvé un segment commentaire, false sinon
      */
-    private boolean lookForPNGCalib() {
+    private boolean lookForPNGCalib() { return lookForPNGCalib(0); }
+    private boolean lookForPNGCalib(int limit) {
        boolean encore= true;
        int i=8;   // Taille de la signature PNG
+       boolean more=true;
        try {
-          while( encore ) {
+          while( encore && (limit<=0 || inCache<limit)  ) {
              int size = getValAt(i)<<24 | getValAt(i+1)<<16 | getValAt(i+2)<<8 | getValAt(i+3);
              String chunk = new String( new char[] { (char)getValAt(i+4),(char)getValAt(i+5),(char)getValAt(i+6),(char)getValAt(i+7)});
              try {
-                while( offsetCache+i+8+size>=inCache ) loadInCache(8192);
-             } catch( EOFException e ) { encore=false; }
+                if( more ) while( offsetCache+i+8+size>=inCache ) loadInCache(8192);
+                else if( offsetCache+i+8+size>=inCache ) encore=false;
+             } catch( EOFException e ) { more=false; }
 if( Aladin.levelTrace==4 ) {
    Aladin.trace(4,"("+i+") Segment PNG "+chunk+" "+size+" octets : ");
    Aladin.trace(4,ASC(cache,offsetCache+i+8,size>128 ? 128 : size));
 }
-             if( chunk.equals("tEXt" ) ) {
-//                memoJpegAVMCalib(offsetCache+i+8,size);
-                if( memoPNGCalib(offsetCache+i+8,size) ) return true;
+             if( chunk.equals("tEXt") ) {
+                if( memoPNGCalib(offsetCache+i+8,size,false) ) return true;
+
+             } if( chunk.equals("zTXt") ) {
+                if( memoPNGCalib(offsetCache+i+8,size,true) ) return true;
 
              } else if( chunk.equals("IEND") ) { encore=false;
 
@@ -1597,7 +1727,7 @@ if( Aladin.levelTrace==4 ) {
    /** Récupère la valeur d'un mot clé fits ou null si non trouvé */
    private String getFitsValue(String key) throws IOException {
       if( !fitsHeadRead ) findFitsEnd();
-      StringBuffer value;
+      StringBuilder value;
       int k=offsetCache;
       while( (k=lookForSignature(key+"=",false,k,false))>=0 ) {
 
@@ -1605,7 +1735,7 @@ if( Aladin.levelTrace==4 ) {
          int i=k;
          if( (i-9)%80!=0 ) continue;   // Pas sur un multiple de 80 => pas un mot clé FITS
 
-         value = new StringBuffer();
+         value = new StringBuilder();
 
          // Comparaison sur la valeur qui suit
          while( !isFitsVal( (char)cache[i]) && i<k+71 ) i++;  //passe blancs et quotes simples
@@ -1667,7 +1797,7 @@ if( Aladin.levelTrace==4 ) {
 
                // On remplit le cache jusqu'au deux premiers bytes
                // des donnees FITS pour preparer un eventuel test
-               // du MGIC NUMBER de HCOMP
+               // du MAGIC NUMBER de HCOMP
                if( inCache<dataFits+2 ) loadInCache(dataFits+2-inCache);
 //for( int i=n-3; i<dataFits+2; i++ ) {
 //   if( i%10==0 ) System.out.println();

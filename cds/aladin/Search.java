@@ -56,7 +56,7 @@ public final class Search extends JPanel implements MouseListener {
    Aladin aladin;
    SearchText text;
    JLabel label;
-   JButton left,right,go,out,reduce;
+   JButton left,right,/*go,*/out,reduce;
    protected JPanel panelSearch;
    
    static String MFSEARCHIN=null,MFSEARCHOUT,MFSEARCHNO,YOURSEARCH;
@@ -88,14 +88,14 @@ public final class Search extends JPanel implements MouseListener {
          public void actionPerformed(ActionEvent e) { up(); }
       });
       
-      go = b = new JButton(new ImageIcon(aladin.getImagette("Go.gif")));
-      b.setMargin(new Insets(0,0,0,0));
-      b.setBorderPainted(false);
-      b.setContentAreaFilled(false);
-      b.setToolTipText(aladin.chaine.getString("MFSEARCHGO"));
-      b.addActionListener( new ActionListener() {
-         public void actionPerformed(ActionEvent e) { go(); }
-      });
+//      go = b = new JButton(new ImageIcon(aladin.getImagette("Go.gif")));
+//      b.setMargin(new Insets(0,0,0,0));
+//      b.setBorderPainted(false);
+//      b.setContentAreaFilled(false);
+//      b.setToolTipText(aladin.chaine.getString("MFSEARCHGO"));
+//      b.addActionListener( new ActionListener() {
+//         public void actionPerformed(ActionEvent e) { go(); }
+//      });
       
       if( withReduceButton ) {
          reduce = b = new JButton(new ImageIcon(aladin.getImagette("Agrandir.gif")));
@@ -126,12 +126,16 @@ public final class Search extends JPanel implements MouseListener {
       JPanel searchPanel = new JPanel( new BorderLayout(0,0) );
       searchPanel.add(label=Aladin.createLabel(aladin.chaine.getString("MFSEARCHL")),"West");
       label.setToolTipText(aladin.chaine.getString("MFSEARCHHELP"));
-      searchPanel.add(text,"Center");
+      
+      JPanel pText = new JPanel(new BorderLayout());
+      pText.setBorder( BorderFactory.createEmptyBorder(2,0,2,0));
+      pText.add(text,BorderLayout.CENTER);
+      searchPanel.add(pText,"Center");
       
       panelSearch = new JPanel( new BorderLayout(0,0) );
       
       JPanel searchControlPanel = new JPanel( new BorderLayout(0,0) );
-      if( !Aladin.OUTREACH ) searchControlPanel.add(go,"West");
+//      if( !Aladin.OUTREACH ) searchControlPanel.add(go,"West");
       searchControlPanel.add(left,"Center");
       searchControlPanel.add(right,"East");
       
@@ -140,7 +144,7 @@ public final class Search extends JPanel implements MouseListener {
       genericSearchPanel.add(searchControlPanel,"Center");
       
       panelSearch.add(genericSearchPanel,"West");
-      if( !Aladin.OUTREACH ) panelSearch.add(Box.createHorizontalStrut(30),"Center");
+      if( !Aladin.OUTREACH ) panelSearch.add(Box.createHorizontalStrut(40),"Center");
       
       JPanel buttonPanel = new JPanel( new BorderLayout(0,0) );
       if( reduce!=null ) buttonPanel.add(reduce,"West");
@@ -157,6 +161,7 @@ public final class Search extends JPanel implements MouseListener {
    
    /** Permet de cacher/montrer les widgets propre à la recherche en ne laissant que les boutons "reduce" et "out" */
    protected void hideSearch(boolean flag) {
+      setIcon();
       if( flag==flagHideSearch ) return;
       flagHideSearch=flag;
       if( flagHideSearch ) remove(panelSearch);
@@ -195,7 +200,6 @@ public final class Search extends JPanel implements MouseListener {
       if( aladin.mesure.flagReduced || aladin.mesure.f!=null ) reduce.setIcon(new ImageIcon(aladin.getImagette("Agrandir.gif")));
       else reduce.setIcon(new ImageIcon(aladin.getImagette("Reduire.gif")));
    }
-
    
    static String SELECT,UNSELECT,APPEND,SHOW;
    
@@ -239,7 +243,7 @@ public final class Search extends JPanel implements MouseListener {
       if(aladin.mesure!=null ) x=aladin.mesure.nbSrc>0;
       right.setEnabled(x);
       left.setEnabled(x);
-      go.setEnabled(text.searchChanged());
+//      go.setEnabled(text.searchChanged());
       
       if( flag==oEnable ) return;
       oEnable=flag;
@@ -305,7 +309,7 @@ public final class Search extends JPanel implements MouseListener {
    
    /** Juste pour pouvoir redéfinir qq trucs */
    class SearchText extends JTextField implements KeyListener,MouseWheelListener {
-      private Dimension DIM = new Dimension(80,10);
+      private Dimension DIM = new Dimension(100,10);
       protected String previousSearch="";
       protected int oNbSrc=0;
       
@@ -334,7 +338,7 @@ public final class Search extends JPanel implements MouseListener {
                
       public void execute(int keyCode,String s,int flagAdd) {
          if( s==null ) s=getText();
-         go.setEnabled(searchChanged());
+//         go.setEnabled(searchChanged());
          if( keyCode==KeyEvent.VK_ENTER && flagAdd!=2 ) {
             previousSearch=s;
             // L'expression commence par "-", il s'agit d'une déselection de sources
@@ -346,7 +350,7 @@ public final class Search extends JPanel implements MouseListener {
             }
             boolean rep = aladin.mesure.selectByString(s,flagAdd);
             setColor( rep ? DEFAULT : NO);
-            go.setEnabled(false);
+//            go.setEnabled(false);
             right.setEnabled(rep);
             left.setEnabled(rep);
             text.selectAll();

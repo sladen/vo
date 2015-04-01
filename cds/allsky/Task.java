@@ -21,6 +21,8 @@ package cds.allsky;
 
 import java.util.Vector;
 
+import cds.aladin.Aladin;
+
 /** Gère le lancemetn des tâches nécéssaires à la génération d'un survey HEALPix.
  * Les tâches doivent hériter de la classe Builder. Elles peuvent être agencées consécutivement
  * (via un Vector de tâches). Elles seront exécutées soit en synchrone, soit en asynchrone dans un Thread
@@ -78,6 +80,9 @@ public class Task extends Thread {
        
        progressBar = new ThreadProgressBar(context);
        progressBar.start();
+       
+//       System.out.println("Check actions:");
+//       for( Action a : actions ) { System.out.println(" ==> "+a); }
 
        try { 
           context.setTaskRunning(true);
@@ -89,20 +94,26 @@ public class Task extends Thread {
                 context.endAction();
                 continue;
              }
-
+             
              context.startAction(a);
              try {
-                builder.run();
-                builder.showStatistics();
+                if( !builder.isFake() ) {
+                   builder.run();
+                   builder.showStatistics();
+                }
              } catch( Exception e ) {
-                e.printStackTrace();
+                if( Aladin.levelTrace>=3 ) e.printStackTrace();
                 context.taskAbort();
+                context.warning(e.getMessage());
              } 
              context.endAction();
           }
           context.setTaskRunning(false);
        }
-       catch( Exception e) {  e.printStackTrace(); context.warning(e.getMessage()); }
+       catch( Exception e) { 
+          if( Aladin.levelTrace>=3 ) e.printStackTrace();
+          context.warning(e.getMessage());
+       }
        finally{ context.setTaskRunning(false); if( progressBar!=null ) progressBar.end(); }
     }
     
@@ -113,7 +124,7 @@ public class Task extends Thread {
        long lastStat=-1;            // date d'affichage des dernières stats.
        long tempo;                  // Tempo entre deux affichages de statistiques
        long lastGC=-1;              // date du dernier GC
-       long tempoGC=30000;          // Tempo entre deux GC
+//       long tempoGC=10000;          // Tempo entre deux GC
        
        public ThreadProgressBar(Context context) {
           this.context = context;
@@ -128,9 +139,9 @@ public class Task extends Thread {
                    context.progressStatus();
                    long now = System.currentTimeMillis();
                    if( now-lastStat>tempo && builder!=null ) { builder.showStatistics(); lastStat=now; }
-                   if( now-lastGC>tempoGC ) { System.gc(); lastGC=now; }
+//                   if( now-lastGC>tempoGC ) { System.gc(); lastGC=now; }
                 }
-             } catch(Exception e) { }
+             } catch(Exception e) { e.printStackTrace();  }
 
           }
           context.resumeWidgets();

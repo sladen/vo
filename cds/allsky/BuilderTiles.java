@@ -22,12 +22,16 @@ package cds.allsky;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.Iterator;
 
 import cds.aladin.Aladin;
 import cds.aladin.MyInputStream;
 import cds.fits.CacheFits;
 import cds.fits.Fits;
+import cds.moc.HealpixMoc;
+import cds.moc.MocCell;
+import cds.tools.pixtools.CDSHealpix;
 import cds.tools.pixtools.Util;
 
 /** Permet la génération du survey HEALPix à partir d'un index préalablement généré
@@ -36,43 +40,42 @@ import cds.tools.pixtools.Util;
  */
 public class BuilderTiles extends Builder {
 
-   private boolean flagColor;
-   private int bitpix;
-   private double bZero;
-   private double bScale;
-   private double blank;
+   private boolean isColor;
+   protected int bitpix;
+   protected double bzero;
+   protected double bscale;
+   protected double blank;
 
    // Liste des Threads de calcul
-   private ArrayList<ThreadBuilder> threadList = new ArrayList<ThreadBuilder>();
+   protected ArrayList<ThreadBuilder> threadList = new ArrayList<ThreadBuilder>();
    private CoAddMode coaddMode=CoAddMode.REPLACETILE;
-
-//   protected String hpxFinderPath;
+   
    protected int ordermin = 3;
+   protected int ordermax;
    protected long nummin = 0;
    protected long nummax = 0;
-   protected ArrayList<Long> npix_list;
+   protected HealpixMoc npix_list;
+   protected Iterator<Long> npixIterator;
    protected double automin = 0;
    protected double automax = 0;
 
    public static boolean DEBUG = true;
 
    public static String FS;
-   private int NCURRENT = 0;
-   private int ordermax;
    private boolean stopped = false;
 
    static { FS = System.getProperty("file.separator"); }
 
    // Pour les stat
-   private int statNbThreadRunning=-1;     // Nombre de Thread qui sont en train de calculer
-   private int statNbThread;               // Nombre max de Thread de calcul
-   private int statNbTile;                 // Nombre de tuiles terminales déjà calculés
-   private long statMinTime,statMaxTime,statTotalTime,statAvgTime;
-   private int statEmptyTile;               // Nombre de tuiles terminales de fait vides
-   private int statNodeTile;                 // Nombre de tuiles "intermédiaires" déjà calculés
-   private long statNodeTotalTime,statNodeAvgTime;
-   private long startTime;                 // Date de lancement du calcul
-   private long totalTime;                 // Temps depuis le début du calcul
+   protected int statNbThreadRunning=-1;     // Nombre de Thread qui sont en train de calculer
+   protected int statNbThread;               // Nombre max de Thread de calcul
+   protected int statNbTile;                 // Nombre de tuiles terminales déjà calculés
+   protected long statMinTime,statMaxTime,statTotalTime,statAvgTime;
+   protected int statEmptyTile;               // Nombre de tuiles terminales de fait vides
+   protected int statNodeTile;                 // Nombre de tuiles "intermédiaires" déjà calculés
+   protected long statNodeTotalTime,statNodeAvgTime;
+   protected long startTime;                 // Date de lancement du calcul
+   protected long totalTime;                 // Temps depuis le début du calcul
 
    public BuilderTiles(Context context) { super(context); }
 
@@ -80,31 +83,34 @@ public class BuilderTiles extends Builder {
 
 
    public void run() throws Exception {
-      context.running("Creating FITS tiles and allsky (max depth="+context.getOrder()+")...");
+      context.running("Creating "+context.getTileExt()+" tiles and allsky (max depth="+context.getOrder()+")...");
       context.info("sky area to process: "+context.getNbLowCells()+" low level HEALPix cells");
 
       // Un peu de baratin
-      int b0=context.getBitpixOrig(), b1=context.getBitpix();
-      if( b0!=b1 ) {
-         context.info("BITPIX conversion from "+context.getBitpixOrig()+" to "+context.getBitpix());
-         double cutOrig[] = context.getCutOrig();
-         double cut[] = context.getCut();
-         context.info("Map original pixel range ["+cutOrig[2]+" .. "+cutOrig[3]+"] to ["+cut[2]+" .. "+cut[3]+"]");
+      if( !context.isColor() ) {
+         int b0=context.getBitpixOrig(), b1=context.getBitpix();
+         if( b0!=b1 ) {
+            context.info("BITPIX conversion from "+context.getBitpixOrig()+" to "+context.getBitpix());
+            double cutOrig[] = context.getCutOrig();
+            double cut[] = context.getCut();
+            context.info("Map original raw pixel range ["+cutOrig[2]+" .. "+cutOrig[3]+"] to ["+cut[2]+" .. "+cut[3]+"]");
+         }
+         else context.info("BITPIX = "+b1+" (no conversion)");
+         if( context.getDiskMem()!=-1 ) {
+            context.info("Disk requirement (upper approximation) : "+cds.tools.Util.getUnitDisk((long)(context.getDiskMem()*1.25)));
+         }
+         double bs=context.getBScale(), bz=context.getBZero();
+         if( bs!=1 || bz!=0 ) { context.info("BSCALE="+bs+" BZERO="+bz); }
+         double bl0 = context.getBlankOrig();
+         double bl1 = context.getBlank();
+         if( context.hasAlternateBlank() ) context.info("BLANK conversion from "+(Double.isNaN(bl0)?"NaN":bl0)+" to "+(Double.isNaN(bl1)?"NaN":bl1));
+         else context.info("BLANK="+ (Double.isNaN(bl1)?"NaN":bl1));
+         if( context.good!=null ) context.info("Good pixel values ["+ip(context.good[0],bz,bs)+" .. "+ip(context.good[1],bz,bs)+"] => other values are ignored");
+         context.info("Tile aggregation method="+Context.JpegMethod.MEAN);
       }
-      else context.info("BITPIX = "+b1+" (no conversion)");
-      if( context.getDiskMem()!=-1 ) {
-         context.info("Disk requirement (upper approximation) : "+cds.tools.Util.getUnitDisk(context.getDiskMem()*1.25));
-      }
-      double bs=context.getBScale(), bz=context.getBZero();
-      if( bs!=1 || bz!=0 ) { context.info("BSCALE="+bs+" BZERO="+bz); }
-      double bl0 = context.getBlankOrig();
-      double bl1 = context.getBlank();
-      if( context.hasAlternateBlank() ) context.info("BLANK conversion from "+(Double.isNaN(bl0)?"NaN":bl0)+" to "+(Double.isNaN(bl1)?"NaN":bl1));
-      else context.info("BLANK="+ (Double.isNaN(bl1)?"NaN":bl1));
-
       build();
-      if( !context.isTaskAborting() ) (new BuilderAllsky(context)).run();
-      if( !context.isTaskAborting() ) (new BuilderMoc(context)).run();
+      if( !context.isTaskAborting() ) { (new BuilderMoc(context)).run();  context.info("MOC done"); }
+      if( !context.isTaskAborting() ) { (new BuilderAllsky(context)).run(); context.info("Allsky done"); }
    }
 
 //   public boolean isAlreadyDone() {
@@ -122,69 +128,100 @@ public class BuilderTiles extends Builder {
       validateOutput();
       try {
           validateOrder(context.getHpxFinderPath());
-      }
-      catch(Exception e) {
+      } catch(Exception e) {
           context.warning(e.getMessage());
           // retry order validation with tiles directory
           validateOrder(context.getOutputPath());
       }
       
-//      context.setBitpixOrig(0);
-//      if( true ) return;
-      
-      // mémorisation des cuts et blank positionnés manuellement
-      double [] memoCutOrig = context.getCutOrig();
-      boolean hasAlternateBlank = context.hasAlternateBlank();
-      double blankOrig = context.getBlankOrig();
-      int bitpixOrig = context.getBitpixOrig();
-      
-      // Image étalon à charger obligatoirement pour BSCALE, BZERO, BITPIX et BLANK
-      String img = context.getImgEtalon();
-      if( img==null ) img = context.justFindImgEtalon( context.getInputPath() );
-      if( img==null ) throw new Exception("No source image found in "+context.getInputPath());
-      context.info("Reference image: "+img);
-      try { context.setImgEtalon(img); }
-      catch( Exception e) { context.warning("Reference image problem ["+img+"] => "+e.getMessage()); }
-      
-      // Image de référence en couleur
-      if(  context.getBitpixOrig()==0 ) {
-         context.initRegion();
-         return;
-      }
+      // Image de référence en couleur => pas besoin de plus
+      if(  !context.isColor() ) { 
+        
+         String img = context.getImgEtalon();
+         if( img==null ) img = context.justFindImgEtalon( context.getInputPath() );
 
-      if( bitpixOrig==-1 ) {
-         context.info("BITPIX found in the reference image => "+context.getBitpixOrig());
-      } else if( bitpixOrig!=context.getBitpixOrig() ) {
-         context.warning("The provided BITPIX (" +bitpixOrig+ ") is different than the original one (" + context.getBitpixOrig() + ") => bitpix conversion will be applied");
-         context.setBitpixOrig(bitpixOrig);
-      }
+         // mémorisation des cuts et blank positionnés manuellement
+         double [] memoCutOrig = context.getCutOrig();
+         boolean hasAlternateBlank = context.hasAlternateBlank();
+         double blankOrig = context.getBlankOrig();
+         int bitpixOrig = context.getBitpixOrig();
 
-      // repositionnement des cuts et blank passés par paramètre
-      double [] cutOrig = context.getCutOrig();
-      if( memoCutOrig!=null ) {
-         if( memoCutOrig[0]!=0 && memoCutOrig[1]!=0 ) { cutOrig[0]=memoCutOrig[0]; cutOrig[1]=memoCutOrig[1]; }
-         if( memoCutOrig[2]!=0 && memoCutOrig[3]!=0 ) { cutOrig[2]=memoCutOrig[2]; cutOrig[3]=memoCutOrig[3]; }
-         context.setCutOrig(cutOrig);
-      }
-      context.info("Data range ["+cutOrig[2]+" .. "+cutOrig[3]+"], pixel cut ["+cutOrig[0]+" .. "+cutOrig[1]+"]");
-      context.setValidateCut(true);
-      if( hasAlternateBlank ) context.setBlankOrig(blankOrig);
+         // Image étalon à charger obligatoirement pour BSCALE, BZERO, BITPIX et BLANK
+         //      String img = context.getImgEtalon();
+         //      if( img==null ) img = context.justFindImgEtalon( context.getInputPath() );
+         if( img==null ) throw new Exception("No source image found in "+context.getInputPath());
+         context.info("Reference image: "+img);
+         try { context.setImgEtalon(img); }
+         catch( Exception e) { context.warning("Reference image problem ["+img+"] => "+e.getMessage()); }
 
-      // Mise à jour des paramètres de sortie (en cas de conversion du BITPIX notamment)
-      context.initParameters();
+
+         if( bitpixOrig==-1 ) {
+            context.info("BITPIX found in the reference image => "+context.getBitpixOrig());
+         } else if( bitpixOrig!=context.getBitpixOrig() ) {
+            context.warning("The provided BITPIX (" +bitpixOrig+ ") is different than the original one (" + context.getBitpixOrig() + ") => bitpix conversion will be applied");
+            context.setBitpixOrig(bitpixOrig);
+         }
+         
+         double [] cutOrigBefore = context.getPixelRangeCut();
+         if( cutOrigBefore!=null ) {
+            memoCutOrig = new double[4];
+            for( int i=0; i<4; i++ ) {
+               if( Double.isNaN(cutOrigBefore[i]) ) continue;
+               memoCutOrig[i] = (cutOrigBefore[i] - context.bZeroOrig)/context.bScaleOrig;
+            }
+         }
+
+
+         // repositionnement des cuts et blank passés par paramètre
+         double [] cutOrig = context.getCutOrig();
+         double bs = context.bScaleOrig;
+         double bz = context.bZeroOrig;
+         if( memoCutOrig!=null ) {
+            if( memoCutOrig[0]!=0 || memoCutOrig[1]!=0 ) { cutOrig[0]=memoCutOrig[0]; cutOrig[1]=memoCutOrig[1]; }
+            if( memoCutOrig[2]!=0 || memoCutOrig[3]!=0 ) { cutOrig[2]=memoCutOrig[2]; cutOrig[3]=memoCutOrig[3]; }
+            context.setCutOrig(cutOrig);
+         }
+         
+         if( cutOrig[0]==cutOrig[1] ) context.warning("BAD PIXEL CUT: ["+ip(cutOrig[0],bz,bs)+" .. "+ip(cutOrig[1],bz,bs)+"] => YOU WILL HAVE TO CHANGE/EDIT THE properties FILE VALUES");
+         
+         context.setValidateCut(true);
+         
+         if( hasAlternateBlank ) context.setBlankOrig(blankOrig);
+         
+         context.initParameters();
+         context.info("Data range ["+ip(cutOrig[2],bz,bs)+" .. "+ip(cutOrig[3],bz,bs)+"], pixel cut ["+ip(cutOrig[0],bz,bs)+" .. "+ip(cutOrig[1],bz,bs)+"]");
+        
+      } else context.initParameters();
+      
+
       if( !context.verifCoherence() ) throw new Exception("Uncompatible pre-existing HEALPix survey");
-      if( context.getBScale()==0 ) throw new Exception("Big bug => BSCALE=0 !! please contact CDS");
+      if( !context.isColor() && context.getBScale()==0 ) throw new Exception("Big bug => BSCALE=0 !! please contact CDS");
+      
 
       // Info sur la méthode
       CoAddMode m = context.getCoAddMode();
-      context.info("mode="+CoAddMode.getExplanation(m));
+      if( !context.isColor() || m==CoAddMode.KEEPTILE || m==CoAddMode.REPLACETILE ) context.info("mode="+CoAddMode.getExplanation(m));
    }
+   
+   long lastTime = 0L;
+   long lastNbTile = 0L;
 
    /** Demande d'affichage des statistiques (via Task()) */
    public void showStatistics() {
+      long now = System.currentTimeMillis();
+      totalTime = now-startTime;
+      long deltaTime = now-lastTime;
+      long deltaNbTile = statNbTile-lastNbTile;
+      lastTime=now;
+      lastNbTile=statNbTile;
       context.showTilesStat(statNbThreadRunning,statNbThread,totalTime,statNbTile,statEmptyTile,statNodeTile,
-            statMinTime,statMaxTime,statAvgTime,statNodeAvgTime);
+            statMinTime,statMaxTime,statAvgTime,statNodeAvgTime,getUsedMem(),deltaTime,deltaNbTile);
+//      String s = showMem();
+//      if( s.length()>0 ) context.stat(s);
+//      if( context.cacheFits!=null && context.cacheFits.getStatNbOpen()>0 ) context.stat(context.cacheFits+"");
    }
+   
+   Hashtable<Thread,ArrayList<Fits>> memPerThread;
 
    // Initialisation des statistiques
    private void initStat(int nbThread) {
@@ -193,10 +230,101 @@ public class BuilderTiles extends Builder {
       statTotalTime=statNodeTotalTime=0L;
       startTime = System.currentTimeMillis();
       totalTime=0L;
+      memPerThread = new Hashtable<Thread,ArrayList<Fits>>();
    }
+   
+//   private long maxMem=0;
+   
+   // Libère de la mémoire non indispensable si besoin
+//   private void adjustMem() {
+//      if( maxMem==0 ) return;
+//      long diff=0L;
+//      long totMem=0L;
+//      long maxMemPerThread = maxMem/memPerThread.size();
+//      for( Long key : memPerThread.keySet() ) {
+//         ArrayList<Fits> m = memPerThread.get(key);
+//         if( m==null ) continue;
+//         long mem=0L;
+//         for( int i=m.size()-1; i>=0; i--) {
+//            Fits f = m.get(i);
+//            long m1 = f.getMem();
+//            if( mem>maxMemPerThread ) {
+//               try { f.releaseBitmap(); } catch( Exception e ) { }
+//               long m2= f.getMem();
+//               diff += m1-m2;
+//               m1=m2;
+//            }
+//            mem += m1;
+//         }
+//         totMem+=mem;
+//      }
+//      System.out.println("adjustMem: maxMem="+cds.tools.Util.getUnitDisk(maxMem)+" mem="+cds.tools.Util.getUnitDisk(totMem)+" diff="+cds.tools.Util.getUnitDisk(diff));
+//   }
 
+   // Suivi de mémoire d'un Thread particulier : suppression du Thread
+   private void rmThread(Thread t) {
+      Long key = new Long(t.hashCode());
+      ArrayList<Fits> m = memPerThread.get(key);
+      if( m!=null ) for( Fits f : m ) f.free();
+      memPerThread.remove(key);
+   }
+   
+   // Suivi de mémoire d'un Thread particulier : ajout d'un Fits
+   protected void addFits(Thread t,Fits f) {
+      if( f==null ) return;
+      if( f.width==0 ) {
+         try {
+            throw new Exception();
+         } catch( Exception e) { e.printStackTrace(); }
+      }
+      ArrayList<Fits> m = memPerThread.get(t);
+      if( m==null ) {
+         m=new  ArrayList<Fits>();
+         memPerThread.put(t,m);
+      }
+      m.add(f);
+   }
+   
+   // Suivi de mémoire d'un Thread particulier : retrait d'un Fits
+   protected void rmFits(Thread t,Fits f) {
+      ArrayList<Fits> m = memPerThread.get(t);
+      if( m==null ) return;
+      m.remove(f);
+   }
+   
+   private long getUsedMem() {
+      long mem=0L;
+      try {
+         for( Thread t : memPerThread.keySet() ) {
+            ArrayList<Fits> m = memPerThread.get(t);
+            mem += getUsedMem(m);
+         }
+      } catch( Exception e ) { }
+      return mem;
+   }
+   
+   private String showMem() {
+      StringBuffer s = new StringBuffer();
+      for( Thread t : memPerThread.keySet() ) {
+         ArrayList<Fits> m = memPerThread.get(t);
+         if( s.length()>0 ) s.append(", ");
+         s.append(t.getName()+":"+m.size()+"tiles"+"/"+cds.tools.Util.getUnitDisk( getUsedMem(m) ));
+      }
+      return s.toString();
+   }
+   
+   // Suivi de mémoire d'un Thread particulier : retourne la mémoire utilisé (en bytes)
+   private long getUsedMem(ArrayList<Fits> m) {
+      if( m==null ) return 0L;
+      long mem=0L;
+      try {
+         for( Fits f : m ) mem += f.getMem();
+      } catch( Exception e ) { }
+      return mem;
+   }
+   
    // Mise à jour des stats
-   private void updateStat(int deltaNbThread,int deltaTile,int deltaEmptyTile,long timeTile,int deltaNodeTile,long timeNodeTile) {
+   protected void updateStat(int deltaNbThread,int deltaTile,int deltaEmptyTile,long timeTile,int deltaNodeTile,long timeNodeTile) {
       statNbThreadRunning+=deltaNbThread;
       statNbTile+=deltaTile;
       statNodeTile+=deltaNodeTile;
@@ -215,53 +343,57 @@ public class BuilderTiles extends Builder {
             statNodeAvgTime = statNodeTotalTime/statNodeTile;
          }
       }
-      totalTime = System.currentTimeMillis()-startTime;
    }
 
-   private void build() throws Exception {
+   protected void build() throws Exception {
       this.ordermax = context.getOrder();
       long t = System.currentTimeMillis();
 
-      npix_list = new ArrayList<Long>(1024);
-      for( long npix=0; npix<768L; npix++) {
-         if( context.isInMoc(3, npix) ) npix_list.add(npix);
-      }
+       HealpixMoc moc = new HealpixMoc();
+       moc.add( context.getRegion() );
+       moc.setMocOrder(3);
+       npixIterator = moc.pixelIterator();
 
       // Initialisation des variables
-      flagColor = context.isColor();
+      isColor = context.isColor();
       bitpix = context.getBitpix();
       coaddMode = context.getCoAddMode();
 
-      if( !flagColor ) {
-         bZero = context.getBZero();
-         bScale = context.getBScale();
+      if( !isColor ) {
+         bzero = context.getBZero();
+         bscale = context.getBScale();
          blank = context.getBlank();
       }
 
-      // Numéro courant dans la liste npix_list
-      NCURRENT = 0;
-
       int nbProc = Runtime.getRuntime().availableProcessors();
 
-      // On utilisera 2/3 de la mémoire pour les threads et le reste pour le cacheFits
-      long size = Runtime.getRuntime().maxMemory();
-      long sizeCache = (size/3L)/(1024L*1024L);
-      size -=sizeCache;
-      Aladin.trace(4,"BuildController.build() cacheFits.size="+sizeCache+"Mo");
-      context.setCache(new CacheFits(sizeCache, 100000));
+      // On utilisera pratiquement toute la mémoire pour le cache
+      long size = getMem();
 
-      long maxMemPerThread = Constante.NBTILESINRAM * (long)( Constante.SIDE*Constante.SIDE*context.getNpix() );
-      maxMemPerThread += Constante.MAXOVERLAY * Constante.FITSCELLSIZE * Constante.FITSCELLSIZE * context.getNpix();
-      Aladin.trace(4,"BuildController.build(): RAM required per thread estimated at "+cds.tools.Util.getUnitDisk(maxMemPerThread));
+//      long maxMemPerThread = 4L * Constante.MAXOVERLAY * Constante.FITSCELLSIZE * Constante.FITSCELLSIZE * context.getNpix();
+      long bufMem =  4L * Constante.FITSCELLSIZE * Constante.FITSCELLSIZE * context.getNpixOrig();
+      long oneRhomb = Constante.SIDE*Constante.SIDE*context.getNpix();
+      long maxMemPerThread = 4*oneRhomb + bufMem;
+      if( isColor )  maxMemPerThread += oneRhomb*(ordermax-ordermin);
+      context.info("Minimal RAM required per thread (upper estimation): "+cds.tools.Util.getUnitDisk(maxMemPerThread));
       int nbThread = (int) (size / maxMemPerThread);
+
+      //    int nbThread=nbProc;
+
+      int maxNbThread = context.getMaxNbThread();
+      if( maxNbThread>0 && nbThread>maxNbThread ) nbThread=maxNbThread;
       if (nbThread==0) nbThread=1;
       if( nbThread>nbProc ) nbThread=nbProc;
-
+      
       Aladin.trace(4,"BuildController.build(): Found "+nbProc+" processor(s) for "+size/(1024*1024)+"MB RAM => Launch "+nbThread+" thread(s)");
-      context.info("processing by "+nbThread+" thread"+(nbThread>1?"s":"")+" with "+cds.tools.Util.getUnitDisk(size));
+      context.info("Will use "+nbThread+" thread"+(nbThread>1?"s":""));
+
+      long sizeCache=2L*size/3L;
+      context.setCache(new CacheFits(sizeCache));
+      context.info("Available RAM: "+cds.tools.Util.getUnitDisk(size)+" => Cache size: "+cds.tools.Util.getUnitDisk(sizeCache));
 
       // Lancement des threads de calcul
-      launchThreadBuilderHpx(nbThread,ordermin,ordermax);
+      launchThreadBuilderHpx(nbThread);
 
       // Attente de la fin du travail
       while( stillAlive() ) {
@@ -269,32 +401,14 @@ public class BuilderTiles extends Builder {
          cds.tools.Util.pause(1000);
       }
 
+      context.cacheFits.reset();
+      if( ThreadBuilderTile.statMaxOverlays>0 )
+         context.info("Tile overlay stats : max overlays="+ThreadBuilderTile.statMaxOverlays+", " +
+      		ThreadBuilderTile.statOnePass+" in one step, "+
+            ThreadBuilderTile.statMultiPass+" in multi steps");
       Aladin.trace(3,"Cache FITS status: "+ context.cacheFits);
       Aladin.trace(3,"Healpix survey build in "+cds.tools.Util.getTemps(System.currentTimeMillis()-t));
    }
-
-//   private void searchMinMax() {
-//
-//      long max = Util.nbrPix(Util.nside(ordermin));
-//
-//      // nummin nummax
-//      String path = Util.getFilePath( context.getHpxFinderPath(), ordermax, 0);
-//      path = path.substring(0, path.lastIndexOf(Util.FS)); // enleve le nom de fichier
-//      path = path.substring(0, path.lastIndexOf(Util.FS)); // enleve le nom de repertoire
-//
-//      File f = new File(path);
-//      String[] dirs = f.list();
-//      npix_list = new ArrayList<Long>();
-//      for (String dir : dirs) {
-//         long i = Util.getNDirFromPath(dir+Util.FS);
-//         // ajoute tous les losanges touchés par ce répertoire
-//         for (long n = Util.idx(i, ordermax, ordermin) ; n <= Util.idx(i+10000-1, ordermax, ordermin) ; n++) {
-//            if( n>max ) break;
-//            if (!npix_list.contains(n)) npix_list.add(n);
-//         }
-//      }
-//   }
-
 
    /** Création d'un losange et de toute sa descendance si nécessaire.
     * Méthode récursive qui
@@ -312,28 +426,39 @@ public class BuilderTiles extends Builder {
     * @param fading true si on utilise un fading sur les bords des images
     * @return Le losange
     */
-   private Fits createHpx(ThreadBuilderTile hpx, String path,int order, int maxOrder, long npix) throws Exception {
+   private Fits createHpx(ThreadBuilderTile hpx, String path,int order,long npix) throws Exception {
       String file = Util.getFilePath(path,order,npix);
-
+      
       // si le process a été arrêté on essaie de ressortir au plus vite
       if (stopped) return null;
 
+      // si on n'est pas dans le Moc, il faut retourner le fichier
+      // pour la construction de l'arborescence...
+      if( !context.isInMocTree(order,npix) ) return findLeaf(file);
+      
       // si le losange a déjà été calculé on le renvoie
       if( coaddMode==CoAddMode.KEEPTILE ) {
-         Fits oldOut = findFits(file+".fits");
-         if( oldOut!=null ) return oldOut;
+         Fits oldOut = findLeaf(file);
+         if( oldOut!=null ) {
+            HealpixMoc moc = context.getRegion();
+            moc = moc.intersection(new HealpixMoc(order+"/"+npix));
+            int nbTiles = (int)moc.getUsedArea();
+            updateStat(0,0,nbTiles,0,nbTiles/4,0);
+            oldOut.releaseBitmap();
+            return oldOut;
+         }
       }
-
-      // si on n'est pas dans le Moc, on sort
-      boolean inTree = context.isInMocTree(order,npix);
-      if (!inTree) return null;
-
 
       Fits f = null;
 
       // Création d'un losange terminal
-      if( order==maxOrder )  {
-         f = createLeaveHpx(hpx,file,order,npix);
+      if( order==ordermax )  {
+         try { f = createLeaveHpx(hpx,file,order,npix); }
+         catch( Exception e ) {
+            System.err.println("BuilderTiles.createLeave error: "+file);
+            e.printStackTrace();
+            return null;
+         }
 
       // Création des branches filles, et cumul des résultats
       } else {
@@ -341,41 +466,43 @@ public class BuilderTiles extends Builder {
          Fits fils[] = new Fits[4];
          for( int i =0; !stopped && i<4; i++ ) {
             if( context.isTaskAborting() ) throw new Exception("Task abort !");
-            fils[i] = createHpx(hpx, path,order+1,maxOrder,npix*4+i);
+            fils[i] = createHpx(hpx, path,order+1,npix*4+i);
          }
-         f = createNodeHpx(file,path,order,npix,fils);
+         try { f = createNodeHpx(file,path,order,npix,fils); }
+         catch( Exception e ) {
+            System.err.println("BuilderTiles.createNodeHpx error: "+file);
+            e.printStackTrace();
+            return null;
+         }
       }
 
       // On soulage la mémoire RAM des losanges qui ne vont pas servir tout de suite
       // on les relira lorsqu'on en aura besoin dans createNodeHpx(...)
-//      if( order<maxOrder-(Constante.MAXDEPTHINRAM-1) && f!=null ) f.releaseBitmap();
-      if( f!=null ) f.releaseBitmap();
+      if( f!=null && f.isReleasable() ) f.releaseBitmap();
       return f;
    }
-
-
+   
    // Classe des threads de calcul
    private class ThreadBuilder extends Thread {
-      int ordermin;
-      int ordermax;
-      ThreadBuilderTile hpx;
-      static final int WAIT=0;
-      static final int EXEC=1;
-      static final int DIED=2;
+      ThreadBuilderTile threadBuilderTile;
+      static final int WAIT =0;
+      static final int EXEC =1;
+      static final int DIED =3;
 
       private int mode=WAIT;
       private boolean encore=true;
 
-      public ThreadBuilder(String name,ThreadBuilderTile hpx, int ordermin,int ordermax) {
+      public ThreadBuilder(String name,ThreadBuilderTile threadBuilderTile) {
          super(name);
-         this.ordermin = ordermin;
-         this.ordermax = ordermax;
-         this.hpx = hpx;
+         this.threadBuilderTile = threadBuilderTile;
          Aladin.trace(3,"Creating "+getName());
       }
 
       /** Le thread est mort */
       public boolean isDied() { return mode==DIED; }
+
+      /** Le thread travaille */
+      public boolean isExec() { return mode==EXEC; }
 
       /** Demande la mort du thread */
       public void tue() { encore=false; }
@@ -384,66 +511,105 @@ public class BuilderTiles extends Builder {
          mode=EXEC;
          updateStat(+1,0,0,0,0,0);
          while( encore ) {
-            long npix = getNextNpix();
-            if( npix==-1 ) break;
+            MocCell cell = getNextNpix();
+            if( cell==null ) {
+//               Aladin.trace(4,Thread.currentThread().getName()+" no more high level cell to process !");
+               break;
+            }
+            mode=EXEC;
             try {
-//               Aladin.trace(4,Thread.currentThread().getName()+" process tree "+npix+"...");
+//               Aladin.trace(4,Thread.currentThread().getName()+" process high level cell "+cell+"...");
 
                // si le process a été arrêté on essaie de ressortir au plus vite
                if (stopped) break;
                if( context.isTaskAborting() ) break;
 
-               createHpx(hpx, context.getOutputPath(), ordermin, ordermax, npix);
-               context.setProgressLastNorder3((int)npix);
+               createHpx(threadBuilderTile, context.getOutputPath(), cell.order, cell.npix);
+               if( cell.order==3 ) setProgressBar((int)cell.npix);
 
-            } catch( Throwable e ) { e.printStackTrace(); }
+            } catch( Throwable e ) {
+               Aladin.trace(1,"*** "+Thread.currentThread().getName()+" exception !!! ("+e.getMessage()+")");
+               e.printStackTrace(); 
+               context.taskAbort();
+            }
          }
          updateStat(-1,0,0,0,0,0);
          mode=DIED;
-         Aladin.trace(3,Thread.currentThread().getName()+" died !");
+         rmThread(Thread.currentThread());
+//         Aladin.trace(3,Thread.currentThread().getName()+" died !");
       }
    }
+   
+   /** Mise à jour de la barre de progression en mode GUI */
+   protected void setProgressBar(int npix) { context.setProgressLastNorder3(npix); }
 
    // Retourne le prochain numéro de pixel à traiter par les threads de calcul, -1 si terminer
-   private long getNextNpix() {
-      getlock();
-      long pix = NCURRENT==npix_list.size()  ? -1 : npix_list.get(NCURRENT++);
-      unlock();
+//   private MocCell getNextNpix() {
+//      MocCell pix=null;
+//      getlock();
+//      try {
+//         if( !npixIterator.hasNext() ) return null;
+//         pix = new MocCell(ordermin,npixIterator.next().longValue());
+//         //      MocCell pix = NCURRENT==npix_list.size()  ? null : npix_list.get(NCURRENT++);
+//      } finally { unlock(); }
+//      return pix;
+//   }
+   
+   private MocCell getNextNpix() {
+      MocCell pix=null;
+      synchronized( lockObj ) {
+         if( !npixIterator.hasNext() ) return null;
+         pix = new MocCell(ordermin,npixIterator.next().longValue());
+         //      MocCell pix = NCURRENT==npix_list.size()  ? null : npix_list.get(NCURRENT++);
+      }
       return pix;
    }
 
-   // Gère l'accès exclusif par les threads de calcul à la liste des losanges à traiter (npix_list)
-   private void getlock() {
-      while( true ) {
-         synchronized(lockObj) { if( !lock ) { lock=true; return; } }
-         cds.tools.Util.pause(10);
-      }
-   }
-   private void unlock() { synchronized(lockObj) { lock=false; } }
+
+//   // Gère l'accès exclusif par les threads de calcul à la liste des losanges à traiter (npix_list)
+//   private void getlock() {
+//      while( true ) {
+//         synchronized(lockObj) { if( !lock ) { lock=true; return; } }
+//         cds.tools.Util.pause(10);
+//      }
+//   }
+//   private void unlock() { synchronized(lockObj) { lock=false; } }
 
    private Object lockObj = new Object();
-   private boolean lock=false;
+//   private boolean lock=false;
 
 
    // Crée une série de threads de calcul
-   private void launchThreadBuilderHpx(int nbThreads,int ordermin,int ordermax) throws Exception {
+   private void launchThreadBuilderHpx(int nbThreads) throws Exception {
 
       initStat(nbThreads);
       context.createHealpixOrder(Constante.ORDER);
-
+      ThreadBuilderTile.nbThreadRunning=nbThreads;
+      
       for( int i=0; i<nbThreads; i++ ) {
          if( context.isTaskAborting() ) throw new Exception("Task abort !");
-         ThreadBuilderTile hpx = new ThreadBuilderTile(context);
-         ThreadBuilder t = new ThreadBuilder("Builder"+i,hpx,ordermin,ordermax);
+         ThreadBuilderTile threadBuilderTile = new ThreadBuilderTile(context,this);
+         ThreadBuilder t = new ThreadBuilder("Builder"+i,threadBuilderTile);
          threadList.add( t );
          t.start();
       }
    }
+   
+   void destroyOneThreadBuilderHpx(ThreadBuilder x) { }
 
    // Demande l'arrêt de tous les threads de calcul
    void destroyThreadBuilderHpx() {
       Iterator<ThreadBuilder> it = threadList.iterator();
       while( it.hasNext() ) it.next().tue();
+   }
+   
+   int nbThreadRunning() {
+      int n=0;
+      Iterator<ThreadBuilder> it = threadList.iterator();
+      while( it.hasNext() ) {
+         if( it.next().isExec() ) n++;
+      }
+      return n;
    }
 
    // Retourne true s'il reste encore au-moins un thread de calcul vivant
@@ -460,22 +626,27 @@ public class BuilderTiles extends Builder {
     * @param npix Numéro Healpix du losange
     * @param fils les 4 fils du losange
     */
-   private Fits createNodeHpx(String file,String path,int order,long npix,Fits fils[]) throws Exception {
+   protected Fits createNodeHpx(String file,String path,int order,long npix,Fits fils[]) throws Exception {
       long t = System.currentTimeMillis();
       int w=Constante.SIDE;
       double px[] = new double[4];
 
       boolean inTree = context.isInMocTree(order,npix);
       if( !inTree ||
-            fils[0]==null && fils[1]==null && fils[2]==null && fils[3]==null) return flagColor ? null : findFits(file+".fits");
+            fils[0]==null && fils[1]==null && fils[2]==null && fils[3]==null) {
+         if( isColor ) return null;
+         Fits f = findLeaf(file);
+         addFits(Thread.currentThread(),f);
+         return f;
+      }
 
       for( Fits f : fils ) if( f!=null ) f.reloadBitmap();
 
       Fits out = new Fits(w,w,bitpix);
-      if( !flagColor ) {
+      if( !isColor ) {
          out.setBlank(blank);
-         out.setBscale(bScale);
-         out.setBzero(bZero);
+         out.setBzero(bzero);
+         out.setBscale(bscale);
       }
       Fits in;
       for( int dg=0; dg<2; dg++ ) {
@@ -489,7 +660,7 @@ public class BuilderTiles extends Builder {
                for( int x=0; x<w; x+=2 ) {
 
                   // Couleur
-                  if( flagColor ) {
+                  if( isColor ) {
                      int pix=0;
                      if( in!=null ) {
                         for( int i=0;i<4; i++ ) {
@@ -528,8 +699,8 @@ public class BuilderTiles extends Builder {
          }
       }
 
-      if( coaddMode!=CoAddMode.REPLACETILE && coaddMode!=CoAddMode.KEEPTILE ) {
-         Fits oldOut = findFits(file+".fits");
+      if( !isColor && coaddMode!=CoAddMode.REPLACETILE && coaddMode!=CoAddMode.KEEPTILE ) {
+         Fits oldOut = findLeaf(file);
          if( oldOut!=null ) {
             if( coaddMode==CoAddMode.AVERAGE ) out.coadd(oldOut);
             else if( coaddMode==CoAddMode.OVERWRITE ) out.mergeOnNaN(oldOut);
@@ -539,12 +710,15 @@ public class BuilderTiles extends Builder {
                if( oldOut.bitpix>0 && Double.isNaN(oldOut.blank)) oldOut.setBlank(blank);
                oldOut.mergeOnNaN(out);
                out=oldOut;
+               oldOut=null;
             }
          }
       }
 
-      if( flagColor ) out.writeJPEG(file+".jpg");
-      else out.writeFITS(file+".fits");
+//      String filename = file+context.getTileExt();
+//      if( isColor ) out.writeCompressed(filename,0,0,null, context.MODE[ context.targetColorMode ]);
+//      else out.writeFITS(filename);
+      write(file,out);
 
       long duree = System.currentTimeMillis() -t;
       if( npix%10 == 0 || DEBUG ) Aladin.trace(4,Thread.currentThread().getName()+".createNodeHpx("+order+"/"+npix+") "+coaddMode+" in "+duree+"ms");
@@ -552,11 +726,23 @@ public class BuilderTiles extends Builder {
       updateStat(0,0,0,0,1,duree);
 
       for( int i=0; i<4; i++ ) {
-         if( fils[i]!=null ) fils[i].free();
+         if( fils[i]!=null ) {
+            rmFits(Thread.currentThread(), fils[i]);
+            fils[i].free();
+            fils[i]=null;
+         }
       }
+      
+      addFits(Thread.currentThread(),out);
       return out;
    }
-
+   
+   protected void write(String file, Fits out) throws Exception {
+      String filename = file+context.getTileExt();
+      if( isColor ) out.writeCompressed(filename,0,0,null, context.MODE[ context.targetColorMode ]);
+      else out.writeFITS(filename);
+   }
+   
    /** Création d'un losange terminal
     * @param file Nom du fichier de destination (complet mais sans l'extension)
     * @param order Ordre healpix du losange
@@ -564,27 +750,33 @@ public class BuilderTiles extends Builder {
     * @param fading utilisation d'un fading pour les bords/recouvrements d'images
     * @return null si rien trouvé pour construire ce fichier
     */
-   private Fits createLeaveHpx(ThreadBuilderTile hpx, String file,int order,long npix) throws Exception {
+   protected Fits createLeaveHpx(ThreadBuilderTile hpx, String file,int order,long npix) throws Exception {
       long t = System.currentTimeMillis();
-
+      
       Fits oldOut=null;
+      
       boolean isInList = context.isInMoc(order,npix);
+
       if( !isInList && coaddMode!=CoAddMode.REPLACETILE ) {
-         oldOut = findFits(file+".fits");
-         if( !(oldOut==null && context.isMocDescendant(order,npix) ) ) return oldOut;
+         oldOut = findLeaf(file);
+         if( !(oldOut==null && context.isMocDescendant(order,npix) ) ) {
+            addFits(Thread.currentThread(), oldOut);
+            return oldOut;
+         }
       }
 
-      int nside_file = Util.nside(order);
-      int nside = Util.nside(order+Constante.ORDER);
+      Fits out = hpx.buildHealpix(this,order, npix);
 
-      Fits out = hpx.buildHealpix(nside_file, npix, nside);
-
-      if( out !=null ) {
+      if( out !=null  ) {
 
          if( coaddMode!=CoAddMode.REPLACETILE ) {
-            if( oldOut==null ) oldOut = findFits(file+".fits");
-            if( oldOut!=null && coaddMode==CoAddMode.KEEPTILE ) return oldOut;
-            if( oldOut!=null && out!=null) {
+            if( oldOut==null ) oldOut = findLeaf(file);
+            if( oldOut!=null && coaddMode==CoAddMode.KEEPTILE ) { 
+               out=null;
+               addFits(Thread.currentThread(), oldOut);
+               return oldOut; 
+            }
+            if( oldOut!=null ) {
                if( coaddMode==CoAddMode.AVERAGE ) out.coadd(oldOut);
                else if( coaddMode==CoAddMode.OVERWRITE ) out.mergeOnNaN(oldOut);
                else if( coaddMode==CoAddMode.KEEP ) {
@@ -593,34 +785,48 @@ public class BuilderTiles extends Builder {
                   if( oldOut.bitpix>0 && Double.isNaN(oldOut.blank)) oldOut.setBlank(blank);
                   oldOut.mergeOnNaN(out);
                   out=oldOut;
+                  oldOut=null;
                }
             }
          }
       }
 
-      long duree = System.currentTimeMillis()-t;
+      long duree;
       if (out!=null) {
-         if( flagColor ) out.writeJPEG(file+".jpg");
-         else out.writeFITS(file+".fits");
-         if( npix%10 == 0 || DEBUG ) Aladin.trace(4,Thread.currentThread().getName()+".createLeaveHpx("+order+"/"+npix+") "+coaddMode+" in "+duree+"ms");
+         write(file,out);
+         duree = System.currentTimeMillis()-t;
+//         if( npix%10 == 0 || DEBUG ) Aladin.trace(4,Thread.currentThread().getName()+".createLeaveHpx("+order+"/"+npix+") "+coaddMode+" in "+duree+"ms");
          updateStat(0,1,0,duree,0,0);
-      } else updateStat(0,0,1,duree,0,0);
-
+         
+      } else {
+         duree = System.currentTimeMillis()-t;
+         updateStat(0,0,1,duree,0,0);
+      }
+      
+      addFits(Thread.currentThread(), out);
       return out;
    }
+   
 
-   /** Recherche et chargement d'un losange déjà calculé (présence du fichier Fits 8 bits).
+   /** Recherche et chargement d'un losange déjà calculé
     *  Retourne null si non trouvé
-    * @param filefits Nom du fichier fits (complet avec extension)
+    * @param file Nom du fichier ( sans extension)
     */
-   static public Fits findFits(String filefits) throws Exception {
-      File f = new File(filefits);
+   public Fits findLeaf(String file) throws Exception {
+      String filename = file + context.getTileExt();
+      File f = new File(filename);
       if( !f.exists() ) return null;
       Fits out = new Fits();
-      MyInputStream is = new MyInputStream( new FileInputStream(f));
-      out.loadFITS(is);
-      out.setFilename(filefits);
-      is.close();
+      MyInputStream is = null;
+      try {
+         is = new MyInputStream( new FileInputStream(f));
+         if( isColor ) out.loadJpeg(is, true);
+         else out.loadFITS(is);
+         out.setFilename(filename);
+      } 
+      catch( Exception e ) { return null; } 
+      finally { if( is!=null ) is.close(); }
       return out;
    }
+   
 }

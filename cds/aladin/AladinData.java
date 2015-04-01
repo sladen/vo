@@ -69,7 +69,7 @@ public class AladinData {
    /** Return the origin of the plane
     * @param the origin of the plane
     */
-   public String getOrigin() { return plan.from; }
+   public String getOrigin() { return plan.copyright; }
 
    /**
     * Return the url from where the plane has been built
@@ -311,8 +311,8 @@ public class AladinData {
    public void setFitsHeader(String header) throws AladinException {
       testImage();
       try {
-         ((PlanImage)plan).headerFits = new FrameHeaderFits(header);
-         ((PlanImage)plan).headerFits = new FrameHeaderFits(plan.aladin.save.generateFitsHeaderString((PlanImage)plan));
+         ((PlanImage)plan).headerFits = new FrameHeaderFits(plan,header);
+         ((PlanImage)plan).headerFits = new FrameHeaderFits(plan,plan.aladin.save.generateFitsHeaderString((PlanImage)plan));
       } catch( Exception e ) { throw new AladinException(ERR010+" => "+e.getMessage()); }
       setCalib();
    }
@@ -522,7 +522,7 @@ public class AladinData {
     */
    public int getNbObj() throws AladinException {
       testOverlay();
-      return plan.pcat.getCounts();
+      return plan.pcat.getCount();
    }
    
    /** FOR ADVANCED DEVELOPERS ONLY !
@@ -798,7 +798,7 @@ public class AladinData {
 
 
    // Force Aladin to recompute and redisplay the plane
-   private void repaint() {
+   public void repaint() {
       if( plan instanceof PlanImage ) ((PlanImage)plan).changeImgID();
       else plan.aladin.view.newView(1);
       plan.aladin.calque.repaintAll();

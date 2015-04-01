@@ -504,7 +504,7 @@ public class ServerGlu extends Server implements Runnable {
             || flagNumeric && s.equals(cr) ) {
 //         if( !flagNumeric && (s.indexOf(cr)>=0 || s1.indexOf(cr)>=0) || flagNumeric && s.equals(cr) ) {
             s = (String)c.getItemAt(i);   // Pour ne pas rester en majuscules
-            if( (m=s.indexOf(" - "))>0 ) s=s.substring(0,m);
+            if( (m=s.indexOf(" - "))>0 ) s=s.substring(0,m).trim();
             return s;
 
          }
@@ -609,7 +609,7 @@ public class ServerGlu extends Server implements Runnable {
                   s = getComboItem((JComboBox)c,cr);
                   if( s!=null ) {
                      //System.out.print(" Bingo("+s+"):"+j);
-                     if( (m=s.indexOf(" - "))>0 ) s=s.substring(0,m);
+                     if( (m=s.indexOf(" - "))>0 ) s=s.substring(0,m).trim();
                      trouve=true;
 
                      v.setElementAt(s,j);
@@ -667,7 +667,7 @@ public class ServerGlu extends Server implements Runnable {
                s = (String)((JComboBox)c).getSelectedItem();
                if( (m=s.indexOf(" - "))>0 ) vbis.addElement(s.substring(m+3));
                else vbis.addElement(s);
-               if( (m=s.indexOf(" - "))>0 ) s=s.substring(0,m);
+               if( (m=s.indexOf(" - "))>0 ) s=s.substring(0,m).trim();
                else if( s.equals("?") || s.startsWith("-") && s.endsWith("-")) s="";
                //System.out.print(" Default_Choice("+s+"):"+j);
                v.addElement(s);
@@ -789,8 +789,9 @@ public class ServerGlu extends Server implements Runnable {
    private void submit1() {
       String s,objet="";
       Enumeration e;
+      String code=null;
       boolean flagScriptEquiv=true;	// Par défaut, il existe tjs une commande script équivalent
-
+      
       // Resolution par Simbad necessaire ?
       if( target!=null ) {
          try {
@@ -823,9 +824,12 @@ public class ServerGlu extends Server implements Runnable {
                  int j;
                  String t=null;
                  crit=s = (String)((JComboBox)c).getSelectedItem();
+                 // Si la valeur est précédée d'un "XXX - valeur", c'est XXX qui sera utilisé
+                 // en tant que valeur.
                  if( (j=s.indexOf(" - "))>0 ) vbis.addElement(crit=s.substring(j+3));
+                 if( (j=s.trim().indexOf("- "))==0 ) vbis.addElement(crit=s.substring(j+2));
                  else vbis.addElement(s);
-                 if( (j=s.indexOf(" - "))>0 ) s=s.substring(0,j);
+                 if( j>=0 ) s=s.substring(0,j).trim();
                  else if( s.equals("?") || s.startsWith("-") && s.endsWith("-")) crit=s="";
                  v.addElement(s);
               }
@@ -868,8 +872,8 @@ public class ServerGlu extends Server implements Runnable {
          String r = getRadius(false);
          if( r==null ) r="";
          else r = " "+Coord.getUnit(getRM(r)/60.);
-         aladin.console.setCommand("get "+actionName + (criteres.length()==0?" ":"("+criteres+") ")
-               +this.getTarget()+r);
+         code = "get "+actionName + (criteres.length()==0?" ":"("+criteres+") ");
+         aladin.console.printCommand(code+this.getTarget()+r);
       }
 
       // Generation de l'URL par appel au GLU
@@ -880,10 +884,12 @@ public class ServerGlu extends Server implements Runnable {
           try{
 
             // Traitement des images par lot
-            if( tree!=null && !tree.isEmpty() ) {
-               if( tree.nbSelected()>0 ) {
-                  tree.loadSelected();
-                  tree.resetCb();
+             if( tree!=null && !tree.isEmpty() ) {
+                if( tree.nbSelected()>0 ) {
+                   if( !tooManyChecked() ) { 
+                      tree.loadSelected();
+                      tree.resetCb();
+                   }
                } else Aladin.warning(this,WNEEDCHECK);
 
 			   // Chargement des descriptions des images disponibles dans thread séparé
@@ -911,6 +917,7 @@ public class ServerGlu extends Server implements Runnable {
       } else defaultCursor();
 
       lastPlan = aladin.calque.createPlan(u+"",label,"provided by "+institute,this);
+      if( code!=null && lastPlan!=null ) lastPlan.setBookmarkCode(code+" $TARGET $RADIUS");
     }
    
    /** Lance l'éxécution de l'application system */
@@ -1000,7 +1007,7 @@ public class ServerGlu extends Server implements Runnable {
          } else if( c instanceof JComboBox ) {
             int j;
             s = (String)((JComboBox)c).getSelectedItem();
-            if( (j=s.indexOf(" - "))>0 ) s=s.substring(0,j);
+            if( (j=s.indexOf(" - "))>0 ) s=s.substring(0,j).trim();
             else if( s.equals("?") || s.startsWith("-") && s.endsWith("-")) s="";
             v.addElement(s);
          }

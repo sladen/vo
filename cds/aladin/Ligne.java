@@ -31,6 +31,7 @@ import java.util.*;
 
 import javax.swing.JTextField;
 
+import cds.aladin.Forme.ObjetIterator;
 import cds.aladin.Hist.HistItem;
 import cds.aladin.prop.Prop;
 import cds.aladin.prop.PropAction;
@@ -102,6 +103,11 @@ public class Ligne extends Position {
        super(plan,v,0.0,0.0,ra,dec,RADE,null);
    }
    
+   protected Ligne(ViewSimple v,double ra, double dec) {
+      super(null,v,0.0,0.0,ra,dec,RADE_COMPUTE,null);
+  }
+  
+
    protected Ligne(double ra, double dec, Plan plan, ViewSimple v, Ligne debligne) {
       this(ra,dec,plan,v,null,debligne);
    }
@@ -286,6 +292,12 @@ public class Ligne extends Position {
    
    /** Retourne true si l'objet contient des informations de photométrie  */
    public boolean hasPhot() { return isPolygone(); }
+   public boolean hasPhot(Plan p) { 
+      if( !hasPhot() ) return false;
+      if( p instanceof PlanBG ) return false;  // POUR LE MOMENT
+      return p.hasAvailablePixels();
+   }
+
    
    /** Redessine tout le polygone avec un aplat - ne fonctionne que pour le dernier segment */
    private void fillPolygon(Graphics g,ViewSimple v,int dx, int dy) {
@@ -349,8 +361,24 @@ public class Ligne extends Position {
    * @param fz le zoom
    */
    protected boolean inside(ViewSimple v, double x,double y) {
+//      if( bout==3 ) return inPolygon(v,(int)x,(int)y);
+
+      // Cas courant
       return nearArrow(v,x,y);
    }
+      
+   /** Redessine tout le polygone avec un aplat - ne fonctionne que pour le dernier segment */
+   protected boolean inPolygon(ViewSimple v,int x, int y) {
+      if( bout!=3 ) return false;
+      Ligne tmp = this;
+      Polygon pol = new Polygon();
+      while( tmp.debligne!=null ) {
+         pol.addPoint((int)tmp.xv[v.n],(int)tmp.yv[v.n]);
+         tmp=tmp.debligne;
+      }
+      return pol.contains(x, y);
+   }
+
 
   /** Coordonnees dans la vue courante.
    * Retourne la position dans les coord. de la vue courante
@@ -547,7 +575,7 @@ public class Ligne extends Position {
 //         return false;
 //      }
 
-      if( !v.pref.hasAvailablePixels() ) return false;
+      if( v==null || v.isFree() || !hasPhot(v.pref) ) return false;
       statInit();    
 
       int x,y,i;
@@ -641,6 +669,7 @@ public class Ligne extends Position {
       
       Projection proj = p.projd;
       if( !p.hasAvailablePixels() ) throw new Exception("getStats error: image without pixel values");
+      if( !hasPhot(p) )  throw new Exception("getStats error: not compatible image");
       if( !Projection.isOk(proj) ) throw new Exception("getStats error: image without astrometrical calibration");
       if( getLastBout().bout!=3 ) throw new Exception("getStats error: it is not a polygon");
       
@@ -716,7 +745,7 @@ public class Ligne extends Position {
       return new double[]{ nombre, total, sigma, surface };
    }
 
-    protected void drawID(Graphics g ,Point p1,Point p2) { }
+    protected void drawID(Graphics g , ViewSimple v,Point p1,Point p2) { }
        
    /** Retourne la fin de la polyligne */
    protected Ligne getLastBout() {
@@ -744,16 +773,63 @@ public class Ligne extends Position {
       super.statDraw(g,v,dx,dy);
       getFirstBout().id=id;
    }
+   
+   
+//   static final int BETA = (int)(1./Math.tan(90*Math.PI/180));
+//   protected boolean outOfSky(ViewSimple v) {
+//      double al1,del1;
+//      double al2,del2;
+//      double al,del;
+//      Point p1,p2,p;
+//      
+//      if( debligne==null ) return false;
+//      
+//      al1=raj; del1=dej; al2=debligne.raj; del2=debligne.dej;
+//      al = (al2+al1)/2;
+//      del = (del2+del1)/2;
+//      
+//      p1 = debligne.getViewCoord(v);
+//      p2 = getViewCoord(v);
+//      p = (new Ligne(v,al,del)).getViewCoord(v);
+//      
+//      double dx1 = p.x-p1.x; //s1.x2-s1.x1;
+//      double dy1 = p.y-p1.y;  //s1.y2-s1.y1;
+//      double dx2 = p2.x-p.x; // s2.x2-s2.x1;
+//      double dy2 = p2.y-p.y; //s2.y2-s2.y1;
+//      
+//      double theta1 = Math.atan2(dy1, dx1);
+//      double theta2 = Math.atan2(dy2, dx2);
+//      double angle = Math.abs(theta1-theta2);
+//      
+//      System.out.println(p1.x+","+p1.y+" -> "+p.x+","+p.y+" -> "+p2.x+","+p2.y+" => "+(angle*180)/Math.PI);
+//
+//      return Math.abs(dx1*dy2-dx2*dy1) > 1+ Math.abs(dx1*dx2+dy1*dy2)/BETA;
+//   }
 
 
+   // Bidouillage pour éviter de traverser tout le ciel en passant derrière
+   protected boolean tooLarge(ViewSimple v,Point p1, Point p2) {
+      Projection proj =  v.getProj();
+      if( proj==null || proj.t==Calib.SIN ) return false;
+      if( !v.isAllSky() ) return false;
+      
+      double dx = p1.x-p2.x;
+      double dy = p1.y-p2.y;
+      double dist = Math.sqrt(dx*dx+dy*dy);
+      
+      return dist/v.rv.width>1/2.;
+   }
+   
   /** Trace de la portion de la ligne.
    * @param g        le contexte graphique
    * @param zoomview reference au zoom courant
    */
    protected boolean draw(Graphics g,ViewSimple v,int dx,int dy) {
       if( !isVisible() ) return false;
-
-      if( !this.hidden ) {
+      
+//      if( outOfSky(v) ) return false;
+      
+      if( !hidden ) {
 	     Point p2;
 	     g.setColor( getColor() );
 
@@ -765,14 +841,15 @@ public class Ligne extends Position {
 	        if( p2==null || p1==null ) return false;
 	        p1.x+=dx; p1.y+=dy;
 	        p2.x+=dx; p2.y+=dy;
+	        
+	        if( tooLarge(v,p1,p2) ) return false;
 
 	        g.drawLine(p1.x,p1.y, p2.x,p2.y);
-	        if( bout==3 ){
+	        if( bout==3 && hasPhot(v.pref) ){
 	           fillPolygon(g, v, dx, dy);
 	           if( hasOneSelected() ) statDraw(g,v,dx,dy);
 	        }
-	        drawID(g,p1,p2);
-	        //            droite(g,v,p1.x,p1.y, p2.x,p2.y);
+	        drawID(g,v,p1,p2);
 	        
 	        // Trace des fleches
 	        if( bout==1 || bout==2 ) {
@@ -815,6 +892,18 @@ public class Ligne extends Position {
       }
       return true;
    }
+   
+   // Recupération d'un itérator sur les objets qui compose la forme (Ligne, Cote) 
+   public Iterator<Obj> iterator() { return new ObjetIterator(); }
+
+   class ObjetIterator implements Iterator<Obj> {
+      private Ligne line = getFirstBout();
+      public boolean hasNext() { return line.finligne!=null && line.bout!=3; }
+      public Obj next() { return line=line.finligne; }
+      public void remove() { }
+   }
+
+
    
 
 }

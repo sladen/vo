@@ -63,6 +63,11 @@ public abstract class Obj implements Propable{
    public static final int CIRCLES  = 7;
    public static final int POINT    = 8;
    public static final int DOT      = 9;
+   public static final int SOLIDOVAL     = 10;
+   public static final int SOLIDSQUARE   = 11;
+   public static final int SOLIDCIRCLE   = 12;
+   public static final int SOLIDRHOMB    = 13;
+   public static final int SOLIDTRIANGLE = 14;
 
    // Les constantes associees a "methode" lors de la creation
    protected static final int XY = 1;
@@ -71,20 +76,20 @@ public abstract class Obj implements Propable{
    protected static final int XY_COMPUTE = 8;
 
    // Les différents flags
-   static protected final byte SELECT  = 1;
-   static protected final byte TAG     = 1<<1;
-   static protected final byte VISIBLE = 1<<2;
-   static protected final byte WITHLABEL   = 1<<3;
-   static protected final byte HIGHLIGHT   = 1<<4;
+   static protected final byte SELECT     = 1;
+   static protected final byte TAG        = 1<<1;
+   static protected final byte VISIBLE    = 1<<2;
+   static protected final byte WITHLABEL  = 1<<3;
+   static protected final byte HIGHLIGHT  = 1<<4;
    static protected final byte WITHSTAT   = 1<<5;
 
    protected Plan   plan;       // Plan d'appartenance de l'objet
    
    /** J2000 RA coordinate */
-   public double raj=Double.NaN;
+   protected double raj=Double.NaN;
 
    /** J2000 DEC coordinate */
-   public double dej;
+   protected double dej;
    
    public String id;         // Object id
    protected byte flags = VISIBLE;  // Le tableau de flags
@@ -146,6 +151,7 @@ public abstract class Obj implements Propable{
 
    /** Retourne true si l'objet contient des informations de photométrie  */
    public boolean hasPhot() { return false; }
+   public boolean hasPhot(ViewSimple v) { return false; }
 
    /** Retourne true si la source a le flag sélect positionné  */
    final public boolean isSelected() { return (flags & SELECT) !=0; }
@@ -158,6 +164,9 @@ public abstract class Obj implements Propable{
    
    /** Provide attache info (generally its name) */
    public String getInfo() { return id; }
+   
+   /** Iterator for multi-component objects such as Line, Polygon, Box ... */
+   public Iterator<Obj> iterator() { return null; }
    
    /** Provide script command associated to this object */
    public String getCommand() { return null; }
@@ -186,11 +195,11 @@ public abstract class Obj implements Propable{
 
    /** Tool : Return the distance in degrees between this object and another */
    public double getDistance(Obj obj) {
+      Coord ca=new Coord(), cb=new Coord();
       ca.al=raj; ca.del=dej;
       cb.al=obj.raj; cb.del=obj.dej;
       return Coord.getDist(ca,cb);
    }
-   static private Coord ca=new Coord(), cb=new Coord();
 
    /** Return XML meta information associated to this object (GROUP meta definitions)
     * @return XML string, or null
@@ -297,11 +306,15 @@ public abstract class Obj implements Propable{
     */
    public void setHighlighted(boolean flag) { }
 
+   /** Change object celestial coordinates */
+   public void setRaDec(double ra, double de) { raj=ra; dej=de; }
 
+   /** Change object XY coordinates in function of the current background image */
+   public void setXY(double x, double y) { setPosition(plan.aladin.view.getCurrentView(),x,y); }
+   
    protected abstract void setPosition(ViewSimple v,double x, double y);
    protected abstract void deltaPosition(ViewSimple v,double x, double y);
    protected abstract void deltaRaDec(double dra, double dde);
-   protected void setRaDec(double ra, double de) { raj=ra; dej=de; }
    protected abstract void setText(String id);
    protected abstract Point getViewCoord(ViewSimple v,int dw, int dh);
    protected abstract boolean inside(ViewSimple v,double x, double y);
@@ -374,5 +387,10 @@ public abstract class Obj implements Propable{
       return !(x<r.x && x1<r.x || x>rx1 && x1>rx1
             || y<r.y && y1<r.y || y>ry1 && y1>ry1);
    }
+   
+   // Pour du debuging
+   public String toString() { return "("+raj+","+dej+") -> "+id; }
+   
+
 
 }

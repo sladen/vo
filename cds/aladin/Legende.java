@@ -67,7 +67,6 @@ public final class Legende extends AbstractTableModel  {
    boolean[] computed; // computed[i] true if field[i] is a computed column
    private int firstLink=-2;  // position du premier champ qui a un lien
    private boolean sorted=false;  // true s'il il y a tri posé sur un champ
-   
 
    protected Legende() {
       field = new Field[0];
@@ -173,6 +172,42 @@ public final class Legende extends AbstractTableModel  {
       return -1;
    }
    
+   /** Retourne l'indice du champ RA, sinon -1 */
+   protected int getRa() {
+      for( int i=0; i<field.length; i++ ) if( field[i].isRa() ) return i;
+      return -1;
+   }
+   
+   /** Retourne l'indice du champ DE, sinon -1 */
+   protected int getDe() {
+      for( int i=0; i<field.length; i++ ) if( field[i].isDe() ) return i;
+      return -1;
+   }
+   
+   /** Retourne l'indice du champ PMDE, sinon -1 */
+  protected int getPmRa() {
+      for( int i=0; i<field.length; i++ ) if( field[i].isPmRa() ) return i;
+      return -1;
+   }
+   
+  /** Retourne l'indice du champ PMDE, sinon -1 */
+   protected int getPmDe() {
+      for( int i=0; i<field.length; i++ ) if( field[i].isPmDe() ) return i;
+      return -1;
+   }
+   
+   /** Retourne l'indice du champ X, sinon -1 */
+  protected int getX() {
+      for( int i=0; i<field.length; i++ ) if( field[i].isX() ) return i;
+      return -1;
+   }
+   
+  /** Retourne l'indice du champ Y, sinon -1 */
+   protected int getY() {
+      for( int i=0; i<field.length; i++ ) if( field[i].isY() ) return i;
+      return -1;
+   }
+   
    /** Retourne true si le champ est visible */
    protected boolean isVisible(int index) {
       try { return field[index].visible; }
@@ -238,6 +273,7 @@ public final class Legende extends AbstractTableModel  {
    
    /** J'ajuste le numéro du champ dans le cas où il y aurait des champs non visibles avant */
    protected int getRealFieldNumber(int nField) {
+      if( nField==-1 ) return nField;
       int nVisible=0;
       int nInvisible=0;
       
@@ -282,10 +318,18 @@ public final class Legende extends AbstractTableModel  {
       sorted=false;
    }
 
+   
+   /** retourne true s'il s'agit d'une légende comportant un point de SED */
+   protected boolean isSED() {
+      for( Field f : field ) {
+         if( f.sed!=0 ) return true;
+      }
+      return false;
+   }
 
    /** Retourne true s'il y a un champ trié */
    protected boolean isSorted() { return sorted; }
-
+   
 
    /** Retourne le nombre de champs de la légende */
    public int getSize() { return field.length; }
@@ -536,18 +580,20 @@ public final class Legende extends AbstractTableModel  {
          
          return cell;
       }
-
    }
    
    /** Modification des champs utilisés pour la position céleste ou cartésienne */
    public void modifyRaDecXYField(int index, int coo) {
       if( plan==null || plan.pcat==null ) return;
+      plan.hasPM=-1;
       
       // Pour les coordonnées célestes
-      if( coo==Field.RA || coo==Field.DE ) {
-         int nra=-1,ndec=-1;
-         if( coo==Field.RA ) nra=index;
-         else if( coo==Field.DE ) ndec=index;
+      if( coo==Field.RA || coo==Field.DE || coo==Field.PMRA || coo==Field.PMDE ) {
+         int nra=-1,ndec=-1,npmra=-1,npmde=-1;
+              if( coo==Field.RA )   nra=index;
+         else if( coo==Field.DE )   ndec=index;
+         else if( coo==Field.PMRA ) npmra=index;
+         else if( coo==Field.PMDE ) npmde=index;
 
          for( int i=0; i<field.length; i++ ) {
             Field f = field[i];
@@ -559,11 +605,19 @@ public final class Legende extends AbstractTableModel  {
                if( coo==Field.DE ) f.coo=0;
                if( ndec==-1 ) ndec=i;
             }
+            if( f.coo==Field.PMRA ) { 
+               if( coo==Field.PMRA ) f.coo=0;
+               if( npmra==-1 ) npmra=i;
+            }
+            if( f.coo==Field.PMDE ) { 
+               if( coo==Field.PMDE ) f.coo=0;
+               if( npmde==-1 ) npmde=i;
+            }
             if( f.coo==Field.X || f.coo==Field.Y ) f.coo=0;
          }
          field[index].coo = coo;
 //         System.out.println("nra="+nra+" ndec="+ndec);
-         if( nra>=0 && ndec>=0 && coo!=0 ) plan.pcat.modifyRaDecField(this, nra, ndec);
+         if( nra>=0 && ndec>=0 && coo!=0 ) plan.modifyRaDecField(this, nra, ndec,npmra,npmde);
          
       // Pour les coordonnées cartésiennes
       } else {
@@ -581,14 +635,17 @@ public final class Legende extends AbstractTableModel  {
                if( coo==Field.Y ) f.coo=0;
                if( ny==-1 ) ny=i;
             }
-            if( f.coo==Field.RA || f.coo==Field.DE ) f.coo=0;
+            if( f.coo==Field.RA || f.coo==Field.DE || f.coo==Field.PMRA || f.coo==Field.PMDE) f.coo=0;
          }
          field[index].coo = coo;
 //         System.out.println("nx="+nx+" ny="+ny);
-         if( nx>=0 && ny>=0 && coo!=0 ) plan.pcat.modifyXYField(this, nx, ny);
+         if( nx>=0 && ny>=0 && coo!=0 ) plan.modifyXYField(this, nx, ny);
          
       }
       
       fireTableDataChanged();
    }
+   
+   // Juste pour de debuging
+   public String toString() { return field[0].name+" "+field[0].ucd+" ..."; }
 }

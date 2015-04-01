@@ -82,7 +82,7 @@ public final class Select extends JComponent  implements
    static final int HORIZONTAL = 2;
 
    // Les valeurs accociees aux differents elements graphiques
-   static final int sizeLabel = 100;//89/*112-MyScrollbar.LARGEUR*/;   // Nbre de pixels pour les labels
+   static final int sizeLabel = 95;//89/*112-MyScrollbar.LARGEUR*/;   // Nbre de pixels pour les labels
    // test AVO
    //static final int sizeLabel = 156-MyScrollbar.LARGEUR;   // Nbre de pixels pour les labels (test AVO)
    static final int gapL      =   16;   // Marge de gauche (reserve pour les controles)
@@ -115,7 +115,7 @@ public final class Select extends JComponent  implements
    int hs;                        // Hauteur du canvas
    int hsp;                       // Hauteur de la portion pour les plans
    Image img;                     // Image du buffer du paint
-   Graphics g;                    // GC du buffer du paint
+   Graphics g;                    // GC du buffer du pain
 //   private boolean mouseIn=false; // true si la souris est sur l'oeil
 
    protected void createChaine() {
@@ -155,8 +155,7 @@ public final class Select extends JComponent  implements
       addMouseListener(this);
       addMouseWheelListener(this);
       
-      setBackground(Aladin.NEWLOOK_V7 ? a.toolBox.getBackground() : Aladin.LBLUE );
-//      if( Aladin.NEWLOOK_V7 ) eyeHeight=0;
+      setBackground( a.toolBox.getBackground() );
 
       // Calcule des tailles
       hs=Aladin.LSCREEN?291:200;   // Hauteur du canvas
@@ -713,11 +712,11 @@ public final class Select extends JComponent  implements
 
 
    // Gestion des curseurs
-   private int oc=Aladin.DEFAULT;
+   private int oc=Aladin.DEFAULTCURSOR;
    private void handCursor()    { makeCursor(Aladin.HANDCURSOR); }
    private void waitCursor()    { makeCursor(Aladin.WAITCURSOR); }
    private void moveCursor()    { makeCursor(Aladin.MOVECURSOR); }
-   private void defaultCursor() { makeCursor(Aladin.DEFAULT); }
+   private void defaultCursor() { makeCursor(Aladin.DEFAULTCURSOR); }
    private void makeCursor(int c) {
       if( oc==c ) return;
       Aladin.makeCursor(this,c);
@@ -769,8 +768,8 @@ public final class Select extends JComponent  implements
             }
          
 //            p.setActivated(!p.active);
-            if( !p.active ) a.console.setCommand("hide "+Tok.quote(p.label));
-            else a.console.setCommand("show "+Tok.quote(p.label));
+            if( !p.active ) a.console.printCommand("hide "+Tok.quote(p.label));
+            else a.console.printCommand("show "+Tok.quote(p.label));
          }
 
          // thomas
@@ -878,18 +877,16 @@ public final class Select extends JComponent  implements
       
       boolean itsDone=false;
 
-      if( !canBeNewRef(e,x,p) 
-            ||  (!a.view.isMultiView() && p.ref)  ) newRef=null;
+      if( !canBeNewRef(e,x,p) ||  (!a.view.isMultiView() && p.ref)  ) newRef=null;
       else newRef = p;
 
       if( !itsDone && p.type!=Plan.NO ) {
          if( newRef!=null ) {
 //            boolean recenter= a.calque.isBackGround() && p instanceof PlanBG;
             boolean recenter= p instanceof PlanBG;
-            if( recenter && a.calque.setPlanRefOnSameTarget((PlanBG)p) 
-            || !recenter && setPlanRef(p) ) {
+            if( recenter && a.calque.setPlanRefOnSameTarget((PlanBG)p) || !recenter && setPlanRef(p) ) {
                a.view.newView();
-               a.console.setCommand("cview "+Tok.quote(p.label));
+               a.console.printCommand("cview "+Tok.quote(p.label));
             }
             newRef=null;
 
@@ -974,7 +971,7 @@ public final class Select extends JComponent  implements
           if( newRef!=null ) {
             if( a.calque.setPlanRef(p) ) {
                a.view.newView();
-               a.console.setCommand("cview "+Tok.quote(p.label));
+               a.console.printCommand("cview "+Tok.quote(p.label));
             }
             newRef=null;
          }
@@ -1054,24 +1051,23 @@ public final class Select extends JComponent  implements
       f.setActivated(flag);
    }
 
-   /** Selection d'un plan particulier */
-   protected void selectPlan(int i) {
-      for( int j=0; j<a.calque.plan.length; j++ ) a.calque.plan[j].selected=false;
-      a.calque.plan[i].selected=true;
-
-   }
+//   VIEUX CODE
+//   /** Selection d'un plan particulier */
+//   protected void selectPlan(int i) {
+//      for( int j=0; j<a.calque.plan.length; j++ ) a.calque.plan[j].selected=false;
+//      a.calque.plan[i].selected=true;
+//
+//   }
 
    /** Indication du plan sous la souris et
     *  reaffichage des bordures des vues si nécessaire */
    private Plan lastPlanUnderMouse=null;
    protected void underMouse(Plan p) {
       if( lastPlanUnderMouse==p || a.menuActivated() ) return;
-      boolean flagTrans = a.calque.canBeTransparent(p);
       a.calque.selectPlanUnderMouse(p);
-      if( lastPlanUnderMouse!=null && lastPlanUnderMouse.isImage()
-            /* || flagTrans */ ) a.view.repaintAll();
+      if( lastPlanUnderMouse!=null && lastPlanUnderMouse.isImage() ) a.view.repaintAll();
       else a.view.paintBordure();
-      if( /*!flagTrans || */ canDrawFoVImg() ) lastPlanUnderMouse=p;
+      if( canDrawFoVImg() ) lastPlanUnderMouse=p;
       else lastPlanUnderMouse=null;
    }
 
@@ -1487,22 +1483,23 @@ public final class Select extends JComponent  implements
       }
       
       // Pas très joli
-      if( a.calque.zoom.opacitySlider!=null ) {
-         if( a.calque.zoom.sizeSlider!=null ) a.calque.zoom.sizeSlider.repaint();
-         a.calque.zoom.opacitySlider.repaint();
-         a.calque.zoom.zoomSlider.repaint();
-      }
+      if( a.calque.zoom.opacitySlider!=null ) a.calque.zoom.opacitySlider.repaint();
+      if( a.calque.zoom.sizeSlider!=null )    a.calque.zoom.sizeSlider.repaint();
+      if( a.calque.zoom.zoomSlider!=null )    a.calque.zoom.zoomSlider.repaint();
+      if( a.calque.zoom.epochSlider!=null )   a.calque.zoom.epochSlider.repaint();
+      if( a.calque.zoom.cubeSlider!=null )    a.calque.zoom.cubeSlider.repaint();
+      if( a.calque.zoom.densitySlider!=null ) a.calque.zoom.densitySlider.repaint();
       
       // Positionnement du curseur apres le demarrage d'Aladin
       if( firstUpdate ) {
-         Aladin.makeCursor(a,Aladin.DEFAULT);
+         Aladin.makeCursor(a,Aladin.DEFAULTCURSOR);
          a.localisation.setInitialFocus();
          firstUpdate=false;
       }
 
       ws = getSize().width;
       hs = getSize().height;
-      hsp= hs-/*eyeHeight-*/gapB;        // Hauteur de la portion pour les plans
+      hsp= hs-gapB;        // Hauteur de la portion pour les plans
 
       // On prepare le fond
       g.setColor( getBackground() );
@@ -1510,22 +1507,12 @@ public final class Select extends JComponent  implements
 
       // Le pourtour
 //      Util.drawEdge(g,ws,hs);
-      
 
       // Le clip Rect pour ne pas depasser
       g.clipRect(2,2,ws-3,hs-3);
-
+      
       // AntiAliasing
-      if( Aladin.ANTIALIAS ) {
-         ((Graphics2D)g).setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-               RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-         ((Graphics2D)g).setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-               RenderingHints.VALUE_ANTIALIAS_ON);
-      }
-
-      // Dessin de l'oeil de l'observateur et de l'objet central regarde
-//      drawEye(g,true);
-//      writeTitle(g);
+      a.setAliasing(g);
 
       Plan [] plan = a.calque.getPlans();
       // Determination du premier plan image (opaque)
@@ -1560,7 +1547,7 @@ public final class Select extends JComponent  implements
       }
       a.calque.scroll.setFirstVisiblePlan(j+1);
       a.calque.scroll.setNbVisiblePlan(nbPlanVisible);
-      a.calque.scroll.setRequired(y<0/*eyeHeight*/ || a.calque.scroll.getLastVisiblePlan()!=plan.length-1);
+      a.calque.scroll.setRequired(y<0 || a.calque.scroll.getLastVisiblePlan()!=plan.length-1);
       
       // Dans le cas d'un deplacement de plan
       if( flagDrag==VERTICAL ) moveLogo(g);
@@ -1568,46 +1555,45 @@ public final class Select extends JComponent  implements
       lastYMax = y;
       if( a.configuration.isHelp() && beginnerHelp && nbPlanVisible<=4 ) drawBeginnerHelp( g, nbPlanVisible, y);
       
-      SwingUtilities.invokeLater(new Runnable() {
-         public void run() {
-            // On met a jour la fenetre des proprietes en indiquant
-            // s'il y a ou non des plans en train d'etre charge
-            // afin d'eviter les clignotement de Properties
-            // intempestifs
-            Properties.majProp(slideBlink?1:0);
+      long t = System.currentTimeMillis();
+      if( t-300>ot ) {
+         ot=t;
+         SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
 
-            // On met a jour la fenetre de la table des couleurs
-            if( a.frameCM!=null ) a.frameCM.majCM();
+               // On met a jour la fenetre des proprietes en indiquant
+               // s'il y a ou non des plans en train d'etre charge
+               // afin d'eviter les clignotement de Properties
+               // intempestifs
+               Properties.majProp(slideBlink?1:0);
 
-            // On met a jour la fenetre des contours
-            if( a.frameContour!=null ) a.frameContour.majContour();
+               // On met a jour la fenetre de la table des couleurs
+               if( a.frameCM!=null ) a.frameCM.majCM();
 
-            // On met a jour la fenetre des RGB et des Blinks
-            if( a.frameRGB!=null )   a.frameRGB.maj();
-            if( a.frameBlink!=null ) a.frameBlink.maj();
-            if( a.frameArithm!=null && a.frameArithm.isVisible() ) a.frameArithm.maj();
+               // Activation ou desactivation des boutons du menu principal
+               // associes a la presence d'au moins un plan
+               a.setButtonMode();
 
-            // Activation ou desactivation des boutons du menu principal
-            // associes a la presence d'au moins un plan
-            a.setButtonMode();
+               // On met a jour la fenetre des contours
+               if( a.frameContour!=null ) a.frameContour.majContour();
 
-        }
-      });
+               // On met a jour la fenetre des RGB et des Blinks
+               if( a.frameRGB!=null )   a.frameRGB.maj();
+               if( a.frameBlink!=null ) a.frameBlink.maj();
+               if( a.frameArithm!=null && a.frameArithm.isVisible() ) a.frameArithm.maj();
+            }
+         });
+      }
 
 
       // Reaffichage du status du plan sous la souris
       if( planIn!=null ) setInfo(planIn);
 
-      // En cas de clin d'oeil
-//      if( clinDoeil ) {
-//         drawEye(g,false);
-//         flagRClip = false;
-//         startBlink();
-//      }
-
       //Clignotement des voyants si besoin
       if( slideBlink ) startBlink();
    }
+   
+   private long ot=0;
 
    private boolean slideBlink=false;
 
@@ -1619,7 +1605,7 @@ public final class Select extends JComponent  implements
 
   // Gestion du blinking d'une source par thread (pour supporter JVM 1.4)
    private void startBlink() {
-      if( !slideBlink /*&& !clinDoeil*/ ) return;
+      if( !slideBlink ) return;
       if( flagThreadBlink ) {
 //System.out.println("blink thread already running ");
          return;
@@ -1631,18 +1617,12 @@ public final class Select extends JComponent  implements
       thread.start();
    }
 
-/* Inutile car s'arret tout seul lorsque Slide.flagBlink passe a false
-   private void stopBlinking() {
-      setFlagBlink(false);
-   }
-*/
   // Gestion du Blinking 0.5 secondes
    public void run() {
-      while( flagThreadBlink && (slideBlink /*|| clinDoeil*/) ) {
+      while( flagThreadBlink && slideBlink ) {
 //System.out.println("blink thread (slideBlink="+slideBlink+") j'attends 0.5 sec "+thread);
          Util.pause(500);
-         /* if( clinDoeil ) clinDoeil=false;
-         else */ Slide.blinkState=!Slide.blinkState;
+         Slide.blinkState=!Slide.blinkState;
          repaint();
       }
       setFlagThreadBlink(false);
@@ -1690,7 +1670,7 @@ public final class Select extends JComponent  implements
    public void mouseClicked(MouseEvent e) { }
    public void mouseEntered(MouseEvent e) {
       if( a.inHelp )  a.help.setText(Help());
-      a.makeCursor(this, Aladin.DEFAULT);
+      a.makeCursor(this, Aladin.DEFAULTCURSOR);
    }
 
    public void adjustmentValueChanged(AdjustmentEvent e) {

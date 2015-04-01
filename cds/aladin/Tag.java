@@ -405,7 +405,7 @@ public final class Tag extends Position {
    private boolean isArrow() { return tag==ARROW || tag==BIGARROW; }
    
 // Retourne true s'il s'agit d'un reticule
-   private boolean isReticle() { return tag==BIGRETICLE || tag==RETICLE; };
+   protected boolean isReticle() { return tag==BIGRETICLE || tag==RETICLE; };
    
    /** Retourne true si le tag a un label */
    protected boolean hasLabel() { return id!=null && id.trim().length()>0; }
@@ -636,7 +636,13 @@ public final class Tag extends Position {
       return new Point( (int)Math.round( dist*Math.cos(angle) ), (int)Math.round( dist*Math.sin(angle) ));
    }
    
-   private Font getFont() { return F; }
+   private Font getFont() {
+      double z = plan!=null ? plan.getScalingFactor() : 1;
+      if( z==1 ) return F;
+      float size = F.getSize();
+      size *= z;
+      return F.deriveFont(size);
+   }
    private void setFont(Font f) { F=f; }
    
    /** Set specifical color (dedicated for catalog sources) */
@@ -716,6 +722,8 @@ public final class Tag extends Position {
          String s = st.nextToken();
          int x1 = p.x + (aDroite ? dim.width/2 - m.stringWidth(s) : -dim.width/2);
          g.drawString(s,x+x1,y+y1);
+         if( fond==0 ) Util.drawStringOutline(g, s,x+x1,y+y1, null, Color.black);
+         else g.drawString(s,x+x1,y+y1);
          y1 += m.getHeight();
       }
    }

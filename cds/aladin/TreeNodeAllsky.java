@@ -41,14 +41,15 @@ import cds.tools.Util;
 /** Gère les noeuds de l'arbre du formulaire ServerAllsky */
 public class TreeNodeAllsky extends TreeNode {
 
-   private String url;           // L'url ou le path du survey
+   public String internalId;    // Alternative à l'ID de l'identificateur GLU
+   private String url;          // L'url ou le path du survey
    public String description;   // Courte description (une ligne max)
    public String verboseDescr;  // Description de l'application (1 paragraphe ou plus)
+   public String ack;           // L'acknowledgement
    public String copyright;     // Mention légale du copyright
    public String copyrightUrl;  // Url pour renvoyer une page HTML décrivant les droits
    public String hpxParam;      // Les paramètres propres à HEALPIX
    public String version="";    // Le numéro de version du survey
-   public String imageSourcePath; // Le template d'accès aux images sources (progéniteurs) (ex: id~=/(.*)/http://aladin.u-strasbg.fr/get?img=$1/)
    public String aladinProfile; // profile de l'enregistrement GLU (notamment "localdef")*
    public String aladinLabel;
    public int minOrder=-1;      // Min order Healpix
@@ -57,9 +58,13 @@ public class TreeNodeAllsky extends TreeNode {
    private boolean color=false;  // true si le survey est en couleur
    private boolean inFits=false; // true si le survey est fourni en FITS
    private boolean inJPEG=false; // true si le survey est fourni en JPEG
+   private boolean inPNG=false;  // true si le survey est fourni en PNG
    private boolean truePixels=false; // true si par défaut le survey est fourni en truePixels (FITS)
+   private boolean truePixelsSet=false; // true si le mode par défaut du survey a été positionné manuellement
    private boolean cat=false;    // true s'il s'agit d'un catalogue hiérarchique
+   private boolean progen=false; // true s'il s'agit d'un catalogue progen
    private boolean map=false;    // true s'il s'agit d'une map HEALPix FITS
+   private boolean moc=false;    // true s'il faut tout de suite charger le MOC
    public int frame=Localisation.GAL;  // Frame d'indexation
    public Coord target=null;     // Target for starting display
    public double radius=-1;   // Field size for starting display
@@ -72,7 +77,7 @@ public class TreeNodeAllsky extends TreeNode {
       String s;
       this.aladin = aladin;
       local=!(pathOrUrl.startsWith("http:") || pathOrUrl.startsWith("https:") ||pathOrUrl.startsWith("ftp:"));
-      java.util.Properties prop = new java.util.Properties();
+      MyProperties prop = new MyProperties();
       
       // Par http ou ftp ?
       try {
@@ -86,7 +91,7 @@ public class TreeNodeAllsky extends TreeNode {
       // recherche du frame Healpix
       String strFrame = prop.getProperty(PlanHealpix.KEY_COORDSYS,"G");
       char c1 = strFrame.charAt(0);
-      if( c1=='C' ) frame=Localisation.ICRS;
+      if( c1=='C' || c1=='Q' ) frame=Localisation.ICRS;
       else if( c1=='E' ) frame=Localisation.ECLIPTIC;
       else if( c1=='G' ) frame=Localisation.GAL;
 
@@ -101,16 +106,10 @@ public class TreeNodeAllsky extends TreeNode {
          if( offset==end-1 && offset>0 ) { end=offset; offset = pathOrUrl.lastIndexOf(c,end-1); }
          label = pathOrUrl.substring(offset+1,end);
       }
-      id=label;
+      id="__"+label;
       
       s = prop.getProperty(PlanHealpix.KEY_VERSION);
       if( s!=null ) version=s;
-      
-      s = prop.getProperty(PlanHealpix.KEY_IMAGESOURCEPATH);
-      if( s!=null ) {
-         imageSourcePath=s;
-         Aladin.trace(4,"TreeNodeAllsky() => imageSourcePath="+s);
-      }
       
       description = prop.getProperty(PlanHealpix.KEY_DESCRIPTION);
       verboseDescr = prop.getProperty(PlanHealpix.KEY_DESCRIPTION_VERBOSE);
@@ -146,6 +145,8 @@ public class TreeNodeAllsky extends TreeNode {
          }
       }
       
+      progen = pathOrUrl.endsWith("HpxFinder") || pathOrUrl.endsWith("HpxFinder/");
+
       s = prop.getProperty(PlanHealpix.KEY_ISCAT);
       if( s!=null ) cat = new Boolean(s);
       else cat = getFormatByPath(pathOrUrl,local,2);
@@ -153,65 +154,81 @@ public class TreeNodeAllsky extends TreeNode {
       // Détermination du format des cellules dans le cas d'un survey pixels
       String keyColor = prop.getProperty(PlanHealpix.KEY_ISCOLOR);
       if( keyColor!=null ) color = new Boolean(keyColor);
-      if( !cat && (keyColor==null || !color) ) {
+//      if( color ) inJPEG=true;
+      if( !cat && !progen /* && (keyColor==null || !color)*/ ) {
          String format = prop.getProperty(PlanHealpix.KEY_FORMAT);
          if( format!=null ) {
             int a,b;
             inFits = (a=Util.indexOfIgnoreCase(format, "fit"))>=0;
             inJPEG = (b=Util.indexOfIgnoreCase(format, "jpeg"))>=0 || (b=Util.indexOfIgnoreCase(format, "jpg"))>=0;
+            inPNG  = (b=Util.indexOfIgnoreCase(format, "png"))>=0;
             truePixels = inFits && a<b;                         // On démarre dans le premier format indiqué
          } else {
             inFits = getFormatByPath(pathOrUrl,local,0);
             inJPEG = getFormatByPath(pathOrUrl,local,1);
-            truePixels = local && inFits || !local && inJPEG;   // par défaut on démarre en FITS en local, en Jpeg en distant
+            inPNG  = getFormatByPath(pathOrUrl,local,3);
+            truePixels = local && inFits || !(!local && (inJPEG || inPNG));   // par défaut on démarre en FITS en local, en Jpeg en distant
          }
-         if( keyColor==null ) color = getIsColorByPath(pathOrUrl,local);
+         if( keyColor==null ) {
+            color = getIsColorByPath(pathOrUrl,local);
+         }
+         if( color ) truePixels=false;
       }
       
       aladin.trace(4,toString1());
    }
    
-   
    private boolean getIsColorByPath(String path,boolean local) {
+      String ext = inPNG ? ".png" : ".jpg";
+      MyInputStream in = null;
       try { 
-         if( local ) return Util.isJPEGColored(path+Util.FS+"Norder3"+Util.FS+"Allsky.jpg");
-         MyInputStream in = new MyInputStream( Util.openStream(path+"/Norder3/Allsky.jpg") );
+         if( local ) return Util.isJPEGColored(path+Util.FS+"Norder3"+Util.FS+"Allsky"+ext);
+         in = new MyInputStream( Util.openStream(path+"/Norder3/Allsky"+ext) );
          byte [] buf = in.readFully();
-         return Util.isJPEGColored(buf);
+         return Util.isColoredImage(buf);
       } catch( Exception e) {
-         aladin.trace(3,"Allsky.jpg not found => assume B&W survey");
+         aladin.trace(3,"Allsky"+ext+" not found => assume B&W survey");
          return false;
       }
+      finally { try { if( in!=null ) in.close(); } catch( Exception e1 ) {} }
    }
    
    private boolean getFormatByPath(String path,boolean local,int fmt) {
-      String ext = fmt==0 ? ".fits" : fmt==1 ? ".jpg" : ".xml";
+      String ext = fmt==0 ? ".fits" : fmt==1 ? ".jpg" : fmt==3 ? ".png" : ".xml";
       return local && (new File(path+Util.FS+"Norder3"+Util.FS+"Allsky"+ext)).exists() ||
             !local && Util.isUrlResponding(path+"/Norder3/Allsky"+ext);
    }
    
    private int getMaxOrderByPath(String urlOrPath,boolean local) {
-      int maxOrder=-1;
-      for( int n=3; n<100; n++ ) {
-         if( local && !(new File(urlOrPath+Util.FS+"Norder"+n).isDirectory()) ||
-            !local && !Util.isUrlResponding(urlOrPath+"/Norder"+n)) break;
-         maxOrder=n;
+      for( int n=25; n>=1; n--) {
+         if( local && new File(urlOrPath+Util.FS+"Norder"+n).isDirectory()
+            || !local && Util.isUrlResponding(urlOrPath+"/Norder"+n)) return n;
       }
-      return maxOrder;
+      return -1;
+      
+//      int maxOrder=-1;
+//      for( int n=3; n<100; n++ ) {
+//         if( local && !(new File(urlOrPath+Util.FS+"Norder"+n).isDirectory()) ||
+//            !local && !Util.isUrlResponding(urlOrPath+"/Norder"+n)) break;
+//         maxOrder=n;
+//      }
+//      return maxOrder;
    }
 
-   public TreeNodeAllsky(Aladin aladin,String actionName,String aladinMenuNumber, String url,String aladinLabel,
-         String description,String verboseDescr,String aladinProfile,String copyright,String copyrightUrl,String path,
+   public TreeNodeAllsky(Aladin aladin,String actionName,String id,String aladinMenuNumber, String url,String aladinLabel,
+         String description,String verboseDescr,String ack,String aladinProfile,String copyright,String copyrightUrl,String path,
          String aladinHpxParam) {
       super(aladin,actionName,aladinMenuNumber,aladinLabel,path);
       this.aladinLabel  = aladinLabel;
       this.url          = url;
       this.description  = description;
       this.verboseDescr = verboseDescr;
+      this.ack          = ack;
       this.copyright    = copyright;
       this.copyrightUrl = copyrightUrl;
       this.hpxParam     = aladinHpxParam;
       this.aladinProfile= aladinProfile;
+      this.internalId   = id;
       
       if( this.url!=null ) {
          char c = this.url.charAt(this.url.length()-1);
@@ -239,11 +256,14 @@ public class TreeNodeAllsky extends TreeNode {
                if( Util.indexOfIgnoreCase(s, "color")>=0 ) color=true;
                if( Util.indexOfIgnoreCase(s, "fits")>=0 ) { inFits=true; if( first ) { first=false ; truePixels=true; } }
                if( Util.indexOfIgnoreCase(s, "jpeg")>=0 ) { inJPEG=true; if( first ) { first=false ; truePixels=false;} } 
+               if( Util.indexOfIgnoreCase(s, "png")>=0 )  { inPNG=true; if( first ) { first=false ; truePixels=false;} } 
                if( Util.indexOfIgnoreCase(s, "gal")>=0 ) frame = Localisation.GAL;
                if( Util.indexOfIgnoreCase(s, "ecl")>=0 ) frame = Localisation.ECLIPTIC;
                if( Util.indexOfIgnoreCase(s, "equ")>=0 ) frame = Localisation.ICRS;
                if( Util.indexOfIgnoreCase(s, "cat")>=0 ) cat=true;
+               if( Util.indexOfIgnoreCase(s, "progen")>=0 ) progen=true;
                if( Util.indexOfIgnoreCase(s, "map")>=0 ) map=true;
+               if( Util.indexOfIgnoreCase(s, "moc")>=0 ) moc=true;
                
               
                // Un numéro de version du genre "v1.23" ?
@@ -271,12 +291,14 @@ public class TreeNodeAllsky extends TreeNode {
       double r;
       Coord c;
       return "GluSky ["+id+"]"
-                  +(isCatalog() ?" catalog" : isMap()?" fitsMap":" survey")
+                  +(isCatalog() ?" catalog" : isProgen() ?" progen" :isMap()?" fitsMap":" survey")
                   +" maxOrder:"+getMaxOrder()
                   +(getLosangeOrder()>=0?" cellOrder:"+getLosangeOrder():"")
                   +(!isCatalog() && isColored() ?" colored" : " B&W")
                   +(!isFits() ? "" : isTruePixels() ?" *inFits*" : " inFits")
                   +(!isJPEG() ? "" : isTruePixels() ?" inJPEG" : " *inJPEG*")
+                  +(!isPNG()  ? "" : isTruePixels() ?" inPNG"  : " *inPNG*")
+                  +(loadMocNow() ? " withMoc" : "")
                   +(useCache() ? " cache" : " nocache")
                   +" "+Localisation.getFrameName(getFrame())
                   +(isLocalDef() ? " localDef":"")
@@ -295,7 +317,10 @@ public class TreeNodeAllsky extends TreeNode {
    /** Retourne true s'il s'agit d'un catalogue hiérarchique */
    protected boolean isCatalog() { return cat; }
    
-   /** Retourne true s'il s'agit d'un survey ou d'une map couleur */
+   /** Retourne true s'il s'agit d'un catalogue hiérarchique pour des progéniteurs */
+   protected boolean isProgen() { return progen; }
+   
+   /** Retourne true s'il s'agit d'un survey ou d'une map couleur (par défaut JPG) */
    protected boolean isColored() { return color; }
    
    protected int getFrame() { return frame; }
@@ -311,31 +336,45 @@ public class TreeNodeAllsky extends TreeNode {
    /** Retourne le rayon du champ par défaut (premier affichage) en degrés, -1 sinon */
    protected double getRadius() { return radius; }
    
-   /** retourne le template d'accès aux progéniteurs */
-   protected String getImageSourcePath() { return imageSourcePath; }
-   
    /** Retourne le numéro de version du survey, "" si non défini */
    protected String getVersion() { return version==null ? "" : version; }
    
    protected int getLosangeOrder() { 
-      if( cat || nside==-1 || maxOrder==-1) return -1;
+      if( progen || cat || nside==-1 || maxOrder==-1) return -1;
       return (int)Healpix.log2(nside) - maxOrder;
    }
    
    protected boolean isLocal() { return local; }
    
-   /** Retourne true s'il s'agit d'un survey fournissante les losanges en JPEG => 8 bits pixel + compression */
+   protected boolean loadMocNow() { return moc; }
+   
+   /** Retourne true s'il s'agit d'un survey fournissante les losanges en JPEG 
+    * => 8 bits pixel + compression avec perte */
    protected boolean isJPEG() { return inJPEG; }
    
+   /** Retourne true s'il s'agit d'un survey fournissante les losanges en PNG 
+    * => 8 bits pixel + compression sans perte + transparence */
+   protected boolean isPNG() { return inPNG; }
+   
    /** Retourne true si par défaut le survey est fourni en true pixels (FITS)  */
-   protected boolean isTruePixels() { return truePixels; }
+   protected boolean isTruePixels() { 
+      if( truePixelsSet ) return truePixels;
+      return !isColored() && (inFits && local || !(inJPEG || inPNG) && !local);
+   }
    
    /** Retourne true si le survey utilise le cache local */
    protected boolean useCache() { return useCache; }
    
    /** retourne l'URL de base pour accéder au serveur HTTP */
    protected String getUrl() {
-      if( url==null && id!=null ) url = aladin.glu.getURL(id)+"";
+      try {
+         if( id!=null && aladin.glu.aladinDic.get(id)!=null) {
+            return aladin.glu.getURL(id,"",false,false,1)+"";
+         }
+      } catch( Exception e ) {
+         e.printStackTrace();
+      }
+//      if( url==null && id!=null ) url = aladin.glu.getURL(id)+"";
       return url;
    }
 
@@ -370,11 +409,17 @@ public class TreeNodeAllsky extends TreeNode {
       return s.toString();
    }
    
-   protected void submit() { aladin.allsky(this); }
+   protected void submit() { 
+      String mode = isTruePixels() ? ",fits":"";
+      aladin.console.printCommand("get allsky("+Tok.quote(label)+mode+")");
+
+      aladin.allsky(this);
+   }
    
    void loadCopyright() { aladin.glu.showDocument(copyrightUrl); }
    
    void setDefaultMode(int mode) {
+      truePixelsSet=true;
       if( mode==PlanBG.FITS && inFits ) truePixels=true;
       else if( mode==PlanBG.JPEG && inJPEG ) truePixels=false;
    }

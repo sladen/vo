@@ -28,8 +28,6 @@ import cds.fits.HeaderFits;
 import cds.image.*;
 import cds.moc.HealpixMoc;
 
-import healpix.core.HealpixIndex;
-
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.*;
@@ -46,9 +44,9 @@ import javax.swing.*;
 
 /**
  * Gestion de la fenetre des sauvegardes
- * RQ: Uniquement necessaire pour le standalone
  *
  * @author Pierre Fernique [CDS]
+ * @version 1.6 : nov 2013 - réduction des possibilités via ce panneau
  * @version 1.6 : mars 2007 - sauvegarde EPS de la vue
  * @version 1.5 : février 2006 - sauvegarde des images FITS couleurs
  * @version 1.4 : octobre 2005 - prise en compte d'un InputStream pour supporter VOApp.getFITS()
@@ -97,6 +95,10 @@ public final class Save extends JFrame implements ActionListener {
    static final int CURRENTVIEW = 0;
    static final int ALLVIEWS = 1;
    static final int ALLROIS = 2;
+   
+   static final int SAVEVIEW = 0;
+   static final int EXPORTPLANS = 1;
+   static final int BACKUPSTACK =2;
 
    // Les references aux objets
    Aladin aladin;
@@ -116,6 +118,7 @@ public final class Save extends JFrame implements ActionListener {
    JComboBox format;
    JCheckBox [] cbPlan;
    JRadioButton tsvCb, votCb;
+   JRadioButton jsonMocCb, fitsMocCb;
    JRadioButton fitsCb, jpgCb, pngCb;
    String errorFile=null;
 
@@ -136,19 +139,19 @@ public final class Save extends JFrame implements ActionListener {
       ENCODER = aladin.chaine.getString("SFJPEGENCODER");
 
       CHOICE = new String[] {
-            aladin.chaine.getString("SFCH5"),
+//            aladin.chaine.getString("SFCH5"),
             aladin.chaine.getString("SFCH3"),
-            aladin.chaine.getString("SFCH1"),
             aladin.chaine.getString("SFCH2"),
-            aladin.chaine.getString("SFCH4"),
+            aladin.chaine.getString("SFCH1"),
+//            aladin.chaine.getString("SFCH4"),
       };
 
       INFOCHOICE = new String[] {
-            aladin.chaine.getString("SFHCH5"),
+//            aladin.chaine.getString("SFHCH5"),
             aladin.chaine.getString("SFHCH3"),
-            aladin.chaine.getString("SFHCH1"),
             aladin.chaine.getString("SFHCH2"),
-            aladin.chaine.getString("SFHCH4"),
+            aladin.chaine.getString("SFHCH1"),
+//            aladin.chaine.getString("SFHCH4"),
       };
 
    }
@@ -175,9 +178,6 @@ public final class Save extends JFrame implements ActionListener {
       pack();
       if( show ) show();
    }
-
-
-   static final int SAVEVIEW = 1;
 
 
   /** Donne le panel de la fenetre de choix (save, export planes,
@@ -208,7 +208,7 @@ public final class Save extends JFrame implements ActionListener {
             p.add(l);
             format =new JComboBox();
             for( int j=0; j<FORMAT.length; j++ ) format.addItem(FORMAT[j]+" format");
-            format.setSelectedIndex(1);   /* EPS */
+            format.setSelectedIndex(3);   /* PNG */
             p.add(format);
             c.gridwidth = GridBagConstraints.REMAINDER;
             g.setConstraints(p,c);
@@ -310,11 +310,11 @@ public final class Save extends JFrame implements ActionListener {
          if( !cbPlan[i].isSelected() ) continue;
          Plan p = listPlan[i];
          f = new File(directory.getText(),fileSavePlan[i].getText());
-         aladin.console.setCommand("export "+Tok.quote(p.label)+" "+f.getAbsolutePath());
+         aladin.console.printCommand("export "+Tok.quote(p.label)+" "+f.getAbsolutePath());
          switch( p.type ) {
             case Plan.ALLSKYMOC:
                s = directory.getText()+Util.FS+fileSavePlan[i].getText();
-               res &= saveMoc(s,(PlanMoc)p);
+               res &= saveMoc(s,(PlanMoc)p,jsonMocCb!=null && jsonMocCb.isSelected() ? HealpixMoc.ASCII : HealpixMoc.FITS);
                break;
             case Plan.TOOL:
                res&= (tsvCb!=null && tsvCb.isSelected()) || !p.isCatalog() ? saveToolTSV(f,p) : saveCatVOTable(f,p,false);
@@ -364,6 +364,7 @@ public final class Save extends JFrame implements ActionListener {
       listPlan = new Plan [nb];
       boolean noCatalog = true;
       boolean noImage = true;
+      boolean noMoc = true;
 
       Plan [] allPlan = aladin.calque.getPlans();
       for( i=0; i<allPlan.length; i++ ) {
@@ -372,6 +373,7 @@ public final class Save extends JFrame implements ActionListener {
          if( pl instanceof PlanBG && pl.type!=Plan.ALLSKYMOC ) continue;
          if( pl.isSimpleCatalog() && noCatalog ) noCatalog = false;
          if( pl.isImage() && noImage) noImage = false;
+         if( pl instanceof PlanMoc && noMoc ) noMoc = false;
          listPlan[j]=pl;
          cbPlan[j] = new JCheckBox(j+".- ",pl.selected);
 //         String s = pl.label+((pl.objet!=null)?"-"+pl.objet:"");
@@ -432,7 +434,7 @@ public final class Save extends JFrame implements ActionListener {
           tsvCb.addActionListener(this);
           votCb.addActionListener(this);
           c.gridwidth = 1;
-          if( !noImage ) c.gridwidth = GridBagConstraints.REMAINDER;
+          if( !noImage || !noMoc ) c.gridwidth = GridBagConstraints.REMAINDER;
           g.setConstraints(pFormat,c); p.add(pFormat);
       }
 
@@ -464,8 +466,39 @@ public final class Save extends JFrame implements ActionListener {
           pngCb.addActionListener(this);
           c.gridwidth = 1;
           c.insets.bottom = c.insets.top = 2;
+          if( !noMoc ) c.gridwidth = GridBagConstraints.REMAINDER;
           g.setConstraints(pFormat,c); p.add(pFormat);
       }
+      
+      // s'il y a au moins un plan Moc
+      if( !noMoc ) {
+          c.gridwidth = 2;
+          c.anchor = GridBagConstraints.EAST;
+          JLabel nil = new JLabel("");
+          g.setConstraints(nil,c); p.add(nil);
+
+          c.gridwidth = 1;
+          c.anchor = GridBagConstraints.WEST;
+          JLabel l = new JLabel(SAVEIN);
+          l.setFont(Aladin.BOLD);
+          g.setConstraints(l,c); p.add(l);
+
+          JPanel pFormat = new JPanel();
+          pFormat.setLayout(new FlowLayout(FlowLayout.LEFT));
+          ButtonGroup cg = new ButtonGroup();
+          fitsMocCb = new JRadioButton("FITS");      fitsMocCb.setActionCommand("FITS");
+          jsonMocCb = new JRadioButton("ASCII/JSON");      jsonMocCb.setActionCommand("ASCII/JSON");
+          cg.add(fitsMocCb); cg.add(jsonMocCb); fitsMocCb.setSelected(true);
+          pFormat.add(fitsMocCb);
+          pFormat.add(jsonMocCb);
+          fitsMocCb.addActionListener(this);
+          jsonMocCb.addActionListener(this);
+          c.gridwidth = 1;
+          c.gridwidth = GridBagConstraints.REMAINDER;
+          g.setConstraints(pFormat,c); p.add(pFormat);
+      }
+
+
 
       nbSavePlan=j;
 
@@ -489,7 +522,7 @@ public final class Save extends JFrame implements ActionListener {
       String s = (dir==null?"":dir)+(name==null?"":name);
       if( mode==0 ) {
          if( !Util.toLower(s).endsWith(".aj") ) s=s+".aj";
-         aladin.console.setCommand("backup "+s);
+         aladin.console.printCommand("backup "+s);
          res=saveAJ(s);
          if( res ) aladin.log("backup","");
       } else {
@@ -499,13 +532,16 @@ public final class Save extends JFrame implements ActionListener {
              !Util.toLower(s).endsWith(ext) ) s=s+ext;
 
          String lk = (format&LK)==LK ? " -lk":"";
-         aladin.console.setCommand("save "+lk+s);
+         aladin.console.printCommand("save "+lk+s);
          res=saveView(s,0,0,format,qual);
          if( res ) aladin.log("save",Util.toUpper(ext.substring(1)+lk));
       }
       if( !res ) {
          Aladin.warning(this,CANNOT+"\n"+s+"\n"+CANNOT1,1);
-      } else setVisible(false);
+      } else {
+         setVisible(false);
+         aladin.memoLastFile(s);
+      }
    }
 
    // Elements pour gerer le buffer de sauvegarde
@@ -637,6 +673,25 @@ public final class Save extends JFrame implements ActionListener {
       } catch( Exception e ) {}
    }
 
+   /** appelé lorsque l'utilisateur a modifie le format de sauvegarde des MOCs :
+    * on modifie le suffixe des noms de fichiers
+    */
+   private void changeMocFormat() {
+      boolean json = jsonMocCb.isSelected();
+      String newSuffix = json?".txt":".fits";
+      String oldSuffix = json?".fits":".txt";
+
+      for( int i=0; i<listPlan.length; i++ ) {
+         Plan p =listPlan[i];
+         if( p==null || !(p instanceof PlanMoc) ) continue;
+         String label = fileSavePlan[i].getText();
+         if( !label.endsWith(oldSuffix) ) continue;
+         int offset = label.lastIndexOf('.');
+         fileSavePlan[i].setText(label.substring(0, offset)+newSuffix);
+      }
+   }
+   
+
    /** appelé lorsque l'utilisateur a modifie le format de sauvegarde des cats :
     * on modifie le suffixe des noms de fichiers
     */
@@ -694,6 +749,44 @@ public final class Save extends JFrame implements ActionListener {
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
    static int [] b642a=null;
+   
+//   public static int get64(byte [] b, int k,
+//         char [] a, int start, int length) {
+//      byte [] res = decode(new String(a,start,length));
+//      System.arraycopy(res, 0, b, k, res.length);
+//      return k+res.length;
+//   }
+//   
+//   private final static char[] ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toCharArray();
+//
+//   private static int[]  toInt   = new int[128];
+//
+//   static {
+//       for(int i=0; i< ALPHABET.length; i++) toInt[ALPHABET[i]]= i;
+//   }
+//   
+//   public static byte[] decode(String s){
+//      int delta = s.endsWith( "==" ) ? 2 : s.endsWith( "=" ) ? 1 : 0;
+//      byte[] buffer = new byte[s.length()*3/4 - delta];
+//      int mask = 0xFF;
+//      int index = 0;
+//      for(int i=0; i< s.length(); i+=4){
+//          int c0 = toInt[s.charAt( i )];
+//          int c1 = toInt[s.charAt( i + 1)];
+//          buffer[index++]= (byte)(((c0 << 2) | (c1 >> 4)) & mask);
+//          if(index >= buffer.length){
+//              return buffer;
+//          }
+//          int c2 = toInt[s.charAt( i + 2)];
+//          buffer[index++]= (byte)(((c1 << 4) | (c2 >> 2)) & mask);
+//          if(index >= buffer.length){
+//              return buffer;
+//          }
+//          int c3 = toInt[s.charAt( i + 3 )];
+//          buffer[index++]= (byte)(((c2 << 6) | c3) & mask);
+//      }
+//      return buffer;
+//  } 
 
   /** Decodage d'une image en base 64. - Merci Fox pour le code
    *  Le traitement peut etre en fait en plusieurs fois.
@@ -704,8 +797,7 @@ public final class Save extends JFrame implements ActionListener {
    * @param length le nombre de caracteres a traiter dans a[]
    * @return la prochaine position a remplir dans b[]
    */
-   public static int get64(byte [] b, int k,
-         char [] a, int start, int length) {
+   public static int get64(byte [] b, int k, char [] a, int start, int length) {
       char [] tab = B64.toCharArray();
       int  c, c3, i,j, colno, lineno;
       boolean skip_line;
@@ -726,7 +818,7 @@ public final class Save extends JFrame implements ActionListener {
       while( j<length ) {
          c = a[j++];
          colno++;
-         if( skip_line ) System.err.print(c);
+         if( skip_line && Aladin.levelTrace>=3 ) System.err.print(c);
          if( c==' ' || c=='\t' || c=='\n' || c=='\r') {
             if( c=='\n' || c=='\r') { lineno++; colno=0; skip_line=false; }
             continue;
@@ -736,10 +828,10 @@ public final class Save extends JFrame implements ActionListener {
          if( (c3&0x40)!=0 ) {
             if( colno==1 ) {
                skip_line = true;
-               System.err.println("++++Ignore line: "+c);
+               if( Aladin.levelTrace>=3 ) System.err.println("++++Ignore line: "+c);
                continue;
             }
-            System.err.println("****Bad input char "+((char)c)+
+            if( Aladin.levelTrace>=3 ) System.err.println("****Bad input char (1) "+((char)c)+
                   " line "+lineno+", col "+colno);
             continue;
          }
@@ -749,9 +841,9 @@ public final class Save extends JFrame implements ActionListener {
          colno++ ;
          i = b642a[c&0xff];
          if( (i&0x40)!=0 ) {
-            System.err.println("****Bad input char "+((char)c)+
+            if( Aladin.levelTrace>=3 ) System.err.println("****Bad input char (2) "+((char)c)+
                   " line "+lineno+", col "+colno);
-            c3 >>= 4;
+            c3 >>>= 4;
 
          if( k>=size ) return k;
          b[k++]=(byte)c3;
@@ -764,11 +856,11 @@ public final class Save extends JFrame implements ActionListener {
          colno++ ;
          i = b642a[c&0xff];
          if( (i&0x40)!=0 ) {		/* 2 characters to issue */
-            if( i!=0xff ) System.err.println("****Bad input char "+((char)c)+
+            if( i!=0xff && Aladin.levelTrace>=3 ) System.err.println("****Bad input char (3) "+((char)c)+
                   " line "+lineno+", col "+colno);
-            c3 >>= 2;
+            c3 >>>= 2;
          if( k>=size ) return k;
-         b[k++]=(byte)(c3>>8);
+         b[k++]=(byte)(c3>>>8);
          if( k>=size ) return k;
          b[k++]=(byte)c3;
          continue ;
@@ -779,13 +871,14 @@ public final class Save extends JFrame implements ActionListener {
          c = (a[j++]) & 0xff;
          colno++ ;
          i = b642a[c&0xff] ;
-         if( (i&0x40)!=0 && i!=0xff ) System.err.println("****Bad input char "+((char)c)+
+         if( (i&0x40)!=0 && i!=0xff ) {
+            if( Aladin.levelTrace>=3 ) System.err.println("****Bad input char (4) "+((char)c)+
                " line "+lineno+", col "+colno);
-         else c3 |= i;
+         } else c3 |= i;
          if( k>=size ) return k;
-         b[k++]=(byte)(c3>>16);
+         b[k++]=(byte)(c3>>>16);
          if( k>=size ) return k;
-         b[k++]=(byte)(c3>>8);
+         b[k++]=(byte)(c3>>>8);
          if( k>=size ) return k;
          b[k++]=(byte)c3;
       }
@@ -965,6 +1058,7 @@ public final class Save extends JFrame implements ActionListener {
          if( f.datatype!=null )    s.append(CR+"         datatype=\""+XMLParser.XMLEncode(f.datatype)+"\"");
          if( f.refText!=null )     s.append(CR+"         refText=\""+XMLParser.XMLEncode(f.refText)+"\"");
          if( f.refValue!=null )    s.append(CR+"         refValue=\""+XMLParser.XMLEncode(f.refValue)+"\"");
+         if( f.sed!=0 )            s.append(CR+"         sed=\""+XMLParser.XMLEncode(f.getSEDtag())+"\"");
          s.append("/>"+CR);
       }
 
@@ -1001,7 +1095,7 @@ public final class Save extends JFrame implements ActionListener {
          append(CR+"     fmt=\""+XMLParser.XMLEncode(fmt)+"\"");
          append(CR+"     resolution=\""+XMLParser.XMLEncode(res)+"\"");
       }
-      if( p.from!=null ) append(CR+"     from=\""+XMLParser.XMLEncode(p.from)+"\"");
+      if( p.copyright!=null ) append(CR+"     from=\""+XMLParser.XMLEncode(p.copyright)+"\"");
       if( p.u!=null )    append(CR+"     url=\""+XMLParser.XMLEncode(p.u+"")+"\"");
       if( Projection.isOk(p.projd) ) {
          append(CR+"     RA=\""+p.projd.raj+"\"");
@@ -1120,10 +1214,12 @@ public final class Save extends JFrame implements ActionListener {
    protected boolean saveCatalog(String s,Plan p, boolean tsv, boolean addXY) {
       s=aladin.getFullFileName(s);
       File f = new File(s);
-      if( tsv ) return saveCatTSV(f,p);
-      else return saveCatVOTable(f,p,addXY);
+      boolean rep;
+      if( tsv ) rep=saveCatTSV(f,p);
+      else rep=saveCatVOTable(f,p,addXY);
+      if( rep ) aladin.memoLastFile(s);
+      return rep;
    }
-
 
    protected boolean saveCatalog(File file, Plan p ,boolean tsv) {
        if( tsv ) return saveCatTSV(file,p);
@@ -1177,7 +1273,7 @@ public final class Save extends JFrame implements ActionListener {
          s.append("RAJ2000\tDEJ2000\tObject\tCont_Flag\tInfo"+CR);
 
          Iterator<Obj> it = pcat.iterator();
-         int nb = pcat.getCounts();
+         int nb = pcat.getCount();
          for( int i=0; i<=nb; i++ ) {
             if( i<nb ) {
                Position o = (Position)it.next();
@@ -1221,7 +1317,7 @@ public final class Save extends JFrame implements ActionListener {
          Legende leg = ((PlanCatalog)p).getFirstLegende();
          s.append(getShortHeader(leg));
 
-         int nb = pcat.getCounts();
+         int nb = pcat.getCount();
          Iterator<Obj> it = pcat.iterator();
          for( int i=0; i<=nb; i++ ) {
             Source o = (Source)(i<nb?it.next():null);
@@ -1381,13 +1477,14 @@ public final class Save extends JFrame implements ActionListener {
       iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
       iwp.setCompressionQuality(qual);
 
-      ImageOutputStream out = ImageIO.createImageOutputStream(os);
-      writer.setOutput(out);
-      writer.write(null, new IIOImage(bufferedImage,null,null), iwp);
-      writer.dispose();
+      ImageOutputStream out = null;
+      try {
+         out = ImageIO.createImageOutputStream(os);
+         writer.setOutput(out);
+         writer.write(null, new IIOImage(bufferedImage,null,null), iwp);
+         writer.dispose();
+      } finally { if( out!=null ) out.close(); }
    }
-
-
 
 
   /** Sauvegarde de vues
@@ -1417,20 +1514,9 @@ public final class Save extends JFrame implements ActionListener {
    
    protected boolean saveOneView(String filename,int w, int h,int format,float qual,ViewSimple v) {
       boolean rep=false;
-//      try {
-//         // Un peu compliqué mais indispensable car sinon risque de DeadLock
-//         v.waitLockRepaint("saveOneView");
-//         if( !v.isSync() ) {
-//            v.unlockRepaint("saveOneView");
-//            System.out.println(Thread.currentThread().getName()+": Save.saveOneView() waiting isSync() on "+v);
-//            Util.pause(50);
-//            v.waitLockRepaint("saveOneView");
-//         }
-//         System.out.println(Thread.currentThread().getName()+": Save.saveOneView() ready "+v);
-         try { rep=saveOneView1(filename,w,h,format,qual,v); }
-         catch( Exception e) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
-         return rep;
-//      } finally { v.unlockRepaint("saveOneView"); }
+      try { rep=saveOneView1(filename,w,h,format,qual,v); }
+      catch( Exception e) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
+      return rep;
    }
 
     /** Sauvegarde d'une vue
@@ -1455,7 +1541,7 @@ public final class Save extends JFrame implements ActionListener {
           o = filename==null ?
                (OutputStream)System.out :
                (OutputStream)new FileOutputStream(aladin.getFullFileName(filename));
-        if( (format&EPS)==EPS  ) saveEPS(v,o);
+        if( (format&EPS)==EPS  ) saveEPS(v,w,h,o);
         else {
             Image img = v.getImage(w,h);
             if( (format&JPEG)==JPEG )  {
@@ -1487,6 +1573,9 @@ public final class Save extends JFrame implements ActionListener {
             String linkFilename = filename+(lkFlex?".lkflex":".lk");
             o = new FileOutputStream(aladin.getFullFileName(linkFilename));
             linkWriter(v,o,lkFlex);
+            
+            Projection proj = v.pref.projd;
+//            Projection proj = v.getProj();
 
             // écriture position des 4 coins de la vue
             if( lkFlex ) {
@@ -1499,25 +1588,25 @@ public final class Save extends JFrame implements ActionListener {
                 Coord coo1 = new Coord();
                 coo1.x = pp.x;
                 coo1.y = pp.y;
-                v.pref.projd.getCoord(coo1);
+                proj.getCoord(coo1);
 
                 pp = v.getPosition(0.0, v.rv.height);
                 Coord coo2 = new Coord();
                 coo2.x = pp.x;
                 coo2.y = pp.y;
-                v.pref.projd.getCoord(coo2);
+                proj.getCoord(coo2);
 
                 pp = v.getPosition((double)v.rv.width, (double)v.rv.height);
                 Coord coo3 = new Coord();
                 coo3.x = pp.x;
                 coo3.y = pp.y;
-                v.pref.projd.getCoord(coo3);
+                proj.getCoord(coo3);
 
                 pp = v.getPosition(v.rv.width, 0.0);
                 Coord coo4 = new Coord();
                 coo4.x = pp.x;
                 coo4.y = pp.y;
-                v.pref.projd.getCoord(coo4);
+                proj.getCoord(coo4);
 
                 out.print("# C0 "+"0.0"+" "+"0.0"+" "+coo1.al+" "+coo1.del+"\n");
                 out.print("# C1 "+"0.0"+" "+v.rv.height+" "+coo2.al+" "+coo2.del+"\n");
@@ -1535,9 +1624,6 @@ public final class Save extends JFrame implements ActionListener {
          }
          finally { o.close(); }
       }
-
-//      v.setLockRepaint(false);
-//      v.repaint();
 
       return rep;
    }
@@ -1576,22 +1662,24 @@ public final class Save extends JFrame implements ActionListener {
     * @param v la vue à sauvegarder
     * @param o le flux de sortie
     */
-   protected void saveEPS(ViewSimple v,OutputStream o) throws Exception {
+   protected void saveEPS(ViewSimple v,int w, int h, OutputStream o) throws Exception {
       PrintStream out = new PrintStream(o);
       EPSGraphics epsg = new EPSGraphics(out,"Aladin-chart",null,0,0,v.rv.width,v.rv.height);
 
       // Affichage de l'image
-      if( v.imgprep!=null && v.pref.active ) epsg.drawImage(v.imgprep,v.dx,v.dy,v.aladin);
-      // test pour sortie EPS des footprints avec transparence
-//      if( v.imgprep!=null && v.pref.active ) epsg.drawImage(v.getImage(0,0),0,0,v.aladin);
+       if( /* v.imgprep!=null && */ v.pref.active ) {
+          epsg.drawImage(v.getImage(w,h,false),0,0,v.aladin);
+       }
+
+//      if( v.imgprep!=null && v.pref.active ) epsg.drawImage(v.imgprep,v.dx,v.dy,v.aladin);
 
 
       // Affichage des overlays
-      if( Projection.isOk(v.pref.projd ) ) {
-         v.paintOverlays(epsg,null,0,0,true);
-         v.drawRepere(epsg,0,0);
-         v.drawCredit(epsg,0,0);
+      if( Projection.isOk(v.getProj() ) ) {
+         v.paintOverlays(epsg,null,0,0,true,0x2);
+//         v.drawRepere(epsg,0,0);
       }
+      v.drawCredit(epsg,0,0);
       epsg.end();
       out.close();
    }
@@ -1632,10 +1720,11 @@ public final class Save extends JFrame implements ActionListener {
    }
    */
    
-   protected boolean saveMoc(String filename, PlanMoc p) {
+   protected boolean saveMoc(String filename, PlanMoc p, int format) {
       try {
          HealpixMoc moc = p.getMoc();
-         moc.write(filename, HealpixMoc.FITS);
+         moc.write(filename, format);
+         aladin.memoLastFile(filename);
       } catch( Exception e ) {
          if( aladin.levelTrace>3 ) e.printStackTrace();
          return false;
@@ -1661,8 +1750,11 @@ public final class Save extends JFrame implements ActionListener {
    protected boolean saveImage(String s,Plan p,int mode) {
       s=aladin.getFullFileName(s);
       File f = new File(s);
-      if( mode>=2 ) return saveImageColor(s,(PlanImage)p,mode);
-      return saveImageFITS(f,(PlanImage)p,mode);
+      boolean rep;
+      if( mode>=2 ) rep=saveImageColor(s,(PlanImage)p,mode);
+      else rep=saveImageFITS(f,(PlanImage)p,mode);
+      if( rep ) aladin.memoLastFile(s);
+      return rep;
    }
 
    /** Sauvegarde sous forme JPEG ou PNG + header FITS d'un plan - mode peut être 3-"png" ou 2-"jpg" */
@@ -1670,7 +1762,10 @@ public final class Save extends JFrame implements ActionListener {
       try {
          OutputStream o = new FileOutputStream(filename);
          boolean rep=saveImageColor(o,p,mode);
-         aladin.log("export",mode==3 ? "PNG" : "JPEG");
+         if( rep ) {
+            aladin.log("export",mode==3 ? "PNG" : "JPEG");
+            aladin.memoLastFile(filename);
+         }
          return rep;
 
       } catch( Exception e ) {
@@ -1716,7 +1811,9 @@ public final class Save extends JFrame implements ActionListener {
       boolean rep=false;
 
       try {
-         file.delete();
+         if( file.exists() && !file.delete() ) {
+            throw new Exception("File already existing and not overwritable !");
+         }
 
          FileOutputStream f = new FileOutputStream(file);
          if( mode==0 ) saveImageFITS(f,p);
@@ -1806,6 +1903,8 @@ public final class Save extends JFrame implements ActionListener {
             p instanceof PlanImageAlgo,
             p.bitpix,p.bZero,p.bScale,p.width,p.height);
    }
+   
+   static final private String BYALADIN = "This astrometrical calibration was computed via Aladin";
 
    /** Idem mais avec les paramètres individuels pour pouvoir l'appliquer à
     * la vue */
@@ -1821,6 +1920,8 @@ public final class Save extends JFrame implements ActionListener {
       boolean hasFitsHeader = headerFits!=null;
       boolean hasNAXIS3 = imageRGB && hasFitsHeader && headerFits.hasKey("NAXIS3");
       boolean hasCTYPE3 = imageRGB && hasFitsHeader && headerFits.hasKey("CTYPE3");
+      boolean hasBITPIX = hasFitsHeader && headerFits.hasKey("BITPIX");
+      boolean hasNAXIS  = hasFitsHeader && headerFits.hasKey("NAXIS");
 
       // Récupération des champs WCS
       if( hasSpecificWCS ) {
@@ -1857,7 +1958,7 @@ public final class Save extends JFrame implements ActionListener {
             v.addElement( getFitsLine("NAXIS3","3","Number of colors") );
 //            v.addElement( getFitsLine("CTYPE3","RGB","Red Green Blue planes") );
         } else {
-            v.addElement( getFitsLine("NAXIS","2","Number of dimensions") );
+             v.addElement( getFitsLine("NAXIS","2","Number of dimensions") );
             v.addElement( getFitsLine("NAXIS1",""+width,"Length of x axis") );
             v.addElement( getFitsLine("NAXIS2",""+height,"Length of y axis") );
 
@@ -1877,9 +1978,28 @@ public final class Save extends JFrame implements ActionListener {
          StringTokenizer st = new StringTokenizer(headerFits.getOriginalHeaderFits(),"\n");
          while( st.hasMoreTokens() ) {
             String s = st.nextToken();
+            
+            // Traitement d'une ligne vide
+            if( s.trim().length()==0 ) { 
+               v.addElement( getFitsLineBlank() );
+               continue;
+            }
+            
             String k = HeaderFits.getKey(s);
-
+            
             if( k!=null ){
+               
+               // Traitement simplifié pour les COMMENT et HISTORY
+               if( k.equals("COMMENT") ) {
+                  String s1=s.substring(7).trim();
+                  if( hasSpecificWCS && s1.equals(BYALADIN) ) continue;  // inutile, on le remettra par la suite
+                  v.addElement( getFitsLineComment(s1) );
+                  continue;
+               }
+               if(  k.equals("HISTORY") ) {
+                  v.addElement( getFitsLineHistory(s.substring(7).trim()) );
+                  continue;
+               }
 
                // On mémorise les keys pour pouvoir repérer celles qui auraient été ajoutées
                // directement dans la hashTable header via un plugin
@@ -1891,6 +2011,14 @@ public final class Save extends JFrame implements ActionListener {
                // Dans le cas d'une sauvegarde d'une image d'un MEF
                if( k.equals("XTENSION") ) {
                   v.addElement( getFitsLine("SIMPLE","T","Generated by Aladin (CDS)") );
+                  continue;
+               }
+               
+               // Dans le cas d'une sauvegarde d'une image JPEG ou RGB convertie en FITS
+               if( k.equals("SIMPLE") && (!hasBITPIX || !hasNAXIS) ) {
+                  v.addElement( getFitsLine("SIMPLE","T","Generated by Aladin (CDS)") );
+                  if( !hasBITPIX ) v.addElement( getFitsLine("BITPIX",bitpix+"","Bits per pixel") );
+                  if( !hasNAXIS ) v.addElement( getFitsLine("NAXIS","2"+"","") );
                   continue;
                }
 
@@ -1987,19 +2115,15 @@ public final class Save extends JFrame implements ActionListener {
                   }
                }
             }
-
+            
             String valOrig = HeaderFits.getValue(s);
             String valC = (String)headerFits.getHeaderFits().getHashHeader().get(k);
             if( valC==null ) continue;      // La clé a été supprimé
             if( Tok.unQuote(valC).trim().equals(valOrig) ) v.addElement( getFullFitsLine(s));  // La clé n'a pas été touchée
             else v.addElement( getFitsLine(k,valC,"Aladin modif") );   // La clé a été modifiée
-
-
-//            // On mémorise la ligne courante
-//            v.addElement( getFullFitsLine(s));
          }
-
-         // On vérifie qu'on a rien oublié
+         
+        // On vérifie qu'on a rien oublié
          if( hasFitsHeader ) {
             Enumeration e = headerFits.getHeaderFits().getHashHeader().keys();
             while( e.hasMoreElements() ) {
@@ -2010,12 +2134,12 @@ public final class Save extends JFrame implements ActionListener {
             }
          }
 
-         if( flagModif ) v.addElement( getFitsLine("Generated by Aladin (CDS)") );;
+         if( flagModif ) v.addElement( getFitsLineComment("Generated by Aladin (CDS)") );;
       }
 
       // Ajout de la calibration WCS specifique
       if( hasSpecificWCS ) {
-         v.addElement( getFitsLine("This astrometrical calibration was computed via Aladin") );
+         v.addElement( getFitsLineComment(BYALADIN) );
          Enumeration ekey   = key.elements();
          Enumeration evalue = value.elements();
          while( ekey.hasMoreElements() ) {
@@ -2124,29 +2248,32 @@ Aladin.trace(3,"Export "+p.label+" (orig. Fits header:"+hasFitsHeader+
    }
 
    // Génération de la deuxième HDU d'un fichier FITS Healpix
-   private Vector generateHealpixHDU1(int norder,int bitpix,boolean ring, int width) {
+   private Vector generateHealpixHDU1(int norder,int bitpix,boolean ring, int lenLine,int frame) {
       Vector v = new Vector(100);
       long nside = CDSHealpix.pow2(norder);
       long nbPix = 12*nside*nside;
       int npix = Math.abs(bitpix)/8;
-width=1;
+lenLine=1;
       String tForm = bitpix==8 ? "XX" : bitpix==16 ? "I" : bitpix==32 ? "J" :
                      bitpix==-32 ? "E" : "D";
       v.addElement( getFitsLine("XTENSION","BINTABLE","binary table extension") );
       v.addElement( getFitsLine("BITPIX","8","array data type") );
       v.addElement( getFitsLine("NAXIS","2","2-dimensional binary table") );
-      v.addElement( getFitsLine("NAXIS1",(width*npix)+"","width of table") );
-      v.addElement( getFitsLine("NAXIS2",(nbPix/width)+"","number of rows in table") );
+      v.addElement( getFitsLine("NAXIS1",(lenLine*npix)+"","width of table") );
+      v.addElement( getFitsLine("NAXIS2",(nbPix/lenLine)+"","number of rows in table") );
       v.addElement( getFitsLine("PCOUNT","0","number of group parameters") );
       v.addElement( getFitsLine("GCOUNT","1","number of groups") );
       v.addElement( getFitsLine("TFIELDS","1","number of table fields") );
       v.addElement( getFitsLine("TTYPE1","PIXVAL","label for field   1") );
-      v.addElement( getFitsLine("TFORM1",width+tForm,"data format of field") );
+      v.addElement( getFitsLine("TFORM1",lenLine+tForm,"data format of field") );
       v.addElement( getFitsLine("PIXTYPE","HEALPIX","Pixel algorithm") );
       v.addElement( getFitsLine("ORDERING",ring?"RING":"NESTED","Ordering scheme") );
       v.addElement( getFitsLine("NSIDE",nside+"","Resolution parameter") );
       v.addElement( getFitsLine("FIRSTPIX","0","First pixel (0 based)") );
       v.addElement( getFitsLine("LASTPIX",(nbPix-1)+"","Last pixel (0 based)") );
+      if( frame!=Localisation.GAL ) {
+         v.addElement( getFitsLine("COORDSYS",frame==Localisation.ECLIPTIC ? "E": frame==Localisation.GAL ? "G" : "C","Coordinate system") );
+      }
 //      v.addElement( getFitsLine("INDXSCHM","IMPLICIT","Indexing: IMPLICIT or EXPLICIT") );
       return v;
    }
@@ -2207,7 +2334,7 @@ width=1;
       size += end.length;
 
       // Generation de la deuxième HDU FITS
-      v = generateHealpixHDU1(order,bitpix,ring,lenLine);
+      v = generateHealpixHDU1(order,bitpix,ring,lenLine,p.getFrameOrigin());
       size=writeFitsLines(f,v,size);
       end = getEndBourrage(size);
       f.write(end);
@@ -2287,8 +2414,7 @@ width=1;
     * @throws IOException
     */
    protected InputStream saveImageHPX(OutputStream os,PlanImage p) throws Exception {
-	   if (p instanceof PlanBG)
-		   return saveImageHPX(os, (PlanBG)p);
+	   if (p instanceof PlanBG) return saveImageHPX(os, (PlanBG)p);
 	   
       MyByteArrayStream bas = null;
       OutputStream f;
@@ -2300,8 +2426,8 @@ width=1;
       else f = bas = new MyByteArrayStream(10000);
 
 // A modifier par la suite
-      int order=9;
-//      int order=13; // pour mellinger
+//      int order=9;
+      int order=10; // pour mellinger
       int bitpix=flagColor ? 32 : p.bitpix==8 ? 16 : p.bitpix;    // Pour le moment les bytes de sont pas supportés
       int npix=Math.abs(bitpix)/8;
 
@@ -2319,9 +2445,12 @@ width=1;
       byte [] end = getEndBourrage(size);
       f.write(end);
       size += end.length;
+      
+      System.out.println("p="+p+" system="+p.projd.c.getSystem());
 
       // Generation de la deuxième HDU FITS
-      v = generateHealpixHDU1(order,bitpix,ring,lenLine);
+//      v = generateHealpixHDU1(order,bitpix,ring,lenLine,Localisation.GAL);
+      v = generateHealpixHDU1(order,bitpix,ring,lenLine,Localisation.ICRS);
       size=writeFitsLines(f,v,size);
       end = getEndBourrage(size);
       f.write(end);
@@ -2342,7 +2471,7 @@ width=1;
          double [] radec = CDSHealpix.polarToRadec(polar);
          c.al = radec[0];
          c.del = radec[1];
-         Localisation.frameToFrame(c, Localisation.GAL, Localisation.ICRS);
+         c=Localisation.frameToFrame(c, Localisation.GAL, Localisation.ICRS);
          proj.getXY(c);
 
          if( !flagColor ) {
@@ -2378,9 +2507,19 @@ width=1;
       if( bas==null ) return null;
       else return bas.getInputStream();
    }
+   
+   static public byte[] getFitsLineBlank() {
+      byte [] b = new byte[80];
+      for( int i=0; i<b.length; i++ ) b[i]=' ';
+      return b;
+   }
 
-   static public byte [] getFitsLine(String comment) {
+   static public byte [] getFitsLineComment(String comment) {
       return getFitsLine("COMMENT", null, comment);
+   }
+
+   static public byte [] getFitsLineHistory(String history) {
+      return getFitsLine("HISTORY", null, history);
    }
 
    /**
@@ -2555,13 +2694,15 @@ width=1;
    @Override
 public boolean action(Event evt, Object what) {
 
-      if( CHOICE[0].equals(what) ) { aladin.printer(); hide(); }
-      else if( CHOICE[1].equals(what) ) saveFile(1,getCodedFormat(format.getSelectedIndex()),-1);
-      else if( CHOICE[2].equals(what) ) saveFile(0);
-      else if( CHOICE[3].equals(what) ) exportPlans();
-      else if( CHOICE[4].equals(what) ) aladin.saveHTML();
+//      if( CHOICE[0].equals(what) ) { aladin.printer(); hide(); }
+//      else 
+           if( CHOICE[SAVEVIEW].equals(what) ) saveFile(1,getCodedFormat(format.getSelectedIndex()),-1);
+      else if( CHOICE[BACKUPSTACK].equals(what) ) saveFile(0);
+      else if( CHOICE[EXPORTPLANS].equals(what) ) exportPlans();
+//      else if( CHOICE[5].equals(what) ) aladin.saveHTML();
       else if( evt.target instanceof Checkbox && tsvCb!=null ) changeCatFormat();
       else if( evt.target instanceof Checkbox && fitsCb!=null ) changeImgFormat();
+      else if( evt.target instanceof Checkbox && fitsMocCb!=null ) changeMocFormat();
       return true;
    }
 
@@ -2569,6 +2710,7 @@ public boolean action(Event evt, Object what) {
       if( e.getSource() instanceof JRadioButton ) {
          if( tsvCb!=null ) changeCatFormat();
          if( fitsCb!=null ) changeImgFormat();
+         if( fitsMocCb!=null ) changeMocFormat();
       }
    }
 

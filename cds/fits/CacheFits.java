@@ -19,11 +19,17 @@
 
 package cds.fits;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Comparator;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.Map;
 import java.util.TreeMap;
 
+import cds.allsky.Constante;
+import cds.allsky.Context;
 import cds.tools.Util;
 
 
@@ -43,19 +49,16 @@ import cds.tools.Util;
  */
 public class CacheFits {
 
-   static private final long DEFAULT_MAXMEM=512L;
-   static private final int  DEFAULT_MAXFILE=10000;
+   static private final long DEFAULT_MAXMEM=512*1024*1024L;
 
    private long maxMem;     // Taille max (en octets)
-   private int  maxFile;    // Nombre de fichiers max
-   private long mem;        // mémoire courante (en octets)
-   private int file;        // Nombre de fichiers gérés
    private int nextId;      // prochain identificateur unique de fichier
-   private HashMap<String, FitsFile> map;             // Table des fichiers
-   private TreeMap<String,FitsFile> sortedMap;        // Table trié par ordre de dernier accès
-   String skyvalName;          // Nom du champ pour soustraire le fond au moment 
-   //de la mise dans le cache
-
+   private boolean cacheOutOfMem;   // En cas de débordement mémoire, on vire totalement le cache
+   private Hashtable<String, FitsFile> map;             // Table des fichiers
+//   private TreeMap<String,FitsFile> sortedMap;        // Table trié par ordre de dernier accès
+   Context context;
+   private Hashtable<String, double[]> cutCache = new Hashtable<String, double[]>();
+   
 
    //private boolean skyvalSub = false;// condition d'application d'une soustraction du skyval au moment 
    //de la mise dans le cache
@@ -65,151 +68,367 @@ public class CacheFits {
    /**
     * Création d'un cache de fichiers Fits
     */
-   public CacheFits() { this(DEFAULT_MAXMEM,DEFAULT_MAXFILE); }
+   public CacheFits() { this(DEFAULT_MAXMEM); }
 
    /**
     * Création d'un cache de fichiers Fits
-    * @param maxMem limite en Mo occupés
-    * @param maxFile limite en nombre de fichiers ouverts simultanément
+    * @param maxMem limite en bytes occupés, ou si négatif, 
+    *          nombre de bytes à garder libre par rapport à la RAM dispo
     */
-   public CacheFits(long maxMem,int maxFile) {
-      this.maxMem=maxMem*1024L*1024L;
-      this.maxFile=maxFile;
-      mem=0L;
-      file=0;
+   public CacheFits(long maxMem) {
+      this.maxMem=maxMem;
+      cacheOutOfMem=maxMem==0;
       nextId=0;
       statNbFree=statNbOpen=statNbFind=0;
-      map = new HashMap<String, FitsFile>(maxFile);
-      sortedMap = new TreeMap<String, FitsFile>( new ValueComparator(map) );
+      map = new Hashtable<String, FitsFile>(20000);
+//      sortedMap = new TreeMap<String, FitsFile>( new ValueComparator(map) );
    }
-
+   
+   /** Vérification qu'il reste assez de mémoire RAM, et sinon
+    * on va libérer temporairement les blocs pixels[] non utilisés afin de récupérer
+    * ce qui manque
+    * @param rqMem taille de la mémoire requise
+    * @return true c'est bon, false, faut attendre
+    */
+//   public boolean needMem(long rqMem) {
+//      if( rqMem<=0L ) return false;
+//      long freeMem=getFreeMem();
+//      if( getFreeMem()>rqMem ) return false;
+//      
+//      rqMem = rqMem-freeMem;
+//      long mem = 0L;
+//      try {
+//         waitLock();
+//         for( String key : map.keySet() ) {
+//            Fits f = map.get(key).fits;
+//            long m = f.getMem();
+//            try { f.releaseBitmap();
+//            } catch( Exception e ) { } mem += m-f.getMem();
+//            if( mem>rqMem ) break;
+//         }
+//      } finally { unlock(); }
+//      gc();
+//      return mem>rqMem;
+//   }
+   
+   // Gestion d'un lock
+   static private final Object lockObj= new Object();
+//   transient private boolean lock;
+//   private void waitLock() {
+//      while( !getLock() ) sleep(5);
+//   }
+//   private void unlock() { lock=false; }
+//   private boolean getLock() {
+//      synchronized( lockObj ) {
+//         if( lock ) return false;
+//         lock=true;
+//         return true;
+//      }
+//   }
+//   // Mise en pause 
+//   private void sleep(int delay) {
+//      try { Thread.currentThread().sleep(delay); }
+//      catch( Exception e) { }
+//   }
+   
+   static public final int FITS = 0; // FITS classique
+   static public final int JPEG = 1; // JPEG
+   static public final int PNG  = 2; // PNG
+   static public final int HHH  = 4; // HHH (combiné avec JPEG ou PNG)
+   
    /**
     * Récupération d'un Fits spécifié par son nom de fichier. 
     * @param fileName Nom du fichier Fits à accéder (supporte le mode mosaic nomfichier[x,y-wxh])
     * @return l'objet Fits
     * @throws Exception
     */
-  public Fits getFits(String fileName) throws Exception { return getFits(fileName,false); }
-  synchronized public Fits getFits(String fileName,boolean jpeg) throws Exception {
-      FitsFile f = find(fileName);
+  public Fits getFits(String fileName) throws Exception { return getFits(fileName,FITS,true); }
+  public Fits getFits(String fileName,int mode,boolean flagLoad) throws Exception {
+     if( cacheOutOfMem )  return open(fileName,mode,flagLoad).fits;
 
-      // Trouvé, je le mets à jour
-      if( f!=null ) {
-         f.update();
-         statNbFind++;
-      }
+     synchronized( lockObj  ) {
+        FitsFile f = find(fileName);
 
-      // Pas trouvé, je l'ajoute
-      else {
-         if( isOver() ) clean();
-         try {
-            f=add(fileName,jpeg);
-         } catch( OutOfMemoryError e ) {
-            System.err.println("CacheFits.getFits("+fileName+") out of memory... clean and try again...");
-            maxMem /= 2;
-            clean();
-            f=add(fileName,jpeg);
-         }
-         statNbOpen++;
-      }
+        // Trouvé, je le mets à jour
+        if( f!=null ) {
+           f.update();
+           statNbFind++;
+        }
 
-      return f.fits;
+        // Pas trouvé, je l'ajoute
+        else {
+           if( isOver() ) clean();
+           try {
+              f=add(fileName,mode,flagLoad);
+           } catch( OutOfMemoryError e ) {
+              System.err.println("CacheFits.getFits("+fileName+") out of memory... clean and try again...");
+              if( maxMem<0 ) maxMem*=2;
+              else maxMem /= 2;
+              try {
+                 clean();
+                 f=add(fileName,mode,flagLoad);
+              } catch( OutOfMemoryError e1 ) {
+                 System.err.println("CacheFits.getFits("+fileName+") out of memory... double error... removing the cache...");
+                 e1.printStackTrace();
+                 reset();
+                 cacheOutOfMem=true;
+                 return open(fileName,mode,flagLoad).fits;
+              }
+           }
+           statNbOpen++;
+        }
 
-   }
+        return f.fits;
+     }
 
+  }
+  
    // Retrouve l'objet Fits dans le cache, null si inconnu
-   private FitsFile find(String name) { return map.get(name); }
+   private FitsFile find(String name) { 
+      return map.get(name);
+   }
 
    // Ajoute un fichier Fits au cache. Celui-ci est totalement chargé en mémoire
-   private FitsFile add(String name,boolean jpeg) throws Exception {
-      FitsFile f = new FitsFile();
-      f.fits = new Fits();
-      if( jpeg ) f.fits.loadJpeg(name,true);
-      else f.fits.loadFITS(name);
-      
-      // applique un filtre spécial
-      if (skyvalName!=null) delSkyval(f.fits);
-
+   private FitsFile add(String name,int mode,boolean flagLoad) throws Exception {
+      FitsFile f = open(name,mode,flagLoad);
       map.put(name, f);
-      mem+=f.getMem(); ;
-      file++;
       return f;
    }
+   
+   // Ouvre un fichier
+   private FitsFile open(String fileName,int mode,boolean flagLoad) throws Exception {
+      FitsFile f = new FitsFile();
+      f.fits = new Fits();
+      if( context.skyvalName!=null ) { flagLoad=true; f.fits.setReleasable(false); }
+      
+      // Il faut lire deux fichiers, le HHH, puis le JPEG ou PNG suivant le cas
+      if( (mode&HHH)!=0 ) {
+         f.fits.loadHeaderFITS(fileName);
+         String pngFile = fileName.replaceAll("\\.hhh",".png");
+         String jpgFile = fileName.replaceAll("\\.hhh",".jpg");
+         
+         // On ne connait pas le type de fichier pour les pixels,
+         // => on va voir ce qui existe
+         if( (mode&(JPEG|PNG))==0 ) {
+            String racJpgFile = jpgFile;
+            String racPngFile = pngFile;
+            int i;
+            if( (i=jpgFile.indexOf(".jpg["))>0 ) racJpgFile = jpgFile.substring(0,i+4);
+            if( (i=pngFile.indexOf(".png["))>0 ) racPngFile = pngFile.substring(0,i+4);
+            
+                 if( (new File(racJpgFile)).exists() ) mode |= JPEG;
+            else if( (new File(racPngFile)).exists() ) mode |= PNG;
+         }
+              if( (mode&PNG)!=0  ) fileName=pngFile;
+         else if( (mode&JPEG)!=0 ) fileName=jpgFile;
+         else throw new Exception(".hhh file without associated .jpg or .png file");
+      }
+      
+      if( (mode&(PNG|JPEG))!=0 ) {
+         f.fits.loadJpeg(fileName,true, (mode&HHH)==0);
+      }
+      else {
+         f.fits.loadFITS(fileName, false, flagLoad);
+//         f.fits.initPixDoubleFast();
+      }
 
-   // Supprime un objet Fits du cache
-   private void remove(String name) {
-      FitsFile f=find(name);
-      if( f==null ) return;
-      statNbFree++;
-      mem-=f.getMem();
-      file--;
-      map.remove(name);
+
+      // applique un filtre spécial
+      if (context.skyvalName!=null || context.expTimeName!=null || context.pixelGood!=null ) delSkyval(f.fits);
+
+      return f;
    }
 
    // Retourne true si le cache est en surcapacité
    private boolean isOver() {
-      return mem>maxMem || file>maxFile;
-   }
-
-   // Retourne true si le cache est rempli à moins des 3/4
-   private boolean isMemOk() {
-      return mem<3*(maxMem/4) && file<3*(maxFile/4);
-   }
-
-   // Supprime les plus vieux éléments du cache pour qu'il ne soit rempli qu'au 3/4
-   private void clean() {
-      sortedMap.clear();
-      sortedMap.putAll(map);
-      for( String key : sortedMap.keySet() ) {
-         if( isMemOk() ) return;
-         remove(key);
-         //         System.out.println("clean.remove "+key );
+      if( maxMem<0 ) {
+//         System.out.println("Cachemem="+Util.getUnitDisk(mem)+" freeMem="+Util.getUnitDisk(getFreeMem())
+//               +" maxMem="+Util.getUnitDisk(-maxMem)
+//               +" isOver="+(mem>getFreeMem()+maxMem));
+//         return mem>getFreeMem()+maxMem;
+         return getFreeMem()<-maxMem;
       }
+      return getMem()>maxMem;
    }
-   public void setSkySub(String key) {
-      skyvalName = key;
+
+   /** Retourne la taille occupée par le cache */
+   public long getMem() {
+      long mem=0L;
+      if( map==null ) return mem;
+      Enumeration<String> e = map.keys();
+      while( e.hasMoreElements() ) {
+         String key = e.nextElement();
+         FitsFile f = map.get(key);
+         mem += f.fits.getMem();
+      }
+      return mem;
    }
+   
+   // Force le nettoyage du clean
+   public void forceClean() {
+      synchronized( lockObj  ) {  clean(); }
+   }
+
+
+   // Supprime les plus vieux éléments du cache pour 
+   // qu'il y ait un peu de place libre
+   private void clean() {
+      long mem = getMem();
+      long totMem=0L;
+      long m=0;
+      int nb=0;
+      long freeMem = getFreeMem();
+      boolean encore=true;
+      long now = System.currentTimeMillis();
+      long delay=5000;
+      
+      // en premier tour, on supprime les fits non utilisés 
+      // depuis plus de 5s, et si pas assez de mémoire, on ne regarde plus la date
+      int i;
+      for( i=0; i<2 && encore; i++) {
+         Enumeration<String> e = map.keys();
+         while( e.hasMoreElements() ) {
+            String key = e.nextElement();
+            FitsFile f = map.get(key);
+            if( f.fits.hasUsers() ) continue;
+            if( i==0 && now-f.timeAccess<delay ) continue;
+            m = f.getMem();
+            totMem+=m;
+            nb++;
+            statNbFree++;
+            map.remove(key);
+            if( totMem> mem/2L  ) { encore=false; break; }
+         }
+      }
+      
+//      sortedMap.clear();
+      gc();
+      
+      long duree = System.currentTimeMillis() - now;
+      String s1 = i>1 ? "s":"";
+      long freeRam = getFreeMem();
+      context.stat("Cache: freeRAM="+Util.getUnitDisk(freeMem)+" => "+nb+" files removed ("+Util.getUnitDisk(totMem)+") in "+i+" step"+s1+" in "+Util.getTemps(duree)
+            +" => freeRAM="+Util.getUnitDisk(freeRam));
+   }
+   
+   // Reset totalement le cache
+   public void reset() {
+      statNbFree+=map.size();
+      map.clear();
+      gc();
+   }
+   
+   public void setContext(Context c) { context = c; }
+
+   
+   // Détermination des cuts d'une image,
+   // et conservation dans un cache pour éviter de refaire plusieurs fois
+   // le calcul notamment dans le cas d'une image ouverte en mode "blocks"
+   private double [] findAutocutRange(Fits f) throws Exception {
+      String filename = f.getFilename()+f.getMefSuffix();
+      double [] cut = cutCache.get(filename);
+      if( cut!=null ) return cut;
+      Fits f1 = new Fits();
+      int w=1024;
+      int x = f.width/2-w/2, y=f.height/2-w/2;
+      f1.loadFITS(f.getFilename(),f.ext,x,y,w,w);
+      if( context.hasAlternateBlank() ) f1.setBlank( context.getBlankOrig() );
+      cut = f1.findAutocutRange();
+      cutCache.put(filename,cut);
+//      context.info("Skyval estimation => "+ip(cut[0],f1.bzero,f1.bscale)+" for "+filename);
+
+      return cut;
+   }
+   
+//   private String ip(double raw,double bzero,double bscale) {
+//      return cds.tools.Util.myRound(raw) + (bzero!=0 || bscale!=1 ? "/"+cds.tools.Util.myRound(raw*bscale+bzero) : "");
+//   }
+
+   
+   private boolean first=true;
 
    /**
-    * Applique un filtre (soustraction du skyval)
+    * Applique un filtre (soustraction du skyval, division par le expTime)
     * sur les pixels avant de les mettre dans le cache
     * @param f fitsfile
     */
    private void delSkyval(Fits f) {
-      // enlève le fond de ciel
       double skyval = 0;
-      double newval = f.blank;
-      try {
-    	  skyval = f.headerFits.getDoubleFromHeader(skyvalName);
-      } catch (NullPointerException e) {
-    	  // On n'a pas trouve le mot cle, tampis on sort proprement
-    	  return;
-      }
-      if (skyval != 0) {
-    	  skyval -= 1;
-    	  for( int y=0; y<f.heightCell; y++ ) {
-    		  for( int x=0; x<f.widthCell; x++ ) {
-    			  // applique un nettoyage pour enlever les valeurs aberrantes
-    			  // et garder les anciens blank à blank
-    			  double pixelFull = f.getPixelFull(x+f.xCell, y+f.yCell);
-    			  if (pixelFull==f.blank || pixelFull<f.blank+skyval)
-    				  newval = f.blank;
-    			  else
-    				  newval = pixelFull-skyval;
+      double expTime = 1;
+//      double newval = f.blank;
+      boolean skyValTag=false;
+      boolean expTimeTag=false;
+      
+      if( context.skyvalName!=null ) {
 
-    			  switch (f.bitpix) {
-    			  case 8 :
-    			  case 16:
-    			  case 32 :
-    				  f.setPixelInt(x+f.xCell, y+f.yCell, (int)newval); break;
-    			  case -32:
-    			  case -64 :
-    				  f.setPixelDouble(x+f.xCell, y+f.yCell, newval); break;
-    			  }
-    		  }
-    	  }
+         try {
+            if( context.skyvalName.equalsIgnoreCase("true") ) {
+               double cut [] = findAutocutRange(f);
+               double cutOrig [] = context.getCutOrig();
+               skyval = cut[0] - cutOrig[0];
+               //               skyval = cut[0];
+            } else {
+               try {
+                  skyval = f.headerFits.getDoubleFromHeader(context.skyvalName);
+                  double cutOrig [] = context.getCutOrig();
+                  skyval = skyval - cutOrig[0];
+               } catch( Exception e ) {
+                  double cut [] = findAutocutRange(f);
+                  double cutOrig [] = context.getCutOrig();
+                  skyval = cut[0] - cutOrig[0];
+                  //                skyval = cut[0];
+                  if( first ) {
+                     context.warning("\nSKYVAL="+context.skyvalName+" not found is some images => use an estimation for these images");
+                     first=false;
+                  }
+               }
+            }
+            
+            skyValTag= skyval!=0;
+         } catch (Exception e) { }
       }
+      
+      if( context.expTimeName!=null ) {
+         try {
+            expTime = f.headerFits.getDoubleFromHeader(context.expTimeName);
+            expTimeTag= expTime!=1;
+         } catch (NullPointerException e) { }
+      }
+      
+      if( !skyValTag && !expTimeTag && f.bzero==0 && f.bscale==1 && context.pixelGood==null ) return;
+      
+//      System.out.println("SkyVal="+skyval+" => "+f.getFilename()+f.getFileNameExtended());
+      
+      
+      double blank = context.hasAlternateBlank() ? context.getBlankOrig() : f.blank;
+      
+      for( int y=0; y<f.heightCell; y++ ) {
+         for( int x=0; x<f.widthCell; x++ ) {
+            double pixelFull = f.getPixelDouble(x+f.xCell, y+f.yCell);
+            
+            if( Double.isNaN(pixelFull) ) continue; 
+            
+            if( context.pixelGood!=null && (pixelFull<context.pixelGood[0] || context.pixelGood[1]<pixelFull) ) {
+               if( f.bitpix<0 ) f.setPixelDouble(x+f.xCell, y+f.yCell, blank);
+               else f.setPixelInt(x+f.xCell, y+f.yCell, (int)blank); 
+               continue;
+            }
+             
+            if( context.hasAlternateBlank() ) {
+               if( pixelFull==context.getBlankOrig() ) continue;
+            } else if( f.isBlankPixel(pixelFull) ) continue;
 
+            pixelFull = pixelFull*f.bscale + f.bzero;
+
+            if( skyValTag  ) pixelFull -= skyval;
+            if( expTimeTag ) pixelFull /= expTime;
+            
+            pixelFull = (pixelFull - f.bzero) / f.bscale;
+
+            if( f.bitpix<0 ) f.setPixelDouble(x+f.xCell, y+f.yCell, pixelFull);
+            else f.setPixelInt(x+f.xCell, y+f.yCell, (int)(pixelFull+0.5)); 
+         }
+      }
    }
 
    /** Retourne le nombre de fichiers ayant été ouverts */
@@ -221,13 +440,34 @@ public class CacheFits {
    /** Retourne le nombre de fichiers ayant été supprimés du cache */
    public int getStatNbFree() { return statNbFree; }
 
-   /** Retourne le volume courant du cache en octets */
-   public long getStatMem() { return mem; }
+   public String toString() { 
+//      int nbReleased = getNbReleased();
+      int n = map.size();
+      String s = n>1 ? "s":"";
+      return "Cache: "+n+" file"+s
+//      +(nbReleased>0 ? "("+nbReleased+" released)" : "")
+            +" using "+Util.getUnitDisk(getMem())
+            +(maxMem>0 ? "/"+Util.getUnitDisk(maxMem):"["+Util.getUnitDisk(maxMem)+"]")
+            +" freeRAM="+Util.getUnitDisk(getFreeMem())
+            +" (open="+statNbOpen+" find="+statNbFind+" remove="+statNbFree+")";
+     }
 
-
-   public String toString() { return "CacheFits: "+file+" file(s) for "+Util.getUnitDisk(mem)
-      +" open="+statNbOpen+" find="+statNbFind+" free="+statNbFree; }
-
+   // retourne le nombre de fichier dans le cache dont le bloc mémoire pixel[]
+   // est actuellement vide
+   private int getNbReleased() {
+      try {
+         int n=0;
+         Enumeration<String> e = map.keys();
+         while( e.hasMoreElements() ) {
+            String key = e.nextElement();
+            if( map.get(key).fits.isReleased() ) n++;
+         }
+         return n;
+      } catch( Exception e ) {
+         return -1;
+      }
+   }
+   
    // Gère une entrée dans le cache
    class FitsFile {
       Fits fits;
@@ -239,17 +479,21 @@ public class CacheFits {
          timeAccess = System.currentTimeMillis();
          id=nextId++;
       }
+      
+//      public void free() {
+//         if( fits!=null ) fits.free();
+//      }
 
       public long getMem() {
          if( fits==null ) return 0L;
-         return fits.widthCell*fits.heightCell*Math.abs(fits.bitpix==0 ? 32 : fits.bitpix)/8; 
+         return fits.getMem(); 
       }
 
       void update() { timeAccess = System.currentTimeMillis(); }
 
       public String toString() {
          long now = System.currentTimeMillis();
-         return "["+id+"] age="+(now-timeAccess)+" => "+fits.getFilename();
+         return "["+id+"] age="+(now-timeAccess)+" => "+fits.getFileNameExtended();
       }
    }
 
@@ -271,6 +515,27 @@ public class CacheFits {
          return val;
       }
    }
+   
+   static long lastTimeMem=0L;
+   static long lastMem=0;
+   
+   /** Retourne le nombre d'octets disponibles en RAM */
+   public long getFreeMem() {
+//      long t1 = System.nanoTime();
+//      if( t1-lastTimeMem<100000 ) return lastMem;
+      lastMem = Runtime.getRuntime().maxMemory()-
+            (Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory());
+      return lastMem;
+   }
+   
+   /** Libère toute la mémoire inutile */
+   public void gc() {
+//      System.runFinalization();
+      System.gc();
+      Util.pause(100);
+   }
+
+
 
    //   static final String NAME1 = "C:/2MASS.fits";
    //   static final String NAME2 = "C:/Documents and Settings/Standard/Bureau/CFHTLS_W_g_222054+011900_T0007.fits[100,100-1000x1000]";

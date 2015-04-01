@@ -21,12 +21,16 @@ MINSTALL	Install
 MFILE	File
 MEDIT	Edit
 MZOOM	Zoom
+MCOPYALL	Copy
+MPASTEALL	Paste
 MVIEW	View
 MOVERLAY	Overlay
 MDOC	Other documentation...
 MOPENLOAD	Open...
 MOPENFILE	Open local file...
 MOPENURL	Open URL...
+MLASTFILE   Recent files & URLs...
+MLASTFILECLEAR Clear history
 MLOADIMG	Load astronomical image
 MLOADCAT	Load catalog
 MLOADVO	Load from the Virtual Observatory...
@@ -57,8 +61,10 @@ MSEARCH	Search in loaded catalogs...
 MSELECTALL	Select all objects
 MUNSELECT	Unselect objects
 MFILTERB	Predefined filters
+MPANEL	Panels
 MPANEL1	1 panel
 MPANEL2	2 panels
+MPANEL2L	2 horiz. panels
 MPANEL4	4 panels
 MPANEL9	9 panels
 MPANEL16	16 panels
@@ -80,9 +86,18 @@ MEXPORTEPS	Export the current view (EPS)...
 MEXPORT	Export planes (FITS,VOTable,...)...
 MBACKUP	Backup the stack...
 MARITHM	Arithmetic operation...
-MMOC Coverage map (MOC)...
-MMOCGEN Generation from images/catalogs...
-MMOCOP	Boolean operations...
+MMOC Coverage
+MMOCHIPS Load the coverage (MOC) of the current survey
+MMOCLOAD Load a specifical catalog MOC...
+MMOCGENIMG Generate from image or HEALPix map...
+MMOCGENIMGS Generate from an image collection...
+MMOCGENCAT Generate from catalog...
+MMOCFILTERING Filter a table by MOC...
+MMOCCROP Rectangular crop...
+MMOCOP	Logical operations...
+MMOCTOORDER Resolution adjustement...
+MMOCHELP Help on MultiOrder Coverage (MOC)...
+MMOCLOADHELP In order to load the coverage of a specifical catalog or table, specify its identifier in the "Catalog" field, and press the "MOC" button.
 MHEALPIXARITHM HEALPix arithmetic operations...
 #MADD	Addition
 #MSUB	Subtraction
@@ -93,11 +108,12 @@ MBITPIX	Bitpix convert...
 MPIXEXTR Pixel extraction...
 MCONV	Convolution...
 MHEAD	Fits header...
-MBKGD	All sky
+MBKGD	Progressive sky (HiPS)
 MBKM	Bookmarks...
 SELECTTAG	Select tagged sources
 DETAG	Untag the tagged sources
 TAGSELECT	Tag selected sources
+FOVEDITOR Instrument footprint editor...
 
 #MLOAD.fr	Charger...
 MSAVE.fr	Enregistrer...
@@ -114,12 +130,16 @@ MINSTALL.fr	Installer
 MFILE.fr	Fichier
 MEDIT.fr	Edition
 MZOOM.fr	Zoom
+MCOPYALL.fr	Copier
+MPASTEALL.fr	Coller
 MVIEW.fr	Vue
 MOVERLAY.fr	Graphique
 MDOC.fr	Documentation additionnelle...
 MOPENLOAD.fr	Ouvrir...
 MOPENFILE.fr	Ouvrir un fichier...
 MOPENURL.fr	Ouvrir une URL...
+MLASTFILE.fr   Fichiers & URL récents...
+MLASTFILECLEAR.fr Effacer l'historique
 MLOADIMG.fr	Charger une image astronomique
 MLOADCAT.fr	Charger un catalogue
 MLOADVO.fr	Charger depuis l'Observatoire Virtuel...
@@ -138,7 +158,7 @@ MPREVPOS.fr Position précédente
 MNEXTPOS.fr Position suivante
 MSYNC.fr	Uniformiser l'échelle
 MSYNCPROJ.fr	Uniformiser l'échelle et l'orientation
-MPAN.fr	Glisser le champ de vue
+MPAN.fr	Déplacer le champ de vue
 MRSAMP.fr	Rééchantillonner...
 MGLASS.fr	Loupe
 MGLASSTABLE.fr	Table de pixels
@@ -150,11 +170,13 @@ MSEARCH.fr	Chercher dans les catalogues chargés...
 MSELECTALL.fr	Sélectionner tous les objets
 MUNSELECT.fr	Désélectionner les objets
 MFILTERB.fr	Filtres prédéfinis
-MPANEL1.fr	1 panneau
-MPANEL2.fr	2 panneaux
-MPANEL4.fr	4 panneaux
-MPANEL9.fr	9 panneaux
-MPANEL16.fr	16 panneaux
+MPANEL.fr	Cadres
+MPANEL1.fr	1 cadre
+MPANEL2.fr	2 cadres
+MPANEL2L.fr	2 cadres horiz.
+MPANEL4.fr	4 cadres
+MPANEL9.fr	9 cadres
+MPANEL16.fr	16 cadres
 MTOOL.fr Créer un nouveau plan "Drawing"
 MDIST.fr	dist - Outil de calcul de distance
 MDRAW.fr	dessin - Dessin à main levée
@@ -172,9 +194,18 @@ MSAVEVIEW.fr	Enregistrer la vue courante...
 MEXPORTEPS.fr	Exporter la vue courante (EPS)...
 MEXPORT.fr	Exporter des plans (FITS,VOTable,...)...
 MBACKUP.fr	Sauvegarder la pile...
-MMOC.fr Cartes de couverture (MOC)...
-MMOCGEN.fr	Génération à partir d'images/catalogues
+MMOC.fr Couverture
+MMOCHIPS.fr	Chargement de la couverture (MOC) du relevé courant
+MMOCLOAD.fr Chargement pour un catalogue spécifique...
+MMOCGENIMG.fr	Génération à partir d'une image ou d'une map HEALPix
+MMOCGENIMGS.fr	Génération à partir d'une collection d'images
+MMOCGENCAT.fr	Génération à partir d'un catalogue
+MMOCFILTERING.fr Filtrage d'un catalogue par MOC...
+MMOCCROP.fr	Découpage rectangulaire...
 MMOCOP.fr	Opérations logiques...
+MMOCTOORDER.fr Ajustement de la résolution...
+MMOCHELP.fr Aide à propos des MOC...
+MMOCLOADHELP.fr Afin de charger la couverture d'un catalogue ou une table particulière sur le ciel, indiquez son identificateur dans le champ "Catalogue", puis cliquez sur le bouton "Couverture".
 MARITHM.fr	Opérations arithmétiques...
 MHEALPIXARITHM.fr Opérations arithmétiques sur plan Healpix...
 #MADD.fr	Addition
@@ -186,11 +217,12 @@ MBITPIX.fr	Conversion Bitpix...
 MPIXEXTR.fr Extraction des pixels...
 MCONV.fr	Convolution...
 MHEAD.fr	Entête Fits...
-MBKGD.fr	Ciel complet
+MBKGD.fr	Ciel progressif (HiPS)
 MBKM.fr	Signets...
 SELECTTAG.fr	Sélectionner les sources cochées
 DETAG.fr	Décocher les sources cochées
 TAGSELECT.fr	Cocher les sources sélectionnées
+FOVEDITOR.fr Editeur de champ instrumental...
 
 PIXEXTRINFO1 The pixel extraction creates a source catalogue. Each source will be centered on a pixel of the current image and will provide the pixel values of each selected images in the stack (via the closest pixel method).
 PIXEXTRINFO1.fr L'extraction de pixels génère un catalogue de sources centrées sur chaque pixel de l'image courante. Chaque source fournira les valeurs de pixels pour chaque image sélectionnée dans la pile (méthode du plus proche pixel).
@@ -208,12 +240,17 @@ ROI	Thumbnail view generator...
 #VOPLOT
 VOTOOL	VO tools
 GLUTOOL	Remote tools
-SIMBAD	Simbad automatic pointer
-TIP	Tooltip on sources
-MSCROLL	Auto-scroll on mouse pan
+SIMBAD	Simbad pointer
+VIZIERSED VizieR photometry pointer
+AUTODIST Auto-distance measurer
+#TIP	Tooltip on sources
+#MSCROLL	Auto-scroll on mouse pan
 FULLSCREEN	Full screen
 PREVIEWSCREEN	Simple window
 SESAME	Object name resolver
+COOTOOL Coordinate toolbox...
+PIXELTOOL Pixel toolbox...
+CALCULATOR Calculator...
 NEW	New Aladin window...
 PREF	User preferences...
 CEA_TOOLS	PROTO:AstroGrid CEA applications
@@ -237,9 +274,14 @@ CALCAT.fr	Calibration astrométrique..
 ROI.fr	Créer des vues vignettes...
 VOTOOL.fr	Outils OV
 GLUTOOL.fr	Outils distants
-SIMBAD.fr	Pointeur Simbad automatique
-TIP.fr	Infobulle sur les sources
-MSCROLL.fr	Défilement automatique suite à un dépl. souris
+SIMBAD.fr	Pointeur Simbad
+COOTOOL.fr Calculs de coordonnées...
+PIXELTOOL.fr Calculs de pixels...
+CALCULATOR.fr Calculatrice...
+VIZIERSED.fr	Pointeur photométrie VizieR
+AUTODIST.fr Mesure de distance automatique
+#TIP.fr	Infobulle sur les sources
+#MSCROLL.fr	Défilement automatique suite à un dépl. souris
 FULLSCREEN.fr	Plein écran
 PREVIEWSCREEN.fr	Simple fenêtre
 SESAME.fr	Résolution de nom d'objet
@@ -310,8 +352,8 @@ RESTART	You have to restart Aladin to validate this configuration modification
 RESTART.fr	Vous devez redémarrer Aladin pour que cette modification de configuration soit prise en compte
 UNSIGNED	Unsigned applet not supported for this HTTP Aladin site\n => redirection in progress...
 UNSIGNED.fr	Le mode applet non signé n'est pas supporté par ce site Aladin HTTP\n => Redirection automatique en cours...
-BANNER	Aladin is developed by Pierre Fernique, Thomas Boch, François Bonnarel and Anaïs Oberto
-BANNER.fr	Aladin est développé par Pierre Fernique, Thomas Boch, François Bonnarel et Anaïs Oberto
+BANNER	Aladin is developed by Pierre Fernique, Thomas Boch, Anaïs Oberto and François Bonnarel 
+BANNER.fr	Aladin est développé par Pierre Fernique, Thomas Boch, Anaïs Oberto et François Bonnarel
 STARTING	is starting
 STARTING.fr	en cours de lancement
 YOURJVM	Your JVM release is java
@@ -348,16 +390,16 @@ STOPDEMO	Do you want to stop the demonstration ?\nClick NO to resume
 STOPDEMO.fr	Désirez-vous interrompre la démonstration ?\nCliquez NON pour poursuivre
 MB	Mb
 MB.fr	Mo
-PUB	*ALADIN is an interactive software sky atlas.\n* It allows one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n!Quick start...\n*Just type your target in the text field above\n*(ex: M1  or  13:29:53 +47:11:48)\n \n*%CDSLogo.gif\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, François Bonnarel and Anaïs Oberto.
-PUB.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe\n*quelle partie du ciel, d'y superposer des objets issus de catalogues\n*astronomiques, et, interactivement, d'accéder aux informations relatives.\n \n!Démarrage rapide...\n*Saisissez simplement votre cible dans le champ de saisie ci-dessus.\n*(ex: M1  ou  13:29:53 +47:11:48)\n \n*%CDSLogo.gif\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, François Bonnarel et Anaïs Oberto.
-PUBBETA	*ALADIN is an interactive software sky atlas\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!WARNING: THIS VERSION IS A BETA RELEASE\n*Send bug report and comments to cds-question@unistra.fr\n*Or take the official version for a real usage\n*(from http://aladin.u-strasbg.fr).\n \n*%CDSLogo.gif\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, François Bonnarel and Anaïs Oberto.
-PUBBETA.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!CETTE VERSION EST EN BETA TEST\n*Envoyez vos commentaires et bogues à cds-question@unistra.fr\n*Ou télécharger la dernière version officielle pour un usage réel\n*(à partir de http://aladin.u-strasbg.fr).\n \n*%CDSLogo.gif\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, François Bonnarel et Anaïs Oberto.
-PUBPROTO	ALADIN is an interactive software sky atlas developed by the CDS,\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!WARNING: THIS VERSION IS A PROTOTYPE RELEASE\n*SOME FEATURES HAVE BEEN ADDED FOR DEMONSTRATION PURPOSES.\n*USE IT AT YOUR OWN RISKS\n \n*Or take the official version for a real usage\n*(from http://aladin.u-strasbg.fr).\n \n*%CDSLogo.gif\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, François Bonnarel and Anaïs Oberto.
-PUBPROTO.fr	ALADIN est un atlas du ciel interactif développé par le CDS.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!CETTE MISE-A-JOUR EST UNE VERSION PROTOTYPE\n*CERTAINES FONCTIONNALITES QUI ONT ETE AJOUTEES\n*EN DEMONSTRATION SONT SANS GARANTIE\n \n*Vous pouvez télécharger la dernière version officielle pour un usage réel\n*(à partir de http://aladin.u-strasbg.fr).\n \n*%CDSLogo.gif\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, François Bonnarel et Anaïs Oberto.\n
+PUB	*ALADIN is an interactive software sky atlas.\n* It allows one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n!Quick start...\n*Just type your target in the text field above\n*(ex: M1  or  13:29:53 +47:11:48)\n \n*%CDSLogo.gif\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch,  Anaïs Oberto and François Bonnarel.
+PUB.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe\n*quelle partie du ciel, d'y superposer des objets issus de catalogues\n*astronomiques, et, interactivement, d'accéder aux informations relatives.\n \n!Démarrage rapide...\n*Saisissez simplement votre cible dans le champ de saisie ci-dessus.\n*(ex: M1  ou  13:29:53 +47:11:48)\n \n*%CDSLogo.gif\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto et François Bonnarel.
+PUBBETA	*ALADIN is an interactive software sky atlas\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!WARNING: THIS VERSION IS A BETA RELEASE\n*Send bug report and comments to cds-question@unistra.fr\n*Or take the official version for a real usage\n*(from http://aladin.u-strasbg.fr).\n \n*%CDSLogo.gif\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, Anaïs Oberto and François Bonnarel.
+PUBBETA.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!CETTE VERSION EST EN BETA TEST\n*Envoyez vos commentaires et bogues à cds-question@unistra.fr\n*Ou télécharger la dernière version officielle pour un usage réel\n*(à partir de http://aladin.u-strasbg.fr).\n \n*%CDSLogo.gif\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto et François Bonnarel.
+PUBPROTO	ALADIN is an interactive software sky atlas developed by the CDS,\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!WARNING: THIS VERSION IS A PROTOTYPE RELEASE\n*SOME FEATURES HAVE BEEN ADDED FOR DEMONSTRATION PURPOSES.\n*USE IT AT YOUR OWN RISKS\n \n*Or take the official version for a real usage\n*(from http://aladin.u-strasbg.fr).\n \n*%CDSLogo.gif\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, Anaïs Oberto and François Bonnarel.
+PUBPROTO.fr	ALADIN est un atlas du ciel interactif développé par le CDS.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!CETTE MISE-A-JOUR EST UNE VERSION PROTOTYPE\n*CERTAINES FONCTIONNALITES QUI ONT ETE AJOUTEES\n*EN DEMONSTRATION SONT SANS GARANTIE\n \n*Vous pouvez télécharger la dernière version officielle pour un usage réel\n*(à partir de http://aladin.u-strasbg.fr).\n \n*%CDSLogo.gif\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto et François Bonnarel.\n
 PUBOUTREACH	*ALADIN is an interactive software sky atlas\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!You are running ALADIN in UNDERGRADUATE mode\n \n*%EuroVOAIDA.jpg\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, François Bonnarel and Anaïs Oberto.\n \n*The "undergraduate" Aladin extension has been developed\nin the framework of the AIDA European project.
 PUBOUTREACH.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!Vous utilisez actuellement ALADIN en mode SCOLAIRE\n \n*%EuroVOAIDA.jpg\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, François Bonnarel et Anaïs Oberto.\n \n*L'extension "scolaire" d'Aladin a été développée\ndans le cadre du projet européen AIDA.
-PUBINPROG	*ALADIN is an interactive software sky atlas developed by the CDS,\n*allowing one to visualize digitized images of any part of\n*the sky, to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n \n!YOUR DATA ARE BEING DOWNLOADED...\n!Please wait...\n \n*%CDSLogo.gif\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, François Bonnarel and Anaïs Oberto.
-PUBINPROG.fr	*ALADIN est un atlas du ciel interactif développé par le CDS.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n \n!VOS DONNEES SONT EN COURS DE CHARGEMENT\n!Veuillez patienter...\n \n*%CDSLogo.gif\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, François Bonnarel et Anaïs Oberto.
+PUBINPROG	*ALADIN is an interactive software sky atlas developed by the CDS,\n*allowing one to visualize digitized images of any part of\n*the sky, to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n \n!YOUR DATA ARE BEING DOWNLOADED...\n!Please wait...\n \n*%CDSLogo.gif\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, Anaïs Oberto and François Bonnarel.
+PUBINPROG.fr	*ALADIN est un atlas du ciel interactif développé par le CDS.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n \n!VOS DONNEES SONT EN COURS DE CHARGEMENT\n!Veuillez patienter...\n \n*%CDSLogo.gif\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto et François Bonnarel.
 MVIEWDESC	Split the main window into 2, 4, 9 or 16 panels
 MVIEWDESC.fr	Découpe la fenêtre principale en 2, 4, 9 ou 16 écrans
 MVIEWSYNC	Match views (unify scale / orientation)
@@ -467,7 +509,7 @@ HDEL	Clear/remove current selected elements (graph.overlays, views or planes)
 HMGLSS	Activate the magnifying glass around the mouse position
 HPROP	Open the property windows of the selected planes
 HZOOM	Zoom forwards or backwards (with SHIFT) on the current field
-HPAN	Click and drag to pan the field (SHIFT => view sync)
+HPAN	Click and drag to pan the field (Ctrl for rolling)
 HHIST	Pixel histogram and contrast controller
 HPAD	Open the pad - to cut-and-paste, memorize
 HRGB	Create an RGB image
@@ -490,7 +532,7 @@ HDEL.fr	Efface/supprime les éléments sélectionnées (surcharges graph., vues, pla
 HMGLSS.fr	Active la loupe sur la position de la souris
 HPROP.fr	Ouvre les fenêtres des propriétés des plans sélectionnés
 HZOOM.fr	Zoom croissant ou décroissant (touche MAJ) sur la position pointée
-HPAN.fr	Cliquer et glisser pour déplacer le champ (MAJ => sync des vues)
+HPAN.fr	Cliquer et glisser pour déplacer le champ (CTRL pour tourner)
 HHIST.fr	Histogramme des pixels et contrôle du contraste
 HPAD.fr	Ouvre la fenêtre du bloc-note pour couper/copier des éléments
 HRGB.fr	Permet la création d'une image en couleurs composites (RVB)
@@ -577,11 +619,22 @@ RADIUS.fr	Rayon
 SSHELP.fr  Cette fenêtre fournit un accès simple et homogène à la plupart des bases de données astronomique accessibles par Internet.\n   .Les onglets à gauche concernent les serveurs d'images ;\n   .Les onglets de droite concernent les serveurs de catalogues ou de tables.\n   .Les onglets du haut donnent accès à vos données locales [File], à tous les serveurs compatibles "Observatoire virtuel" [all VO] pour une interrogation simultanée, à une liste de champs instrumentaux [FOV] et enfin à d'autres services particuliers.\n \nSélectionnez le serveur de votre choix, renseignez son formulaire - notamment en désignant une position (coordonnées ou identificateur usuel) et un rayon de recherche - et appuyez "CHERCHER". Pour certains serveurs, vous devrez désigner explicitement quelles données vous désirez charger. Les résultats de vos requêtes (images, catalogues,...) seront enregistrés dans la "pile" d'Aladin et visualisés en conséquence.\n \nLe bouton "Réinit." réinitialise les champs de saisie, notamment la cible et le rayon par défaut (voire l'époque) afin qu'ils correspondent au champ en cours de visualisation. En revanche, le bouton "Effacer" efface simplement tous les champs de saisie.\n \nLe bouton "Pointer" qui apparait dans certains formulaires vous permet de remplir les champs "Position" et "Rayon" en cliquant/étirant dans la vue principale d'Aladin.
 NOSESAME.fr	Le résolveur de nom d'objet CDS Sésame est inatteignable actuellement.\nVous devez utiliser directement les coordonnées J2000 correspondantes.
 
+
+# ServerAllsky strings
+ALLSKYJPEG Preview (jpg|png)
+ALLSKYJPEG.fr Prévisu. (jpg|png)
+ALLSKYFITS Full pixel dynamic (fits)
+ALLSKYFITS.fr Dynamiq. complète (fits)
+ALLSKYSWJPEG Get preview (jpg|png)
+ALLSKYSWJPEG.fr Mode prévisualisation (jpg|png)
+ALLSKYSWFITS Get full pixel dynamic (fits)
+ALLSKYSWFITS.fr Mode dynamique complète  (fits)
+
 # AladinServer.java strings
 ALADINTITLE	Aladin image server
 ALADINNAME	Aladin\nimage\nserver
 ALADINBYTREE	Hierarchical view
-ALADINDEFFMT	Default image format:
+ALADINDEFFMT	Default format:
 ALADININFO	The Aladin image server (CDS/Strasbourg) - DSS/MAMA/2MASS/IRAS
 ALADINSTEP1	Step 1: Specify a target/radius and press SUBMIT
 ALADINSTEP2	Step 2: load one or several images
@@ -591,7 +644,7 @@ ALADINSERVERR	!Aladin image server error !
 ALADINTITLE.fr	Serveur d'images Aladin
 ALADINNAME.fr	Serveur\nAladin
 ALADINBYTREE.fr	Vue hiérarchique
-ALADINDEFFMT.fr	Format d'image par défaut:
+ALADINDEFFMT.fr	Format par défaut:
 ALADININFO.fr	Le serveur d'images Aladin (CDS/Strasbourg) - DSS/MAMA/2MASS/IRAS
 ALADINSTEP1.fr	Etape 1: Indiquez une position et appuyez CHERCHER
 ALADINSTEP2.fr	Etape 2: Sélectionnez une ou plusieurs images
@@ -603,14 +656,14 @@ VZTITLE	VizieR catalog service
 VZNAME	VizieR\nCatalogs
 VZINFO	CDS VizieR catalog service (>5000 astronomical catalogs)
 VZCATDESC	Info.
-VZCATMOC	Coverage map (MOC).
+VZCATMOC	Coverage (MOC)
+VZCATDMAP	Density map
 VZFROM	Provided by CDS VizieR catalog service
 VZDESC	VizieR provides access to the most complete library of published astronomical catalogues and data tables available on line.\n \nYou can access VizieR catalog service by a "get" command line (use the Aladin console, menu "Tools -> Aladin console"). For VizieR, the "get" syntax follows these conventions:\nget VizieR(catID1[,catID2]...[,allcolumns]) [target] [radiusUnit]\n   - catIDn : is a VizieR catalog identifier\n   - allcolumns : to get all columns
 VZINFO1	Specify a target, and a catalog name or identification...
 VZINFO2	... don't know which catalog ? Select the \npotentially interesting ones with words/keywords !
 VZGETALL2	All columns
 VZGETALL3	Whole catalog
-VZGETMOC	MOC only
 VZCAT	Catalog
 VZKEYWORD	Author, free text...:
 VZALLCAT	Do you really want to download\nall
@@ -620,13 +673,13 @@ VZNAME.fr	Catalog.\nVizieR
 VZINFO.fr	Service des catalogues VizieR du CDS (>5000 catalogues astronomiques)
 VZCATDESC.fr	Info
 VZCATMOC.fr	Couverture (MOC)
+VZCATDMAP.fr	Carte densité
 VZFROM.fr	Fournit par le service des catalogues VizieR du CDS
 VZDESC.fr	VizieR offre l'accès à la plus complète des bibliothèques de catalogues et tables astronomiques accessibles en ligne.\n \nVous pouvez accéder à VizieR également par une commande en ligne "get" (ouvrir la console Aladin, menu "Outils -> Console Aladin). Dans le cas de VizieR, la commande "get" suit les conventions suivantes :\nget VizieR(catID1[,catID2]...[,allcolumns]) [target] [radiusUnit]\n   - catIDn : est un identificateur de catalogue\n   - allcolumns : pour récupérer toutes les colonnes des catalogues
 VZINFO1.fr	Indiquez une position et l'identificateur d'un catalogue...
 VZINFO2.fr	... Vous ne connaissez pas l'identificateur ? Générez une liste\nde catalogues potentiels à partir de mots-clés !
 VZGETALL2.fr	Toutes col.
 VZGETALL3.fr	Tout le cata.
-VZGETMOC.fr	MOC uniquem.
 VZCAT.fr	Catalogue
 VZKEYWORD.fr	Auteur, texte libre...:
 VZALLCAT.fr	Voulez-vous vraiment décharger\ntout le catalogue
@@ -764,6 +817,7 @@ VOWAIT1.fr	En attente de
 VOWAIT2.fr	réponse
 VOERR.fr	Erreur dans le processus d'exploration
 
+
 # FieldServer.java strings
 FOVINFO	Instrument fields of view
 FOVINFO1	Specify a position,
@@ -781,6 +835,14 @@ FOVANGLE1.fr	en degrés
 FOVEDIT.fr	 Créer le vôtre...
 FOVLOAD.fr	Charger...
 
+#FrameHeaderFits
+HSAVE	Save
+HUNDO	Undo
+HSAVEINFO	Your edition have been validated.\nDo you want to save this FITS file immediately ?
+
+HSAVE.fr	Sauve
+HUNDO.fr	Défaire
+HSAVEINFO.fr	Votre édition a été validée.\nVoulez-vous sauvegarder le fichier FITS immédiatement ?
 
 # FrameRGBBlink.java strings
 IMGCREATE	CREATE
@@ -831,30 +893,54 @@ MOCOP	MOC operation:
 MOCUNION	Union
 MOCINTER	Intersection
 MOCSUB	Subtraction
+MOCDIFF	Difference
 MOCCOMP	Complement
 MOCTITLE	MOC operations
 MOCINFO	Specify one or two MOC planes,\n choose a MOC operation and\npress the CREATE button to generate the resulting MOC.\n
 MOCPLANE	Plane
-MOCHELP	A MOC is a sky region described by a HEALPix Multi-Order coverage map. It is possible to compute very fast operations on such objects.
+MOCHELP A MultiOrder Coverage map, also called MOC, described a sky region. It is a mesh of a part of the sky. The operations (unions, intersections, complement,...) on such MOCs are very fast.\n \nSome data servers, such as VizieR, can be "queried by MOC" in order to return data (catalog sources, of list of images) only inside a specifical sky area.
 
 MOCOP.fr	Opérations sur les MOC:
 MOCUNION.fr	Union
 MOCINTER.fr	Intersection
 MOCSUB.fr	Soustraction
+MOCDIFF.fr	Difference
 MOCCOMP.fr	Complement
 MOCTITLE.fr	Opérations sur les MOC
 MOCINFO.fr	Désignez 1 ou 2 plans images\nainsi que l'opération à effectuer puis\nappuyez sur le bouton CREER pour générer le MOC résultant.
 MOCPLANE.fr	Plan
-MOCHELP.fr	Un MOC représente une couverture du ciel à partir d'une carte multi-échelle HEALPix. Il est possible d'effectuer très efficacemnet des opérations sur de tels objets
+MOCHELP.fr	Un carte de couverture (MOC) permet de décrire une zone du ciel à partir d'une carte multi-échelle HEALPix. Il s'agit d'un maillage du ciel. Les opérations (unions, intersection, complément,...) s'effectuent très rapidement sur de tels MOCs.\n \nCertains serveurs de données, tel VizieR, sont capables de filtrer leurs réponses (sources de catalogues, listes d'images) en fonction d'une zone d'une ciel décrite par un MOC de manière particulièrement efficace.
 
-# FrameMocGeneration.java strings
+# FrameMocFiltering.java strings
+MOCFILTERINGOP	Filter:
+MOCFILTERINGTITLE	Filtering by MOC
+MOCFILTERINGINFO	Specify a MOC and one or several catalog\npress the CREATE button to generate a new catalogue\nwith sources inside (resp. outside) the MOC.\n
+MOCFILTERINGIN	inside
+MOCFILTERINGOUT	outside
+MOCFILTERINGCAT Catalog plane
+MOCFILTERINGMOC MOC plane
+
+MOCFILTERINGOP.fr	Filtre:
+MOCFILTERINGTITLE.fr	Filtrage par MOC
+MOCFILTERINGINFO.fr	Désignez un MOC et un ou plusieurs catalogues\npuis appuyez sur le bouton CREER pour générer un nouveau catalogue\nne contenant que les sources dans (resp. hors) du MOC.
+MOCFILTERINGIN.fr	intérieur
+MOCFILTERINGOUT.fr	extérieur
+MOCFILTERINGCAT.fr Plan catalogue
+MOCFILTERINGMOC.fr Plan MOC
+
+# FrameMocGenImg.java strings
 MOCGENOP	MOC generation:
 MOCGENTITLE	MOC generation
-MOCGENINFO	Specify image and/or catalog planes,\n choose a MOC resolution and\npress the CREATE button to generate the resulting MOC.\n
+MOCGENIMGINFO	Specify image or an HEALPix map,\n choose a MOC resolution and\npress the CREATE button to generate the resulting MOC.\n
+MOCGENIMGSINFO	Set the directory of your image collection,\n choose a MOC resolution and\npress the CREATE button to generate the resulting MOC.\n
+MOCGENCATINFO	Specify a catalog,\n choose a MOC resolution and\npress the CREATE button to generate the resulting MOC.\n
+MOCGENORDINFO	Specify a MOC,\n choose a new resolution and\npress the CREATE button to generate the resulting MOC.\n
 
-MOCGENOP.fr	Opérations sur les MOC:
-MOCGENTITLE.fr	Opérations sur les MOC
-MOCGENINFO.fr	Désignez des images et/ou des catalogues\nainsi que la résolution souhaitée\npuis appuyez sur le bouton CREER pour générer le MOC résultant.
+MOCGENOP.fr	Génération de MOC:
+MOCGENTITLE.fr	Génération de MOC
+MOCGENIMGINFO.fr	Désignez une image ou une carte HEALPix\nainsi que la résolution souhaitée\npuis appuyez sur le bouton CREER pour générer le MOC résultant.
+MOCGENIMGSINFO.fr	Indiquez le répertoire de votre collection d'images,\nainsi que la résolution souhaitée\npuis appuyez sur le bouton CREER pour générer le MOC résultant.
+MOCGENCATINFO.fr	Désignez un catalogue\nainsi que la résolution souhaitée\npuis appuyez sur le bouton CREER pour générer le MOC résultant.
 
 # FrameBitpix.java strings
 BITPIXTITLE	Bitpix image conversion
@@ -923,6 +1009,7 @@ BLKBLK	Blink seq.
 BLKERR1	The reference image number\nshould be in
 BLKERR2	You must select at least two images !
 #BLKERR3	The reference image number for the resampling\ndoes not correspond to a valid image !
+ADDFRAMECONF Do you really want to append the source image frame to the cube (resp. to the mosaic image) ?
 
 BLKTITLE.fr	Associations d'images
 BLKINFO.fr	Spécifiez les images que vous désirez associer.\nSélectionnez le mode Mosaïque ou Séquence animée,\npuis appuyez sur CREE.
@@ -932,6 +1019,7 @@ BLKBLK.fr	Séquence animée
 BLKERR1.fr	Le numéro de l'image de référence\ndoit être compris dans
 BLKERR2.fr	Vous devez spécifier au-moins deux images !
 #BLKERR3.fr	Le numéro de l'image de référence pour le rééchantillonnage\nne correspond à aucun image valide !
+ADDFRAMECONF.fr Voulez-vous réellement ajouter l'image source au cube de données (resp. à l'image mosaïque) ?
 
 # FrameResample.java strings
 RSPPIXF	Full
@@ -961,7 +1049,7 @@ PROPSEEFITS	Get original header
 #PROPINFO	Technical information
 #PROPSEEPARSING	See catalog info
 PROPTABLEINFO	Table information:
-PROPLOADURL	Reload in your browser
+#PROPLOADURL	Reload in your browser
 PROPNEWCALIB	New...
 PROPMODCALIB	Edit...
 PROPTOPBOTTOM	Top/Bottom
@@ -972,6 +1060,7 @@ PROPHIDEFOVS	Hide all associated FoVs
 PROPTITLE	Properties
 PROPBANNER	Properties of the plane
 PROPAPPLY	Apply
+PROPBOOKMARK	Bookmark
 PROPCLOSE	Close
 PROPNOFILTER	- no filter -
 PROPLABEL	PlaneID:
@@ -993,6 +1082,7 @@ PROPFMT	Format:
 PROPEPOCH	Epoch:
 PROPDATEOBS	Date-Obs:
 PROPWCSEQ	WCS equinox:
+PROPPIXMODE	Graphic mode:
 PROPSIZE	Size:
 PROPFRAME	Frames:
 PROPDELAY	Delay:
@@ -1034,12 +1124,14 @@ PROPAUTO	Automatic
 PROPWHITE	White
 PROPBLACK	Black
 PROPFULLDESCR Full description...
+PROPFRAMEINFO  The coordinate system for drawing the HiPS is now independant of the global coordinate system. Select "Default" for associating them again.
+PROGENITOR Original images
 
 PROPSEEFITS.fr	En-tête FITS originale
 #PROPINFO.fr	Information technique
 #PROPSEEPARSING.fr	Voir info catalogue
 PROPTABLEINFO.fr	Table
-PROPLOADURL.fr	Recharger dans votre navigateur
+#PROPLOADURL.fr	Recharger dans votre navigateur
 PROPNEWCALIB.fr	Nouveau...
 PROPMODCALIB.fr	Editer...
 PROPTOPBOTTOM.fr	Haut/Bas
@@ -1050,6 +1142,7 @@ PROPHIDEFOVS.fr	Cacher tous les FoVs associés
 PROPTITLE.fr	Propriétés
 PROPBANNER.fr	Propriétés du plan
 PROPAPPLY.fr	Appliquer
+PROPBOOKMARK.fr	Signet
 PROPCLOSE.fr	Fermer
 PROPNOFILTER.fr	- aucun filtre -
 PROPLABEL.fr	PlandID:
@@ -1071,6 +1164,7 @@ PROPFMT.fr	Format:
 PROPEPOCH.fr	Epoque:
 PROPDATEOBS.fr	Date-Obs:
 PROPWCSEQ.fr	Equinoxe WCS:
+PROPPIXMODE.fr	Mode graph.:
 PROPSIZE.fr	Taille:
 PROPFRAME.fr	Cliché:
 PROPDELAY.fr	Delais:
@@ -1112,6 +1206,8 @@ PROPAUTO.fr	Automatique
 PROPWHITE.fr	Blanc
 PROPBLACK.fr	Noir
 PROPFULLDESCR.fr Description complète...
+PROPFRAMEINFO.fr Le système de coordonnées utilisé pour afficher le ciel HEALPix est désormais indépendant du système de coordonnée générale. Sélectionnez "Default" pour lier à nouveau les deux systèmes.
+PROGENITOR.fr Images originales
 
 # Select.java Strings
 SLHSTACK0	Click to designate this plane as the projection reference for the current view
@@ -1194,7 +1290,8 @@ VWMSTICKOFF	Unstick the panel of the selected views
 VWMSTICKON	Sticked panel
 VWMLABELOFF	Unlabel the selected objects
 VWMLABELON	Label the selected objects
-VWMCOPY     Copy reticle location in the clipboard
+VWMCOPY     Copy the reticle location in the clipboard
+VWMCOPYIMG  Copy the current view in the clipboard
 VWMOREVIEWS	Create one view per image
 VWONEVIEW	Delete other views
 VWNEXT	Next image
@@ -1227,11 +1324,12 @@ VWMRETICLE.fr	Réticule classique
 VWMRETICLEL.fr	Réticule large
 VWMNORETICLE.fr	Sans réticule
 VWMTARGET.fr	Flêche de la cible
-VWMSTICKOFF.fr	Dé-scotcher les panneaux
+VWMSTICKOFF.fr	Dé-scotcher les cadres
 VWMSTICKON.fr	Panneau scotché
 VWMLABELON.fr	Afficher l'identificateur des objets sélectionnés
 VWMLABELOFF.fr	Cacher l'identificateur des objets sélectionnés
 VWMCOPY.fr     Copier la position du réticule dans le presse-papier
+VWMCOPYIMG.fr     Copier la vue courante dans le presse-papier
 VWMOREVIEWS.fr	Créer une vue par image
 VWONEVIEW.fr	Supprimer les autres vues
 VWNEXT.fr	Image suivante
@@ -1252,11 +1350,12 @@ VWNIF.fr	Cible hors image !
 # FrameCM.java Strings
 CMTITRE	Pixel mapping
 CMREVERSE	Reverse
-CMRANGE	Orig. pixel range:
-CMLIMITS	Autocut limits:
+CMRANGE	Pixel range:
+CMLIMITS	Pixel cut:
 CMALGO	Use Aladin autocut algorithm
 CMERRORRANGE	The min value should be less than the max value !
 CMRESET	Reset
+CMRESETBG	Rescan
 CMCLOSE	Close
 CMHELP	Help
 CMNOCUT	get all
@@ -1267,14 +1366,17 @@ CMMETHODEX	Adjust the colormap simultaneously for all selected images\nby modify
 CMMETHODERGB	Adjust the contrast by moving\nthe three triangles for each component
 CMNOFULLPIXEL	The full pixels are not available for this image\nYou can not apply this function
 CMMESSAGE	This histogram represents the number count \nof each pixel value (in a logarithm scale).\n \nSeveral transfert functions are available (log, sqr, linear...)\nto adjust the default contrast.\nYou can tune this contrast with the curves overlayed on the histogram:\nThe three triangles allows you to modify thes curves:\n  .the left one adjusts the cut-low pixel value,\n  .the right one adjusts the cut-hight pixel value,\n  .the middle one adjusts the dynamic mapping.\n \nYou can move the triangles by clicking/dragging them or\nwith the arrow keys after having pointed the relevant triangle.\n \nThe result is immediately displayed in the frame view (press CTRL for desactivating it).\nFor colored images, pressing SHIFT key will synchronize the 3 components.\n \nNotice: when Aladin loads an image, it applies an autocut algorithm to determine the min and max "relevant" pixel values from the original image. These values are represented in the histogram. But if these values are not determined correctly for your work, you can "re-play" the autocut algorithm by forcing manually the range of original pixels on which this algorithm will be applied. Even, you can keep all original pixels by clicking the "get all" button.
+CMPIXTOOL Toolbox
+CMONVIEW CM on view
 
 CMTITRE.fr	Dynamique des pixels
 CMREVERSE.fr	Inverser
-CMRANGE.fr	Intervalle d'orig.:
-CMLIMITS.fr	Seuils limites:
+CMRANGE.fr	Intervalle des pixels:
+CMLIMITS.fr	Seuils d'affichage:
 CMALGO.fr	Utiliser le seuillage automatique
 CMERRORRANGE.fr	La valeur minimale doit être inférieure à la valeur maximale !
 CMRESET.fr	Réinit.
+CMRESETBG.fr	Rescan
 CMCLOSE.fr	Fermer
 CMHELP.fr	Aide
 CMNOCUT.fr	Récupérer tout
@@ -1285,6 +1387,8 @@ CMMETHODEX.fr	Ajustez la table des couleurs simultanément\nde toutes les images 
 CMMETHODERGB.fr	Ajuster le contraste en déplaçant\nles triangles de contrôle
 CMNOFULLPIXEL.fr	Les pixels originaux de cette image ne sont pas accessibles\nVous ne pouvez utiliser cette fonction
 CMMESSAGE.fr	Cet histogramme représente le nombre de pixels dans chaque niveau de gris (en échelle logarithmique).\n \nPlusieurs fonctions de transfert sont possibles (log, sqrt, linear...) pour ajuster globalement le contraste initial. Vous pouvez également préciser ce contraste en manipulant les courbes superposées à l'histogramme: Trois triangles de contrôle vous permettent ainsi:\n  .A gauche de seuiller les valeurs basses;\n  .A droite de seuiller les valeurs hautres;\n  .Au milieu d'ajuster la dynamique.\n \nVous pouvez déplacer ces triangles en cliquant/glissant dessus ou simplement en utilisant les flêches droite/gauche après avoir placé la souris sur le triangle choisi.\n \nLe résultat est immédiatement affiché dans la vue de l'image. Vous pouvez inhiber cette mise à jour immédiate en appuyant sur la touche CTRL.\nDans le cas d'une image couleur, les trois composantes seront synchronisées par l'appui de la touche MAJ. \nA noter: Lorsque Aladin charge une image, il applique automatiquement un algorithme de seuillage afin de déterminer les limites des valeurs pertinentes. Ce sont ces valeurs qui sont représentées dans l'histogramme. Si ce seuillage ne convient pas à votre travail, vous pouvez "réutiliser" cet algorithme en modifiant manuellement l'intervalle initiale. Vous pouvez même prendre en compte toutes les valeurs originales en cliquant sur le bouton "Récupère tout".
+CMPIXTOOL.fr Outils
+CMONVIEW.fr CM sur vue 
 
 # FilterProperties.java strings
 FTBEGINNER	Beginner mode
@@ -1485,8 +1589,12 @@ UPTEST	Test available registries
 UPCSVCHAR	CSV characters
 UPCSVCHARH	Available separator characters for CSV tables and catalogues
 UPSTOP	Stop running test
-UPSMBB	Simbad pointer
-UPSMBH	This selector allows you to automatically query Simbad data base for resolving the astronomical source under the mouse.
+SEDLOADING	VizieR phot. loading...
+SEDCLOSE	Close phot. graph
+SEDMORE	Launch VizieR photometry Web tool on the same area
+SEDFREQWAVE	Draw in frequences (resp. in waves length)
+SEDHELPTIP	Information about VizieR photometry
+SEDHELP		A VizieR photometry graph is a histogram built from various source photometry measurements found a few arcseconds around a sky position/object amongst all VizieR tables. The eventual computation from magnitude are done by VizieR. Clic on the graph to access to the table.
 UPFILTERB	Dedicated filter
 UPFILTERH	This selector allows you to automatically apply default dedicated filter for Simbad, NED,...
 UPTRANSB		Transparency/opacity
@@ -1497,16 +1605,20 @@ UPIMGH	Choose the image server, the survey and/or the color\nwhich will be used 
 UPIMGS	Server
 UPIMGC	Survey/Color
 UPFRAMEB	Coordinate frame
-UPFRAMEALLSKYB Allsky mode
-UPFRAMEH	Specify the default coordinate frame.\nIn case of allsky display, the drawing orientation will use by default the same coordinate system. But you can explicitely specify another orientation.\nYou can modify this first choice via the plane propertie window.
+UPFRAMEALLSKYB HiPS mode
+UPPROJALLSKYB	HiPS projection
+UPPROJALLSKYH Specify the default projection for progressive sky mode
+UPFRAMEH	Specify the default coordinate frame.\nIn case of progressive mode (HiPS display), the drawing orientation will use by default the same coordinate system. But you can explicitely specify another orientation.\nYou can modify this first choice via the plane propertie window.
 UPCACHE	Permanent disk cache
 UPCACHEH	Aladin requires local disk space for keeping data from one session to the other. More it has, better it runs
 UPLOG CDS log
 UPLOGH You will help the CDS team to improve Aladin by keeping the log mechanism activated. These "logs" are anonymous and do not transmit any local information (paths, file names,...) just some usage statistics and possibly bug reports. Thanks !
-PHELP Wizard
+UPHELP Wizard
 UPHELPH Switch on/off the beginner help. Help new Aladin users to discover progressively the Aladin graphical interface.
 #UPTAGCENTER	Centered tag
 #UPTAGCENTERH Activate this selector to automatically center tags ("Tag" tool button) on the barycentre of the closest object.
+UPSLIDERS	Control sliders
+UPSLIDERH	Add or remove interface control sliders
 
 UPTITLE.fr	Préférences utilisateur
 UPDEFDIR.fr	Rép. de travail
@@ -1521,7 +1633,7 @@ UPPIXB.fr	Affichage
 #UPPIX8.fr	8 bits niv. de gris
 #UPPIXF.fr	Pixels originaux
 UPCMB.fr	Visu. des pixels
-UPCMH.fr	Choississez le mode de visualisation des pixels :\nvidéo négative/positive, table des couleurs, filtres hautes/basses valeurs,\nfonctions de transfert et mode d'affichage
+UPCMH.fr	Choisissez le mode de visualisation des pixels :\nvidéo négative/positive, table des couleurs, filtres hautes/basses valeurs,\nfonctions de transfert et mode d'affichage
 UPCMV.fr	Vidéo
 UPCMM.fr	Couleur
 UPCMCO.fr	Contraste
@@ -1545,8 +1657,13 @@ UPCSVCHARH.fr	Caractères de séparations des colonnes pour les tables et catalogu
 #UPCSV4.fr	Virgule (,)
 #UPCSV5.fr	Tabulation ou barre (|)
 #UPCSV6.fr	Tab, barre (|) ou point-virgule (;)
-UPSMBB.fr	Pointeur Simbad
-UPSMBH.fr	Ce sélecteur vous permet d'activer par défaut la recherche automatique via\nSimbad de l'objet astronomique sous la souris.
+UPSMBH.fr	Ce sélecteur vous permet d'activer par défaut la recherche automatique sur les base de données Simbad et VizieR afin de trouver l'identificateur de l'objet astronomique sous la souris et d'en fournir un histogramme photométrique construit à partir de catalogues de VizieR.
+SEDLOADING.fr	Photométrie VizieR...
+SEDCLOSE.fr	Ferme le graphe de photométrie
+SEDMORE.fr	Lance l'outil photométrique VizieR pour la même position
+SEDFREQWAVE.fr	Trace en fréquences (resp. en longueurs d'onde)
+SEDHELPTIP.fr	Information sur les mesures photométriques VizieR
+SEDHELP.fr		Un graphe photométrique VizieR est un histogramme contruit à partir des mesures photométriques issues des sources trouvées à quelques secondes d'arc autour d'une position parmi toutes les tables de VizieR. Les calculs éventuels de flux à partir de la magnitude ont été effectués par VizieR. Cliquez sur le graphe pour accéder aux détails de la table.
 #UPSMBN.fr	Non activé
 #UPSMBY.fr	Activé
 UPFILTERB.fr	Filtre dédié
@@ -1562,7 +1679,9 @@ UPIMGS.fr	Serveur
 UPIMGC.fr	Relevé/Couleur
 UPFRAMEB.fr	Référentiel céleste
 UPFRAMEALLSKYB.fr Mode ciel complet
-UPFRAMEH.fr	Indiquez le système de référence céleste par défaut.\nLe tracé d'un ciel complet sera orienté par défaut dans le même système, à moins que vous n'en précisiez un autre explicitement.\nIl est possible de modifier ce choix a posteriori via les propriétés du plan.
+UPPROJALLSKYB.fr	Projection ciel complet
+UPPROJALLSKYH.fr Indiquez la méthode de projection par défaut dans le cas de tracé d'un ciel progressive (HiPS)
+UPFRAMEH.fr	Indiquez le système de référence céleste par défaut.\nLe tracé d'un ciel progressif sera orienté par défaut dans le même système, à moins que vous n'en précisiez un autre explicitement.\nIl est possible de modifier ce choix a posteriori via les propriétés du plan.
 UPCACHE.fr	Mémoire tampon
 UPCACHEH.fr	Aladin requière de la place sur le disque local afin de conserver les données d'une session à l'autre. Plus il en dispose, mieux il s'exécutera.
 UPLOG.fr Log CDS
@@ -1571,6 +1690,8 @@ UPHELP.fr Assistant
 UPHELPH.fr Active/désactive l'assistant pour les débutatns. Celui-ci permet aux nouveaux utilisateurs d'Aaldin de se familiariser avec l'interface graphique
 #UPTAGCENTER.fr	Marque centrée
 #UPTAGCENTERH.fr Activez ce sélecteur afin de contraindre l'outil de marquage (Outil "Marq") à se centrer automatiquement sur le barycentre de l'objet le plus proche
+UPSLIDERS.fr	Contrôles
+UPSLIDERH.fr	Active ou non les réglettes de contrôles
 
 
 # Action.java strings
@@ -1896,6 +2017,7 @@ MFLOADIMGS1	Load an image for each tagged source in this table
 MFGOTOIMG	Show this source
 MFUNSELECT	Unselect this source (SHIFT click)
 MFDEL	Delete this source
+MTAGINFO	Check the boxes below for tagging the corresponding lines\nand by this way, to keep them in the measurement frame even if the associated sources will be deselected.
 
 MFASCSORT.fr	Trier sens ascendant
 MFADESCSORT.fr	Trier sens descendant
@@ -1930,6 +2052,7 @@ MFLOADIMGS1.fr	Charger une image pour chaque source cochée dans cette table
 MFGOTOIMG.fr	Montrer cette source
 MFUNSELECT.fr	Déselectionner cette source (MAJ clic)
 MFDEL.fr	Supprimer cette source
+MTAGINFO.fr	Cochez les cases ci-dessous correspondantes aux lignes\nque vous souhaitez marquer, et de ce fait, les conserver dans la fenêtre des mesures,\nmême quand les sources correspondances seront désélectionnées.
 
 
 # Save.java strings
@@ -2168,10 +2291,10 @@ SWATLEASTONE.fr Sélectionnez au minimum une image
 #Healpix strings
 #HPXMENU HEALPix toolbox
 #HPXMENU.fr Boite à outils HEALPix
-HPXGENERATE HEALPix all-sky builder...
-HPXGENERATE.fr	Generateur de ciel complet HEALPix...
-HPXCREATE Convert current image to an HEALPix sky map
-HPXCREATE.fr Convertit l'image courante en map HEALPix
+HPXGENERATE Progressive sky builder (HiPS)...
+HPXGENERATE.fr	Générateur ciel progressif (HiPS)...
+HPXCREATE Convert current image to a HiPS
+HPXCREATE.fr Convertir l'image courante en HiPS
 HPXGRID	HEALPix grid
 HPXGRID.fr	Grille HEALPix
 #HPXDUMP Convert to a flat image plane
@@ -2180,25 +2303,25 @@ HPXGRID.fr	Grille HEALPix
 #package cds.allsky
 MDESC -1- Data description
 MDESC.fr -1- Description des données
-MTIPDESC Description step for your Allsky view
-MTIPDESC.fr Etape de description de la vue tout le ciel 
+MTIPDESC Description of your progressive sky (HiPS)
+MTIPDESC.fr Etape de description de votre ciel progressif (HiPS)
 MBUILD -2- Processing
 MBUILD.fr -2- Création
-MTIPBUILD Build step for your Allsky files
-MTIPBUILD.fr Etape de construction des fichiers du allsky
+MTIPBUILD Processing your progressive sky (HiPS)
+MTIPBUILD.fr Etape de construction de votre ciel progressif (HiPS)
 MDISPLAY -3- Post-processing
 MDISPLAY.fr -3- Post-traitement
-MNOPOST Your sky does not require a post-processing, the tiles are already in JPEG.
-MNOPOST.fr Votre ciel complet ne nécessite pas de post-traitement, les tuiles qui le composent sont déjà en JPEG.
-MTIPDISP Parameters for your Allsky view
-MTIPDISP.fr Paramètres pour la visualisation du allsky
+MNOPOST Your HiPS does not require a post-processing, the tiles are already in JPEG.
+MNOPOST.fr Votre HiPS ne nécessite pas de post-traitement, les tuiles qui le composent sont déjà en JPEG.
+MTIPDISP Parameters of your progressive sky (HiPS)
+MTIPDISP.fr Paramètres de votre ciel progressif (HiPS)
 MPUBLISH -4- Publish result
 MPUBLISH.fr -4- Publication
-MTIPPUBLISH Share your Allsky view
-MTIPPUBLISH.fr Partager votre allsky
+MTIPPUBLISH Share your progressive sky (HiPS)
+MTIPPUBLISH.fr Partager votre ciel progressif (HiPS)
 MRGBA Generate RGB
 MRGBA.fr Construction RVB
-MTIPRGB Color composition with allskys
+MTIPRGB Color composition
 MTIPRGB.fr Composition couleur
 
 ABORT Abort
@@ -2229,14 +2352,14 @@ PAUSE.fr Pause
 #DONE.fr FINI
 PUBLISHALLSKY Form to publish
 PUBLISHALLSKY.fr Formulaire pour publier
-HELPRGBALLSKY In order to build a colored allsky survey, select 2 or 3 allskys you have built (opened in the stack and grey levels adjusted).  
-HELPRGBALLSKY.fr Afin de générer une vue du ciel en mode coloré, vous pouvez choisir 2 ou 3 allsky déjà générés (ouverts dans la pile d'Aladin, et avec l'étirement des niveaux de gris choisi).
-TITLEALLSKY Build your own Allsky on Aladin
-TITLEALLSKY.fr Créez votre ciel avec Aladin
-TIPSTOPALLSKY Kill process for this allsky
-TIPSTOPALLSKY.fr Tue la creation du allsky courant
-TIPHIDEALLSKY Close this window, computation keeps processing
-TIPHIDEALLSKY.fr Ferme cette fenetre, les calculs continuent
+HELPRGBALLSKY In order to build a colored progressive sky, select 2 or 3 allskys already generated and loaded in the Aladin stack (adjust their contrast before starting the process).  
+HELPRGBALLSKY.fr Afin de générer un ciel progressif (HiPS) en couleur, vous devez sélectionner 2 ou 3 HiPS déjà générés et chargés dans la pile (veillez à ajuster leur contraste avant de démarrer le processus).
+TITLEALLSKY Build your own Hierarchical Progressive Sky (HiPS)
+TITLEALLSKY.fr Créez votre propre ciel progressif (HiPS)
+TIPSTOPALLSKY Kill the building process
+TIPSTOPALLSKY.fr Interrompt le processus de construction
+TIPHIDEALLSKY Close this window (without killing the building process)
+TIPHIDEALLSKY.fr Ferme la fenetre (les calculs continuent)
 REPSALLSKY Source directory:
 REPSALLSKY.fr Rép. source:
 REPDALLSKY Target directory:
@@ -2259,16 +2382,18 @@ SPECIFALLSKY Only process these tiles (e.g 3/128...)
 SPECIFALLSKY.fr Ne traiter que certaines tuiles (ex 3/128...)
 BLANKALLSKY Alternate blank FITS value
 BLANKALLSKY.fr Valeur BLANK alternative
+HDUALLSKY Specifical HDU numbers (e.g: 0 2|all)
+HDUALLSKY.fr Numéros HDU spécifiques(ex: 0 2|all)
 BORDERALLSKY Image border to ignore (N W S E in pix)
 BORDERALLSKY.fr Bords d'image à ignorer (N O S E en pix)
-SKYVALALLSKY Sky background to subtract (FITS keyword)
-SKYVALALLSKY.fr Fond du ciel à soustraire (mot clé FITS)
+SKYVALALLSKY Sky background adjustement (FITS keyword|true=auto)
+SKYVALALLSKY.fr Ajustement du fond du ciel (mot clé FITS|true=auto)
 LABELALLSKY Data name:
 LABELALLSKY.fr Nom des données:
-INFOALLSKY Thanks to this panel, you will be able to generate an all sky survey from a set of images. These images must be in FITS, JPEG or PNG format, astrometrically calibrated, possibly gzipped. Aladin resamples your image collection on an HEALPix grid, and stores the result under a hierarchy of directories and files (called "tiles"). This process can be very quick for low resolution surveys (e.g.: 1 minute for an all-sky survey at a 1' resolution => 768MB), and days for high resolution survey (ex: 10 days for 0.8" resolution => 4 TB). Once the system of hierarchical directories and files is build, you can load the target directory in Aladin and view your new progressive allsky in the same way as any remote all-sky survey in Aladin. You can also publish it for your collaborators
-INFOALLSKY.fr	Ce formulaire vous permet de construire un "ciel complet progressif" à partir d'une collection d'images. Celles-ci doivent être au format FITS, JPEG ou PNG, calibrées astrométriquement, éventuellement gzippées. Aladin va rééchantillonnger votre collection d'images dans une grille HEALPix, et enregistrer le résultat sous la forme d'une hiérarchie de répertoires et de fichiers (nommés "tuiles"). Ce processus sera rapide pour des images de faible résolution angulaire (ex: 1 minute pour un relevé du ciel d'une seconde d'arc par pixel => 768Mo). Il pourra être long pour un relevé profond (ex: 10 jours pour une résolution de 0,8" => 4To). Une fois construite la hiérarchie de répertoires et fichiers, vous pourrez accéder directement à votre vue progressive de la même manière que pour les autres vues "ciel complet" disponibles dans Aladin. Vous pourrez également publier votre ciel complet afin de le rendre disponible pour vos collaborateurs.
-RGBALLSKY	This panel allows you to create a color all-sky survey from two or three monochromatic precomputed "all-sky" surveys. You must load these surveys in the Aladin stack, adjust their contrast as you wish. After that, you must associate the RED, GREEN and BLUE components via the  three choice menus, specify the target directory and submit.
-RGBALLSKY.fr Ce formulaire est dédié à la création d'un "ciel complet" colorisé. Celui-ci sera généré à partir de 2 ou 3 relevés en niveaux de gris, ayant déjà été calculés au préalable. Pour ce faire, vous devez charger ces relevés dans la pile d'Aladin, puis ajuster leur contraste respectif. Après cela, il s'agit d'associer à chacune des composantes couleurs Rouge, Vert et Bleu le relevé souhaité, de spécifier le répertoire de destination puis de lancer le calcul.
+INFOALLSKY This panel allows you to generate a "progressive sky", also called HiPS (Hierarchical Progressive Survey), from an image collection (FITS, JPEG or PNG, astrometrically calibrated, possibly gzipped). Aladin resamples your images on an HEALPix grid, and stores the result under a hierarchy of directories and files (called "tiles"). Ater this process, you can load the target directory and view your new progressive sky in the same way as any remote progressive surveys in Aladin. You can also publish it for your collaborators.
+INFOALLSKY.fr	Ce formulaire vous permet de construire un "ciel progressif" également appelé HiPS (Hierarchical Progressive Survey) à partir d'une collection d'images (FITS, JPEG ou PNG, calibrées astrométriquement, éventuellement gzippées). Aladin rééchantillonne votre collection d'images en HEALPix, et enregistre le résultat sous la forme d'une hiérarchie de répertoires et de fichiers (nommés "tuiles"). Une fois généré, vous pourrez accéder directement à votre ciel progressif aussi simplement que ceux déjà disponibles dans Aladin. Vous pourrez également le publier afin de le rendre accessible à vos collaborateurs.
+RGBALLSKY	This panel allows you to create a colored progressive sky (HiPS) from two or three monochromatic precomputed HiPS. You must load these HiPS in the Aladin stack, adjust their contrast as you wish. After that, you must associate the RED, GREEN and BLUE components via the  three choice menus, specify the target directory and submit.
+RGBALLSKY.fr Ce formulaire est dédié à la création d'un "ciel progressif" (HiPS) en couleur. Celui-ci est généré à partir de 2 ou 3 HiPS en niveaux de gris, ayant déjà été calculés au préalable. Pour ce faire, vous devez charger ces HiPS dans la pile d'Aladin, puis ajuster leur contraste respectif. Après cela, il s'agit d'associer à chacune des composantes couleurs Rouge, Vert et Bleu le ciel souhaité, de spécifier le répertoire de destination puis de lancer le calcul.
 DESCFALLSKY Description :
 DESCFALLSKY.fr Description :
 COPYRIGHT Copyright :
@@ -2311,28 +2436,30 @@ HELPRESOALLSKY Provide the correspondance between the angular pixel resolution a
 HELPRESOALLSKY.fr Fournit la correspondance entre résolution angulaire finale et volume de données. La ligne bleutée indique le choix le plus approprié en fonction des images d'origine. Il est possible de sur/sous-échantillonner.
 HELPESAMPALLSKY Specify the resampling method. The pixel value will be either the first found value or the bilinear approximation from the 4 closest original pixels. In case of overlapping images, it is possible to choose either the first pixel found or the average of all overlaying pixels, possibly ponderated by the border distance.
 HELPESAMPALLSKY.fr Détermine la méthode utilisée pour le rééchantillonnage. La valeur du pixel sera soit le premier trouvé, soit une approximation bilinéaire des 4 pixels originaux les plus proches. En cas de superposition d'image, il sera possible de choisir, soit le premier pixel trouvé, soit la moyenne des pixels, éventuellement pondérée par la distance au bord de l'image.
-JPEGINFOALLSKY This step allows you to generate the JPEG tiles corresponding to the FITS tiles. This step is strongly recommended if you plan to publish your data through a Web site. The JPEG tiles provides better respond times. 
-JPEGINFOALLSKY.fr Cette étape vous permet de créer les tuiles JPEG associées aux tuiles FITS. Dans le cas où vous souhaitez rendre accessible ces données depuis un site Web il est vivement conseillée de générer ces JPEGs qui offriront à vos utilisateurs des temps de réponses bien plus rapides.
+JPEGINFOALLSKY This step allows you to generate the preview tiles (JPEG or PNG) corresponding to the FITS tiles. This step is recommended if you plan to publish your data through a Web site. The preview tiles provides better respond times. The JPEG format is more compact, but modify a little bit the data. Contrary to PNG, it does not manage the transparency.
+JPEGINFOALLSKY.fr Cette étape vous permet de créer les tuiles de prévisualisation (JPEG ou PNG) associées aux tuiles FITS. Dans le cas où vous souhaitez rendre accessible ces données depuis un site Web il est vivement conseillée de générer ces tuiles qui offriront à vos utilisateurs des temps de réponses bien plus rapides. Le format JPEG est plus compact mais altère légèrement les données. Il ne gère pas la transparence à la différence du PNG.
 JPEGMCUTALLSKY Manual cut (linear):
 JPEGMCUTALLSKY.fr Seuillage manuel (linéaire) :
-HELPJPEGMCUTALLSKY Allows you to specify the pixel value range used for generating the JPEG tiles
-HELPJPEGMCUTALLSKY.fr Permet d'indiquer spécifiquement la plage des valeurs des pixels qui sera retenue pour générer les tuiles JPEG. 
+HELPJPEGMCUTALLSKY Allows you to specify the pixel value range used for generating the preview tiles
+HELPJPEGMCUTALLSKY.fr Permet d'indiquer spécifiquement la plage des valeurs des pixels qui sera retenue pour générer les tuiles de prévisualisation. 
 JPEGCUTALLSKY Cut params imported from current view:
 JPEGCUTALLSKY.fr Seuillage utilisé dans la vue :
 HELPJPEGCUTALLSKY Take into account the cut parameters presently used in the control view. This method is better that the manual cut as you are not limited to a linear transformation.
 HELPJPEGCUTALLSKY.fr Va prendre en compte les paramètres de seuillage actuellement utilisés dans la vue de contrôle. Cette méthode est plus performante que la précédente car elle n'est pas nécessairement linéaire. 
-JPEGBUILDALLSKY Build JPEG
-JPEGBUILDALLSKY.fr Génération des JPEG
+JPEGBUILDALLSKY Build
+JPEGBUILDALLSKY.fr Génération
 METHODJPG Computing method:
 METHODJPG.fr Méthode de calcul :
 MEDIANJPG median
 MEDIANJPG.fr médiane
 AVERAGEJPG average
 AVERAGEJPG.fr moyenne
+FORMATTILES Tiles format
+FORMATTILES.fr Format des tuiles
 PUBFORYOUALLSKY Only for you:
 PUBFORYOUALLSKY.fr Juste pour vous :
-OPENALLSKY You can load whenever you want the allsky by opening the target directory
-OPENALLSKY.fr A n'importe quel moment, vous pouvez rechargez votre relevé simplement en ouvrant le repertoire cible
+OPENALLSKY You can load whenever you want your progressive sky by opening the target directory
+OPENALLSKY.fr A n'importe quel moment, vous pouvez rechargez votre ciel progressif simplement en ouvrant le repertoire cible
 EXPORTALLSKY Generate
 EXPORTALLSKY.fr Générer
 PUBMAPALLSKY Distribute as a unique FITS HEALPix map:
@@ -2340,17 +2467,23 @@ PUBMAPALLSKY.fr Distribution en tant que fichier FITS HEALPix unique :
 PUBMAPINFOALLSKY Export your producted data in a FITs map and send it to your collaborators. This file is following the HEALPix format NESTED, and will use pixels values for the angular resolution of 51" (NSIDE=4096).
 PUBMAPINFOALLSKY.fr Exporter votre relevé généré en tant qu'un unique fichier FITS que vous pourrez envoyer à vos collaborateurs. Ce fichier sera conforme à la norme HEALPix NESTED et sa résolution angulaire par pixel sera de 51" (NISDE=4096).
 PUBRESTALLSKY Restricted distribution:
-PUBRESTALLSKY.fr Distribution retreinte :
+PUBRESTALLSKY.fr Distribution restreinte :
 PUBRESTINFOALLSKY By exposing your target folder behind a Web server, you will allow your collaborator to access it via the URL below. This Web access can be retricted (by password).
-PUBRESTINFOALLSKY.fr Pour une distribution retreinte de votre relevé, placez le répertoire de destination derrière un serveur Web. Vos collaborateurs pourront accéder à votre relevé en utilisant directement l'adresse Web ci-dessous. Cet accès pourra être éventuellement protégé par mot de passe.
+PUBRESTINFOALLSKY.fr Pour une distribution restreinte de votre relevé, placez le répertoire de destination derrière un serveur Web. Vos collaborateurs pourront accéder à votre relevé en utilisant directement l'adresse Web ci-dessous. Cet accès pourra être éventuellement protégé par mot de passe.
 PUBLICALLSKY Public distribution:
 PUBLICALLSKY.fr Distribution publique :
 PUBLICINFOALLSKY To allow an access to all Aladin users, "expose" your target folder behind a Web server, fill up and validate this following form:
 PUBLICINFOALLSKY.fr Afin de rendre accessible votre relevé pour tous les utilisateurs Aladin, veuillez "exposer" le repértoire de destination derrière un serveur Web, remplir et valider le formulaire suivant :
+INFOHIPSFITS The drawing of a progressive sky in "true" pixel mode requires a large network bandwidth\nYour sky is being reloaded...
+INFOHIPSFITS.fr L'affichage d'un ciel progressif en "vrai" pixels requière un bon réseau.\nVotre ciel est entrain d'être rechargé...
 
 # Info and warning strings
-HFINGER	Simbad pointer:\n \nPoint your mouse on any astronomical object\nand wait 3 secondes to see if this object is known by Simbad.\n \nIf there are several objects around the position,\nonly the object with the largest bibliographical reference number will be displayed.
-HFINGER.fr	Le pointeur Simbad:\n \nGlisser le pointeur de la souris sur un objet astronomique\npuis patientez 3 secondes pour voir si cet objet est connu par Simbad.\n \nSi Simbad connait plusieurs objets proche de cette position\nc'est celui qui a le plus de références bibliographiques qui sera indiqué.
+HAUTODIST Automatic distance measurer:\n \nWith this function activated, the distance is automatically computed and drawn for the two current selected catalog sources.
+HAUTODIST.fr Mesure de distance automatique:\n \nUne fois cette fonction activée, la sélection de deux sources de catalogues entraine le calcul automatique et l'affichage de leur distance.
+HFINGER	Simbad pointer:\n \nIf this function is activated, point your mouse on any astronomical object and wait 3 seconds to see if this object is known by Simbad.\n \nIf there are several objects around the position,\nonly the object with the largest bibliographical reference number will be displayed.\n \nClick on the displayed label for accessing directly to the corresponding Simbad record.
+HFINGER.fr	Le pointeur Simbad :\n \nLorsque cette fonction est activée, glissez le pointeur de la souris sur un objet astronomique puis patientez 3 secondes pour voir si cet objet est connu par Simbad.\n \nSi Simbad connait plusieurs objets proche de cette position\nc'est celui qui a le plus de références bibliographiques qui sera cité.\n \nVous pouvez cliquer sur le label qui s'affiche afin d'accéder directement à l'enregistrement Simbad correspondant.
+HFINGERVIZIERSED	VizieR Phot. pointer:\n \nIf this function is activated, point your mouse on any astronomical object and wait 3 seconds to build a photometry graph from VizieR catalog service.\n \nClick on this plot for displaying and manipulating individual photometry measurements, and also to know their origin.
+HFINGERVIZIERSED.fr	Le pointeur Phot. VizieR :\n \nLorsque cette fonction est activée, glissez le pointeur de la souris sur un objet astronomique puis patientez 3 secondes lancer la construction d'un graphe photométrique à partir du service des catalogues VizieR.\n \nVous pouvez cliquer le graphe qui s'affiche afin d'afficher et d'accéder aux mesures photométriques individuelles, et afin d'un connaître leur origine.
 INFOXY	This table has only XY positions. You must specify the astrometrical reduction parameters allowing Aladin to compute the associated sky positions.
 INFOXY.fr	Cette table ne contient que des positions XY. Veuillez indiquer les paramètres de la réduction astrométrique permettant à Aladin de calculer les positions correspondantes dans le ciel.
 NONET	No network found !\nOnly local resources will be available !
@@ -2395,6 +2528,14 @@ COORDCOLUMN	Coord. columns
 COORDCOLUMN.fr Colonnes des coord.
 COORDCOLUMNDETAIL The column called "Coo" allows you to modify the selection of the object coordinate columns. Either in a celestial reference (J2000), or in a cartesian reference (XY fits convention). Clic into the concerned cell.
 COORDCOLUMNDETAIL.fr La colonne intitulée "Coo" vous permet de modifier la sélection des colonnes des coordonnées des objets, soit dans un référentiel céleste (J2000), soit dans un référentiel cartésien (XY convention FITS).\nCliquez sur la case désirée.
+REMOVETAG For removing a specifical pointing tag, use the contextual menu on its associated measurement line
+REMOVETAG.fr Pour supprimer un tag de pointage spécifique, utilisez le menu contextuel de ses mesures associées
+TAGINFO Clic anywhere for creating a positional tag, use a clic-and-drag for generating a full text tag with arrow...
+TAGINFO.fr Utilisez le clic simple pour créer un tag de positionnement, cliquer-étendre pour créer un repère complet avec du texte...
+REPEREINFO Use a simple clic on a source for getting its photometrical parameters, or clic-and-drag for generating yourself a manual photometrical spherical tool. 
+REPEREINFO.fr Utilisez le clic simple sur un source astronomique pour en mesurer automatiquement ses caractéristiques, on un cliquer-étendre pour générer un cercle de mesure manuel
+STOPHELP Redisplay this help?
+STOPHELP.fr Réafficher ce message d'aide ?
 
 GETOBJ	Object, coordinates, URL, filename or command ?
 GETOBJ.fr	Un objet, des coordonnées, une URL, un fichier ou une commande ?
@@ -2409,12 +2550,28 @@ SLIDERSIZE size
 SLIDERSIZE.fr taille
 SLIDERSIZETIP Adjust the graphical source size of selected planes
 SLIDERSIZETIP.fr	Ajuste la taille des sources graphiques des plans sélectionnés
+SLIDEREPOCH epoch
+SLIDEREPOCH.fr époque
+SLIDEREPOCHTIP Adjust epoch of sources catalogues with proper motions
+SLIDEREPOCHTIP.fr	Ajuste l'époque des catalogues de sources ayant des mouvements propres
+SLIDEREPOCHLABELTIP Click to assign the epoch of current view, J2000 by default
+SLIDEREPOCHLABELTIP.fr Cliquer pour assigner l'époque de la vue courante, J2000 par défaut
+SLIDERDENSITY dens.
+SLIDERDENSITY.fr dens.
+SLIDERDENSITYTIP Adjust source density of selected progressive catalogs
+SLIDERDENSITYTIP.fr	Ajuste la densité des sources des catalogues progressifs sélectionnés
+SLIDERCUBE cube
+SLIDERCUBE.fr cube
+SLIDERCUBETIP Cube frame control
+SLIDERCUBETIP.fr	Ajuste l'image visualisée pour un cube
+YOUREXPR Which algebrical expression ? (after the "=")
+YOUREXPR.fr Quelle expression algébrique ? (après le signe "=")
 
 # Bookmarks strings
 BKMTITLE	Bookmarks controler
 BKMTITLE.fr	Gestionnaire des signets
-BKMDEFAULT	Reload original bookmarks
-BKMDEFAULT.fr Recharge les signets d'origine
+BKMDEFAULT	Reload bookmarks
+BKMDEFAULT.fr Recharge signets
 BKMCONFIRM	Do you really want to reload the Aladin original bookmarks ?
 BKMCONFIRM.fr	Voulez-vous réellement reprendre\nles signets Aladin d'origine ?
 BKMEDITOR	Bookmark editor
@@ -2424,7 +2581,7 @@ BKMAPPLY.fr	Voulez-vous appliquer vos modifications ?
 BKMHELP Select the bookmarks (short-cuts) which will appear just under the main window menu.\nYou can also create/edit your own bookmarks.
 BKMHELP.fr Cochez les signets (raccourcis) que vous souhaitez voir apparaître sous le menu de la fenêtre principale.\nVous pouvez également créer votre propres signets via l'éditeur de signets
 
-#TreeServer strings
+#ServerWatch strings
 TREETITLE	Discover the universe
 TREETITLE.fr	Découvrir l'univers
 TREEINFO1	Select categories of objects and press SUBMIT.
@@ -2435,14 +2592,18 @@ TREEEXAMPLE	example
 TREEEXAMPLE.fr	exemple
 TREEMORE	more info
 TREEMORE.fr	plus d'info
+TREEDESCRIPT Discovering astronomical object form
+TREEDESCRIPT.fr Formulaire de découverte des objets astronomiques
+TREEVERBOSE This form is dedicated to the outreach or for demonstration purpose. It allows you to access to examples of astronomical objects, sorted by categories. These objects are provided by the Simbad data base from CDS. Take care that these categories are not exhaustives, but just provided for demonstration.
+TREEVERBOSE.fr Ce formulaire est destiné à l'enseignement et à la démonstration. Il vous permet d'accéder à des exemples d'objets astromiques classés par grandes catégories. Ces objets sont issues de la base de données Simbad du CDS. Prenez note que ces catégories ne sont en aucun cas exhaustives, mais démonstratives.
 
 #AllskyServer strings
-ALLSKYTITLE	Available data in "allsky" mode
-ALLSKYTITLE.fr	Données disponibles en mode "ciel complet"	
-ALLSKYINFO Select items and press SUBMIT
-ALLSKYINFO.fr Sélectionner, puis appuyer sur CHERCHER
-ALLSKYDESC The "allsky" mode allows you to visualise a survey\nfrom the whole sky view to the limit of the resolution. Aladin provides in "allsky" mode images, catalogues (progressive access), or density maps. The "allsky" image surveys are delivered in color composition, or in 8 bit pixels (JPEG), or in true pixels (FITS). Use the "Pixel" button for switching in the other pixel mode.\n \nWarning: the survey distributed in "allsky" mode have been bilinearly resampled. 
-ALLSKYDESC.fr Le mode "ciel complet" vous permet de visualiser un relevé\ndepuis une vue globale du ciel jusqu'à la limite de la résolution fournie. Il peut s'agir d'images, de catalogues ou de cartes de densité. Les relevés images en mode "ciel complet" sont fournis en composition colorée, ou en pixel 8 bits (JPEG), ou encore en "vrai" pixels" (FITS). Utilisez le bouton "Pixel" pour passer d'un mode pixel à l'autre).\n \nAttention : le mode "ciel complet" ne fournit pas les pixels originaux, mais un rééchantillonnages bilinéaire de ceux-ci.
+ALLSKYTITLE	Progressive surveys (HiPS)
+ALLSKYTITLE.fr	Relevés progressifs (HiPS)
+#ALLSKYINFO Select items and press SUBMIT
+#ALLSKYINFO.fr Sélectionner, puis appuyer sur CHERCHER - La position
+ALLSKYDESC The "progressive sky" mode (HiPS mode) allows you to visualise a survey at any scales (from the whole sky to the limit of the resolution). It can be images, catalogues, or density maps. The HiPS images are delivered in colored composition, or in 8 bit pixels (JPEG|PNG), or in true pixels (FITS). Use the "Pixel" button for switching in the other pixel mode.\n \nWarning: the survey distributed in "progressive sky" mode have been bilinearly resampled. 
+ALLSKYDESC.fr Le mode "ciel progressif" (HiPS) vous permet de visualiser un relevé à n'importe quelle échelle (depuis le ciel dans son ensemble jusqu'à la limite de la résolution fournie). Il peut s'agir d'images, de catalogues ou de cartes de densité. Les relevés images en mode "ciel progressif" sont fournis en composition colorée, ou en pixel 8 bits (JPEG|PNG), ou encore en "vrai" pixels" (FITS). Utilisez le bouton "Pixel" pour passer d'un mode pixel à l'autre).\n \nAttention : le mode "ciel progressif" ne donne pas accès aux pixels originaux, mais un rééchantillonnages bilinéaire de ceux-ci.
 TARGETNOTVISIBLE Target out of field.\nSelect another plane before.
 TARGETNOTVISIBLE.fr Cible hors champ.\nSélectionnez au préalable un autre plan.
 
@@ -2455,8 +2616,8 @@ TIPLOGO	Click on it to the Aladin Web page
 TIPLOGO.fr Cliquer pour aller sur la page Web d'Aladin
 TIPOPEN	Open the data load form...
 TIPOPEN.fr	Ouvrir le formulaire de chargement des données...
-TIPEXPORT	Print, save or export your work...
-TIPEXPORT.fr	Imprimer, enregistrer ou exporter votre travail...
+TIPEXPORT	Save or export your work...
+TIPEXPORT.fr	Enregistrer ou exporter votre travail...
 TIPHEAD	Click for sorting, click&drag on a border for resizing
 TIPHEAD.fr	Cliquer pour trier, cliquez/déplacez sur un bord pour redimensionner
 #TIPREP	Click on it to load information related to this table
@@ -2475,10 +2636,10 @@ TIPSUBMIT	Submit your request
 TIPSUBMIT.fr	Soumet votre requête
 TIPCLOSE	Close this window
 TIPCLOSE.fr	Ferme cette fenêtre
-TIPTAG	Tag/untag this source
-TIPTAG.fr	Coche/décoche cette source
-TIPCMD	Last clicked coordinates / Script command field (see Ctrl+F5)
-TIPCMD.fr	Dernières coordonnées cliquées / Champ de commandes scripts (voir Ctrl+F5)
+TIPTAG	Tag/untag this source\n=> keep it in the measurement frame
+TIPTAG.fr	Coche/décoche cette source\n=> la garde dans la fenêtre des mesures
+TIPCMD	Object, coordinates, filename, URL or script command
+TIPCMD.fr	Objet, coordonnées, nom de fichier, URL ou commande script
 TIPPOS	Coordinate location
 TIPPOS.fr	Coordonnées de la position
 TIPPOSCHOICE	Coordinate frame
@@ -2529,117 +2690,105 @@ PLUGLOC.fr	Votre répertoire à plugins
 PLUGCONF.fr	Désirez-vous réellement supprimer définitivement\nles plugins sélectionnés ?
 
 #Tip messages
-TIP0	Adjust the constrast [right mouse button] - Pan [middle mouse button]
-TIP1	Create image mosaics or blink sequences [assoc button]
-TIP2	Exchange data with other application via Plastic/SAMP [radio antenna icon]
-TIP3	Synchronize/unsync. all views [last icon of view controller]
-TIP4	Adjust the zoom for displaying all the image [CTRL + clic in the zoom view]
-TIP5	Abort a running query by deleting the associated plane
-TIP6	Discover astronomical objects [Tool>Simbad pointer]
-TIP7	Use Aladin script commands for advanced usage [Tool>Script console]
-TIP8	Drag and drop your files from your desktop into Aladin
-TIP9	Adjust the zoom factor via the mouse wheel
-TIP10	Reset the stack by clicking the Del button with the SHIFT key pressed
-TIP11	Maintain the SHIFT key pressed for selecting disconnected catalog sources
-TIP12	Cross-match about 1 million catalog objects in a few seconds [Catalog>Cross match]
-TIP13	Load huge images in few seconds(several GB)
-TIP14	Load directly zip or gzip images/catalogs
-TIP15	Create your own catalog. The simplest syntax is: Ra Dec Val1 Val2...
-TIP16	Extend Aladin by creating your own java Aladin plugins [Tool>Plugin]
-TIP17	Draw a cut graph [Image>Cut graph]
-TIP18	Extract a pointed spectra in a cube [phot button]
-TIP19	Define the object size and shape rules [filter button]
-TIP20	Compare two images via colored subtraction tool [RGB button]
-TIP21	Detach the object measurements in a separated window ["out arrow" icon]
-#TIP22	Switch off all other planes by clicking the Aladin eye
-TIP23	Write a script command directly into the "Command/Location" field
-TIP24	Insert a new column to a catalog [Catalog>Add a new column]
-#TIP25	Autocenter the tags by pressing the SHIFT key
-TIP26	Find a position by typing its coordinate/object name ["Command/Location" field]
-TIP27	Find all available data for a position [File>Load from the Virtual Obs...]
-TIP28	Sort the measurements by clicking in the header
-TIP29	Select/unselect sources by an expression [Search field]
-TIP30	Project a catalog without image: drag its plane from the stack to a panel
-TIP31	Double-click on a catalog label for selecting all its sources
-TIP32	In the crowded regions, move the catalog plane under the image plane
-TIP33	+, -, *, / two images [Image>Arithmetic operation]
-TIP34	With more than one image, modify the transparency [stack "slider"]
-TIP35	Open two Aladin windows simultaneously [File>New Aladin Window]
-TIP36 Resize the measurement columns [click&drag the header]
-TIP37 Unselect a source [click measurement frame + SHIFT]
-TIP38 Choose your language [Edit>User preferrences]
-TIP39 Load a JPEG, GIF or PNG image [File>Load a file]
-TIP40 Lock a view [View popup menu>Locked view]
-TIP41 Compare several images side by side ["Multiview" icons]
-TIP42 Load in your browser the original data of a plane [prop button]
-TIP43 Modify the stack order [click & drag the planes]
-TIP44 Enable/disable a plane [click on its logo]
-TIP45 Quick contrast tuning [right mouse button]
-TIP46 Quick view pan [middle mouse button]
-TIP47 Return to the previous location [green arrows (left top)]
-TIP48 Switch to the full screen mode [icon on right top]
-TIP49 Use Aladin in outreach mode [user preferences]
+TIP0 Adjust the constrat easily => clic&drag right mouse button
+TIP1	Rotate the view => clic&drag middle mouse button + CTRL key
+TIP2	Switch off all other planes temporary => "wink"
+TIP3 Synchronize all views => "match"
+TIP4	Abort the current request => remove the associated plane
+TIP5	Discover the object under the mouse location => Tool>Simbad pointer
+TIP6	Get photometrical measurements => Tool>VizieR pointer
+TIP7	Use script commands => Tool>Console...
+TIP8	Load files quickly => Drag&Drog from your desktop
+TIP9	Adjust zoom level => Mouse wheel
+TIP10	Reset the stack => SHIFT key + "Del" button
+TIP11	Do you know that zipped/gzipped files are supported?
+TIP12	Create your own Aladin java "plugins" => Tool>Plugins
+TIP13	Détach the measurement panel => arrow button
+TIP14	Execute a script command by writting it in the "Location" field
+TIP15	Sort the source measurements by clicking in the table head line
+TIP16	Select some sources => "Search" field
+TIP17	Create a new view => Drag&drop the plane logo into the main panel
+TIP18	Double clic on the catalog name in the stack for selecting all its sources
+TIP19  Tag some sources for retrieving them easily => "checkboxes" in the measurements
+TIP20  Resize the measurement columns => clic&drag the header cells
+TIP21  Do you know that you can calibrate a PNG or JPEG image => Image>Calibration
+TIP22  Create your own instrument field of view => Tool>Instrument footprint
+TIP23  Modify the stack order => Drag&drop plane icons
+TIP24  Do you know that you can load FITS images of any size?
+TIP25  Adjust the source display according to its measurements => Catalog>Create a filter
+TIP26  Use Aladin in outreach mode => Edition>Préférences>Profile
+TIP27  Create a group of planes for activating them simultaneously => Edit>Create a folder
+TIP28  Do you know that you can edit&save the FITS header => Alt+H
+TIP29  Adjust the epoch for displaying dynamically the star proper motions
+TIP30  Modify the default coordinate frame => Edit>Preferences
+TIP31  Modify the default projection => Edit>Preferences
+TIP32  Modify the default color map => Edit>Preferences
+TIP33  Modify the default survey => Edit>Preferences>Survey
+TIP34  Do you know that you can subtract,divize,... images => Images>Operations
+TIP35  Do you know that you can extract all pixel values => Images>Extraction
+TIP36  Do you know that you can change the FITS pixel encoding => Images>Conversion
+TIP37  Create a scatter graph from the sources measurements => Catalog>Scatter plot
+TIP38  Correlate two catalogs => Catalog>Cross match
+TIP39  Get photometrical measurements inside a polygon/a circle => Overlay>phot or draw
+TIP40  Display the colormap over the current image => Overlay>Colormap
+TIP41  Write a object name in the "location" field for getting its sky location
+TIP42  Use macros for repeating the same process => Tool>Macros
+TIP43  Redo the same process thank to a bookmark => Tool>Bookmarks
 
-TIP0.fr	Ajuster le constraste [bouton/souris droit] - Déplacer [bouton/souris milieu]
-TIP1.fr	Créez des mosaïques ou des séquences d'images [bouton assoc]
-TIP2.fr	Transférez des données vers d'autres applications via Plastic/SAMP [l'antenne en bas]
-TIP3.fr	Synchronisez/désync. toutes les vues [dernière icône du contrôleur de vues]
-TIP4.fr	Ajustez le zoom pour voir toute l'image [CTRL + clic dans la fen. du zoom]
-TIP5.fr	Stoppez une requête en cours en supprimant le plan associé
-TIP6.fr	Découvrez la nature des objets astronomiques [Outil>Pointeur Simbad]
-TIP7.fr	Pour une utilisation pointue, utilisez les commandes scripts [Outil>Console...]
-TIP8.fr	Glissez/déposer vos fichiers depuis le Bureau sur Aladin
-TIP9.fr	Ajustez le facteur de zoom via la molette de la souris
-TIP10.fr	Réinitialisez la pile en cliquant sur le bouton "Suppr." avec la touche MAJ appuyée
-TIP11.fr	Sélectionnez des source en plusieurs fois en gardant appuyée la touche MAJ
-TIP12.fr	Corrélez un million de sources en quelques secondes [Catalogue>Corréler...]
-TIP13.fr	Chargez des immenses images en quelques secondes (plusieurs Go)
-TIP14.fr	Chargez directement vos données zippées ou gzippés
-TIP15.fr	Créez votre propre catalogue. La syntaxe la plus simple est : Ra Dec Val1 Val2...
-TIP16.fr	Créez vos propres "plugins" [plugins] java pour étendre Aladin [Outil>Plugins]
-TIP17.fr	Tracez une coupe de pixels [Image>Graphe de coupe]
-TIP18.fr	Extrayez un spectre d'un cube [bouton phot]
-TIP19.fr	Définissez la taille et la forme des sources [bouton filtre]
-TIP20.fr	Comparez deux images par soustraction colorisée [bouton RGB]
-TIP21.fr	Détachez la fenêtre des mesures [flêche en bas à droite]
-#TIP22.fr	Activez/désactivez tous les autres plans en cliquant sur l'oeil d'Aladin
-TIP23.fr	Saisissez une commande script directement dans le champ "Commande/Position"
-TIP24.fr	Insérez une nouvelle colonne à un catalogue [Catalogue>Ajouter...]
-#TIP25.fr	Centrez automatiquement le "Tag" en maintenant appuyé la touche MAJ
-TIP26.fr	Visualisez une position en tapant ses coord. ou un nom [champ "Commande/Position"]
-TIP27.fr	Visualisez toutes les données disponibles [Fichier>Charger depuis l'Obs...]
-TIP28.fr	Triez les mesures en cliquant dans leurs entêtes
-TIP29.fr	Sélectionner/déselectionner des sources via une expression [champ "Chercher"]
-TIP30.fr	Projetez un catalogue sans image : glissez son plan de la pile vers un panneau
-TIP31.fr	Double-cliquez sur le nom d'un catalogue pour sélectionner tous ses objets
-TIP32.fr	Dans les régions "sur-chargées", placez le plan catalogue sous le plan image
-TIP33.fr	+, -, *, / deux images [Image>Opérations arithmétiques]
-TIP34.fr	Avec plus de 2 images, modifier la transparence ["slider" du logo]
-TIP35.fr	Ouvrez deux fenêtres Aladin simultanément [Fichier>Nouvelle fenêtre...]
-TIP35.fr  Cochez certaines sources ["Coche" dans les mesures]
-TIP36.fr  Redimensionnez les colonnes des mesures [cliquez/étirer les entêtes]
-TIP37.fr  Déselectionnez une source [clic fenêtre des mesures + MAJ]
-TIP38.fr  Choississez votre langue [Edition>Préférences...]
-TIP39.fr  Chargez une image JPEG,GIF ou PNG [Fichier>Ouvrir un fichier]
-TIP40.fr  Verrouillez une vue [Menu contextuel de la vue>Vue verrouillée]
-TIP41.fr  Comparez bord à bord plusieurs images ["multivues" en bas à gauche]
-TIP42.fr  Charger dans votre navigateur les données originales d'un plan [Bouton prop]
-TIP43.fr  Modifiez l'ordre des plans dans la pile [cliquer - déplacer les plans]
-TIP44.fr  Activez/désactivez un plan [clic sur son logo]
-TIP45.fr Modifier rapidement le constraste [bouton de droite de la souris]
-TIP46.fr Déplacer rapidement la vue [bouton central de la souris]
-TIP47.fr Revenir à la position précédente [flêches vertes en haut à gauche]
-TIP48.fr Passer en plein écran [icône en haut à droite]
-TIP49.fr Utiliser Aladin en mode "enseignement" [préférences utilisateurs]
+
+TIP0.fr Vous pouvez ajuster rapidement le contraste => Clic&déplace bouton-droit
+TIP1.fr	Pour faire pivoter la vue => Clic&déplace  bouton-milieu + CTRL
+TIP2.fr	Cachez temporairement les autres plans => "cligne"
+TIP3.fr Synchronisez temporairement vos vues => "unif."
+TIP4.fr	Interrompre la requête en cours => supprimez le plan associé
+TIP5.fr	Connaitre l'objet sous la souris => Outil>Pointeur Simbad
+TIP6.fr	Obtenir des mesures photométriques => Outil>Pointeur VizieR
+TIP7.fr	Utiliser des commandes scripts => Outil>Console...
+TIP8.fr	Chargez facilement vos fichiers => Glissez/déposer
+TIP9.fr	Ajustez facilement le zoom => Molette souris
+TIP10.fr	Vider la pide d'un coup => MAJ + bouton "Suppr"
+TIP11.fr	Saviez-vous que vos fichiers peuvent être zippés ou gzippés ?
+TIP12.fr	Créer vos propres "plugins" java compatibles Aladin => Outil>Plugins
+TIP13.fr	Détacher la fenêtre des mesures => flêche en bas à droite
+TIP14.fr	Vous pouvez saisir une commande script directement dans le champ "Position"
+TIP15.fr	Triez les mesures en cliquant dans leurs entêtes
+TIP16.fr	Sélectionnez certaines sources => champ "Chercher"
+TIP17.fr	Créez une nouvelle vue => glissez le logo du plan vers la zone des vues
+TIP18.fr	Double-cliquez sur le nom d'un catalogue pour sélectionner tous ses objets
+TIP19.fr  Tagguer certaines sources pour les retrouver facilement => "Coche" dans les mesures
+TIP20.fr  Redimensionnez les colonnes des mesures => cliquez/étirer les entêtes
+TIP21.fr  Saviez-vous que vous pouvez calibrer des images JPEG ou PNG ? => Image>Calibrer
+TIP22.fr  Vous pouvez créer votre champ instrumental => Outils>Editeur de champ...
+TIP23.fr  Modifiez l'ordre des plans dans la pile => Glisser/Déposer
+TIP24.fr  Saviez-vous que vous pouvez charger des images FITS de n'importe quelle taille ?
+TIP25.fr  Contraindre la manière dont s'affiche les sources => Catalogue>Créer un filtre
+TIP26.fr  Aladin peut s'utiliser en mode "enseignement" => Edition>Préférences>Profile
+TIP27.fr  Grouper des plans pour les activer simultanément => Edition>Créer un dossier
+TIP28.fr  Saviez-vous que vous pouvez éditer l'entête FITS => Alt+H
+TIP29.fr  Vous pouvez modifier dynamiquement l'époque pour visualiser le mvt propre des étoiles
+TIP30.fr  Choisissez un autre référentiel céleste par défaut => Edition>Préférences
+TIP31.fr  Choisissez une autre projection par défaut => Edition>Préférences
+TIP32.fr  Choisissez une autre palette de couleurs par défaut => Edition>Préférences
+TIP33.fr  Choisissez un autre relevé par défaut => Edition>Préférences>Relevé
+TIP34.fr  Vous pouvez soustraire, diviser,... des images => Images>Opérations
+TIP35.fr  Vous pouvez extraire toutes les valeurs des pixels => Images>Extraction
+TIP36.fr  Changer le codage d'une image FITS => Images>Conversion
+TIP37.fr  Créer un graphe deux dimensions pour certaines mesures => Catalogue>Graphe de points
+TIP38.fr  Corréler deux catalogues => Catalogue>Corréler
+TIP39.fr  Mesures photométriques à l'intérieur d'un poygone, un cercle => Graphique>phot ou dessin
+TIP40.fr  Affichez la table des couleurs avec l'image => Graphique>Table des couleurs
+TIP41.fr  Saisissez un nom d'objet dans le champ "Location" pour connaître sa position
+TIP42.fr  Utilisez les macros pour effectuer plusieurs fois le même traitement => Outil>Macros
+TIP43.fr  Refaire le même traitement via un signet => Outil>Signets
 
 BEGIN1	Bienvenue on Aladin,\nyour professional sky atlas.\n \n* Discover all astronomical data available over the net!\n \n* Compare them with your own data.\n \n* Prepare your observation missions.\n \n \nTo start, type any object name, such as M1, and press ENTER...
 BEGIN2	Imagine your eye\nlooking through a stack of planes.\n \nEach plane contains its own data set: image, catalog, graphical overlays...\n \nYou see the combination of them.\n \nUse File->Open for discovering all other data,\nor clic & drag your own files.
-BEGIN3	Stack controls:\n \n*the icon: show/hide a plane\n*size: change object size\n*zoom: adjust field size.\n*Opacity: adjust transparency.\n \nThe vue is drawn according to the projection of a reference plane.\n \nFor changing the reference, click on its check box.
+BEGIN3	Stack controls:\n \n*the icon: show/hide a plane\n*size: change object size\n*zoom: adjust field size.\n*Opacity: adjust transparency.\n \nThe view is drawn according to the projection of a reference plane.\n \nFor changing the reference, click on its check box.
 BEGIN4	Mouse controls:\n \n*Left: source selection.\n*Middle: quick panning.\n*Right: constrast adjustement.\n*Wheel: quick zoom on the reticle.\n*Simple-clic: move the reticle.\n*Double-clic: re-center.\n \nLet you mouse pointer on an object for discovering associated Simbad data.
 BEGIN5	Basic controls:\n \n-Type any object name or coordinates for moving on it.\n \n-Select catalog sources for displaying associated data measurements.\n \nDisplay simultaneously several views via the "multiview" controler.
 
 BEGIN1.fr Bienvenue sur Aladin,\nvotre atlas professional du ciel.\n \n* Accédez à toutes les données astronomiques disponibles sur le net !\n \n* Comparez-les avec vos propre données.\n \n* Préparez vos missions d'observations.\n \n \nPour débuter, saisissez un nom d'objet, par exemple M1, puis validez par ENTER...
 BEGIN2.fr	Imaginez votre oeil regardant à travers une pile de calques.\n \nChaque calque représente une donnée: image, catalogues, graphiques...\n \nLa vue ci-contre est la combinaison de l'ensemble de ces calques.\n \nPour accéder à d'autres données utilisez le menu Fichier->Ouvrir,\nou glissez/déposez vos propres fichiers.
-BEGIN3.fr	Contrôle de la pile:\n \n*le logo: montre/cache le plan\n*taille: change la taille des objets*zoom: modifie l'agrandissement.\n*opacité: ajuste la transparence.\n \nLa vue est dessinée en fonction de la projection d'un plan de référence.\n \nPour changer de plan de référence, cliquer sur sa coche.
+BEGIN3.fr	Contrôle de la pile:\n \n*le logo: montre/cache le plan\n*taille: change la taille des objets\n*zoom: modifie l'agrandissement\n*opacité: ajuste la transparence.\n \nLa vue est dessinée en fonction de la projection d'un plan de référence.\n \nPour changer de plan de référence, cliquer sur sa coche.
 BEGIN4.fr	Contrôle par la souris:\n \n*Gauche: sélection des sources.\n*Milieu: déplacement du champ.\n*Droite: ajustement du contraste.\n*Molette: zoom sur le réticule.\n*Simple-clic: déplace le réticule\n*Double-clic: recentre la vue.\n \nPour découvrir les informations Simbad sur un objet, laissez dessus qq secondes le pointeur.
 BEGIN5.fr	Contrôle de base:\n \n- Saisissez un nom d'objet, des coordonnées pour vous déplacez dessus.\n \n- Sélectionnez des sources de catalogues afin de visualiser les mesures associées.\n \n- Visualiser simultanément plusieurs vues via le contrôle du"multivue".

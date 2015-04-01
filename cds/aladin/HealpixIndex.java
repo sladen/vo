@@ -36,14 +36,14 @@ import cds.tools.pixtools.Util;
  */
 public class HealpixIndex extends TreeMap<String, HealpixIndexItem> implements Iterable<String>{
    
-   public static int TOOMANY = 50;   // Nombre maximum d'entrées autorisées
-   private boolean tooMany = false;
-   
-   /** Retourne si cet index est considéré comme saturé */
-   public boolean hasTooMany() { return tooMany; }
-   
-   /** Positionne le flag de saturation de cet index */
-   public void setTooMany(boolean flag) { tooMany=flag; }
+//   public static int TOOMANY = 500;   // Nombre maximum d'entrées autorisées
+//   private boolean tooMany = false;
+//   
+//   /** Retourne si cet index est considéré comme saturé */
+//   public boolean hasTooMany() { return tooMany; }
+//   
+//   /** Positionne le flag de saturation de cet index */
+//   public void setTooMany(boolean flag) { tooMany=flag; }
    
    /** Parsing d'un flux d'entrées, et mémorisation de celles-ci */
    public void loadStream(InputStream stream) throws Exception {
@@ -72,6 +72,16 @@ public class HealpixIndex extends TreeMap<String, HealpixIndexItem> implements I
    
    /** Iterator sur chaque entrée */
    public Iterator<String> iterator() { return keySet().iterator(); }
+   
+   /** Ajout des entrées d'un autre index */
+   public void merge(HealpixIndex hi) {
+      Iterator<String> it = hi.iterator();
+      while( it.hasNext() ){
+         String s = it.next();
+         HealpixIndexItem item = new HealpixIndexItem(s);
+         put( item.getID(), item);
+      }
+   }
    
    public String toString() {
       StringBuffer s = new StringBuffer("[");

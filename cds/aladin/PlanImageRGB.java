@@ -77,6 +77,10 @@ public class PlanImageRGB extends PlanImage implements PlanRGBInterface {
       mustResample=true;  // Pour que le waitForPlan() face le resampling
       type=IMAGERGB;
       isOldPlan=false;
+      
+      pixMode = PIX_RGB;
+      if( (r==null || r.isTransparent() ) && (g==null || g.isTransparent() ) 
+            && (g==null || g.isTransparent()) ) pixMode=PIX_ARGB;
 
       planRed=r; planGreen=g; planBlue=b;
       flagRed=planRed!=null;
@@ -141,6 +145,7 @@ public class PlanImageRGB extends PlanImage implements PlanRGBInterface {
       super(aladin,file,inImg);
       if( u!=null ) this.u = u;	// C'est pas beau hein ?! En fait u est modifié comme pour un fichier dans super(), faut bien lui remettre les idées en place
       type=IMAGERGB;
+      pixMode = PIX_RGB;
       active=true;
       flagRed=flagGreen=flagBlue=true;
       initCMControl();
@@ -242,8 +247,9 @@ public class PlanImageRGB extends PlanImage implements PlanRGBInterface {
 Aladin.trace(2,"Loading "+(isARGB?"A":"")+"RGB FITS image");
 
       // Lecture de l'entete Fits si ce n'est deja fait
-      if( headerFits==null ) headerFits = new FrameHeaderFits(dis);
+      if( headerFits==null ) headerFits = new FrameHeaderFits(this,dis);
 
+      pixMode = isARGB ? PIX_ARGB : PIX_RGB;
       bitpix = headerFits.getIntFromHeader("BITPIX");
       if( bitpix==0 ) {
          aladin.command.printConsole("!!! RGB BITPIX=0 => assuming BITPIX=8 !\n");
@@ -515,7 +521,7 @@ Aladin.trace(3," => Reading in "+temps+" ms");
       c = p.c;
       projd = p.projd;
       projD = p.projD==null ? null : (Hashtable)p.projD.clone();
-      from = "Colored composition by Aladin";
+      copyright = "Colored composition by Aladin";
 
 /*
       // La memorisation du dernier zoom associe au plan
@@ -1059,6 +1065,11 @@ Aladin.trace(3," => Reading in "+temps+" ms");
       return pixelsRGB[y*width+x];
    }
    
+   /** Retourne la valeur 8 bits du pixel indiqué en coordonnées image*/
+   protected byte getPixel8Byte(int x,int y) {
+      return pixelsRGB==null ? 0 : (byte) getGreyPixel( getPixel8(x,y) );
+   }
+   
    // Pour ne vaire postAJLoad() qu'une fois
    private boolean postAJDone=false;
    
@@ -1086,6 +1097,8 @@ Aladin.trace(3," => Reading in "+temps+" ms");
          }
       } catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
    }
+   
+   protected boolean hasOriginalPixels() { return true; }
 
    /** Retourne les valeurs des trois pixels d'origine */
    protected String getPixelInfo(int x,int y,int mode) {

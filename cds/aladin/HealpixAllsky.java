@@ -44,8 +44,10 @@ class HealpixAllsky extends HealpixKey {
       resetTimer();
       String nameNet = "Norder"+order+"/Allsky";
       String nameCache = planBG.survey+planBG.version+"/"+"Norder"+order+"/Allsky";
-      if( planBG.truePixels ) extCache=extNet=FITS;
-      else /* if( planBG.color ) */ extCache=extNet=JPEG;
+      extCache=extNet=planBG.getTileMode();
+//      if( planBG.truePixels ) extCache=extNet=FITS;
+//      else if( planBG.inPNG && !planBG.inJPEG ) extCache=extNet=PNG;
+//      else /* if( planBG.color ) */ extCache=extNet=JPEG;
       fileCache = nameCache+ EXT[extCache];
       fileNet = nameNet+ EXT[extNet];
       alreadyCached=false;
@@ -59,6 +61,7 @@ class HealpixAllsky extends HealpixKey {
    
    HealpixKey createOneKey(int npix,int width,byte [] pix) {
       HealpixKey h = new HealpixKey();
+      h.allSky=true;
       h.planBG=planBG;
       h.order=order;
       h.npix=npix;
@@ -68,13 +71,13 @@ class HealpixAllsky extends HealpixKey {
       h.width=h.height=width;
       h.pixels=pix;
       h.alreadyCached=true;
-      h.allSky=true;
       h.setStatus(READY);
       return h;
    }
    
    HealpixKey createOneKeyRGB(int npix,int width,int []rgb) {
       HealpixKey h = new HealpixKey();
+      h.allSky=true;
       h.planBG=planBG;
       h.order=order;
       h.npix=npix;
@@ -84,7 +87,6 @@ class HealpixAllsky extends HealpixKey {
       h.width=h.height=width;
       h.rgb=rgb;
       h.alreadyCached=true;
-      h.allSky=true;
       h.setStatus(READY);
       return h;
    }
@@ -93,7 +95,8 @@ class HealpixAllsky extends HealpixKey {
    static boolean isCached(PlanBG planBG,int order) {
       String pathName = planBG.getCacheDir();
       if( pathName==null ) return false;
-      String name = planBG.survey+planBG.version+"/"+"Norder"+order+"/Allsky"+ (planBG.truePixels ? ".fits" : planBG.color ? ".jpg" : ".fits");
+//      String name = planBG.survey+planBG.version+"/"+"Norder"+order+"/Allsky"+ (planBG.truePixels ? ".fits" : planBG.color ? ".jpg" : ".fits");
+      String name = planBG.survey+planBG.version+"/"+"Norder"+order+"/Allsky"+ EXT[planBG.getTileMode()];
       pathName = pathName+Util.FS+name;
       File f= new File(pathName);
       return f.exists() && f.canRead();

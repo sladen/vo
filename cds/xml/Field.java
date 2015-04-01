@@ -21,6 +21,9 @@
 package cds.xml;
 
 import java.util.Hashtable;
+import java.util.regex.Pattern;
+
+import cds.tools.Util;
 
 /** Field description according to the Astrores XML standard.
  *
@@ -86,6 +89,9 @@ final public class Field {
 
    /** link type */
    public String refValue;
+   
+   /** null value */
+   public String nullValue;
 
    /** true if it is a RA or DE field */
 //   public boolean coo;
@@ -94,12 +100,16 @@ final public class Field {
    public int columnSize=10;
 
    /** Positional field signature */
-   static public final int RA=1,DE=2,X=3,Y=4;
-   static public final String [] COOSIGN = { "", "RA","DE","X","Y" };
+   static public final int RA=1,DE=2,PMRA=3,PMDE=4,X=5,Y=6;
+   static public final String [] COOSIGN = { "", "RA","DE","PMRA","PMDE","X","Y" };
    public int coo;
+   
+   static public final int FREQ=1,FLUX=2,FLUXERR=3,SEDID=4;
+   static public final String SEDLABEL[] = { "","SED_FREQ","SED_FLUX","SED_FLUXERR","SED_SEDID" };
+   public int sed;
 
-   /** True if it is the DE coordinate field */
-   public boolean isDE;
+//   /** True if it is the DE coordinate field */
+//   public boolean isDE;
 
    /** XML internal reference, typically for coordinate frame reference */
    public String ref;
@@ -110,7 +120,9 @@ final public class Field {
    /** Visible flag */
    public boolean visible=true;
 
-
+   // Pattern pour l'extration de la valeur du champ en fonction d'une série d'expression régulière *.
+   public String hpxFinderPattern;
+   
    static public final int UNSORT = 0;
    static public final int SORT_ASCENDING  = 1;
    static public final int SORT_DESCENDING = 2;
@@ -197,10 +209,17 @@ final public class Field {
       return true;
    }
    
-   /** Retourne le tag de la colonne (RA, DE, X ou Y) */
+   /** Retourne le tag de la colonne (RA, DE, PMRA, PMDE, X ou Y) */
    public int getFieldSignature() { return coo; }
-
-   /** Return the positional Field signature (RA, DE, X, Y ou "") */
+   
+   public boolean isRa()   { return coo==RA; }
+   public boolean isDe()   { return coo==DE; }
+   public boolean isPmRa() { return coo==PMRA; }
+   public boolean isPmDe() { return coo==PMDE; }
+   public boolean isX()    { return coo==X; }
+   public boolean isY()    { return coo==Y; }
+   
+   /** Return the positional Field signature (RA, DE, PMRA, PMDE, X, Y ou "") */
    public String getCooSignature() { return COOSIGN[coo]; }
 
   /** Field object creation.
@@ -218,15 +237,29 @@ final public class Field {
       else if( name.equals("TITLE") )
                 title=(title==null?"":title)+value;
       else if( name.equals("href") )     href=value;
-      else if( name.equals("gref") ) gref=value;
+      else if( name.equals("gref") )     gref=value;
       else if( name.equals("refText") )  refText=value;
       else if( name.equals("refValue") ) refValue=value;
+      else if( name.equals("sed") )      setSEDtag(value);
       else return;
    }
 
    /** True si le field est numérique */
    public boolean isNumDataType() {
       return datatype!=null && NUMDATATYPE.indexOf(datatype)>=0;
+   }
+   
+   /** Récupère le label du flag SED du champ, ou null si aucun sur ce champ */
+   public String getSEDtag() {
+      if( sed==0 || sed>=SEDLABEL.length ) return null;
+      return SEDLABEL[sed];
+   }
+   
+   /** Positionne le flag SED en fonction du label passé en paramètre (provient d'une lecture d'une fichier AJ) */
+   private void setSEDtag(String tag) {
+      int i = Util.indexInArrayOf(tag, SEDLABEL, true);
+      if( i==-1 ) i=0;
+      sed = i;
    }
 
    /** Conversion d'un type de donnée exprimé dans le standard FITS
@@ -271,6 +304,7 @@ final public class Field {
       if( s.equals("doubleComplex") ) return "M";
       return "E";
    }
+   
 
    public String toString() {
       return  (ID==null?       "":" ID="+ID)

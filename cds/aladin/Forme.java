@@ -24,8 +24,10 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.util.Iterator;
 import java.util.Vector;
 
+import cds.aladin.Pcat.PlanObjetIterator;
 import cds.aladin.prop.Prop;
 import cds.aladin.prop.PropAction;
 import cds.astro.Proj3;
@@ -82,7 +84,7 @@ public class Forme extends Position {
 
    public void setColor(Color c) { couleur=c; }
 
-   protected void setRaDec(double ra, double de) {
+   public void setRaDec(double ra, double de) {
       double dra = o[0].getRa()-ra;
       double dde = o[0].getDec()-de;
       for( int i=0; i<o.length; i++ ) o[i].deltaRaDec(dra, dde);
@@ -183,9 +185,22 @@ public class Forme extends Position {
       double sint = Math.sin( Math.PI*angle/180.);
       double x =  tanr*sint;
       double y =  tanr*cost;
-      a.computeAngles(x,y);
+//      a.computeAngles(x,y);
+      a.set(x,y);
       return new Coord(a.getLon(),a.getLat());
    }
+   
+   // Recupération d'un itérator sur les objets qui compose la forme
+   public Iterator<Obj> iterator() { return new ObjetIterator(); }
+
+   class ObjetIterator implements Iterator<Obj> {
+      private int index=0;
+      public boolean hasNext() { return index<o.length; }
+      public Obj next() { return o[index++]; }
+      public void remove() { }
+   }
+
+
 
 //   void debug();
 }

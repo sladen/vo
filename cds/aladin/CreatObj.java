@@ -46,7 +46,7 @@ public final class CreatObj implements Runnable {
       initTimer();
       trace(1,"Creating Console window");
       a.console = new Console(a);
-      a.console.setInfo("Aladin "+a.VERSION+" under JVM "+aladin.javaVersion+" with "+a.MAXMEM+"MB");
+      a.console.printInfo("Aladin "+a.VERSION+" under JVM "+aladin.javaVersion+" with "+a.MAXMEM+"MB");
 
       trace(1,"Creating Command interface");
       a.synchroServer = new Synchro(10000);
@@ -75,7 +75,7 @@ public final class CreatObj implements Runnable {
       a.viewControl = new ViewControl(a);
 
       trace(1,"Creating URL info line");
-      a.urlStatus = new Tips(a.COPYRIGHT);
+      a.urlStatus = new Tips(a);
 
       trace(1,"Creating Memory status line");
       a.memStatus = new MyLabel("",Label.RIGHT,a.SPLAIN);
@@ -271,7 +271,7 @@ public final class CreatObj implements Runnable {
                    if( server.indexOf("Aladin")>=0 ) {
                       String criteria = fmt+" "+resol;
                       if( qualifier!=null ) criteria = criteria+" "+qualifier;
-                      int n=a.dialog.server[ServerDialog.ALADIN].createPlane(c,rm,criteria,null,null);
+                      a.dialog.server[ServerDialog.ALADIN].createPlane(c,rm,criteria,null,null);
                    }
 
                    // VizieR

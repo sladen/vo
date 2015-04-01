@@ -33,6 +33,8 @@ import java.awt.event.MouseWheelListener;
 import java.awt.geom.AffineTransform;
 import java.awt.image.*;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.Iterator;
 
 import javax.swing.JComponent;
@@ -63,9 +65,8 @@ import javax.swing.JComponent;
  * @version 0.9 - 30 mars 1998
  */
 public final class ZoomView extends JComponent 
-               implements  MouseWheelListener, MouseListener,MouseMotionListener
-               /* ,KeyListener */ {
-
+               implements  MouseWheelListener, MouseListener,MouseMotionListener {
+   
    // Les valeurs generiques
    protected int WENZOOM     =  8; // Agrandissement pour la loupe (puissance de 2)
    static int SIZE;                   // Taille fixe de la fenetre
@@ -104,14 +105,17 @@ public final class ZoomView extends JComponent
    private int[] cut;               // le graphe de coupe du dernier cut en niveau de gris
    private int[] cutR,cutG,cutB;  // le graphe de coupe du dernier cut en RGB
    protected boolean flagCut=false;  // true si une coupe est active
-   private Obj objCut;             // L'Objet graphique correspondant à l'histogramme que l'on trace
+   private Obj objCut;             // L'Objet graphique correspondant au cut que l'on trace
    
    // Les paramètres à mémoriser pour l'histogramme
    Hist hist=null;                  // L'histogramme courant
+   SED sed=null;                    // SED courant
    protected boolean flagHist=false;  // true si l'histogramme est actif
+   protected boolean flagSED=false;   // true s'il faut afficher le SED courant
    
    // Gestion de la synchronization des vues compatibles
    private boolean flagSynchronized=false;  // true - indique que l'on a déjà fait un synchronize des vues (SHIFT)
+   
    
   /** creation de la fenetre du zoom.
    * @param aladin,calque References
@@ -140,16 +144,23 @@ public final class ZoomView extends JComponent
    public void mouseWheelMoved(MouseWheelEvent e) {
       if( aladin.inHelp ) return;
       if( e.getClickCount()==2 ) return;    // SOUS LINUX, J'ai un double évènement à chaque fois !!!
+      if( flagSED )  { if( sed.mouseWheel(e) ) repaint(); return; };
       if( flagHist ) { if( hist.mouseWheelMoved(e) ) repaint(); return; }
       synchronize(e);
       aladin.calque.zoom.incZoom(-e.getWheelRotation());
+   }
+   
+   protected void free() {
+      hist=null;
+      sed=null;
+      flagHist=flagSED=false;
    }
    
    public void mouseClicked(MouseEvent e) {};
       
    public void mousePressed(MouseEvent e) {
       if( aladin.inHelp ) return;
-   	  if( flagCut || flagHist ) return;
+   	  if( flagCut || flagHist || flagSED ) return;
    	  ViewSimple v = aladin.view.getCurrentView();
    	  v.stopAutomaticScroll();
    	  
@@ -192,6 +203,7 @@ public final class ZoomView extends JComponent
    /** Deplacement du rectangle de zoom */
    public void mouseDragged(MouseEvent e) {
       if( aladin.inHelp ) return;
+      if( flagSED ) return;
       if( flagHist ) { if( hist.mouseDragged(e) ) repaint(); return; }
 	  if( flagCut ) {
  	     if( objCut instanceof Repere ) setFrameCube(e.getX());
@@ -199,9 +211,9 @@ public final class ZoomView extends JComponent
  	  }
 	  ViewSimple v = aladin.view.getCurrentView();
 	  if( v.isPlotView() ) return;
+	  flagdrag = true;
       if( !v.isFree() && v.pref instanceof PlanBG ) setAllSkyCenter(v, e.getX(), e.getY());
       else {
-         flagdrag = true;
          synchronize(e);
          newZoom(e.getX(),e.getY());
          drawInViewNow((double)e.getX(),(double)e.getY());
@@ -217,6 +229,12 @@ public final class ZoomView extends JComponent
    public void mouseMoved(MouseEvent e) {
       if( aladin.inHelp ) return;
       
+      if( flagSED ) { 
+         sed.mouseMove(e.getX(),e.getY());
+         repaint();
+         return;
+      }
+      
       if( INFO==null ) INFO = aladin.chaine.getString("ZINFO");
       aladin.status.setText(INFO);
       cutX=e.getX();cutY=e.getY();
@@ -231,7 +249,10 @@ public final class ZoomView extends JComponent
     * fin de l'affichage du de FWHM */
    public void mouseExited(MouseEvent e) {
       if( aladin.inHelp ) return;
-      Aladin.makeCursor(this,Aladin.DEFAULT);
+      
+      if( flagSED ) { sed.mouseExit(); repaint(); return; }
+      
+      Aladin.makeCursor(this,Aladin.DEFAULTCURSOR);
       if( aladin.view.flagHighlight ) {
          hist.resetHighlightSource();
          aladin.view.flagHighlight=false;
@@ -247,6 +268,8 @@ public final class ZoomView extends JComponent
 
    public void mouseEntered(MouseEvent e) {
       if( aladin.inHelp ) { aladin.help.setText(Help()); return; }
+      
+      if( flagSED ) { sed.mouseEnter(); return; }
       
       boolean resize = flagCut;
       if( objCut instanceof Repere && ((Repere)objCut).hasRayon() ) resize=false;
@@ -305,6 +328,9 @@ public final class ZoomView extends JComponent
   /** Deplacement du rectangle de zoom */
    public void mouseReleased(MouseEvent e) {
       if( aladin.inHelp ) { aladin.helpOff(); return; }
+      
+      if( flagSED ) { sed.mouseRelease(e.getX(), e.getY() ); return; }
+      
  	  if( flagCut ) {
  	     if( objCut instanceof Repere ) setFrameCube(e.getX());
  	     flagdrag=false;
@@ -318,7 +344,7 @@ public final class ZoomView extends JComponent
  	        if( hist.mouseDragged(e) ) repaint();
  	     } else {
  	        if( hist.inCroix(e.getX(), e.getY() ) ) {
- 	           setHist();
+ 	           stopHist();
  	        } else hist.selectHighlightSource();
  	        aladin.calque.repaintAll();
  	     }
@@ -339,7 +365,7 @@ public final class ZoomView extends JComponent
       Coord coo = drawInViewNow(e.getX(),e.getY());
       if( coo!=null ) {
          aladin.view.setRepere(coo);
-         aladin.view.memoUndo(v,coo,null);
+//         aladin.view.memoUndo(v,coo,null);
       }
       flagdrag=false;
    }
@@ -506,23 +532,26 @@ try {
             gbuf.drawOval(x-pa/2,y-pa,pa,pa*2);
             gbuf.drawLine(x-ga,y,x+ga,y);
             gbuf.drawLine(x,y-pa,x,y+pa);
+            
+            Projection proj = v.pref.projd;
    
            Coord [] coin = v.getCouverture();
            if( coin!=null ) {
-               proj.frame = v.pref.projd.frame;
+               proj.frame = proj.frame;
+               gbuf.setColor( Color.blue );
                for( int i=0; i<coin.length; i++ ) {
                   if( Double.isNaN(coin[i].al) ) continue;
                   c.al = coin[i].al;
                   c.del = coin[i].del;
                   proj.getXY(c);
-                  gbuf.setColor( Color.blue );
                   gbuf.drawLine((int)c.x,(int)c.y,(int)c.x,(int)c.y);
                }
                c = v.getCooCentre();
                if( c== null ) {
                   System.out.println("Gag ++ ");
-                  v.pref.projd = new Projection("allsky",Projection.WCS,0,0,60*4,60*4,250,250,500,500,0,false,Calib.SIN,Calib.FK5);
+                  proj = v.pref.projd = new Projection("allsky",Projection.WCS,0,0,60*4,60*4,250,250,500,500,0,false,Calib.SIN,Calib.FK5);
                   v.pref.projd.frame = aladin.localisation.getFrame();
+                  v.projLocal = v.pref.projd.copy();
                   drawAllSkyControl(g, v);
                   return;
                }
@@ -572,13 +601,18 @@ try {
     */
     protected void setCM(IndexColorModel ic) { repaint(); }
 
-//    private Image imgCut;
-//    private Graphics gCut;
-
     /** Dessin de l'histogramme */
     protected void drawImgHist(Graphics g) {
        hist.draw(g);
        drawBord(g);
+    }
+    
+    /** Dessin du SED courant */
+    protected boolean drawImgSED(Graphics g) {
+       if( sed.getCount()==0 ) return false;
+       sed.draw(g);
+       drawBord(g);
+       return true;
     }
     
     /** Dessin du graphe de coupe */
@@ -601,8 +635,9 @@ try {
        // il s'agit d'une coupe en couleur, sinon d'une coupe en niveau de gris
        if( cut[0]!=-1 ) {
           g.setColor(Color.cyan);
-//          for( int i=1; i<SIZE-1; i++ ) gCut.drawLine(i-1,SIZE-hist[i-1],i,SIZE-hist[i]);
           for( int i=1; i<SIZE-1; i++ ) g.drawLine(i,SIZE-cut[i],i,SIZE);
+          g.setColor(Color.blue);
+          for( int i=1; i<SIZE-1; i++ ) g.drawLine(i,SIZE-cut[i-1],i,SIZE-cut[i]);
 
        } else {
           g.setColor(Color.red);
@@ -630,6 +665,7 @@ try {
        g.drawLine(1,cutY,4,cutY);
        g.drawLine(SIZE-4,cutY,SIZE,cutY);
        g.drawString(pixel,25,cutY<20?SIZE-2:10);
+//       Util.drawStringOutline(g, pixel,25,cutY<20?SIZE-2:10, Color.yellow, Color.black);
 
        // Tracage du trait repérant le FWHM en fonction de la position
        // courante de la souris dans le cut graph.
@@ -724,14 +760,13 @@ try {
        g.setColor(Color.black);
        g.drawLine(1,cutY,SIZE,cutY);
        g.drawString(pixel,10,cutY<20?cutY+10:cutY-2);
-
    }
     
     /** Suspension temporaire de l'affichage du cutGraph */
     protected void suspendCut() { flagCut=false; repaint(); }
     
     /** Retourne le Cote associée au cutGraph courant, null si aucune */
-    protected Obj getCut() { return objCut; }
+    protected Obj getObjCut() { return objCut; }
     
     protected void cutOff(Obj objCut) {
        if( objCut!=this.objCut ) return;
@@ -811,8 +846,80 @@ try {
       repaint();
    }
    
+   private String oSrcSed="";           // Source associé au dernier SED tracé
+   
+   protected void clearSED() { 
+      flagSED=false;
+      oSrcSed="";
+      aladin.view.simRep=null;
+      aladin.calque.repaintAll();
+   }
+   
+   /** Chargement et affichage d'un SED à partir d'un nom d'objet
+    * Si null, arrêt du SED précédent
+    * @param source
+    * @param simRep repere correspondant à l'objet dans la vue (si connu)
+    */
+   protected void setSED(String source) { setSED(source,null); }
+   protected void setSED(String source,Repere simRep) {
+      if( source==null ) source="";
+      if( oSrcSed.equals(source) ) return;
+      oSrcSed=source;
+      
+      // Arret du SED
+      if( source.length()==0 ) {
+         clearSED();
+         
+      // Chargement du SED
+      } else {
+         if( sed==null )  sed = new SED(aladin);
+         flagSED=true;
+         flagHist=false;
+         sed.setRepere(simRep);
+         sed.loadFromSource(source);
+      }
+      repaint();
+   }
+   
+   /** Chargement et affichage d'un SED à partir d'un objet étalon issu
+    * de la table des mesures. Il faut que le plan associé à l'objet étalon
+    * soit issu d'une table SED à la VizieR
+    * Si null, arrêt du SED précédent
+    * @param o
+    */
+   protected void setSED(Source o) {
+      String source=o==null?null:o.id;
+      if( source==null ) source="";
+//      if( oSrcSed.equals(source) ) return;
+      oSrcSed=source;
+      
+      // Arret du SED
+      if( source.length()==0 ) {
+         clearSED();
+         
+      // Chargement du SED
+      } else {
+         if( sed==null ) sed = new SED(aladin);
+         sed.clear();
+         flagSED=true;
+         flagHist=false;
+         sed.addFromIterator( aladin.mesure.iterator() );
+         sed.setSource(null);
+         sed.setHighLight(o);
+      }
+      repaint();
+
+   }
+   
+   /** Met à jour le SED si nécessaire, sinon le fait disparaitre */
+   protected void resumeSED() { 
+      Source s = aladin.mesure.getFirstSrc();
+      if( (s==null || !s.leg.isSED()) && !flagSED ) return;
+      setSED( s ); 
+    }
+   
    /** Arrêt de l'affichage de l'histogramme courant */   
-   protected void setHist() { 
+   protected void stopHist() { 
       if( !flagHist ) return;   // Déjà fait
       flagHist=false;
       aladin.view.flagHighlight=false;
@@ -841,6 +948,11 @@ try {
     */
    protected boolean setHist(Source o,int nField) {
       boolean rep=false;
+      
+      // pour annuler le précédent SED
+      flagSED=false;
+      oSrcSed="";
+      
       if( hist==null ) { hist = new Hist(aladin,SIZE,SIZE); rep=true; }
       rep |= hist.o!=o || hist.nField!=nField;
       flagHist=hist.init(o, nField);
@@ -1081,7 +1193,7 @@ try {
 
    private void drawInfo(Graphics g) {
    	  try {
-   	     Projection proj = aladin.view.getCurrentView().pref.projd;
+         Projection proj = aladin.view.getCurrentView().pref.projd;
    	     if( proj.isXYLinear() ) return;
          Calib c = proj.c;
          String w = Coord.getUnit(c.getImgWidth());
@@ -1132,6 +1244,9 @@ try {
    public void paintComponent(Graphics gr) {
       if( Aladin.NOGUI ) return;
       
+      // AntiAliasing
+      aladin.setAliasing(gr);
+      
       ViewSimple v = aladin.view.getCurrentView();
       
       if( v==null || v.isFree() ) {
@@ -1148,10 +1263,10 @@ try {
       else if( !flagdrag )  imgok = drawImgZoom(v);
       
       // L'histogramme
-      if( flagHist ) {
-         drawImgHist(gr);
-         return;
-      }
+      if( flagHist ) { drawImgHist(gr); return; }
+      
+      // Le SED
+      if( flagSED ) { if( drawImgSED(gr) ) return; }
       
       // Le graphe de coupe
       if( flagCut ) {
@@ -1228,19 +1343,25 @@ try {
          if( WENZOOM>8  ) gr.drawString("-",SIZE-11,SIZE-15);
          if( WENZOOM<64 )gr.drawString("+",SIZE-12,SIZE-5);
          
+         
          // Affichage des valeurs individuelles des pixels
          if( isPixelTable() && v.pref.type!=Plan.IMAGERGB ) {
             v = aladin.view.getMouseView();
-            int mode = aladin.view.getPixelMode();
             int i,j,x1,y1;
             int step= WENZOOM==32 ? 2 : 1;
-            gr.setFont( WENZOOM==32 ?  Aladin.SSPLAIN : Aladin.PLAIN );
+            gr.setFont( Aladin.BOLD );
+            gr.setColor( Color.black );
+            FontMetrics fm = gr.getFontMetrics();
             for( j=0, y1=ymwen-step; y1<=ymwen+step; y1++,j++) {
                for( i=0, x1=xmwen-step; x1<=xmwen+step; x1++,i++) {
-                  gr.setColor( y1==ymwen && x1==xmwen ? Color.red : Color.blue );
-                  String pix = ((PlanImage)v.pref).getPixelInfo(x1, y1, mode);
-                  gr.drawString(pix,i*WENZOOM+2,
-                        j*WENZOOM+WENZOOM/2-5+(i%2)*WENZOOM/3);
+                  int xx = i*WENZOOM+8;
+                  int yy = j*WENZOOM+2*WENZOOM/3-7+(i%2)*WENZOOM/2;
+                  String pix = ((PlanImage)v.pref).getPixelInfo(x1, y1, View.REALX);
+                  int w = fm.stringWidth(pix);
+                  Util.drawStringOutline(gr, pix, xx, yy, y1==ymwen && x1==xmwen ? Color.cyan : Color.white,Color.black);
+//                  Util.drawCartouche(gr, xx, yy-10, w, 13, 0.5f, null, Color.white);
+//                  gr.setColor( y1==ymwen && x1==xmwen ? Color.blue : Color.black );
+//                  gr.drawString(pix,xx,yy);
                }
             }
          }

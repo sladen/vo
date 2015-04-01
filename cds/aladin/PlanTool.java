@@ -23,8 +23,6 @@ import java.util.Enumeration;
 import java.util.Iterator;
 
 import cds.tools.VOApp;
-import cds.tools.VOObserver;
-
 
 /**
  * Plan dedie a des objets graphiques (TOOL)
@@ -36,7 +34,9 @@ import cds.tools.VOObserver;
  */
 public class PlanTool extends PlanCatalog {
    
-   protected Legende legPhot = null;
+   protected Legende legPhot    = null;
+   protected Legende legTag     = null;
+   protected Legende legPhotMan = null;
    
   /** Creation d'un plan de type TOOL
    * @param label le nom du plan (dans la pile des plans)
@@ -71,6 +71,49 @@ public class PlanTool extends PlanCatalog {
       flagOk     = true;
       askActive  = true;
    }
+   
+   public void updatePhotMan(Obj o) {
+      if( legPhotMan==null ) createPhotManuelLegende();
+
+      String [] val = { o.id, o.raj+"", o.dej+"", o.getRadius()+"", "","","","","","","" };
+      StringBuffer rep = new StringBuffer();
+      for( String s : val ) { 
+         if( rep.length()>0 ) rep.append('\t'); 
+         rep.append(s); 
+      }
+      o.id=rep.toString();
+      if( o instanceof Source ) ((Source)o).leg = legPhotMan;
+      
+      pcat.setObjetFast(o);
+      aladin.view.newView(1);
+   }
+
+   private void createPhotManuelLegende() {
+      setSourceRemovable(true);
+      legPhotMan = Legende.adjustDefaultLegende(legPhotMan,Legende.NAME,     new String[]{  "ID",  "RA (ICRS)","DE (ICRS)","Radius","Count",  "Sum",   "Mean",  "Sigma", "Area",  "Median" });
+      legPhotMan = Legende.adjustDefaultLegende(legPhotMan,Legende.DATATYPE, new String[]{  "char","char",     "char",     "double","integer","double","double","double","double","double"});
+      legPhotMan = Legende.adjustDefaultLegende(legPhotMan,Legende.UNIT,     new String[]{  "char","\"h:m:s\"","\"h:m:s\"","arcmin","pixel",  "",      "",      "",    "arcmin^2","" });
+      legPhotMan = Legende.adjustDefaultLegende(legPhotMan,Legende.WIDTH,    new String[]{  "15",   "13",      "13",       "10",    "10",     "10",    "10",    "10",  "10" });
+      legPhotMan = Legende.adjustDefaultLegende(legPhotMan,Legende.PRECISION,new String[]{  "",     "2",        "3",       "2",     "2",     "2",     "2",     "2",     "2" });
+      legPhotMan = Legende.adjustDefaultLegende(legPhotMan,Legende.DESCRIPTION,     
+            new String[]{  "Identifier",  "Right ascension",  "Declination","Radius","Pixel count","Sum of pixel values","Mean of pixel values","Sigma of pixel list","Area", "Median of pixel list" });
+      legPhotMan = Legende.adjustDefaultLegende(legPhotMan,Legende.UCD,      
+            new String[]{  "meta.id;meta.main","pos.eq.ra;meta.main","pos.eq.dec;meta.main","","","","","","","" });
+   }
+   
+   private void createTagLegende() {
+      setSourceRemovable(true);
+      legTag = Legende.adjustDefaultLegende(legTag,Legende.NAME,     new String[]{  "ID",  "RA (ICRS)","DE (ICRS)" });
+      legTag = Legende.adjustDefaultLegende(legTag,Legende.DATATYPE, new String[]{  "char","char",     "char",     });
+      legTag = Legende.adjustDefaultLegende(legTag,Legende.UNIT,     new String[]{  "char","\"h:m:s\"","\"h:m:s\"" });
+      legTag = Legende.adjustDefaultLegende(legTag,Legende.WIDTH,    new String[]{  "15",   "13",      "13",       });
+      legTag = Legende.adjustDefaultLegende(legTag,Legende.PRECISION,new String[]{  "",     "2",        "3",       });
+      legTag = Legende.adjustDefaultLegende(legTag,Legende.DESCRIPTION,     
+            new String[]{  "Identifier",  "Right ascension",  "Declination" });
+      legTag = Legende.adjustDefaultLegende(legTag,Legende.UCD,      
+            new String[]{  "meta.id;meta.main","pos.eq.ra;meta.main","pos.eq.dec;meta.main" });
+ 
+   }
 
    private void createPhotLegende() {
       setSourceRemovable(true);
@@ -95,8 +138,46 @@ public class PlanTool extends PlanCatalog {
 
    }
    
+   protected boolean Free() {
+      
+      // Pour suspendre éventuellement l'affichage des histogrammes
+      // associé à un objet contenu dans le plan
+      if( aladin.view.zoomview.flagCut || aladin.view.zoomview.flagHist ) {
+         Iterator<Obj> it = iterator();
+         while( it.hasNext() ) {
+            Obj o = it.next();
+            if( o.isSelected() ) o.remove();
+         }
+      }
+      return super.Free();
+   }
+   
    /** retourne true si le plan a des sources */
    protected boolean withSource() { return legPhot!=null; }
+   
+   public Source addTag(PlanImage planBase,double ra, double dec) {
+      if( legTag==null ) createTagLegende();
+      
+      String id = "Tag "+pcat.getNextID();
+      Coord c = new Coord(ra,dec);
+      String [] val = { id, c.getRA(), c.getDE() };
+      Source o1 = addTag(id, ra, dec, val);
+      o1.setShape(Obj.PLUS);
+      o1.setTag(true);
+      aladin.view.newView(1);
+      return o1;
+   }
+   
+   private Source addTag(String id,double ra, double dec, String [] value) {
+      StringBuffer s = new StringBuffer("<&_A>");
+      for( int i=0; i<value.length; i++ ) {
+         s.append("\t"+value[i]);
+      }
+      Source o = new Source(this,ra,dec,id,s.toString());
+      o.leg = legTag;
+      pcat.setObjetFast(o);
+      return o;
+   }
    
    public Source addPhot(PlanImage planBase,double ra, double dec, double []iqe) {
       if( legPhot==null ) createPhotLegende();
@@ -127,6 +208,23 @@ public class PlanTool extends PlanCatalog {
 
       if( type==NO ) return super.getInfo();
       return label+super.addDebugInfo();
+   }
+   
+   /** Modifie (si possible) une propriété du plan */
+   protected void setPropertie(String prop,String specif,String value) throws Exception {
+      if( prop.equalsIgnoreCase("movable") ) {
+         setMovable(value);
+      } else super.setPropertie(prop,specif,value);
+   }
+   
+   protected boolean movable=true; // True si les objets du plan peuvent être déplacés 
+
+   protected boolean isMovable() { return movable; }
+   
+   protected void setMovable(String v) throws Exception {
+      if( v.equalsIgnoreCase("On") ) movable=true;
+      else if( v.equalsIgnoreCase("Off") ) movable=false;
+      else throw new Exception("Syntax error => movable=on|off");
    }
 
    // Regeneration des libelles des reperes

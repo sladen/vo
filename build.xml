@@ -13,13 +13,14 @@
    <target name="compil" description="source compilation" >
      <mkdir dir="${bin}"/>
      <javac srcdir="${basedir}" destdir="${bin}"
-	    encoding="Cp1252" source="1.5" target="1.5" deprecation="off" >
+	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" >
        <classpath>
           <pathelement path="${java.class.path}/"/>
           <pathelement path="jsamp.jar"/>
           <pathelement path="microhub.jar"/>
           <pathelement path="Moc.jar"/>
           <pathelement path="jhealpixSmall.jar"/>
+          <pathelement path="cds.astro.jar"/>
       </classpath>
      </javac>
    </target>
@@ -31,6 +32,7 @@
 	    <zipfileset src="microhub.jar"/>
 	    <zipfileset src="Moc.jar"/>
 	    <zipfileset src="jhealpixSmall.jar"/>
+	    <zipfileset src="cds.astro.jar"/>
 	    <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*"/>
         <manifest>
            <attribute name="Main-Class" value="cds.aladin.Aladin" />

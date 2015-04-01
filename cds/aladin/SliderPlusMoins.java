@@ -63,6 +63,9 @@ public abstract class SliderPlusMoins extends JPanel implements MouseWheelListen
    JLabel label;
    Slider slider;
    JButton plus,moins;
+   int wheelIncr;
+   
+   public String toString() { return slider.toString(); }
    
    /**
     * Création d'un slider
@@ -72,12 +75,16 @@ public abstract class SliderPlusMoins extends JPanel implements MouseWheelListen
     * @param incr - valeur de l'incrément lors de l'usage du bouton + ou -
     */
    public SliderPlusMoins(Aladin aladin,String title, int min, int max, final int incr) {
+      this(aladin,title,min,max,incr,incr);
+   }
+      
+      
+   public SliderPlusMoins(Aladin aladin,String title, int min, int max, final int incr,int wheelIncr) {
       this.aladin = aladin;
       
       slider = new Slider(min,max,incr);
       
       label = new Lab(title);
-      label.setMinimumSize(new Dimension(140,4));
       label.setFont(Aladin.SBOLD);
       label.setBackground( slider.getBackground() );
 
@@ -88,6 +95,7 @@ public abstract class SliderPlusMoins extends JPanel implements MouseWheelListen
       });
 
       plus=b = new Bouton("+");
+      b.setFont(b.getFont().deriveFont((float)b.getFont().getSize()-1));
       b.addActionListener( new ActionListener() {
          public void actionPerformed(ActionEvent e) { submit(incr); }
       });
@@ -104,17 +112,18 @@ public abstract class SliderPlusMoins extends JPanel implements MouseWheelListen
       setEnabled(false);
       
       addMouseWheelListener(this);
+      this.wheelIncr=wheelIncr;
    }
    
    public void mouseWheelMoved(MouseWheelEvent e) {
       if( !enable ) return;
       if( e.getClickCount()==2 ) return;    // SOUS LINUX, J'ai un double évènement à chaque fois !!!
-      submit( -slider.incr*e.getWheelRotation() );
+      submit( -wheelIncr*e.getWheelRotation() );
       slider.repaint();
    }
    
    /** Récupère la valeur courant du slider */
-   public int getValue() { return slider.getValue(); }
+   public double getValue() { return slider.getValue(); }
    
    /** Positionne la valeur courante du slider */
    public void setValue(int v) { slider.setValue(v); }
@@ -146,7 +155,8 @@ public abstract class SliderPlusMoins extends JPanel implements MouseWheelListen
    boolean setMinMax(int min,int max) { return slider.setMinMax(min,max); }
    
    class Slider extends JPanel implements MouseMotionListener,MouseListener {
-      int min,max,value,incr;
+      int min,max,incr;
+      double value;
       Slider(int min, int max,int incr) {
          this.value=this.min=min;
          this.max=max;
@@ -155,8 +165,10 @@ public abstract class SliderPlusMoins extends JPanel implements MouseWheelListen
          addMouseMotionListener(this);
       }
       
-      int getValue() { return value; }
-      void setValue(int v) { value=v; repaint(); }
+      public String toString() { return "slider["+min+" .. "+max+"] => "+value; }
+      
+      double getValue() { return value; }
+      void setValue(double v) { value=v; repaint(); }
       
       boolean setMinMax(int min, int max) {
          if( this.min==min && this.max==max ) return false;
@@ -287,8 +299,9 @@ public abstract class SliderPlusMoins extends JPanel implements MouseWheelListen
    }
    
    class Lab extends JLabel {
-      public Lab(String s) { super(s); }
-      public Dimension getPreferredSize() {  return new Dimension(30,14); }
+      private int width=40;
+      public Lab(String s) { super(s==null?"":s); if( s==null ) width=0; }
+      public Dimension getPreferredSize() {  return new Dimension(width,14); }
    }
    
 }

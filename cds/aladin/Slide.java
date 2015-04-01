@@ -39,7 +39,7 @@ public final class Slide {
    // Les valeurs accociees aux differents elements graphiques
    static final int gapL =  Select.gapL; // Marge de gauche (reserve pour le triangle)
    static final int DX   =  Select.DX;   // Largeur d'un slide (hors tout)
-   static final int DY   =  18;	         // Hauteur d'un slide (hors tout)
+   static final int DY   =  19;	         // Hauteur d'un slide (hors tout)
    static final int DFOLDER=10;		     // Decalage niveau de folder
 
    static final int VIDE=0;
@@ -355,6 +355,21 @@ public final class Slide {
       g.setColor( Color.yellow );
       g.drawRect(dx+frX[2]-15,dy+frY[2]-8,5,5);
    }
+   
+   // Adaptation du logo pour un plan MOC
+   static void drawLogoMOC(Graphics g,int dx,int dy,Color c) {
+      int x = dx+gapL+10;//frX[2]/2;
+      int y = dy+3;
+      Grid.fillMOC(g,x,y,Color.white);
+      Grid.drawMOC(g, x, y, c);
+   }
+   
+   // Adaptation du logo pour un plan SED
+   static void drawLogoSED(Graphics g,int dx,int dy,Color c) {
+      int x = dx+gapL+8;
+      int y = dy+1;
+      Grid.drawSED(g, x, y, c);
+   }
 
    // Adaptation du logo pour un plan BGHPX
    static void drawLogoImgBG(Graphics g,int dx,int dy,Color c) {
@@ -386,6 +401,18 @@ public final class Slide {
    synchronized void setBlink(boolean f) {
       a.calque.select.setSlideBlink(f);
    }
+   
+   static protected void drawProportion(Graphics g,int x,int y, int width, int pourcent, Color c) {
+      int w = (int)( (pourcent/100.) * width);
+      g.setColor(c);
+      g.drawLine(x,y+2,x+width,y+2);
+      g.drawLine(x,y+3,x+width,y+3);
+      g.setColor( Color.green );
+      g.drawLine(x,y+2,x+w,y+2);
+      g.drawLine(x,y+3,x+w,y+3);
+      g.setColor(Color.gray);
+      g.drawRect(x,y+1,width,3);
+   }
 
    static protected void drawBall(Graphics g, int x,int y,Color c) {
       x+=4; y+=3;
@@ -396,7 +423,6 @@ public final class Slide {
       g.setColor(Color.white);
       g.fillRect(x-1,y-1,2,2);
    }
-
 
    // Dessin du voyant d'etat barre d'une croix
    static protected void drawCross(Graphics g, int x, int y) {
@@ -427,6 +453,7 @@ public final class Slide {
             yc = new int[frX.length];
             xc = new int[frX.length];
          }
+         
          // Calcul la taille des lettres
          int ht = Aladin.SIZE;
          
@@ -447,7 +474,7 @@ public final class Slide {
          // ref==true => repérage du plan
          boolean ref = xMouse<=0 && p.type!=Plan.NO && p.underMouse && a.view.isVisible(p) && a.view.isMultiView();
                   
-         // Decallage du logo en fonction de la position
+         // Decalage du logo en fonction de la position
          for( int i=0; i<frX.length; i++ ) yc[i]=frY[i]+dy;
          for( int i=0; i<frX.length; i++ ) xc[i]=frX[i]+dx;
          
@@ -461,14 +488,18 @@ public final class Slide {
          if(  mode!=DRAG && (
                ref || p.selected  || p.type!=Plan.NO && in(yMouse) && inLabel(xMouse)) ) {
             labelBG=(p.selected ? Aladin.STACKBLUE : Aladin.STACKGRAY );
+            g.setColor(labelBG.brighter());
+//            Graphics2D g2d = (Graphics2D)g;
+//            Paint p = g2d.getPaint();
+//            Paint gradient = new GradientPaint(x, y, labelBG.brighter().brighter(), x, y+H, labelBG);
+//            g2d.setPaint(gradient);
+            g.fillRect(x,y,W,H-2);
+//            g2d.setPaint(p);
             g.setColor(labelBG);
-            Graphics2D g2d = (Graphics2D)g;
-            Paint gradient = new GradientPaint(x, y, labelBG.brighter(), x, y+H, labelBG);
-            g2d.setPaint(gradient);
-            g.fillRect(x,y,W,H);
+            g.drawRect(x,y,W-1,H-2);
          } else if( mode!=DRAG ) {
             g.setColor(labelBG);
-            g.fillRect(x,y,W,H);
+            g.fillRect(x,y,W,H-2);
          }
          
          boolean isRefForVisibleView = p.isRefForVisibleView();
@@ -492,7 +523,7 @@ public final class Slide {
             xc[2]++; yc[2]++; 
          }
          
-//         int xPoignee=frMin+dx;
+         int xPoignee=frMin+dx;
 
          // Remplissage du pourcentage du plan (ajout thomas : remplissage pour PlanContour et pour PlanFilter)
          if( (p.isImage() || p.type==Plan.TOOL && p instanceof PlanContour || p instanceof PlanBG )
@@ -514,7 +545,7 @@ public final class Slide {
             if( canBeTransparent ) {
                float transp = p.getOpacityLevel();
                if( transp!=0 ) {
-                  fillTransparency(g,xc,yc,transp,p.active,colorFillFG); 
+                  xPoignee=fillTransparency(g,xc,yc,transp,p.active,colorFillFG); 
 //                  xPoignee=fillTransparency(g,xc,yc,transp,p.active || p.isImage(),colorFillFG ); 
                }
             }
@@ -581,21 +612,22 @@ public final class Slide {
          switch( p.type ) {
             case Plan.IMAGE:
             case Plan.IMAGEALGO:
-            case Plan.IMAGERSP:    drawLogoImg(g,dx,dy,colorForeground);                   break;
+            case Plan.IMAGERSP:    drawLogoImg(g,dx,dy,colorForeground);                      break;
             case Plan.IMAGECUBERGB:
-            case Plan.IMAGERGB:    drawLogoImg(g,dx,dy,null);                              break;
-            case Plan.IMAGEHUGE:   drawLogoImgHuge(g,dx,dy,colorForeground);               break;
-            case Plan.ALLSKYMOC:
+            case Plan.IMAGERGB:    drawLogoImg(g,dx,dy,null);                                 break;
+            case Plan.IMAGEHUGE:   drawLogoImgHuge(g,dx,dy,colorForeground);                  break;
+            case Plan.ALLSKYMOC:   drawLogoMOC(g,dx,dy,isViewable?p.c:colorFillFG);           break;
             case Plan.ALLSKYCAT:   drawLogoImgBG(g,dx,dy,isViewable?p.c:colorFillFG);         break;
             case Plan.ALLSKYIMG:   drawLogoImgBG(g,dx,dy,isViewable?Color.black:colorFillFG); break;
             case Plan.ALLSKYPOL:   drawLogoPolarisation(g,dx,dy,isViewable?p.c:colorFillFG);  break;
             case Plan.IMAGEMOSAIC:
-            case Plan.IMAGECUBE:
-            case Plan.IMAGEBLINK:  drawLogoImg(g,dx,dy,Color.black);                       break;
+            case Plan.IMAGECUBE: 
+            case Plan.IMAGEBLINK:  drawLogoImg(g,dx,dy,Color.black);                          break;
             case Plan.APERTURE:
-            case Plan.TOOL:        drawLogoTool(g,dx,dy,colorForeground);                  break;
-            case Plan.CATALOG:     drawLogoCat(g,dx,dy,colorForeground);                   break;
-            case Plan.FILTER:      drawLogoFilter(g,dx,dy,p.active,false,Color.black,Color.black);     break;
+            case Plan.TOOL:        drawLogoTool(g,dx,dy,colorForeground);                     break;
+            case Plan.CATALOG:     if( p.isSED() ) drawLogoSED(g,dx,dy,colorForeground);
+                                   else drawLogoCat(g,dx,dy,colorForeground);                 break;
+            case Plan.FILTER:      drawLogoFilter(g,dx,dy,p.active,false,Color.black,Color.black); break;
          }
          
          // Affichage de la checkbox
@@ -615,7 +647,7 @@ public final class Slide {
          
          // Dessin de la checkbox de contrôle de la référence si nécessaire
           drawCheckBox(g,3, dy+3, xMouse,yMouse, mode, p);
-    
+          
          // Les barres d'appartenance à un folder    
          if( mode!=DRAG && p.folder>0 ) {
             Plan [] allPlan = a.calque.getPlans();
@@ -666,7 +698,7 @@ public final class Slide {
                      && (p.c.equals(Couleur.DC[7]) || p.c.equals(Couleur.DC[8])) ) g.setColor(Color.white);
                else g.setColor(p.c);
             } catch( Exception e) {}
-            g.drawString(p.getLabel(),x,py);
+            g.drawString(p.getLabel(),x,py-1);
             
            //le voyant d'état
             if( mode!=DRAG ) {
@@ -676,12 +708,13 @@ public final class Slide {
                      || p instanceof PlanBG ) {
                   if( p.error!=null ) {
                      boolean hasObj = p.pcat!=null && p.pcat.hasObj();
-                     if( p.hasNoReduction() && (!p.isSimpleCatalog() || hasObj)) drawBall(g,px,py-9,Color.orange);
+                     if( p.hasNoReduction() && (!p.isSimpleCatalog() || hasObj)) drawBall(g,px,py-9,Aladin.ORANGE);
                      else if( p.isSimpleCatalog() && !hasObj ) drawCross(g,px1,py-9);
+                     else if( p instanceof PlanMoc && ((PlanMoc)p).getMoc().getSize()==0 ) drawCross(g,px1,py-9);
                      else drawBall(g,px1,py-9,Color.red);
                   } else {
                      boolean flag=false;
-                     Color green = p instanceof PlanBG && ((PlanBG)p).hasMoreDetails() ? Color.green : Aladin.GREEN ;
+                     Color green = p instanceof PlanBG && ((PlanBG)p).hasMoreDetails() ? Aladin.LIGHTORANGE : Color.green; // Color.green: Aladin.GREEN ;
                      if( !p.flagOk ||
                            ( (p instanceof PlanContour) && (((PlanContour)p).mustAdjustContour)) ||
                            (flag=(p.flagProcessing 
@@ -693,32 +726,38 @@ public final class Slide {
                         
                         setBlink(true);
                         
-                     } else if( p instanceof PlanBG  && p.active ) drawBall(g,px,py-9, green );
+                     } else {
+                        if( p instanceof PlanBG  && p.active ) {
+                           drawBall(g,px,py-9, green );
+                         }
+                     }
+                     if( p.getCompletude()>=0 && p.active ) drawProportion(g,x+60,py-1,Select.sizeLabel+10-60,(int)p.getCompletude(),green);
                   }
                }
             }
+
          }
          
          // Le curseur de réglage de la transparence
-//         if( mode!=DRAG && canBeTransparent ) {
-//            int largeur = 3;
-//            int debut = frX[1];
-//            int fin = frX[2];
-//            int haut = frY[1];
-//            int xPos = xPoignee;
-//            if( xPos<dx+debut+largeur ) xPos = dx+debut+largeur;
-//            if( xPos>dx+fin-largeur ) xPos = dx+fin-largeur;
-//            g.setColor( Color.black );
-//            g.drawLine( dx+debut,dy+haut,dx+fin,dy+haut);
-//            g.drawLine( dx+debut,dy+haut+1,dx+fin,dy+haut+1);
-//            float transp = p.getOpacityLevel();
-////            g.setColor( transp<=0.1 ? Color.white : transp>=0.9 ? Color.green : Color.yellow);
-//            g.setColor( transp<=0.1 ? Color.red : Color.green );
-//            g.fillRect(xPos-1,dy+haut-largeur,largeur,largeur*2+1);
-//            g.setColor(Color.black);
-//            g.drawRect(xPos-1,dy+haut-largeur,largeur,largeur*2+1);
-//         }
-
+         if( mode!=DRAG && canBeTransparent ) {
+            int largeur = 3;
+            int debut = frX[1];
+            int fin = frX[2];
+            int haut = frY[1];
+            int xPos = xPoignee;
+            if( xPos<dx+debut+largeur ) xPos = dx+debut+largeur;
+            if( xPos>dx+fin-largeur ) xPos = dx+fin-largeur;
+            g.setColor( Color.black );
+            g.drawLine( dx+debut,dy+haut,dx+fin,dy+haut);
+            g.drawLine( dx+debut,dy+haut+1,dx+fin,dy+haut+1);
+            float transp = p.getOpacityLevel();
+//            g.setColor( transp<=0.1 ? Color.white : transp>=0.9 ? Color.green : Color.yellow);
+            g.setColor( transp<=0.1 ? Color.red : Color.green );
+            g.fillRect(xPos-1,dy+haut-largeur,largeur,largeur*2+1);
+            g.setColor(Color.black);
+            g.drawRect(xPos-1,dy+haut-largeur,largeur,largeur*2+1);
+         }
+         
       } catch( Exception e ) { e.printStackTrace(); }
    }
    

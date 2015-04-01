@@ -65,6 +65,10 @@ public final class HeaderFits {
        readFreeHeader(s);
     }
 
+    public HeaderFits(String s,FrameHeaderFits frameHeaderFits) throws Exception {
+       readFreeHeader(s,false,frameHeaderFits);
+    }
+
     public HeaderFits(MyInputStream dis,FrameHeaderFits frameHeaderFits) throws Exception {
        readHeader(dis,frameHeaderFits);
     }
@@ -183,7 +187,7 @@ public final class HeaderFits {
             linesRead++;
             if( key.equals("END" ) ) break;
             if( frameHeaderFits!=null ) frameHeaderFits.appendMHF(new String(buffer,0));
-            if( buffer[8] != '=' /* || buffer[9] != ' ' */ ) continue;
+            if( buffer[8] != '=' ) continue;
             value=getValue(buffer);
 //Aladin.trace(3,key+" ["+value+"]");
             header.put(key, value);
@@ -216,7 +220,7 @@ public final class HeaderFits {
    }
 
    /** Recherche d'un caractère c dans buf à partir de la position from. Retourne
-    * la position courante si on trouve un \n avant et que l'on atteind la limite finLigne
+    * la position courante si on trouve un \n avant et que l'on atteint la limite finLigne
     * ou buf.length. Dans le cas de recherche du caractère '/' (pour les commentaires FITS),
     * il est ignoré s'il se trouve dans une chaine quotée par '
     * @param buf buffer de recherche
@@ -247,39 +251,55 @@ public final class HeaderFits {
    public boolean readFreeHeader(String s) { return readFreeHeader(s,false,null); }
    public boolean readFreeHeader(String s,boolean specialDSS,FrameHeaderFits frameHeaderFits) {
       alloc();
+      int len=79;
       char buf [] = s.toCharArray();
       int i=0;
       String key,value,com;
       int a,b,c;
       while( i<buf.length ) {
+         
+         // Cas particulier d'une ligne vide
+         c=getPos(buf,i,i+len,'\n');
+         if( (new String(buf,i,c-i)).trim().length()==0 ) {
+            if( frameHeaderFits!=null ) frameHeaderFits.appendMHF("");
 
          // Cas particulier pour COMMENT XXXX
-         if( buf.length>i+7 && (new String(buf,i,7)).equals("COMMENT") ) {
+         } else if( buf.length>i+7 && (new String(buf,i,7)).equals("COMMENT") ) {
             a=i+7;
-            c = getPos(buf,a,i+79,'\n');
+            c = getPos(buf,a,i+len,'\n');
             com = (c-a>0) ? (new String(buf,a+1,c-a-1)).trim() : "";
-            if( frameHeaderFits!=null ) frameHeaderFits.appendMHF((new String(Save.getFitsLine(com))).trim());
+            if( frameHeaderFits!=null ) frameHeaderFits.appendMHF((new String(Save.getFitsLineComment(com))).trim());
 
-         // Cas général
+         // Cas particulier pour HISTORY XXXX
+         } else if( buf.length>i+7 && (new String(buf,i,7)).equals("HISTORY") ) {
+               a=i+7;
+               c = getPos(buf,a,i+len,'\n');
+               com = (c-a>0) ? (new String(buf,a+1,c-a-1)).trim() : "";
+               if( frameHeaderFits!=null ) frameHeaderFits.appendMHF((new String(Save.getFitsLineHistory(com))).trim());
+
+            // Cas général
          } else {
-            a = getPos(buf,i,i+79,'=');
-            b = getPos(buf,a,i+79,'/');
-            c = getPos(buf,b,i+79,'\n');
-            key = new String(buf,i,a-i).trim();
-            value = (b-a>0 ) ? (new String(buf,a+1,b-a-1)).trim() : "";
-            com = (c-b>0) ? (new String(buf,b+1,c-b-1)).trim() : "";
-//System.out.println(i+":"+a+"["+key+"]="+b+"["+value+"]/"+c+"["+com+"]");
-//            if( key.equals("END") ) value=com=null;
-            
-            if( key.equals("END") ) break;
-            
-            // Dans le cas d'une entête DSS dans un fichier ".hhh" il ne faut pas retenir les mots
-            // clés concernant l'astrométrie de la plaque entière
-//            if( !( specialDSS && (key.startsWith("AMD") || key.startsWith("PLT"))) ) {
+            a = getPos(buf,i,i+len,'=');
+            b = getPos(buf,a,i+len,'/');
+            c = getPos(buf,b,i+len,'\n');
+            if( i!=a || i!=b || i!=c ) {
+               key = new String(buf,i,a-i).trim();
+               value = (b-a>0 ) ? (new String(buf,a+1,b-a-1)).trim() : "";
+               com = (c-b>0) ? (new String(buf,b+1,c-b-1)).trim() : "";
+               //System.out.println(i+":"+a+"["+key+"]="+b+"["+value+"]/"+c+"["+com+"]");
+               if( key.equals("END") ) {
+                  value=com=null;
+                  break;
+               }
+               
+               // Dans le cas d'une entête DSS dans un fichier ".hhh" il ne faut pas retenir les mots
+               // clés concernant l'astrométrie de la plaque entière
+               //            if( !( specialDSS && (key.startsWith("AMD") || key.startsWith("PLT"))) ) {
                header.put(key, value);
                keysOrder.addElement(key);
-//            }
-            if( frameHeaderFits!=null ) frameHeaderFits.appendMHF((new String(Save.getFitsLine(key, value, com))).trim());
+               //            }
+               if( frameHeaderFits!=null ) frameHeaderFits.appendMHF((new String(Save.getFitsLine(key, value, com))).trim());
+            }
          }
          i=c+1;
       }
@@ -293,17 +313,17 @@ public final class HeaderFits {
    // HORRIBLE PATCH (Pierre)
    // Dans le cas des entêtes .hhh associées aux imagettes DSS, il y a souvent deux calibrations, non compatibles
    // dans ce cas, je supprime celle de la plaque et je ne garde que celle de l'imagette.
-   private void purgeAMDifRequired() {
-      if( header.get("CRPIX1")==null ) return; 
-      
-      System.err.println("*** Double calibration on DSS image => remove AMD/PLT one");
-      Vector<String> nKeysOrder = new Vector<String>();
-      for( String key : keysOrder ) {
-         if( key.startsWith("AMD") || key.startsWith("PLT") ) header.remove(key);
-         else nKeysOrder.addElement(key);
-      }
-      keysOrder = nKeysOrder;
-   }
+//   private void purgeAMDifRequired() {
+//      if( header.get("CRPIX1")==null ) return; 
+//      
+//      System.err.println("*** Double calibration on DSS image => remove AMD/PLT one");
+//      Vector<String> nKeysOrder = new Vector<String>();
+//      for( String key : keysOrder ) {
+//         if( key.startsWith("AMD") || key.startsWith("PLT") ) header.remove(key);
+//         else nKeysOrder.addElement(key);
+//      }
+//      keysOrder = nKeysOrder;
+//   }
 
    /**
     * Teste si un mot clé est présent dans l'entête
@@ -416,19 +436,38 @@ public final class HeaderFits {
     * comme à l'origine - les commentaires ne sont pas restitués 
     * @return le nombre d'octets écrits */
    public int writeHeader(OutputStream os ) throws Exception {
-      int n=0;
+      int n=keysOrder.size()*80;
+      byte [] b= getEndBourrage(n);
+      byte buf [] = new byte[n + b.length];
+      
+      int m=0;
       Enumeration e = keysOrder.elements();
       while( e.hasMoreElements() ) {
          String key = (String)e.nextElement();
          String value = (String) header.get(key);
          if( value==null ) continue;
-         os.write( getFitsLine(key,value) );
-         n+=80;
+         System.arraycopy(getFitsLine(key,value),0,buf,m,80 );
+         m+=80;
       }
-      byte [] b= getEndBourrage(n);
+      System.arraycopy(b,0,buf,m,b.length);
       n+=b.length;
-      os.write(b);
+      os.write(buf);
       return n;
+      
+//      int n=0;
+//      Enumeration e = keysOrder.elements();
+//      while( e.hasMoreElements() ) {
+//         String key = (String)e.nextElement();
+//         String value = (String) header.get(key);
+//         if( value==null ) continue;
+//         os.write( getFitsLine(key,value) );
+//         n+=80;
+//      }
+//      byte [] b= getEndBourrage(n);
+//      n+=b.length;
+//      os.write(b);
+//      return n;
+
    }
 
    /** Génération de la fin de l'entête FITS, càd le END et le byte de bourrage
@@ -545,10 +584,13 @@ public final class HeaderFits {
 
   /** Allocation ou réallocation des structures de mémorisation */
   protected void alloc() {
-     if( header!=null && keysOrder!=null ) return;
+//     if( header!=null && keysOrder!=null ) return;
      header = new Hashtable(200);
      keysOrder = new Vector(200);
   }
+  
+  /** Retourne la taille mémoire approximative */
+  public long getMem() { return 16+(keysOrder==null?0:keysOrder.size()*50); }
 
 
 

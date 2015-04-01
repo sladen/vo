@@ -191,7 +191,7 @@ protected int loadFits(String filename) throws Exception {
          if( parente<8 && isTooLarge(b) ) {
             int  n=drawPolarisationFils(g,v,parente+1);
             resetTimer();
-            resetTimeAskRepaint();
+//            resetTimeAskRepaint();
             return n;
          }
 
@@ -254,10 +254,9 @@ protected int loadFits(String filename) throws Exception {
             }
          }
 
-         drawLosangeBorder(g,b);
+//         drawLosangeBorder(g,b);
          return 1;
       } catch( Exception e ) {
-         e.printStackTrace();
          return 0;
       }
    }

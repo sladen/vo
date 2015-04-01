@@ -873,7 +873,7 @@ public final class FilterProperties extends Properties implements MouseListener,
 		filterDef.setText(pf.script);
 
         // affichage dans la console de la commande script équivalente
-        aladin.console.setCommand("filter "+pf.label+" {\n"+pf.script+"\n}");
+        aladin.console.printCommand("filter "+pf.label+" {\n"+pf.script+"\n}");
 	 }
 
 	 private void apply() {
@@ -902,7 +902,7 @@ public final class FilterProperties extends Properties implements MouseListener,
             beginnerCbg.setSelected(new JButton().getModel(), true);
 
 	        // affichage dans la console de la commande script équivalente
-	        aladin.console.setCommand("filter "+pf.label+" {\n"+pf.script+"\n}");
+	        aladin.console.printCommand("filter "+pf.label+" {\n"+pf.script+"\n}");
         }
         else {
         	// NB : pour le mode beginner, l'affichage dans la console
@@ -946,11 +946,8 @@ public final class FilterProperties extends Properties implements MouseListener,
 
          // Submit PLAN
 		 if( APPLY.equals(what) ) apply();
-
-		 else if( CLOSE.equals(what) ) dispose();
-
+         else if( CLOSE.equals(what) ) dispose();
 		 else if (CAVEAT.equals(what)) Aladin.info(this, getCaveat());
-
 		 else if( MATHS.equals(what) ) showMathHelper();
 
 		 // action sur un des CheckBox pour choisir un filtre en mode Beginner
@@ -960,7 +957,7 @@ public final class FilterProperties extends Properties implements MouseListener,
 
          else if( what.equals(RAINBOWCM)) {
              double[] minmax = pf.getUCDFilter().getRainbowMinMax();
-             aladin.view.showRainbowFilter(ColorMap.getRainbowCM(), minmax[0], minmax[1]);
+             aladin.view.showRainbowFilter(ColorMap.getRainbowCM(false), minmax[0], minmax[1]);
              aladin.view.getCurrentView().rainbowF.setTitle(pf.label);
 
              aladin.view.getCurrentView().repaint();
@@ -1405,7 +1402,7 @@ public final class FilterProperties extends Properties implements MouseListener,
             p = aladin.calque.plan[i];
             if( p.isCatalog() ) {
                Iterator<Obj> it = p.iterator();
-               while( it.hasNext() ) {
+               while( it!=null && it.hasNext() ) {
                   Obj o1 = it.next();
                   if( !(o1 instanceof Source) ) continue;
                   s = (Source)o1;

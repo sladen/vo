@@ -125,7 +125,7 @@ public class PlanCatalog extends Plan {
       setLabel(label);
       this.objet = objet;
       this.param = param;
-      this.from  = from;
+      this.copyright  = from;
       headerFits=null;
       this.server=server;
       if( server!=null ) {
@@ -195,7 +195,7 @@ public class PlanCatalog extends Plan {
    }
 
    /** Retourne le nombre d'objects */
-   protected int getCounts() { return pcat==null ? 0 : pcat.getCounts(); }
+   protected int getCounts() { return pcat==null ? 0 : pcat.getCount(); }
 
    protected Obj [] getObj() {
       return pcat.o;
@@ -212,7 +212,7 @@ public class PlanCatalog extends Plan {
          setFilter(value);
       } else super.setPropertie(prop,specif,value);
    }
-
+   
    protected boolean setActivated() {
       if( !hasSources() ) return false;
       return super.setActivated();
@@ -282,7 +282,7 @@ public class PlanCatalog extends Plan {
 
    /** Retourne la liste des légendes des tables qui composent le catalogue */
    protected Vector<Legende> getLegende() {
-      Vector<Legende> leg = new Vector(10);
+      Vector<Legende> leg = new Vector<Legende>(10);
       Iterator<Obj> it = iterator();
       while( it.hasNext() ) {
          Obj o = it.next();
@@ -309,60 +309,9 @@ public class PlanCatalog extends Plan {
 
    /** Retourne la progression du chargement */
     protected String getProgress() {
-       if(!flagOk && error==null ) return " - "+pcat.getCounts() + " object"+(pcat.getCounts()<=1?"":"s")+" - in progress...";
+       if(!flagOk && error==null ) return " - "+pcat.getCount() + " object"+(pcat.getCount()<=1?"":"s")+" - in progress...";
        return super.getProgress();
     }
-
-   /**
-	*
-	* @return true if there are at least one source with one associated source
-	*/
-	protected boolean hasAssociatedFootprints() {
-	   Iterator<Obj> it = iterator();
-	   while( it.hasNext() ) {
-          Obj o = it.next();
-          if( !(o instanceof Source) ) continue;
-          Source s = (Source)o;
-	      if( s.getFootprint() != null) return true;
-	   }
-	   return false;
-	}
-
-	/**
-	 * Shows or hides all footprints associated to sources in the plane
-	 * @param show
-	 */
-	protected void showFootprints(boolean show) {
-	   Iterator<Obj> it = iterator();
-	   while( it.hasNext() ) {
-          Obj o = it.next();
-          if( !(o instanceof Source) ) continue;
-          Source s = (Source)o;
-	      // TODO : ici, on va faire un repaint pour chaque source, à changer !!
-	      s.setShowFootprint(show);
-	   }
-
-	   aladin.calque.repaintAll();
-	}
-
-
-	// thomas, pour realloc des objets constituant un footprint associé
-	protected void reallocFootprintCache() {
-	   if( pcat==null ) return;   //PF 06/07/2006 - en cas de Free concurrent
-	   Iterator<Obj> it = iterator();
-	   while( it.hasNext() ) {
-          Obj o = it.next();
-          if( !(o instanceof Source) ) continue;
-          Source s = (Source)o;
-	      if( s.getFootprint()!=null ) {
-	          PlanField pf = s.getFootprint().getFootprint();
-	          if (pf != null) {
-	              pf.pcat.reallocObjetCache();
-	          }
-	      }
-	   }
-
-	}
 
 	 /** retourne true si le plan a des sources */
 	 protected boolean hasSources() { return pcat!=null && pcat.hasObj(); }
@@ -408,7 +357,7 @@ public class PlanCatalog extends Plan {
 	  "<DESCRIPTION>\n" +
 	    "VizieR Astronomical Server: vizier.u-strasbg.fr  2010-07-01T11:59:16\n" +
 	    "Explanations and Statistics of UCDs:         See LINK below\n" +
-	    "In case of problem, please report to:    question@simbad.u-strasbg.fr\n" +
+	    "In case of problem, please report to:    cds-question@unistra.fr\n" +
 	  "</DESCRIPTION>\n" +
 	 "<!-- VOTable description at http://www.ivoa.net/Documents/latest/VOT.html -->\n" +
 	 "<DEFINITIONS>\n" +

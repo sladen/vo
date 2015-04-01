@@ -336,6 +336,7 @@ public class Position extends Obj {
       yv[v.n] += dy;
       setCoord(v);
   }
+   
 
    /** Application d'une rotation (relative)
     * @param theta angle de rotation en radians
@@ -563,7 +564,7 @@ public class Position extends Obj {
             )) {
          pix=Double.NaN;
       } else {
-         pix= ((PlanImage)v.pref).getPixelInDouble(x,y);
+         pix= pi.getPixelInDouble(x,y);
       }
       
       double zoom = v.getZoom();
@@ -656,7 +657,7 @@ public class Position extends Obj {
     protected void statDraw(Graphics g,ViewSimple v,int dx, int dy) {
        
        // Juste pour afficher le débugging des losanges HEALPix couvrant
-       if( v.pref instanceof PlanBG && ((PlanBG)v.pref).DEBUGMODE )  { statCompute(g,v); return; } 
+//       if( v.pref instanceof PlanBG && ((PlanBG)v.pref).DEBUGMODE )  { statCompute(g,v); return; } 
 
        if( !v.flagPhotometry || !v.pref.hasAvailablePixels() || v.pref instanceof PlanImageRGB ) return;
 

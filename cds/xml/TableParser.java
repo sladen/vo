@@ -34,10 +34,12 @@ import cds.tools.Util;
 /**
  * Parser de tables
  * Accepte aussi bien du TSV natif, du TSV à la mode SkyCat,
- * du CSV, de l'ASCII simple (colonnes séparées par des espaces)
- * du AstroRes, du VOTable, du VOTable avec CSV encapsulé,
- * du FITS ASCII, du FITS BINTABLE
+ * du CSV, du IPAC, de l'ASCII simple (colonnes séparées par des espaces)
+ * du AstroRes, du VOTable, du VOTable avec CSV encapsulé, VOTable base64,
+ * du FITS ASCII, du FITS BINTABLE, ...
  * 
+ * @version 3.0 - avr 13 - BINARY correction + BINARY2
+ * @version 2.4 - 2009 - Support pour VOTable 1.2
  * @version 2.3 - déc 06 - correction bug <TD/>
  * @version 2.2 - avril 06 - Support pour le CSV et le FITS ASCII ou BINTABLE
  * @version 2.1 - déc 05 - Prise en compte de l'erreur "a la SIAP"
@@ -70,9 +72,13 @@ final public class TableParser implements XMLConsumer {
    private XMLParser xmlparser;	      // parser XML
    private int nField;	      	      // Numéro de champ courant
    private int nRecord;               // Numéro de l'enregistrement courant
-   private int nRA,nDEC;	      	  // Numéro de la colonne RA et DEC (-1 si non encore trouvée)
+   private int nRA,nDEC;              // Numéro de la colonne RA et DEC (-1 si non encore trouvée)
+   private int nPMRA,nPMDEC;          // Numéro de la colonne PMRA et PMDEC (-1 si non encore trouvée)
    private int nX,nY;	      	      // Numéro de la colonne X et Y (-1 si non encore trouvée)
-   private int qualRA,qualDEC;	      // La qualité de détection des colonnes RA et DEC (1000 mauvais, 0 excellent)
+   private String sFreq,sFlux,sFluxErr,sSedId; // ID des colonnes portant les valeurs d'un point SED
+   private int nFreq,nFlux,nFluxErr,nSedId; // Numéro des colonnes correspondantes
+   private int qualRA,qualDEC;        // La qualité de détection des colonnes RA et DEC (1000 mauvais, 0 excellent)
+   private int qualPMRA,qualPMDEC;    // La qualité de détection des colonnes RA et DEC (1000 mauvais, 0 excellent)
    private int qualX,qualY;	          // La qualité de détection des colonnes X et Y (1000 mauvais, 0 excellent)
    private Field f;		              // Le champ courant
    private Vector<Field> memoField;   // Mémorisation des Fields en cas de parsing binaire ultérieur
@@ -87,6 +93,7 @@ final public class TableParser implements XMLConsumer {
    private boolean inFieldDesc=false; // true si on est dans un tag <FIELD><DESCRIPTION>
    private boolean inEncode64=false;  // true si on est dans un tag <STREAM encode="base64">
    private boolean inBinary=false;    // true si on est dans un tag <BINARY>
+   private boolean inBinary2=false;   // true si on est dans un tag <BINARY2>
    private boolean inFits=false;      // true si on est dans un tag <FITS>
    private boolean inGroup=false;     // true si on est dans un group
    private int fitsExtNum;            // Numéro de l'extension fits en cas de <FITS extnum="x">
@@ -116,8 +123,9 @@ final public class TableParser implements XMLConsumer {
    private String astroCoordsID;      // Dernier ID d'une définition d'un système de coordonnées
    private Astroframe srcAstroFrame = null;     // Systeme de coord initial
    private Astroframe trgAstroFrame = AF_ICRS;  // System de coord final
-   private Astrocoo c = new Astrocoo();         // coord courante
+   private Astropos c = new Astropos();         // coord courante
    private String filter;          // Le filtre en cours de parsing, null sinon
+   private boolean inSEDGroup;     // true si on est dans un GROUP de définition d'un point SED
 
    // Pour le traitement des tables FITS
    private HeaderFits headerFits;
@@ -157,19 +165,20 @@ final public class TableParser implements XMLConsumer {
       MyInputStream in = aladin.glu.getMyInputStream(uri,false);
       
       // Cas BINARY HREF
-      if( inBinary ) {
+      if( inBinary || inBinary2 ) {
+         consumer.tableParserInfo("\nParsing VOTable data from an external"+(inBinary2?" BINARY2":" BINARY")+" stream:\n => "+uri);
          byte [] buf = in.readFully();
-         parseBin(buf,0,buf.length);
+         parseBin(buf,0,buf.length,inBinary2);
          
 //         byte [] buf = new byte[100000];
 //         int n;
-//         while( (n=in.readFully(buf))>0 ) parseBin(buf,0,n);
+//         while( (n=in.readFully(buf))>0 ) parseBin(buf,0,n,inBinary2);
          
       // Cas FITS HREF
       } else if( inFits ) {
          
          aladin.calque.seekFitsExt(in,fitsExtNum);
-         Aladin.trace(2,"Parsing VOTable data from a FITS stream ("+uri+") (ext="+fitsExtNum+")");
+         consumer.tableParserInfo("\nParsing VOTable data from a FITS stream:\n => "+uri+(fitsExtNum>0?" (ext="+fitsExtNum+")":""));
          in.resetType(); in.getType();
          headerFits = new HeaderFits(in);
          parseFits(in,true);
@@ -184,13 +193,18 @@ final public class TableParser implements XMLConsumer {
     * @param len taille du segment à parser
     * @throws Exception
     */
-   private void parseBase64(char ch[],int pos, int len) throws Exception {
-      if( memoField!=null ) consumer.tableParserInfo("\nFound VOTable base64 encoded STREAM data");
+   private void parseBase64(char ch[],int pos, int len,boolean inBinary2) throws Exception {
+      if( memoField!=null ) consumer.tableParserInfo("\nParsing VOTable data from a"+(inBinary2?" BINARY2":" BINARY")+" base64 stream");
       byte b[] = new byte[len];   // un peu grand mais bon !
       int offset = 0;
-      if( memoB!=null ) System.arraycopy(memoB,0,b,0,offset=memoB.length);
+      if( memoB!=null ) {
+         System.out.println("memoB!=null !! memoB.length="+memoB.length);
+         b = new byte[len+memoB.length]; 
+         System.arraycopy(memoB,0,b,0,offset=memoB.length);
+         memoB=null;
+      } else b = new byte[len];
       int n = Save.get64(b,offset,ch,pos,len);
-      parseBin(b,0,n);
+      parseBin(b,0,n,inBinary2);
    }
    
    // Variables d'instance en cas de parseBin consécutifs
@@ -200,7 +214,9 @@ final public class TableParser implements XMLConsumer {
    private int [] prec=null;
    private int sizeRecord=0;
    private int nbField=0;
-   private byte[] memoB = null;
+   private byte[] memoB = null;         // Memorisation du reste du flux à reprendre en cas de reprise
+   private byte [] nullMask = null;     // mask BINARY2 de la ligne courante
+   private boolean maskRead=false;      // true si le mask BINARY2 de la ligne courante a déjà été lu
 
    
    /** Parsing d'un champ de bits issu d'un STREAM BINAIRE votable. Le parsing peut se faire
@@ -210,9 +226,10 @@ final public class TableParser implements XMLConsumer {
     * @param b Le tableau d'octets
     * @param offset La position du début des données
     * @param length La taille des données
+    * @param inBinary2 true => Votable 1.3 BINARY2 codage
     * @return true si ok, false sinon
     */
-   private boolean parseBin(byte b[],int offset, int length) throws Exception {
+   private boolean parseBin(byte b[],int offset, int length,boolean inBinary2) throws Exception {
       
       if( memoField!=null ) {
          nbField = memoField.size();
@@ -220,7 +237,10 @@ final public class TableParser implements XMLConsumer {
          pos = new int[nbField];
          len = new int[nbField];
          prec = new int[nbField];
+         if( inBinary2 ) nullMask = new byte[( nbField+7)/8 ];
          nField=nRecord = 0;
+         
+         boolean variableField=false;
       
          for( int i=0; i<nbField; i++ ) {
             Field f = memoField.elementAt(i);
@@ -230,9 +250,21 @@ final public class TableParser implements XMLConsumer {
             }
             type[i]=t.charAt(0);
             len[i] = 1;
-            try { len[i] = Integer.parseInt(f.arraysize); } catch( Exception e ) { len[i]=1; }
-            if( i<nbField-1 ) pos[i+1] = pos[i] + binSizeOf(type[i],len[i]);
-            else sizeRecord = pos[i] + binSizeOf(type[i],len[i]);
+            
+            // Champ variable => len=-1, sizeRecord=-1
+            if( f.arraysize!=null && f.arraysize.equals("*") ) {
+               len[i]=-1; 
+               sizeRecord=-1;
+               variableField=true;
+            }  else {
+               try { len[i] = Integer.parseInt(f.arraysize); } catch( Exception e ) { len[i]=1; }
+            }
+
+            if( !variableField ) {
+               if( i<nbField-1 ) pos[i+1] = pos[i] + binSizeOf(type[i],len[i]);
+               else sizeRecord = pos[i] + binSizeOf(type[i],len[i]);
+            } else pos[i]=-1;
+            
             prec[i]=6;
             try { prec[i] = Integer.parseInt(f.precision); } catch( Exception e ) { prec[i]=6; }
 //System.out.println("Field "+i+" type="+type[i]+" pos="+pos[i]+" len="+len[i]+" prec="+prec[i]);         
@@ -242,33 +274,93 @@ final public class TableParser implements XMLConsumer {
 //System.out.println("length="+length+" sizeRecord="+sizeRecord);      
       }
       
-//System.out.println("parseBin nRecord="+nRecord+" nField="+nField);
+//System.out.println("\nparseBin position="+offset+" length="+length+" nRecord="+nRecord+" nField="+nField);
 
       // Parsing du buffer (on reprend éventuellement là où on en était)
       int position=offset;
       while( position<length ) {
-         if( nField==nbField ) nField=0;
-         int nextPosition = position + ((nField==nbField-1 ? sizeRecord : pos[nField+1]) - pos[nField]);
+         if( nField==nbField ) {
+            nField=0;
+//System.out.print(nRecord+": ");
+         }
+         
+         // En BINARY2, il faut lire le masque de bits en préambule de la ligne
+         if( inBinary2 && nField==0 && !maskRead ) {
+
+            // Y a-t-il encore au-moins assez de bytes ? 
+            // sinon ce sera pour la prochaine fois
+            int n = length-position;
+            if( n<nullMask.length ) {
+//               System.out.println("Memo de "+n+" bytes pour la prochaine lecture à cause du nullMask..");
+               memoB = new byte[n];
+               System.arraycopy(b,position,memoB,0,n);
+               return true;
+            }
+
+            System.arraycopy(b, position, nullMask, 0, nullMask.length);
+            position+=nullMask.length;
+            maskRead=true;
+         } else maskRead=false;
+         
+         int nbBytes = len[nField]==-1 ? -1 : binSizeOf(type[nField], len[nField]);
+         
+         // Champ variable ?
+         if( nbBytes==-1 ) {
+            
+            // Y a-t-il encore au-moins 4 bytes ? sinon ce sera pour la prochaine fois
+            int n = length-position;
+            if( n<4 ) {
+//               System.out.println("Memo de "+n+" bytes pour la prochaine lecture à cause de la longueur d'un champ variable..");
+               memoB = new byte[n];
+               System.arraycopy(b,position,memoB,0,n);
+               return true;
+            }
+            nbBytes = getInt(b, position);
+            position+=4;
+         }
+         
+         // Le flux à du bourrage à la fin, avec en plus un champ variable
+         if( nbBytes==0 ) {
+            return true;
+         }
+         int nextPosition = position + nbBytes;
          
          // Dernier champ non complet => on le garde pour la prochaine fois
          if( nextPosition>length ) {
+            // Dans le cas d'un champ variable, il faut également garder sa taille
+            if( len[nField]==-1 ) position-=4;
             int n = length-position;
+//            System.out.println("Memo de "+n+" bytes pour la prochaine lecture à cause d'un champ non complet..");
             memoB = new byte[n];
             System.arraycopy(b,position,memoB,0,n);
             return true;
          }
          
-         record[nField] = getBinField(b,position,len[nField],
-                type[nField],prec[nField], 0.,1.,false,0);
-//if( nRecord==7822 ) System.out.println(nRecord+"/"+nField+" ["+position+"] =>"+record[nField]);         
+         
+         // Est-ce un champ null ?  
+         if( inBinary2 && isNull(nullMask,nField) ) record[nField]="null";
+         
+         // Sinon 
+         else record[nField] = getBinField(b,position, len[nField]==-1 ? nbBytes : len[nField], type[nField],prec[nField], 0.,1.,false,0);
+         
+//System.out.print(" "+nbBytes+"/"+record[nField]);
          position = nextPosition;
          nField++;
-         if( nField==nbField ) consumeRecord(record,nRecord++);
+         if( nField==nbField ) {
+            consumeRecord(record,nRecord++);
+//System.out.println();
+         }
       }
-      
-//System.out.println("J'ai terminé nRecord="+nRecord+" nField="+nField);      
             
       return true;
+   }
+   
+   static final int MASK[] = { 1<<7, 1<<6, 1<<5, 1<<4, 1<<3, 1<<2, 1<<1, 1 };
+   
+   private boolean isNull(byte [] nullMask, int nField) {
+      int nByte = nField/8;
+      int nBit = nField%8;
+      return ( (0xFF & nullMask[ nByte ]) & MASK[nBit]) != 0;
    }
    
    /** Parsing d'une table Fits ASCII ou BINTABLE
@@ -513,10 +605,8 @@ final public class TableParser implements XMLConsumer {
                      // cas BINAIRE
                   } else {
 //                     String val = 
-                        record[j] = getBinField(buf,offset+pos[j],len[j],type[j],prec[j],
-                           flagTzeroTscal?tzero[j]:0.,
-                                 flagTzeroTscal?tscal[j]:1.,
-                                       tnull[j]!=null,tinull[j]);                  
+                     record[j] = getBinField(buf,offset+pos[j],len[j],type[j],prec[j],
+                           flagTzeroTscal?tzero[j]:0., flagTzeroTscal?tscal[j]:1., tnull[j]!=null,tinull[j]);
 //                     System.out.println("Lecture champ "+(j+1)+" pos="+pos[j]+" type="+len[j]+type[j]+" => "+val);
                   }
                }
@@ -564,8 +654,12 @@ final public class TableParser implements XMLConsumer {
             type=='M'? 16:
             type=='P'? 8:
             0;
+      if( sizeOf==0 ) {
+         System.out.println("Problème sérieux pour ["+type+"]");
+      }
       return sizeOf * n;
    }
+   
    
    /**
     * Conversion d'un champ d'octets en valeur sont la forme d'un String
@@ -579,12 +673,12 @@ final public class TableParser implements XMLConsumer {
     * @return la chaine correspondante à la valeur
     */
    final private String getBinField(byte t[],int i, int n, char type,
-                                    int prec, double tzero,double tscale,
-                                    boolean hasNull,int tnull) {
+         int prec, double tzero,double tscale,
+         boolean hasNull,int tnull) {
       if( n==0 ) return "";
       if( type=='A' ) return getStringTrim(t,i,n);
       if( n==1 ) return getBinField(t,i,type,prec,tzero,tscale,hasNull,tnull);
-      
+
       StringBuffer a=null;
       for( int j=0; j<n; j++ ) {
          if( j==0 ) a = new StringBuffer();
@@ -593,7 +687,7 @@ final public class TableParser implements XMLConsumer {
       }
       return a+"";
    }
-   
+
    final private String getBinField(byte t[],int i, char type,int p,double z,double s,
          boolean hasNull, int n) {
       
@@ -601,6 +695,8 @@ final public class TableParser implements XMLConsumer {
       return a;
    }
    
+
+
    /**
     * Conversion d'un champ d'octets en valeur sont la forme d'un String
     * @param t le tableau des octets
@@ -620,12 +716,12 @@ final public class TableParser implements XMLConsumer {
       
       switch(type) {
          case 'L': return t[i]!=0 ? "T":"F";
-         case 'B': return fmt( ((t[i])&0xFF),p,z,s,hasNull,n);
-         case 'I': return fmt( getShort(t,i),p,z,s,hasNull,n);
-         case 'J': return fmt( getInt(t,i),p,z,s,hasNull,n);
+         case 'B': return fmtInt( ((t[i])&0xFF),p,z,s,hasNull,n);
+         case 'I': return fmtInt( getShort(t,i),p,z,s,hasNull,n);
+         case 'J': return fmtInt( getInt(t,i),p,z,s,hasNull,n);
          case 'K': a = (((long)getInt(t,i))<<32) 
                           | (((long)getInt(t,i+4))&0xFFFFFFFFL);
-                   return fmt(a,p,z,s,hasNull,n);
+                   return fmtLong(a,p,z,s,hasNull,n);
          case 'E': return fmt( Float.intBitsToFloat( getInt(t,i) ),p,z,s );
          case 'D': a = (((long)getInt(t,i))<<32)
                           | (((long)getInt(t,i+4))& 0xFFFFFFFFL);
@@ -657,7 +753,7 @@ final public class TableParser implements XMLConsumer {
     * @param tnull la valeur pour non définie
     * @return la valeur formatée
     */
-   final private String fmt(long x,int prec,double tzero,double tscale,
+   final private String fmtInt(long x,int prec,double tzero,double tscale,
                             boolean hasNull,int tnull)  {
       if( hasNull && tnull==x ) return "";
       double y=x;
@@ -665,6 +761,39 @@ final public class TableParser implements XMLConsumer {
       if( tzero!=0.  ) y+=tzero;
       if( prec>=0 ) y= Util.round(y,prec);
       
+      if( y!=x ) return y+"";
+      return x+"";
+   }
+
+   /**
+    * Mise en forme d'un entier long
+    * @param x l'entier à traiter
+    * @param prec la précision à afficher (-1 si non précisée)
+    * @param tzero le décallage
+    * @param tscale le changement d'échelle
+    * @param hasNull true s'il y a une valeur tnull définie
+    * @param tnull la valeur pour non définie
+    * @return la valeur formatée
+    */
+   final private String fmtLong(long x,int prec,double tzero,double tscale,
+                            boolean hasNull,int tnull)  {
+      if( hasNull && tnull==x ) return "";
+      if( tscale==1 && tzero==0 ) return x+"";
+      
+      // Calcul entier (la précision n'est pas prise en compte)
+      if( (long)tscale==tscale && (long)tzero==tzero ) {
+         long y=x;
+         if( tscale!=1. ) y*=(long)tscale;
+         if( tzero!=0.  ) y+=(long)tzero;
+         return y+"";
+      }
+      
+      // Calcul réel
+      double y=x;
+      if( tscale!=1. ) y*=tscale;
+      if( tzero!=0.  ) y+=tzero;
+      if( prec>=0 ) y= Util.round(y,prec);
+
       if( y!=x ) return y+"";
       return x+"";
    }
@@ -723,6 +852,10 @@ final public class TableParser implements XMLConsumer {
     * @return chaine extraite trimmée
     */
    static final public String getStringTrim(byte s[],int offset,int len) {      
+      if( len<0 || offset+len>s.length ) {
+         System.err.println("problem s.length="+s.length+" offset="+offset+" len="+len+" !!");
+         return new String(s,offset,s.length-offset);
+      }
       return (new String(s,offset,len)).trim();
 //      int deb,fin,j;
 //      for( deb=offset, j=0; j<len && (s[deb]==BLB || s[deb]==TABB); deb++, j++);
@@ -763,7 +896,6 @@ final public class TableParser implements XMLConsumer {
     * @throws Exception
     */
    public boolean parse(MyInputStream dis) throws Exception {
-//      if( (typeFmt & MyInputStream.IPAC)!=0 ) return parseIPAC(dis);
       if( headerFits!=null ) return parseFits(dis,false);
       return parse(dis,null);
    }
@@ -797,8 +929,8 @@ final public class TableParser implements XMLConsumer {
     * à parser.
     */
    private void initTable() {
-      nRA=nDEC=nX=nY=-1;
-      qualRA=qualDEC=qualX=qualY=1000; // 1000 correspond au pire
+      nRA=nDEC=nPMRA=nPMDEC=nX=nY=-1;
+      qualRA=qualDEC=qualRA=qualDEC=qualX=qualY=1000; // 1000 correspond au pire
       format = FMT_UNKNOWN;
 //      flagSexa=false;	// Par défaut on suppose des coord. en degrés
 //      knowFormat=false; // Par défaut on ne connait pas le format des coord.
@@ -808,6 +940,7 @@ final public class TableParser implements XMLConsumer {
       flagNewTable=true;
       astroCoordsID=null;
       inAstroCoords=false;
+      inSEDGroup=false;
    }
 
   /** Retourne le message d'erreur du parsing, ou null si ok */
@@ -851,6 +984,7 @@ final public class TableParser implements XMLConsumer {
     */
    public void startElement (String name, Hashtable atts) {
       String att;
+      String id;
       String v;
 //      int depth = xmlparser.getStack().size();
       int depth = xmlparser.getDepth(); 
@@ -869,6 +1003,7 @@ final public class TableParser implements XMLConsumer {
          // et également pour prendre en compte la méthodes suivante:
          // <GROUP ID="id" utype="stc:AstroCoords" ref="ivo://STClib/CoordSys#UTC-ICRS-TOPO"...>
          att =  (String)atts.get("utype");
+         id = (String)atts.get("ID");
          if( att!=null && (att.equalsIgnoreCase("stc:AstroCoords") 
                || att.equalsIgnoreCase("stc:AstroCoordSystem") || att.equalsIgnoreCase("stc:CatalogEntryLocation")) ) {
             inAstroCoords=true;
@@ -876,9 +1011,27 @@ final public class TableParser implements XMLConsumer {
             v = (String)atts.get("ref");
             if( v!=null && astroCoordsID!=null ) coosys.put(astroCoordsID,v);
          }
+         
+         else if( att!=null && att.equalsIgnoreCase("spec:PhotometryPoint") 
+               || id!=null && id.equals("gsed")) {
+//            System.out.println("J'ai trouvé un GROUP SED");
+            inSEDGroup=true;
+         }
+                  
          return;
       }      
       depth-=ngroup;
+      
+      // Positionnement des ID de colonnes portant les valeurs d'un point SED
+      if( inSEDGroup && name.equalsIgnoreCase("FIELDref")) {
+         att =  (String)atts.get("utype");
+         if( att!=null ) {
+            if( att.equalsIgnoreCase("photdm:PhotometryFilter.SpectralAxis.Coverage.Location.Value") ) sFreq = (String)atts.get("ref");
+            else if( att.equalsIgnoreCase("spec:PhotometryPoint") ) sFlux = (String)atts.get("ref");
+            else if( att.equalsIgnoreCase("spec:PhotoMetryPointError") ) sFluxErr = (String)atts.get("ref");
+            else if( att.equalsIgnoreCase("photdm:PhotometryFilter.identifier") ) sSedId = (String)atts.get("ref");
+         }
+      }
       
       // Support systèmes de coordonnées du genre:
       // <GROUP ID="Coo1" utype="stc:AstroCoords" >
@@ -891,7 +1044,7 @@ final public class TableParser implements XMLConsumer {
          
          // Pas d'ID pour le système de coord, on en invente un
          if( astroCoordsID==null ) {
-            astroCoordsID = "_ASTROID_"+(ASTROID++);
+            astroCoordsID = "_DEFAULTID_"+(ASTROID++);
          }
          
          if( name.equalsIgnoreCase("PARAM") ) {
@@ -909,18 +1062,58 @@ final public class TableParser implements XMLConsumer {
             }
 
             else if( att!=null &&
-                  (att.equalsIgnoreCase("stc:AstroCoords.SpaceFrame.Epoch") || att.equalsIgnoreCase("stc:AstroCoords.Position2D.Epoch") )) {
+                  (att.equalsIgnoreCase("stc:AstroCoords.SpaceFrame.Epoch") 
+                || att.equalsIgnoreCase("stc:AstroCoords.Position2D.Epoch") )) {
                v = (String)atts.get("value");
                if( v!=null ) {
 //                  consumer.tableParserInfo("   -"+att+" => "+v);
+                  
+                  // Peut être le B ou le J est-il déjà renseigné séparément ?
+                  if( !Character.isDigit( v.charAt(0) ) ) {
+                     String s = cooepoch.get(astroCoordsID);
+                     if( s!=null && s.length()==1 ) v=s+v;
+                  }
                   cooepoch.put(astroCoordsID,v);
                }
             }
 
+            else if( att!=null && att.equalsIgnoreCase("stc:AstroCoords.Position2D.Epoch.yearDef") ) {
+               v = (String)atts.get("value");
+               if( v!=null ) {
+//                  consumer.tableParserInfo("   -"+att+" => "+v);
+                  
+                  // Peut être l'année a-t-elle déjà été renseignée ?
+                  String s = cooepoch.get(astroCoordsID);
+                  if( s!=null && Character.isDigit( s.charAt(0) ) ) {
+                     v=v+s;
+                  }
+                  cooepoch.put(astroCoordsID,v);
+               }
+            }
+            
             else if( att!=null && att.equalsIgnoreCase("stc:AstroCoordSystem.SpaceFrame.CoordRefFrame.Equinox") ) {
                v = (String)atts.get("value");
                if( v!=null ) {
 //                  consumer.tableParserInfo("   -"+att+" => "+v);
+                  
+                  // Peut être le B ou le J est-il déjà renseigné séparément ?
+                  if( !Character.isDigit( v.charAt(0) ) ) {
+                     String s = cooequinox.get(astroCoordsID);
+                     if( s!=null && s.length()==1 ) v=s+v;
+                  }
+                  cooequinox.put(astroCoordsID,v);
+               }
+            }
+            else if( att!=null && att.equalsIgnoreCase("stc:AstroCoordSystem.SpaceFrame.CoordRefFrame.Equinox.yearDef") ) {
+               v = (String)atts.get("value");
+               if( v!=null ) {
+//                  consumer.tableParserInfo("   -"+att+" => "+v);
+                  
+                  // Peut être l'année a-t-elle déjà été renseignée ?
+                  String s = cooequinox.get(astroCoordsID);
+                  if( s!=null && Character.isDigit( s.charAt(0) ) ) {
+                     v=v+s;
+                  }
                   cooequinox.put(astroCoordsID,v);
                }
             }
@@ -1031,7 +1224,7 @@ final public class TableParser implements XMLConsumer {
                if( (att=(String)atts.get("name"))!=null ) consumer.setTableInfo("name",att);
                
             } else if( name.equalsIgnoreCase("COOSYS") ) {
-               String id=(String)atts.get("ID");
+               id=(String)atts.get("ID");
                if( id!=null ) {
                   if( (att=(String)atts.get("system"))!=null ) coosys.put(id,att);
                   if( (att=(String)atts.get("epoch"))!=null ) cooepoch.put(id,att);
@@ -1042,6 +1235,11 @@ final public class TableParser implements XMLConsumer {
          case 4:
             if( name.equalsIgnoreCase("FIELD") ) {
                if( inGroup ) { resetGroup(); inGroup=false; }
+               f = new Field(atts);
+               
+	    // POUR LE MOMENT ON EN FAIT RIEN
+	    // Juste pour faire l'allocation de l'objet, sinon il va y avoir des null references
+            } else if( name.equalsIgnoreCase("PARAM") ) {
                f = new Field(atts);
                
             } else if( name.equalsIgnoreCase("DATA") ) {
@@ -1058,6 +1256,9 @@ final public class TableParser implements XMLConsumer {
                f.addInfo("refText",(String)atts.get("title"));
                inLinkField=true;
 
+            } else if( name.equalsIgnoreCase("VALUES") ) {
+               f.nullValue = (String)atts.get("null");
+               
             } else if( name.equalsIgnoreCase("DESCRIPTION") ) {
                inFieldDesc=true;
                
@@ -1067,7 +1268,8 @@ final public class TableParser implements XMLConsumer {
                recsep=(String)atts.get("recsep");
                headlines=(String)atts.get("headlines");
             } else if( name.equalsIgnoreCase("BINARY") ) inBinary=true;
-              else if( name.equalsIgnoreCase("FITS") ) {
+            else if( name.equalsIgnoreCase("BINARY2") ) inBinary2=true;
+            else if( name.equalsIgnoreCase("FITS") ) {
                  inFits=true;
                  if( (att=(String)atts.get("extnum"))!=null ) {
                     fitsExtNum = Integer.parseInt(att);
@@ -1089,10 +1291,22 @@ final public class TableParser implements XMLConsumer {
    
    /** Determine si le catalogue dispose de coord., ou de position XY en fonction
     * des valeurs nRA,nDE,nX et nY
+    * On en profite pour passer les infos sur les IDs des colonnes portant les mesures
+    * d'un point de SED.
     */
    private void posChooser() {
       
+      
       inAstroCoords=false;
+      
+      if( inSEDGroup ) {
+         consumer.tableParserInfo("   -SED system found:");
+         if( sFreq!=null )    consumer.tableParserInfo("      .frequence col #"+nFreq+1);
+         if( sFlux!=null )    consumer.tableParserInfo("      .flux col      #"+nFlux+1);
+         if( sFluxErr!=null ) consumer.tableParserInfo("      .fluxError col #"+nFluxErr+1);
+         if( sSedId!=null )   consumer.tableParserInfo("      .SEDid col     #"+nSedId+1);
+         inSEDGroup=false;
+      }
       
       // Par défaut, ce sera du ICRS
       srcAstroFrame=null;
@@ -1102,13 +1316,18 @@ final public class TableParser implements XMLConsumer {
          else consumer.setTableInfo("__XYPOS","true");
       }
       
-      consumer.setTableRaDecXYIndex(nRA,nDEC,nX,nY, qualRA==1000 || qualDEC==1000 );
+      consumer.setTableRaDecXYIndex(nRA,nDEC,nPMRA,nPMDEC,nX,nY, qualRA==1000 || qualDEC==1000 );
       if( flagXY ) consumer.tableParserInfo("   -assuming XY positions (column "+(nX+1)+" for X and "+(nY+1)+" for Y)");
       else if( nRA>=0 ) {
          consumer.tableParserInfo("   -assuming RADEC"+(format==FMT_UNKNOWN?" " : (format==FMT_SEXAGESIMAL?" in sexagesimal":" in degrees"))+
                " (column "+(nRA+1)+" for RA and "+(nDEC+1)+" for DEC)");
+         if( nPMRA>=0 ) {
+            consumer.tableParserInfo("   -Proper motion fields found"+
+                  " (column "+(nPMRA+1)+" for PMRA and "+(nPMDEC+1)+" for PMDEC)");
+         }
       }
       consumer.tableParserInfo("      [RA="+nRA+" ("+qualRA+") DE="+nDEC+" ("+qualDEC+") "+
+            "PMRA="+nPMRA+" ("+qualPMRA+") PMDEC="+nPMDEC+" ("+qualPMDEC+") "+
             "X="+nX+" ("+qualX+") Y="+nY+" ("+qualY+")]");
       
       if( coosys!=null && coosys.size()>0 ) {
@@ -1196,7 +1415,7 @@ final public class TableParser implements XMLConsumer {
       if( ref==null ) ref="null";
       
       if( srcAstroFrame!=null ) { 
-         c = new Astrocoo(srcAstroFrame);
+         c = new Astropos(srcAstroFrame);
          consumer.tableParserInfo("      => RA/DEC coordinate conversion: ref=\""+ref+"\" => "+srcAstroFrame+" to "+trgAstroFrame);
       } else {
          consumer.tableParserInfo("      => RA/DEC coordinate system used: ref=\""+ref+"\" => "+trgAstroFrame);
@@ -1238,7 +1457,10 @@ final public class TableParser implements XMLConsumer {
       if( format==FMT_SEXAGESIMAL ) {
          try {
             char ss = dec.charAt(0);
-            c.set(ra+( ss!='-' && ss!='+' ? " +":" " )+dec); }
+            String s;
+            if( ss=='-' || ss=='+' ) s=ra+" "+dec;
+            else s=ra+" +"+dec;
+            c.set(s); }
          catch( Exception e ) {
             if( Aladin.levelTrace>3 ) e.printStackTrace();
          } 
@@ -1247,12 +1469,13 @@ final public class TableParser implements XMLConsumer {
       } else {
          try { c.set( Double.parseDouble(ra), Double.parseDouble(dec)); }
          catch( Exception e ) {
-            if( Aladin.levelTrace>=3 ) e.printStackTrace();
+//            if( Aladin.levelTrace>=3 ) e.printStackTrace();
          } 
       }
       
       return format;
    }
+   
 
   /** Retourne true si la coord. passée en paramètre est du sexagésimal.
    * Test simplement s'il y a plus d'un séparateur de champ */
@@ -1279,16 +1502,25 @@ final public class TableParser implements XMLConsumer {
       if( s.equalsIgnoreCase("RA(ICRS)") ) return 3;
       if( s.equalsIgnoreCase("RA") )       return 4;
       if( s.equalsIgnoreCase("ALPHA_J2000") ) return 5;
+      if( s.equalsIgnoreCase("GLON") )  { setGal(); return 0; }
+      if( s.equalsIgnoreCase("SGLON") ) { setSGal(); return 0; }
+      if( s.equalsIgnoreCase("SLON") )  { setSGal(); return 0; }
+      if( s.equalsIgnoreCase("ELON") )  { setEcl();  return 0; }
       return -1;
    }
 
    /** Retourne un indice entre 0 (meilleur) et 9 en fonction de la présence
     * d'une sous chaine RA dans le nom de colonne (-1 sinon) */
    private int raSubName(String s) {
-      if( s.indexOf("RADIUS")>=0 || s.indexOf("Radius")>=0 || s.indexOf("radius")>=0 ) return -1;
-      if( s.startsWith("_RA") || s.startsWith("_ra") ) return 0;
-      if( s.startsWith("RA") || s.startsWith("ra") )   return 1;
-//      if( s.indexOf("RA")>0 || s.indexOf("ra")>0 )     return 2;
+      s = s.toLowerCase();
+      if( s.indexOf("radius")>=0 ) return -1;
+      if( s.startsWith("_ra") ) return 0;
+      if( s.startsWith("ra") )   return 1;
+      if( s.startsWith("alpha") ) return 2;
+      if( s.startsWith("GLON") )  { setGal();  return 0; }
+      if( s.startsWith("SGLON") ) { setSGal(); return 0; }
+      if( s.startsWith("SLON") )  { setSGal(); return 0; }
+      if( s.startsWith("ELON") )  { setEcl();  return 0; }
       return -1;
    }
 
@@ -1308,19 +1540,69 @@ final public class TableParser implements XMLConsumer {
       if( s.equalsIgnoreCase("DE") )        return 8;
       if( s.equalsIgnoreCase("DEC") )       return 9;
       if( s.equalsIgnoreCase("DELTA_J2000") ) return 9;
+      if( s.equalsIgnoreCase("GLAT") )  { setGal();  return 0; }
+      if( s.equalsIgnoreCase("SGLAT") ) { setSGal(); return 0; }
+      if( s.equalsIgnoreCase("SLAT") )  { setSGal(); return 0; }
+      if( s.equalsIgnoreCase("ELAT") )  { setEcl();  return 0; }
       return -1;
    }
 
    /** Retourne un indice entre 0 (meilleur) et 9 en fonction de la présence
     * d'une sous chaine DE dans le nom de colonne (-1 sinon) */
    private int deSubName(String s) {
-      if( s.startsWith("_DEC") || s.startsWith("_dec") ) return 0;
-      if( s.startsWith("_DE") || s.startsWith("_de") )   return 1;
-      if( s.startsWith("DEC") || s.startsWith("dec") )   return 2;
-      if( s.startsWith("DE") || s.startsWith("de") )     return 3;
-      if( s.indexOf("DE")>0 || s.indexOf("de")>0 )       return 4;
+      s = s.toLowerCase();
+      if( s.startsWith("_dec") ) return 0;
+      if( s.startsWith("_de") )  return 1;
+      if( s.startsWith("dec") )  return 2;
+      if( s.startsWith("de") )   return 3;
+      if( s.indexOf("de")>0 )    return 4;
+      if( s.startsWith("delta") )return 5;
+      if( s.startsWith("GLAT") )  { setGal();  return 0; }
+      if( s.startsWith("SGLAT") ) { setSGal(); return 0; }
+      if( s.startsWith("SLAT") )  { setSGal(); return 0; }
+      if( s.startsWith("ELAT") )  { setEcl();  return 0; }
       return -1;
    }
+   
+   private void setGal()  { srcAstroFrame = AF_GAL;  coosys.put("Default","GAL"); }
+   private void setSGal() { srcAstroFrame = AF_SGAL; coosys.put("Default","SGAL"); }
+   private void setEcl()  { srcAstroFrame = AF_ECLI; coosys.put("Default","ECL"); }
+   
+   /** Retourne un indice entre 0 (meilleur) et 9 en fonction de la reconnaissance
+    * ou non du nom d'une colonne en tant que PMRA,
+    * (-1 s'il ne s'agit a priori pas de cela)
+    */
+   private int pmraName(String s) {
+      if( s.equalsIgnoreCase("PMRA") )  return 0;
+      return -1;
+   }
+
+   /** Retourne un indice entre 0 (meilleur) et 9 en fonction de la présence
+    * d'une sous chaine PMRA dans le nom de colonne (-1 sinon) */
+   private int pmraSubName(String s) {
+      s = s.toLowerCase();
+      if( s.startsWith("pmra") ) return 0;
+      return -1;
+   }
+
+   /** Retourne un indice entre 0 (meilleur) et 9 en fonction de la reconnaissance
+    * ou non du nom d'une colonne en tant que PMDEC,
+    * (-1 s'il ne s'agit a priori pas de cela)
+    */
+   private int pmdecName(String s) {
+      if( s.equalsIgnoreCase("PMDE") )  return 0;
+      if( s.equalsIgnoreCase("PMDEC") ) return 1;
+      return -1;
+   }
+
+   /** Retourne un indice entre 0 (meilleur) et 9 en fonction de la présence
+    * d'une sous chaine PMDEC dans le nom de colonne (-1 sinon) */
+   private int pmdecSubName(String s) {
+      s = s.toLowerCase();
+      if( s.startsWith("pmde") ) return 0;
+      return -1;
+   }
+
 
    /** Retourne un indice entre 0 (meilleur) et 9 en fonction de la reconnaissance
     * ou non du nom d'une colonne en tant que X,
@@ -1369,10 +1651,25 @@ final public class TableParser implements XMLConsumer {
       if( (s.startsWith("Y") || s.startsWith("y")) && !Character.isLetterOrDigit(s.charAt(1))) return 3;
       return -1;
    }
+   
+   /** Cherche à déterminer si f concerne une mesure pour un point SED en
+    * fonction des ID de colonnes repérés lors du parsing de l'entête du VOTable
+    * lorsqu'il a rencontré le GROUP qui décrivait le point de SED
+    * @param f
+    */
+   private void detectSEDField(Field f,int nField) {
+      String name = f.ID!=null ? f.ID : f.name;
+      if( name == null ) return;
+           if( sFreq!=null    && name.equals(sFreq)    ) { f.sed=Field.FREQ;    nFreq=nField; }
+      else if( sFlux!=null    && name.equals(sFlux)    ) { f.sed=Field.FLUX;    nFlux=nField; }
+      else if( sFluxErr!=null && name.equals(sFluxErr) ) { f.sed=Field.FLUXERR; nFluxErr=nField; }
+      else if( sSedId!=null   && name.equals(sSedId)   ) { f.sed=Field.SEDID;   nSedId=nField; }
+      else return;
+   }
 
-  /** Cherche à determiner si f concerne RA,DE,X ou Y en mettant à jour
-   * les indices de qualité (qualRA, qualDEC, qualX, qualY) et mémorise
-   * le numéro du champ si la qualité est meilleure (nRA,nDEC,nX,nY)
+  /** Cherche à determiner si f concerne RA,DE,PMRA,PMDEC, X ou Y en mettant à jour
+   * les indices de qualité (qualRA, qualDEC, qualPMRA, qualPMDEC, qualX, qualY) 
+   * et mémorise le numéro du champ si la qualité est meilleure (nRA,nDEC,nPMRA,nPMDEC,nX,nY)
    * La règle empirique est la suivante :
    * Priorité à l'UCD, sinon au nom de colonne + unité, sinon à une portion
    * du nom de colonne + unité, sinon au nom de colonne, sinon à une portion
@@ -1436,6 +1733,46 @@ final public class TableParser implements XMLConsumer {
       if( qual>0 && nRA==nField-1 && nRA>=0 ) qual--;
       
       if( qual>=0 && qualDEC>qual ) { nDEC=nField; qualDEC=qual; }
+      
+      // Détection du PMRA et évaluation de la qualité de cette détection
+      qual=-1;
+      if( ucd.equals("POS_PMRA") || ucd.equals("pos.pm;pos.eq.ra") ) {
+         try { (new Unit(unit)).convertTo(new Unit("mas/yr")); qual=0; }
+         catch( Exception e ) { qual=1; }
+      }
+      else if( (n=pmraName(name))>=0 ) {
+         if( ucd.startsWith("pos.pm") ) qual=200+n;
+         else {
+            try { (new Unit(unit)).convertTo(new Unit("mas/yr")); qual=300+n; }
+            catch( Exception e ) { qual=600+n; }
+         }
+      }
+      else if( (n=pmraSubName(name))>=0 ) {
+         if( ucd.startsWith("pos.pm") ) qual=400+n;
+         else {
+            try { (new Unit(unit)).convertTo(new Unit("mas/yr")); qual=500+n; }
+            catch( Exception e ) { qual=700+n; }
+         }
+      }
+      if( qual>=0 &&  qualX>qual ) { nPMRA=nField; qualPMRA=qual; }
+
+      // Détection du PMDE et évaluation de la qualité de cette détection
+      qual=-1;
+      if( ucd.equals("POS_PMDE") || ucd.equals("pos.pm;pos.eq.dec") ) qual=0;
+      else if( (n=pmdecName(name))>=0 ) {
+         if( ucd.startsWith("pos.pm") ) qual=200+n;
+         try { (new Unit(unit)).convertTo(new Unit("mas/yr")); qual=300+n; }
+         catch( Exception e ) { qual=600+n; }
+      }
+      else if( (n=pmdecSubName(name))>=0 ) {
+         if( ucd.startsWith("pos.pm") ) qual=400+n;
+         else {
+            try { (new Unit(unit)).convertTo(new Unit("mas/yr")); qual=500+n; }
+            catch( Exception e ) { qual=700+n; }
+         }
+      }
+      if( qual>=0 &&  qualX>qual ) { nPMDEC=nField; qualPMDEC=qual; }
+
      
       // Détection du X et évaluation de la qualité de cette détection
       qual=-1;
@@ -1503,6 +1840,7 @@ final public class TableParser implements XMLConsumer {
       else if( depth==5 && name.equalsIgnoreCase("LINK") )        inLinkField=false;
       else if( depth==5 && name.equalsIgnoreCase("CSV") )         inCSV=false;
       else if( depth==5 && name.equalsIgnoreCase("BINARY") )      inBinary=false;
+      else if( depth==5 && name.equalsIgnoreCase("BINARY2") )     inBinary2=false;
       else if( depth==5 && name.equalsIgnoreCase("FITS") )        inFits=false;
       
       // Ajustement de profonceur en fonction des GROUP
@@ -1510,6 +1848,7 @@ final public class TableParser implements XMLConsumer {
          fieldSub=null;
          if( f.name==null ) f.name=f.ID;
          detectPosField(f,nField);
+         detectSEDField(f,nField);
          nField++;
          consumer.setField(f);
       }
@@ -1530,7 +1869,7 @@ final public class TableParser implements XMLConsumer {
          if( inGroup ) { memoInGroup(ch,start,length); return; }
          
          // Cas d'un segment BASE64
-         if( inEncode64 ) { parseBase64(ch,start,length); return; }
+         if( inEncode64 ) { parseBase64(ch,start,length,inBinary2); return; }
          
          // Ecarte les portions de texte vides
          if( isEmpty(ch,start,length) ) return;
@@ -1569,6 +1908,7 @@ final public class TableParser implements XMLConsumer {
     * les coordonnées en fonction des valeurs nRA,nDEC ou nX,nY suivant le flagXY ou non
     */
    private void consumeRecord(String rec[],int nbRecord) {
+      
       try {
 
          // Coordonnées en XY
@@ -1581,29 +1921,6 @@ final public class TableParser implements XMLConsumer {
          } else {
             format = getRaDec(c,rec[nRA],rec[nDEC],format);
 
-//            // mode sexa ou decimal ?
-//            if( !knowFormat ) {
-//               knowFormat=true;
-//               char ss = rec[nDEC].charAt(0);
-//               flagSexa=isSexa(rec[nRA]+( ss!='-' && ss!='+' ? " +":" " )+rec[nDEC]);
-//            }
-//            
-//            if( flagSexa ) {
-//               char ss = rec[nDEC].charAt(0);
-//               try { c.set(rec[nRA]+( ss!='-' && ss!='+' ? " +":" " )+rec[nDEC]); }
-//               catch( Exception e ) {
-//                  if( Aladin.levelTrace>0 ) e.printStackTrace();
-//               } 
-//               
-//            } else {
-//               try {
-//                  c.set( Double.parseDouble(rec[nRA]),
-//                         Double.parseDouble(rec[nDEC]));
-//               } catch( Exception e ) {
-//                  if( Aladin.levelTrace>=3 ) e.printStackTrace();
-//               } 
-//            }
-
 //System.out.println("--> ["+t+"] knowFormat="+knowFormat+" flagSexa="+flagSexa);
 //System.out.println("rec=");
 //for( int w=0; w<rec.length; w++ ) System.out.println("   rec["+w+"]="+rec[w]);
@@ -1614,7 +1931,7 @@ final public class TableParser implements XMLConsumer {
                c.convertTo(trgAstroFrame);
 //               System.out.println("AFTER c="+c);
               consumer.setRecord(c.getLon(),c.getLat(), rec);
-              c = new Astrocoo(srcAstroFrame);
+              c = new Astropos(srcAstroFrame);
               
            } else consumer.setRecord(c.getLon(),c.getLat(), rec);
          }
@@ -1854,7 +2171,7 @@ final public class TableParser implements XMLConsumer {
          }
 
          // Analyse de la ligne
-         int curOld=cur;    // Juste pour se rappeler où on était.
+//         int curOld=cur;    // Juste pour se rappeler où on était.
          cur = getRecord(ch,cur,end,rs,cs,nbRecord);
          
          // Dans le cas DU TSV natif, ce n'est qu'à ce moment là
@@ -1873,7 +2190,7 @@ final public class TableParser implements XMLConsumer {
          
          // Détecteur de la ligne de ---- ----         
          for( dashLine=true, i=0; i<nField && dashLine; i++ ) {
-            char a[] = record[i]/*.trim()*/.toCharArray();
+            char a[] = record[i].toCharArray();
             for( j=0; j<a.length && a[j]=='-'; j++);
             if( j<a.length ) { dashLine=false; break; }
          }

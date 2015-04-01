@@ -64,6 +64,51 @@ public class Grid extends MyIcon {
       {9, 4,10},
    };
    
+   // Barres horizontales du dessin de d'un SED
+   // (pas de barres verticales)
+   static final private int SY2[][] = {
+      // Zigzag + flèche
+                                 {11,12,2},
+      {3,3,3},                   {10,10,3}, {13,13,3},
+      {3,3,4},                   {9,9,4},
+      {4,4,5},                   {8,8,5},
+      {4,4,6},                   {7,7,6},   {7,7,6},
+                                 {5,6,7},             {14,14,7},
+                                                      {15,15,8},
+                                            {2,16,9},
+                                                      {15,15,10},
+                                                      {14,14,11},
+   };
+
+   
+   // Barres horizontales du dessin de la grille dun MOC
+   // (pas de barres verticales)
+   static final private int TY2[][] = {
+      {3,3,0},   {7,7,0},    {11,11,0},
+      {2,2,1},   {4,4,1},    {6,6,1},   {8,8,1},     {10,10,1},    {12,12,1},
+      {1,1,2},   {5,5,2},    {9,9,2},   {13,13,2},
+      {2,2,3},   {4,4,3},    {10,10,3}, {12,12,3},   {14,14,3},
+      {3,3,4},   {11,11,4},  {15,15,4},
+      {2,2,5},   {4,4,5},    {10,10,5}, {12,12,5},   {14,14,5},
+      {1,1,6},   {5,5,6},    {9,9,6},   {13,13,6},
+      {2,2,7},   {4,4,7},    {6,6,7},   {8,8,7},     {10,10,7},    {12,12,7},  {14,14,7},
+      {3,3,8},   {7,7,8},    {11,11,8}, {13,13,8},
+   };
+   
+   // Barres horizontales du dessin de la grille dun MOC
+   // (pas de barres verticales)
+   static final private int TY2BG[][] = {
+      {3,3,1},   {7,7,1},    {11,11,1},
+      {2,12,2},
+      {3,13,3},
+      {4,14,4},
+      {3,13,5},
+      {2,12,6},
+      {3,3,7},   {7,7,7},    {11,13,7},
+  
+   };
+   
+
    // Rectangle de fond
    static final private int FD[][] = { {2,1,11,8}, {1,3,13,4} };
    
@@ -74,7 +119,7 @@ public class Grid extends MyIcon {
       LABEL = aladin.chaine.getString("GRID");
    }
    
-   /** Dessine l'icone de la grille */
+    /** Dessine l'icone de la grille */
    static protected void drawGrid(Graphics g, int x,int y,Color c) {
       g.setColor(c);
       for( int i=0; i<TX.length; i++ ) g.drawLine(TX[i][0]+x,TX[i][2]+y,TX[i][1]+x,TX[i][2]+y);
@@ -86,6 +131,25 @@ public class Grid extends MyIcon {
       g.setColor(c);
       for( int i=0; i<TY1.length; i++ ) g.drawLine(TY1[i][1]+x,TY1[i][0]+y,TY1[i][2]+x,TY1[i][0]+y);
    }
+   
+   /** Dessine l'icone de la grille d'un MOC */
+   static protected void drawMOC(Graphics g, int x,int y,Color c) {
+      g.setColor(c);
+      for( int i=0; i<TY2.length; i++ ) g.drawLine(TY2[i][0]+x,TY2[i][2]+y,TY2[i][1]+x,TY2[i][2]+y);
+   }
+   
+   /** Dessine lle fond de l'icone de la grille d'un MOC */
+   static protected void fillMOC(Graphics g, int x,int y,Color c) {
+      g.setColor(c);
+      for( int i=0; i<TY2BG.length; i++ ) g.drawLine(TY2BG[i][0]+x,TY2BG[i][2]+y,TY2BG[i][1]+x,TY2BG[i][2]+y);
+   }
+   
+   /** Dessine l'icone d'un SED */
+   static protected void drawSED(Graphics g, int x,int y,Color c) {
+      g.setColor(c);
+      for( int i=0; i<SY2.length; i++ ) g.drawLine(SY2[i][0]+x,SY2[i][2]+y,SY2[i][1]+x,SY2[i][2]+y);
+   }
+
    
    static protected void fillBG(Graphics g, int x,int y,Color c) {
       g.setColor(c);

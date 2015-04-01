@@ -75,10 +75,8 @@ public abstract class MyBox extends JPanel implements MouseListener,MouseMotionL
       // Creation du label contenant la valeur de la position courant
       pos = new Text("",30);
       pos.setFont(FONT);
-//      pos.setForeground( Color.blue );
       pos.setForeground( Color.gray );
       pos.addMouseListener(this);
-//      pos.addMouseMotionListener(this);
  
       // Creation d'un champ de saisie
       text = new Text("",30);
@@ -232,6 +230,9 @@ public abstract class MyBox extends JPanel implements MouseListener,MouseMotionL
       
       static private final int X = 6;
       private void drawCross(Graphics g, int x, int y) {
+         g.setColor(Color.white);
+//         g.fillRect(x-3, y-7, dim.height, dim.height);
+         g.fillOval(x-3, y-3, X+7, X+7);
          g.setColor( text.getText().length()>0 ? Color.red.darker() : Color.gray );
          g.drawLine(x,y,x+X,y+X);
          g.drawLine(x+1,y,x+X+1,y+X);

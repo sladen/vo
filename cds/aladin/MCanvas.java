@@ -125,6 +125,7 @@ public final class MCanvas extends JComponent
       TIPTAG  = aladin.chaine.getString("TIPTAG");
 
       createPopupMenu();
+      createPinPopupMenu();
 
       setOpaque(true);
       setDoubleBuffered(false);
@@ -138,9 +139,12 @@ public final class MCanvas extends JComponent
       return new Dimension(2, HL*NBLIGNE + MH+MB);
    }
 
-   JPopupMenu popMenu;
-   JMenuItem menuTriA,menuTriD,menuCopyVal,menuCopyCoord,menuCopyMeasurement,menuCopyAll,menuCopyAllAscii,
-            menuTag,menuUntag,menuKeepTag,menuKeepUntag,menuCreateMulti,menuCreateUniq,menuLoadImg,menuLoadImgs,menuUnselect,
+   JPopupMenu popMenu,popMenuTag;
+   JMenuItem menuTriA,menuTriD,menuCopyVal,menuCopyCoord,menuCopyMeasurement,
+             menuCopyAll,menuCopyAllAscii,
+            /* menuTag,menuUntag,*/menuTag1,menuUntag1,menuHelpTag,
+            /*menuKeepTag,menuKeepUntag,*/menuCreateMulti,menuCreateUniq,
+            /* menuLoadImg,menuLoadImgs,*/menuUnselect,
             menuAddColumn,menuGoto,menuDel,menuTableInfo;
 
    // Cree le popup menu associe au View
@@ -156,11 +160,11 @@ public final class MCanvas extends JComponent
       j.addActionListener(this);
       popMenu.add( menuGoto=j=new JMenuItem(c.getString("MFGOTOIMG")));
       j.addActionListener(this);
-      popMenu.add( menuLoadImg=j=new JMenuItem(c.getString("MFLOADIMG")));
-      j.addActionListener(this);
-      popMenu.add( menuLoadImgs=j=new JMenuItem(c.getString("MFLOADIMGS")));
-      j.addActionListener(this);
-      popMenu.addSeparator();
+//      popMenu.add( menuLoadImg=j=new JMenuItem(c.getString("MFLOADIMG")));
+//      j.addActionListener(this);
+//      popMenu.add( menuLoadImgs=j=new JMenuItem(c.getString("MFLOADIMGS")));
+//      j.addActionListener(this);
+//      popMenu.addSeparator();
       popMenu.add( menuTriA=j=new JMenuItem(c.getString("MFASCSORT")));
       j.addActionListener(this);
       popMenu.add( menuTriD=j=new JMenuItem(c.getString("MFADESCSORT")));
@@ -177,16 +181,16 @@ public final class MCanvas extends JComponent
       j.addActionListener(this);
       m.add( menuCopyAll=j=new JMenuItem(c.getString("MFCOPY")));
       j.addActionListener(this);
-      popMenu.addSeparator();
-      popMenu.add( menuTag=j=new JMenuItem(c.getString("MFTAG")));
-      j.addActionListener(this);
-      popMenu.add( menuUntag=j=new JMenuItem(c.getString("MFUNTAG")));
-      j.addActionListener(this);
-      popMenu.addSeparator();
-      popMenu.add( menuKeepTag=j=new JMenuItem(c.getString("MFKEEPTAG")));
-      j.addActionListener(this);
-      popMenu.add( menuKeepUntag=j=new JMenuItem(c.getString("MFKEEPUNTAG")));
-      j.addActionListener(this);
+//      popMenu.addSeparator();
+//      popMenu.add( menuTag=j=new JMenuItem(c.getString("MFTAG")));
+//      j.addActionListener(this);
+//      popMenu.add( menuUntag=j=new JMenuItem(c.getString("MFUNTAG")));
+//      j.addActionListener(this);
+//      popMenu.addSeparator();
+//      popMenu.add( menuKeepTag=j=new JMenuItem(c.getString("MFKEEPTAG")));
+//      j.addActionListener(this);
+//      popMenu.add( menuKeepUntag=j=new JMenuItem(c.getString("MFKEEPUNTAG")));
+//      j.addActionListener(this);
       popMenu.addSeparator();
       popMenu.add( m=new JMenu(c.getString("MFCREATE")));
       m.add( menuCreateMulti=j=new JMenuItem(c.getString("VWCPLANEUNIQ")));
@@ -206,23 +210,27 @@ public final class MCanvas extends JComponent
       Object src = e.getSource();
       if( src instanceof Timer ) { endTimerHist(); return; }
 
-      if( src instanceof JMenuItem ) System.out.println("ActionCommand = "+((JMenuItem)src).getActionCommand());
+//      if( src instanceof JMenuItem ) System.out.println("ActionCommand = "+((JMenuItem)src).getActionCommand());
 
       if( src==menuTriA || src==menuTriD ) aladin.mesure.tri(src==menuTriA);
-      else if( src==menuTag ) aladin.mesure.tag();
-      else if( src==menuUntag ) aladin.mesure.untag();
-      else if( src==menuKeepTag ) aladin.mesure.keepTag();
-      else if( src==menuKeepUntag ) aladin.mesure.keepUntag();
+      else if( /* src==menuTag || */ src==menuTag1 ) aladin.mesure.tag();
+      else if( /* src==menuUntag || */ src==menuUntag1 ) aladin.mesure.untag();
+      else if( src==menuHelpTag ) aladin.info(aladin.chaine.getString("MTAGINFO"));
+//      else if( src==menuKeepTag ) aladin.mesure.keepTag();
+//      else if( src==menuKeepUntag ) aladin.mesure.keepUntag();
       else if( src==menuCreateMulti ) aladin.cloneObj(false);
       else if( src==menuCreateUniq ) aladin.cloneObj(true);
-      else if( src==menuGoto ) aladin.view.zoomOnSource(objSelect);
-      else if( src==menuLoadImg ) loadImg();
-      else if( src==menuLoadImgs ) loadImgs();
-      else if( src==menuCopyAll ) Aladin.copyToClipBoard(aladin.mesure.getText());
-      else if( src==menuCopyAllAscii ) Aladin.copyToClipBoard(aladin.mesure.getText(true));
-      else if( src==menuCopyCoord ) Aladin.copyToClipBoard(aladin.mesure.getCurObjCoord());
-      else if( src==menuCopyVal ) Aladin.copyToClipBoard(aladin.mesure.getCurObjVal());
-      else if( src==menuCopyMeasurement ) Aladin.copyToClipBoard(aladin.mesure.getCurObjMeasurement());
+      else if( src==menuGoto ) {
+         aladin.view.gotoThere(objSelect);
+         aladin.view.zoomOnSource(objSelect);
+      }
+//      else if( src==menuLoadImg ) loadImg();
+//      else if( src==menuLoadImgs ) loadImgs();
+      else if( src==menuCopyAll ) aladin.copyToClipBoard(aladin.mesure.getText());
+      else if( src==menuCopyAllAscii ) aladin.copyToClipBoard(aladin.mesure.getText(true));
+      else if( src==menuCopyCoord ) aladin.copyToClipBoard(aladin.mesure.getCurObjCoord());
+      else if( src==menuCopyVal ) aladin.copyToClipBoard(aladin.mesure.getCurObjVal());
+      else if( src==menuCopyMeasurement ) aladin.copyToClipBoard(aladin.mesure.getCurObjMeasurement());
       else if( src==menuUnselect ) deselect(objSelect);
       else if( src==menuDel ) delete(objSelect);
       else if( src==menuTableInfo ) aladin.tableInfo(objSelect.plan);
@@ -235,6 +243,8 @@ public final class MCanvas extends JComponent
          sendBySAMP(urlSamp,o);
          urlSamp=null;
       }
+      
+      if( aladin.view.zoomview.flagSED ) aladin.view.zoomview.repaint();
    }
 
    /**
@@ -273,54 +283,68 @@ public final class MCanvas extends JComponent
    }
 
 
-   /** Chargement d'une image centrée sur la source sélectionnée dans le tableau des mesures */
-   private void loadImg() {
-      Source s = objSelect;
-      if( s==null ) return;
-      String target = aladin.localisation.J2000ToString(s.raj, s.dej);
-      aladin.execAsyncCommand("\""+s.id+"\"=get "+aladin.configuration.getLoadImgCmd()+" "+target);
-   }
-
-   /** Chargement d'une image centrée pour chaque source dans la table des mesures
-    * S'il y a au-moins une source taguée, ne concerne que les sources taguées*/
-   private void loadImgs() {
+//   /** Chargement d'une image centrée sur la source sélectionnée dans le tableau des mesures */
+//   private void loadImg() {
+//      Source s = objSelect;
+//      if( s==null ) return;
+//      String target = aladin.localisation.J2000ToString(s.raj, s.dej);
+//      aladin.execAsyncCommand("\""+s.id+"\"=get "+aladin.configuration.getLoadImgCmd()+" "+target);
+//   }
+//
+//   /** Chargement d'une image centrée pour chaque source dans la table des mesures
+//    * S'il y a au-moins une source taguée, ne concerne que les sources taguées*/
+//   private void loadImgs() {
+//      int n=0;
+//
+//      // Décompte du nombre de sources concernées
+//      for( int i=0; i<aladin.mesure.nbSrc; i++ ) {
+//         Source s = aladin.mesure.src[i];
+//         if( !s.isTagged() ) continue;
+//         n++;
+//      }
+//
+//      // Demande de confirmation s'il y en a trop
+//      if( !aladin.testNbImgLoad(n==0 ? aladin.mesure.nbSrc : n) ) return;
+//
+//      // C'est parti
+//      for( int i=0; i<aladin.mesure.nbSrc; i++ ) {
+//         Source s = aladin.mesure.src[i];
+//         if( n>0 && !s.isTagged() ) continue;
+//         String target = aladin.localisation.J2000ToString(s.raj, s.dej);
+//         aladin.execAsyncCommand("\""+s.id+"\"=get "+aladin.configuration.getLoadImgCmd()+" "+target);
+//      }
+//   }
+   
+   // Retourne l'état des tags : 0-aucune sources, 1-au-moins une, 2-toutes
+   private int getTagFlag() {
       int n=0;
-
-      // Décompte du nombre de sources concernées
       for( int i=0; i<aladin.mesure.nbSrc; i++ ) {
          Source s = aladin.mesure.src[i];
-         if( !s.isTagged() ) continue;
-         n++;
+         if( s.isTagged() ) n++;
       }
-
-      // Demande de confirmation s'il y en a trop
-      if( !aladin.testNbImgLoad(n==0 ? aladin.mesure.nbSrc : n) ) return;
-
-      // C'est parti
-      for( int i=0; i<aladin.mesure.nbSrc; i++ ) {
-         Source s = aladin.mesure.src[i];
-         if( n>0 && !s.isTagged() ) continue;
-         String target = aladin.localisation.J2000ToString(s.raj, s.dej);
-         aladin.execAsyncCommand("\""+s.id+"\"=get "+aladin.configuration.getLoadImgCmd()+" "+target);
-      }
+      return n==0 ? 0 : n==aladin.mesure.nbSrc ? 2 : 1;
+   }
+   
+   /** Affichage du popupPin avec (dés)activation des menus concernés */
+   private void popPinShow(int x,int y) {
+      int tagMode=getTagFlag();
+      menuTag1.setEnabled(tagMode<2);
+      menuUntag1.setEnabled(tagMode>0);
+      popMenuTag.show(this,x,y);
    }
 
    /** Affichage du popup avec (dés)activation des menus concernés */
    private void popupShow(int x,int y) {
 
       // Détermine s'il y a au-moins une source taguée
-      boolean tag=false;
-      for( int i=0; i<aladin.mesure.nbSrc; i++ ) {
-         Source s = aladin.mesure.src[i];
-         if( s.isTagged() ) {tag=true; break; }
-      }
+      boolean tag=getTagFlag()==1;
       boolean flag = objSelect!=null;
       menuUnselect.setEnabled(flag);
       menuDel.setEnabled(objSelect!=null && objSelect.plan.isSourceRemovable());
       menuCopyCoord.setEnabled(flag);
-      menuLoadImg.setEnabled(flag);
-      menuLoadImgs.setEnabled(aladin.mesure.nbSrc>1);
-      menuLoadImgs.setText( aladin.chaine.getString(tag ? "MFLOADIMGS1" : "MFLOADIMGS"));
+//      menuLoadImg.setEnabled(flag);
+//      menuLoadImgs.setEnabled(aladin.mesure.nbSrc>1);
+//      menuLoadImgs.setText( aladin.chaine.getString(tag ? "MFLOADIMGS1" : "MFLOADIMGS"));
       menuGoto.setEnabled(flag);
       menuCopyMeasurement.setEnabled(flag);
       popMenu.show(this,x,y);
@@ -493,7 +517,7 @@ public final class MCanvas extends JComponent
    }
 
    static Color C1 = new Color(199,207,255);
-   static Color C2 = new Color(85,26,139);
+   static public Color C2 = new Color(85,26,139);
    static protected Color C3 = new Color(104,230,255);
    static Color C4 = new Color(221,91,53);    // couleur pour valeurs calculees
    static Color C5 = new Color(195,195,255);  // bleu clair - ligne montrée
@@ -600,12 +624,18 @@ public final class MCanvas extends JComponent
 
       // On souligne s'il s'agit d'une ancre
       if( w.glu ) g.drawLine(xtext,y+1,xtext+fm.stringWidth(text),y+1);
+      
+      // Tracé de l'épinglette
+      if( w.pin && !aladin.isFullScreen() )  {
+         if( pin==null ) pin = aladin.getImagette("Pin.png");
+         g.drawImage(pin,x-16,y-HF-1,aladin);
+      }
 
       drawBordG(g,x,y-HF,width);
 
       return w.width*wblanc;
    }
-
+   
 
   /** Mise a jour d'une ligne.
    * Ecrit dans le contexte graphique les infos d'une ligne de mesures contenues dans
@@ -696,18 +726,20 @@ public final class MCanvas extends JComponent
    }
 
    private void clearHead(Graphics g,int X,int W) {
+      oleg=null;
       if( W<=0 ) return;
       g.setColor( BG  );
       g.fillRect(X+1,1,W,HF+3);
 //      Aladin.trace(4,"MCanvas.clearHead()");
    }
-
+   
+   private Image pin=null;  // L'image de l'épinglette
+   
    /** Dessine la ligne d'entête, ou l'efface si null */
    protected void drawHead(Graphics g,Source o) { drawHead(g,0,0,o,W); }
    protected void drawHead(Graphics g,int X,int y,Source o,int W) {
       Vector head;
-      if( o==null && oleg==null
-            || o!=null && oleg==o.leg ) head=ligneHead;
+      if( o==null && oleg==null || o!=null && oleg==o.leg ) head=ligneHead;
       else {
          head= o==null ? null : aladin.mesure.getHeadLine(o);
          oleg= o==null ? null : o.leg;
@@ -717,8 +749,6 @@ public final class MCanvas extends JComponent
       // Effacement de la ligne
       if( head==null && W!=-1 ) {
          clearHead(g,X,W);
-//         g.setColor( BG  );
-//         g.fillRect(X+1,1,W,HF+3);
          return;
       }
 
@@ -739,7 +769,7 @@ public final class MCanvas extends JComponent
             if( W!=-1 ) {
                g.setColor(Aladin.BKGD);
                g.fillRect(x+1,y-HF,width+2,HF+2);
-               if( triTag!=Field.UNSORT ) drawSort(g,5,y,triTag,Aladin.BKGD);
+//               if( triTag!=Field.UNSORT ) drawSort(g,5,y,triTag,Aladin.BKGD);
             }
 
          } else {
@@ -762,6 +792,7 @@ public final class MCanvas extends JComponent
          g.setColor(o.plan.c );
          g.drawLine(X+1,y+2,X+1+W ,y+2);
       }
+      
    }
 
   /** Remonte un eventuel bouton et chargement d'une image d'archive */
@@ -806,7 +837,9 @@ public final class MCanvas extends JComponent
     * switcher entre un tri ascendant et descendant */
    private void tri(Source o,int nField) {
       boolean ascending;
-      nField=o.leg.getRealFieldNumber(nField);
+//      int realNField = o.leg.getRealFieldNumber(nField);
+//      if( nField!=realNField ) System.out.println("nField="+nField+" realdNField="+realNField); 
+//      nField = realNField;
       if( nField==-1 ) {
          o.leg.clearSort();
          triTag = Field.SORT_ASCENDING;
@@ -834,11 +867,26 @@ public final class MCanvas extends JComponent
 
    /** Tri des sources de même type que celle passée en paramètre. */
    protected void tri(Source o,int nField,boolean ascending) {
-      nField=o.leg.getRealFieldNumber(nField);
+//      nField=o.leg.getRealFieldNumber(nField);
       o.leg.setSort(nField, ascending?Field.SORT_ASCENDING:Field.SORT_DESCENDING);
       ligneHead = aladin.mesure.getHeadLine(o);
       aladin.mesure.tri(o,nField,ascending);
   }
+   
+   // Cree le popup menu associe au View
+   private void createPinPopupMenu() {
+      JMenuItem j;
+      Chaine c = aladin.chaine;
+      popMenuTag = new JPopupMenu();
+      popMenuTag.setLightWeightPopupEnabled(false);
+      popMenuTag.add( menuTag1=j=new JMenuItem(c.getString("MFTAG")));
+      j.addActionListener(this);
+      popMenuTag.add( menuUntag1=j=new JMenuItem(c.getString("MFUNTAG")));
+      j.addActionListener(this);
+      popMenuTag.add( menuHelpTag=j=new JMenuItem("Help..."));
+      j.addActionListener(this);
+   }
+
 
   /** Clic sur une marque HTML
    * Appel au Glu resolver si on se trouve sur une ancre GLU
@@ -864,6 +912,12 @@ public final class MCanvas extends JComponent
             onBordX = x;
             return;
          }
+         
+         // Info sur l'épinglette et les boites à cocher
+         if( indiceCourant==-1 ) {
+            popPinShow( ev.getX(), ev.getY());
+            return;
+         }
 
          // On va faire l'histogramme et si déjà fait trier
          timer.stop();
@@ -873,7 +927,7 @@ public final class MCanvas extends JComponent
          return;
       }
 
-      aladin.calque.zoom.zoomView.setHist();
+      aladin.calque.zoom.zoomView.stopHist();
 
       // Il n'y a pas de mesure dans la fenetre des mesures
       if( currentsee<0 || aladin.mesure.getNbSrc()<=currentsee ) return;
@@ -915,6 +969,7 @@ public final class MCanvas extends JComponent
          aladin.search.setColorAndStatus(rep?1:-1);
          aladin.mesure.search.setColorAndStatus(rep?1:-1);
          aladin.localisation.seeCoord(o,1);
+         if( aladin.frameCooTool!=null ) aladin.frameCooTool.setSource(o);
          aladin.sendObserver();
 
 
@@ -945,9 +1000,6 @@ public final class MCanvas extends JComponent
 
                // Show/hide associated FoV (thomas VOTech)
                if( w.footprint ) {
-                  //            	o.footprint.make(o.raj,o.dej,o.footprintAngle);
-                  //            	o.footprint.setTarget(o.raj, o.dej, o.footprintAngle);
-                  //            	aladin.calque.newPlanField(o.footprint);
                   PlanField pf = o.getFootprint().getFootprint();
                   if (pf != null) {
                       pf.setActivated(true);
@@ -955,11 +1007,6 @@ public final class MCanvas extends JComponent
 
                   }
                   o.switchFootprint();
-                  //            	System.out.println(o.footprintAngle);
-                  //            	System.out.println("hide/show footprint ");
-                  //            	PlanField field = new PlanField(Aladin.aladin, "toto", 0, "toto", "WFPC2");
-                  //            	field.setCenter(312,-40.18);
-                  //            	field.setActivated(true);
                   return;
                }
 
@@ -1165,7 +1212,12 @@ public final class MCanvas extends JComponent
 //         aladin.trace(4, "endTimerHist() nothing to do !");
          return;
       }
-      aladin.calque.zoom.zoomView.setHist(oTimer,onField);
+      
+      if( oTimer.leg.isSED() ) {
+         aladin.view.zoomview.setSED(oTimer);
+      } else  {
+         aladin.calque.zoom.zoomView.setHist(oTimer,onField);
+      }
       oTimer=null;
    }
 
@@ -1200,6 +1252,7 @@ public final class MCanvas extends JComponent
       Source o;
       String tip="";
       int indice;
+      
 
       // Est-on sur l'entête ?
       if( y<=MH ) {
@@ -1236,13 +1289,14 @@ public final class MCanvas extends JComponent
                break;
             }
          }
-
+         
          if( onBordField!=-1 ) setCursor(Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR));
-         else aladin.makeCursor(this,Aladin.DEFAULT);
+         else aladin.makeCursor(this,Aladin.DEFAULTCURSOR);
 
          return;
       }
-      aladin.makeCursor(this,Aladin.DEFAULT);
+      
+      aladin.makeCursor(this,Aladin.DEFAULTCURSOR);
 
       // Determination de la ligne courante
       currentsee = firstsee+ (y-MH)/HL;
@@ -1271,10 +1325,25 @@ public final class MCanvas extends JComponent
       Source oshow = objSelect!=null ? objSelect : o;
 
       // Visualisation dans la vue de la source associee a la mesure courante
-      if( oo!=oshow ) { aladin.view.showSource(oshow); oo=oshow; }
+      if( oo!=oshow ) { 
+         aladin.view.showSource(oshow); 
+         
+//         PlanField pf = oshow.getFootprint().getFootprint();
+//         if (pf != null) {
+//            pf.setActivated(true);
+//            pf.flagOk = true;
+//         }
+//         oshow.switchFootprint();
+//         if( oo!=null ) oo.switchFootprint();
+
+         oo=oshow;
+      }
 
       // Affichage de la coordonnees de la source
       aladin.localisation.seeCoord(oshow);
+      
+      // Pour mettre à jour le point d'un SED en cours de tracé
+      showSEDPoint(oshow);
 
       // Affichage de l'entête correspondant à l'objet
       if( flagDrawHead ) drawHead(g,oshow);
@@ -1310,7 +1379,8 @@ public final class MCanvas extends JComponent
                  if( w.repere ) { /* tip=TIPREP; */ s=w.text; }
             else if( w.glu )      tip=TIPGLU;
             else if( w.archive )  tip=TIPARCH;
-            else if( w.footprint) tip=TIPFOV;
+            else if( w.footprint)  tip=TIPFOV;
+               
             s=getDescription(o,indice);
             if( s==null ) s="";
 
@@ -1348,6 +1418,10 @@ public final class MCanvas extends JComponent
 
     Util.toolTip(this, tip);
    }
+   
+   protected void showSEDPoint(Source s) {
+      if( s.leg.isSED() && aladin.view.zoomview.flagSED )  aladin.view.zoomview.setSED(s);
+   }
 
 
 //   public boolean mouseEnter(Event e, int x, int y) {
@@ -1370,7 +1444,7 @@ public final class MCanvas extends JComponent
       if( timer!=null ) timer.stop();
       aladin.urlStatus.setText(aladin.COPYRIGHT);   // Remet le copyright
       currentsee=-1;                                // Plus aucune ligne courante
-      Aladin.makeCursor(this,Aladin.DEFAULT);
+      Aladin.makeCursor(this,Aladin.DEFAULTCURSOR);
 
       // Traitement de l'objet dans la vue
       if( oo!=null ) { aladin.view.hideSource(); oo=null; }
@@ -1421,6 +1495,8 @@ public final class MCanvas extends JComponent
             break;
          }
       }
+      
+      if( retour ) showSEDPoint(o);
 
       repaint();
       return retour;
@@ -1470,7 +1546,7 @@ public final class MCanvas extends JComponent
    /** Surcharge juste pour en profiter pour mettre à jour
     * le nombre de sources sélectionnées dans la fenêtre des mesures */
    public void repaint() {
-      aladin.adjustNbSel();
+      aladin.adjustNbSel();      
       super.repaint();
    }
 
@@ -1497,6 +1573,9 @@ public final class MCanvas extends JComponent
          img = aladin.createImage(W,H);
       }
       Graphics g=img.getGraphics();
+      
+      // AntiAliasing
+      aladin.setAliasing(g);
 
       // Affichage des lignes visibles
       nbligne = (H- (MH+MB))/HL;             // Nbre de lignes
@@ -1561,6 +1640,8 @@ public final class MCanvas extends JComponent
       Util.drawEdge(g,W,H);
 
       gr.drawImage(img,0,0,this);
+      
+      if( aladin.view.zoomview.flagSED ) aladin.view.zoomview.repaint();
    }
 
   /** Gestion du Help */

@@ -239,7 +239,11 @@ public final class XMLParser {
                   String tmp = c.toString();
                   for( j=0; j<mKey.length && !tmp.equals(mKey[j]); j++);
                   if( j<mKey.length ) b.append(mValue[j]);	// found
-                  else return null;
+                  else {
+                     if( Aladin.levelTrace>=3 ) System.err.println("XMlParser.XMLDecode("+s+") macro unknown => ignored !");
+                     return s;  // Macro non trouvée, on retourne simplement la macro
+//                     return null;
+                  }
                   mode=0;
                }
                break;
@@ -284,13 +288,15 @@ public final class XMLParser {
 //      return ch==' ' || ch=='\t' || ch=='\n' || ch=='\r';
 //   }
    
+   static private final char COM[] = { '!','-','-' }; 
+   private boolean flagCOM;
    static private final char CDATA[] = { '!','[','C','D','A','T','A','[' }; 
    private boolean flagCDATA;
    private boolean flagDoublePoint;
    
    
-   private StringBuffer curString = new StringBuffer();
-   private StringBuffer macro = new StringBuffer();
+   private StringBuilder curString = new StringBuilder();
+   private StringBuilder macro = new StringBuilder();
       
   /** Recherche la chaine courante en fonction du mode du parsing
    * La mémorisation se fait dans le tableau ch[], et les variables start et length.
@@ -317,12 +323,14 @@ public final class XMLParser {
       boolean ospace=false;		           // le caractère précédent est un espace
       boolean encore=true;		           // test de fin de boucle
       boolean inCDATA=true;                // pour tester si on est sur ![CDATA[
+      boolean inCOM=true;                  // pour tester si on est sur !--
       boolean flagNL=false; 		       // true si le caractère précédent était un \n
+      char spaceChar=' ';
 
       minus=ominus=endminus=false;
       bracket=obracket=endbracket=false;
       xml0=xml1=xml2=xml3=xml4=false;
-      flagCDATA=false;
+      flagCDATA=flagCOM=false;
       flagDoublePoint=false;
 
       Util.resetString(curString);         // Pour mémoriser la chaine courante
@@ -342,24 +350,40 @@ public final class XMLParser {
                   boolean hexa = m.charAt(m.length()-2)=='x';
                   int code = Integer.parseInt(m.substring(2, m.length() - (hexa ? 2 : 1)), hexa ? 16 : 10);
                   c1 = (char) code;
-               } catch( Exception e ) { error="unresolved macro ["+m+"]"; return 0;  }
+               } catch( Exception e ) {
+                  if( Aladin.levelTrace>=3 ) System.err.println("XMlParser.xmlGetString(...) unresolved macro ["+m+"] => ignored !");
+
+                   // Pas de macro, on continue tout de même (PF 2013)
+//                  error="unresolved macro ["+m+"]"; return 0; 
+               }
             } else {
                int i;
                for( i=0; i<mKey.length && !m.equals(mKey[i]); i++ );
                if( i<mKey.length ) c1=mValue[i].charAt(0);
-               else { error="unknown macro ["+m+"]"; return 0; }
+               else {
+                  // Pas de macro, on continue tout de même (PF 2013)
+                  if( Aladin.levelTrace>=3 ) System.err.println("XMlParser.xmlGetString(...) unknown macro ["+m+"] => ignored !");
+//                  error="unknown macro ["+m+"]"; return 0;
+               }
             }
             Util.resetString(macro);
          }
          
          space=Character.isSpace(c);
+         if( space ) spaceChar=c;
          
          switch(mode) {
             case 0: encore=(!space && c!='>'); 
             
                     // Pour repérer s'il y a un éventuel nom de domaine
                     if( c==':' ) flagDoublePoint=true;
-            
+                    
+                    // test sur !-- en debut
+                    if( inCOM ) {
+                       if( c!=COM[l] ) inCOM=false;
+                       else if( l==COM.length-1 ) { flagCOM=true; return c; }
+                    }
+           
                     // test sur ![CDATA[ en début
                     if( inCDATA ) {
                        if( c!=CDATA[l] ) inCDATA=false;
@@ -405,8 +429,8 @@ public final class XMLParser {
                     break;
          }
          
-         if( mode==3 || mode==5 || (!space || space && !ospace) && mode<3 ) {
-            if( mode!=3 && mode!=5 && space ) c1=' '; // substitution des blancs
+         if( (mode==3 || mode==5 || (!space || space && !ospace) && mode<3) ) {
+            if( mode!=3 && mode!=5 && space ) c1= ' '; // spaceChar; // substitution des blancs
             curString.append(c1);
             l++;
          }
@@ -526,7 +550,7 @@ public final class XMLParser {
 
       // Y a-t-il une erreur ?
       if( c!='>' ) {
-         setError("No end tag");
+         setError("No end tag (mode="+mode+")");
          return -1;
       }
 
@@ -552,6 +576,7 @@ public final class XMLParser {
    *          2 : tag de fin </XXX>
    *          3 : tag de fin avec attribut <XXX ????/>
    *          4 : il s'agit en fait d'une balise <![CDATA[
+   *          5 : il s'agit en fait d'une balise <!--
    * @throws Exception
    */
    private int xmlGetNameTag() throws Exception {
@@ -565,6 +590,7 @@ public final class XMLParser {
       }
       
       if( flagCDATA ) return 4;
+      if( flagCOM ) return 5;
 
       // Traitement du tag </XXX>
       if( length>0 && ch[start]=='/' ) {
@@ -631,10 +657,12 @@ public final class XMLParser {
       }
 
       // Commentaire XML <!-- ... -->  => ignoré
-      char c = ch[start];
-      if( length>=3 && c=='!'
-          && ch[start+1]=='-' && ch[start+2]=='-') return xmlGetParamTag(-1)>=0?1:0;
+      if( code==5 ) return xmlGetParamTag(-1)>=0?1:0;
+//      char c = ch[start];
+//      if( length>=3 && c=='!'
+//          && ch[start+1]=='-' && ch[start+2]=='-') return xmlGetParamTag(-1)>=0?1:0;
 
+      char c = ch[start];
       // Tags spéciaux <!..., <?... => ignoré
       if( c=='?' || c=='!' ) return xmlGetParamTag(0)>=0?1:0;
 

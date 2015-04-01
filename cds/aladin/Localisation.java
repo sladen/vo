@@ -22,6 +22,7 @@ package cds.aladin;
 
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
@@ -249,13 +250,10 @@ public final class Localisation extends MyBox {
       }
    }
    
-//   public Dimension getPreferredSize() {
-//      return  new Dimension(350,24);
-//   }
-   
    /** Fait clignoter le champ pour attirer l'attention
     * de l'utilisateur et demande le focus sur le champ de saisie */
-   protected void focus(String s) {
+   protected void focus(String s) { focus(s,null); }
+   protected void focus(String s,final String initial) {
        setMode(SAISIE);
        text.setText(s);
 
@@ -271,8 +269,13 @@ public final class Localisation extends MyBox {
                text.setForeground(deff);
                Util.pause(100);
             }
-            text.setText("");
-            text.requestFocusInWindow();
+            if( initial==null ) {
+               text.setText("");
+               text.requestFocusInWindow();
+            } else {
+               text.setText(initial);
+               setInitialFocus();
+            }
          }
       }).start();
    }
@@ -288,6 +291,7 @@ public final class Localisation extends MyBox {
       setMode(SAISIE);
       final String s = aladin.GETOBJ;
       text.setText(s);
+      text.setFont(text.getFont().deriveFont(Font.ITALIC));
      (new Thread() {
         Color def = text.getBackground();
         Color deff = text.getForeground();
@@ -298,23 +302,28 @@ public final class Localisation extends MyBox {
               if( !flagStopInfo ) {
                  text.setText("");
                  text.setForeground(Color.gray);
-                 Util.pause(200);
+                 Util.pause(100);
               }
               if( !flagStopInfo ) {
                  text.setText(s);
-                 Util.pause(1000);
+                 Util.pause(1500);
               }
            }
            if( flagStopInfo ) {
               text.setCaretPosition(text.getText().length());
               flagReadyToClear=flagStopInfo=false;
            }
+           text.setText("");
            text.setForeground(deff);
+           text.setFont(text.getFont().deriveFont(Font.BOLD));
            text.requestFocusInWindow();
         }
      }).start();
   }
    
+   protected JComboBox createSimpleChoice() {
+      return new JComboBox(REPERE);
+   }
    protected JComboBox createChoice() {
       final JComboBox c = super.createChoice();
       c.addActionListener(new ActionListener() {
@@ -369,7 +378,6 @@ public final class Localisation extends MyBox {
     * POSITION histoire que cela se comprenne */
    protected void setSesameResult(String s) {
       aladin.localisation.setTextSaisie(s);
-//      aladin.localisation.label.setText(POSITION);
       aladin.localisation.readyToClear();
    }
 
@@ -381,7 +389,12 @@ public final class Localisation extends MyBox {
    protected void setPos(ViewSimple v,double x,double y) { setPos(v,x,y,0); }
    protected void setPos(ViewSimple v,double x,double y,int methode) { setPos(v,x,y,methode,false); }
    protected void setPos(ViewSimple v,double x,double y,int methode,boolean sendPlasticMsg) {
-      int i     = getFrame();
+      int frame     = getFrame();
+      
+      // Forcage pour les nuage de point
+      ViewSimple view = aladin.view.getMouseView();
+      if( view!=null && view.isPlotView() ) frame=XYLINEAR;
+
       Plan plan = v.pref;
       if( plan==null ) return;
       Projection proj = v.getProj();
@@ -390,13 +403,13 @@ public final class Localisation extends MyBox {
       String s=null;
       
       // Position (X,Y) simplement (mode FITS)
-      if( i==XY || proj!=null && proj.modeCalib==Projection.NO ) {
+      if( frame==XY || proj!=null && proj.modeCalib==Projection.NO ) {
          if( plan.isImage() )  s=Util.myRound(""+(p.x+0.5),4)
                       +"  "+Util.myRound(""+(((PlanImage)plan).naxis2-p.y+0.5),4);
          else s="";
 
          // Position (X,Y) simplement (mode Natif)
-      } else if( i==XYNAT || proj!=null && proj.modeCalib==Projection.NO ) {
+      } else if( frame==XYNAT || proj!=null && proj.modeCalib==Projection.NO ) {
             if( plan.isImage() )  s=Util.myRound(""+p.x,0)
                          +"  "+Util.myRound(""+p.y,0);
             else s="";
@@ -408,8 +421,9 @@ public final class Localisation extends MyBox {
             coo.x = p.x;
             coo.y = p.y;
             proj.getCoord(coo);
+            
             if( Double.isNaN(coo.al) ) s="";
-            else if( i==XYLINEAR ) {
+            else if( frame==XYLINEAR ) {
                if( !proj.isXYLinear() ) s=NOXYLINEAR;
                else s=Util.myRound(coo.al+"",4)+" : "+Util.myRound(coo.del+"",4);
             } else {
@@ -519,10 +533,10 @@ public final class Localisation extends MyBox {
     * @param frameTarget numéro du système de référence cible
     * @return les coordonnées éditées dans le système cible, ou l'identificateur inchangé
     */
-   protected String convert(String coo,int frameSource,int frameTarget) {
+   static protected String convert(String coo,int frameSource,int frameTarget) {
 
       // Champ vide => Rien à faire
-      if( coo==null || coo.length()==0 ) return coo;
+      if( coo==null || coo.length()==0 || coo.indexOf("--")>=0 ) return "";
       
       // Identificateur à la place d'une coordonnée => Rien à faire
       for( int i=0; i<coo.length(); i++) {
@@ -533,9 +547,10 @@ public final class Localisation extends MyBox {
       // Edition et conversion si nécessaire
       try {
          Astrocoo aft = new Astrocoo( getAstroframe(frameSource) );
+         aft.setPrecision(Astrocoo.MAS+3);
          aft.set(coo);
          if( frameSource!=frameTarget ) aft.convertTo( getAstroframe(frameTarget) );
-         aft.setPrecision(Astrocoo.ARCSEC+1);
+         
          String s = (frameTarget==J2000D || frameTarget==B1950D || frameTarget==ICRSD
                   || frameTarget==ECLIPTIC || frameTarget==GAL || frameTarget==SGAL )?
                 aft.toString("2d"):aft.toString("2s");
@@ -545,7 +560,7 @@ public final class Localisation extends MyBox {
 ////try { throw new Exception("convert"); } catch(Exception e) { e.printStackTrace(); }
 //}
          
-         if( s.trim().startsWith("--") ) return "";
+         if( s.indexOf("--")>=0 ) return "";
          return s;
       } catch( Exception e ) { e.printStackTrace(); return coo; }
    }
@@ -560,7 +575,7 @@ public final class Localisation extends MyBox {
       Coord cTmp = new Coord(al,del);
       cTmp = ICRSToFrame(cTmp);
       afs.setPrecision(precision);
-      return frameToString(cTmp.al,cTmp.del);
+      return frameToString(cTmp.al,cTmp.del,precision);
    }
    
    protected String frameToString(double al,double del) { return frameToString(al,del,Astrocoo.ARCSEC+1); }
@@ -585,20 +600,21 @@ public final class Localisation extends MyBox {
    protected void seeCoord(Position o,int methode) {
       String s=getLocalisation(o);
       if( s==null ) return;
+      
       if( methode==0 ) { setTextAffichage(s); setMode(AFFICHAGE); }
-      else { Aladin.copyToClipBoard(s); setTextSaisie(s); setMode(SAISIE); aladin.console.setInPad(s+"\n"); }
+      else { 
+//         aladin.copyToClipBoard(s); //POSE TROP DE PROBLEME
+         setTextSaisie(s); 
+         setMode(SAISIE); 
+         aladin.console.printInPad(s+"\n"); 
+      }
    }
    
    /** Localisation de la source en fonction du frame courant */
    protected String getLocalisation(Obj o) {
       String s="";
-      switch( getFrame() ) {
-//         case XY:
-//            int n= aladin.view.getCurrentNumView();
-//            if( n==-1 ) return null;
-//            if( o.plan!=null && o.plan.hasXYorig ) s = s+ o.x+"  "+o.y;
-//            break;
-            
+      int frame = getFrame();
+      switch( frame ) {
          case XY:
             ViewSimple v = aladin.view.getCurrentView();
             Projection proj = v.getProj();

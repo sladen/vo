@@ -19,24 +19,7 @@
 
 package cds.aladin;
 
-import java.awt.Graphics;
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.TreeMap;
 
 import cds.tools.Util;
 
@@ -53,7 +36,7 @@ public class HealpixKeyIndex extends HealpixKey {
    
    protected HealpixKeyIndex(PlanBG planBG,int order, long npix) {
       super(planBG,order,npix,ASYNC);
-      System.out.println("==> HealpixKeyIndex sur "+fileNet);
+//      System.out.println("==> HealpixKeyIndex sur "+fileNet);
    }
    
    protected String getFileNet() {
@@ -124,28 +107,14 @@ public class HealpixKeyIndex extends HealpixKey {
    protected int getMem() { return mem;}
    
    protected int addHealpixIndexItem(HealpixIndex hi,ViewSimple v) {
-//      hi.putAll(index);
       for( String id : index ) {
          HealpixIndexItem hii = index.get(id);
          if( hii.isOutView(v) ) continue;
          hi.put(id, hii);
       }
       resetTimer();
-      resetTimeAskRepaint();
       return hi.size(); 
    }
-   
-//   protected int draw(Graphics g, ViewSimple v,TreeMap<String,TreeNodeProgen> set) { 
-//      for( String key : index ) {
-//         HealpixIndexItem hii = index.get(key);
-//         String url = hii.resolveImageSourcePath(planBG.imageSourcePath);
-//         TreeNodeProgen node = new TreeNodeProgen(planBG.aladin, key, key, "Progen", url,hii.json);
-//         set.put(key,node);
-//      }
-//      resetTimer();
-//      resetTimeAskRepaint();
-//      return index.size(); 
-//   }
    
    protected int getCounts() { return index==null ? 0 : index.size(); }
    
@@ -156,14 +125,15 @@ public class HealpixKeyIndex extends HealpixKey {
       String code = status==HealpixKey.LOADINGFROMNET || status==HealpixKey.LOADINGFROMCACHE ? "**" :
          status==HealpixKey.TOBELOADFROMNET || status==HealpixKey.TOBELOADFROMCACHE ? " x" : " .";
 
-      long t = (int)(getAskRepaintTime()/1000L);
+//      long t = (int)(getAskRepaintTime()/1000L);
       return code+"["+Util.align(priority+"",5)+"] "+
              Util.align(getStringNumber(),8)+
              Util.align(getCounts()+"d",8)+
              Util.align(getLongFullMem(),8)+
              Util.align(getStatusString(),16)+
              ( timer==-1 ? -1 : getLiveTime()/1000 ) +
-             "/"+t + "s => "+VIE[-getLive()]+
+//             "/"+t + "s => "+VIE[-getLive()]+
+             "s => "+VIE[-getLive()]+
              (getStatus()==READY?(fromNet?" Net":" Cache")+":"+timeStream+"ms" : "");
    }
 

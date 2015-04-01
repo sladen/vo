@@ -26,6 +26,8 @@ import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.Map;
 
 import javax.swing.JComponent;
 import javax.swing.JMenuItem;
@@ -110,7 +112,7 @@ public final class PlasticWidget extends JComponent  implements
 
 	// on mouseMove, redisplay to hide the highlighting, and set the default cursor
 	public void mouseExited(MouseEvent e) {
-		Aladin.makeCursor(this,Aladin.DEFAULT);
+		Aladin.makeCursor(this,Aladin.DEFAULTCURSOR);
 //		bkgdColor = Aladin.BKGD;
         isIn=false;
 		repaint();

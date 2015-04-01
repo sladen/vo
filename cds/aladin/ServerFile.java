@@ -178,7 +178,7 @@ public class ServerFile extends Server implements XMLConsumer {
             f=f.substring(0,i);
          }
       }
-      return creatLocalPlane(f,label,origin,null,null,null,this);
+      return creatLocalPlane(f,label,origin,null,null,null,this,target,radius);
    }
 
    /** Creation d'un plan issu d'un chargement d'un fichier AJ, fits ou autre
@@ -215,12 +215,13 @@ public class ServerFile extends Server implements XMLConsumer {
     * @param f path du fichier
     * @param resNode noeud décrivant le fichier à charger, peut être <i>null</i>
     */
-   protected int creatLocalPlane(String f,String label,String origin, Obj o, ResourceNode resNode,InputStream is,Server server) {
+   protected int creatLocalPlane(String f,String label,String origin, Obj o, 
+         ResourceNode resNode,InputStream is,Server server,String target,String radius) {
       String serverTaskId = aladin.synchroServer.start("ServerFile.creatLocalPlane/"+label);
       try {
 //         setSync(false);
          int n=0;
-         MyInputStream in;
+         MyInputStream in=null;
          long type;
          URL u=null;
          boolean localFile=false;
@@ -246,20 +247,31 @@ public class ServerFile extends Server implements XMLConsumer {
                   if( x.isDirectory() ) {
 //                     setSync(true);
                      Aladin.trace(4,"ServerFile.creatLocalPlane("+f+"...) => detect: DIR");
-                     if( PlanBG.isPlanBG(f) ) {
+                     boolean progen=false;
+                     if(  (progen=PlanBG.isPlanHpxFinder(f)) ||  PlanBG.isPlanBG(f) ) {
 
-                        // Catalogue ?
-                        if( (new File(f+"/Norder3/Allsky.xml")).exists() ) {
+                        // Progen ?
+                        if( progen ) {
                            TreeNodeAllsky gSky;
                            try { gSky = new TreeNodeAllsky(aladin, f); }
                            catch( Exception e ) {
                               aladin.trace(4, "ServerFile.creatLocalPlane(...) Allsky properties file not found, assume default params");
-                              gSky = new TreeNodeAllsky(aladin, null, null, null, null, null, null, null, null, null, f, "15 cat");
+                              gSky = new TreeNodeAllsky(aladin, null, null, null, null, null,null, null, null, null, null, null, f, "15 progen");
                            }
                            n=aladin.calque.newPlanBG(gSky,label,null,null);
 
+                        // Catalogue ?
+                        } else if(  (new File(f+"/metadata.xml")).exists() || (new File(f+"/Norder3/Allsky.xml")).exists() ) {
+                           TreeNodeAllsky gSky;
+                           try { gSky = new TreeNodeAllsky(aladin, f); }
+                           catch( Exception e ) {
+                              aladin.trace(4, "ServerFile.creatLocalPlane(...) Allsky properties file not found, assume default params");
+                              gSky = new TreeNodeAllsky(aladin, null, null, null, null, null,null, null, null, null, null, null, f, "15 cat");
+                           }
+                           n=aladin.calque.newPlanBG(gSky,label,target,radius);
+
                            // ou Image
-                        } else n=aladin.calque.newPlanBG(f,label,null,null);
+                        } else n=aladin.calque.newPlanBG(f,label,target,radius);
                      }
                      else {
                         final ServerFile th = this;
@@ -304,14 +316,14 @@ public class ServerFile extends Server implements XMLConsumer {
             //Obtention du stream (donnee locale ou distante)
             if( is==null && (f.startsWith("http:")||f.startsWith("https:")) ) {
                u = aladin.glu.getURL("Http",getNameWithoutBrackets(f),true,true);
-               in = Util.openStream(u);
+               try { in = Util.openStream(u); } catch( Exception e ) { }
                mode="http";
             }
 
             // support FTP --> ça fonctionne avec par exemple une URL du type ftp://user:passwd@server/....
             else if( is==null && f.startsWith("ftp://") ) {
                u = new URL(getNameWithoutBrackets(f));
-               in = Util.openStream(u);
+               try { in = Util.openStream(u); } catch( Exception e ) { }
                mode="ftp";
             }
             // URL du type file://...
@@ -336,8 +348,10 @@ public class ServerFile extends Server implements XMLConsumer {
                   else in = new MyInputStream(is);
                }
             }
-            in = in.startRead();
-            type = in.getType();
+            if( in!=null ) {
+               in = in.startRead();
+               type = in.getType();
+            } else type=MyInputStream.UNKNOWN;
 
             // Petit rajouti pour reconnaitre l'extension AJS pour les scripts Aladin
             if( f!=null && f.endsWith(".ajs") ) type |= MyInputStream.AJS;
@@ -350,12 +364,12 @@ public class ServerFile extends Server implements XMLConsumer {
             aladin.log("load",mode+t);
 
             if( (type & MyInputStream.AJS|type & MyInputStream.AJSx|MyInputStream.UNKNOWN)!=0) aladin.command.readFromStream(in);
-            else if( (type & MyInputStream.AJ)!=0) loadAJ(in);
-            else if( (type & MyInputStream.IDHA)!=0) updateMetaData(in,server,"",null);
-            else if( (type & MyInputStream.SIA_SSA)!=0)  updateMetaData(in,server,"",null);
+            else if( (type & MyInputStream.AJ)!=0) n=loadAJ(in)?1:0;
+            else if( (type & MyInputStream.IDHA)!=0) n=updateMetaData(in,server,"",null)?1:0;
+            else if( (type & MyInputStream.SIA_SSA)!=0)  n=updateMetaData(in,server,"",null)?1:0;
 
             else if( (type & MyInputStream.HPXMOC)!=0 ) {
-               n=aladin.calque.newPlaMOC(in,label);
+               n=aladin.calque.newPlanMOC(in,label);
             }
             else if( (type & MyInputStream.FITS)!=0 && (type & MyInputStream.RGB)!=0 ) {
                if( u!=null ) {
@@ -366,10 +380,10 @@ public class ServerFile extends Server implements XMLConsumer {
                } else n=aladin.calque.newPlanImageRGB(f,null,in,resNode);
             }
             else if( (type & MyInputStream.HEALPIX)!=0 ) {
-               n=aladin.calque.newPlanHealpix(f,in,label,PlanBG.DRAWPIXEL,0, false);
+               n=aladin.calque.newPlanHealpix(f,in,label,PlanBG.DRAWPIXEL,0, false,target,radius);
             }
             else if( (type & MyInputStream.XFITS)!=0) {
-               aladin.calque.newFitsExt(f,in,label,o);
+               aladin.calque.newFitsExt(f,in,label,o,target,radius);
                n=1;
             }
             else if( (type & (MyInputStream.FITS|MyInputStream.PDS))!=0) {
@@ -410,7 +424,8 @@ public class ServerFile extends Server implements XMLConsumer {
                // C'est peut être un dico GLU ?
             } else if( (type & MyInputStream.GLU)!=0 ) {
                if( aladin.glu.loadGluDic(new DataInputStream(in), false,localFile) ) {
-                  aladin.glu.reload(false);
+                  aladin.glu.reload(false,true);
+                  n=1;
                }
 
                // C'est peut être un planBG via HTTP
@@ -419,15 +434,27 @@ public class ServerFile extends Server implements XMLConsumer {
                // images ?
                if( Util.isUrlResponding(new URL(f+"/Norder3/Allsky.jpg"))
                      || Util.isUrlResponding(new URL(f+"/Norder3/Allsky.fits"))
-                     ) n=aladin.calque.newPlanBG(new URL(f),label,null,null);
+                     || Util.isUrlResponding(new URL(f+"/Norder3/Allsky.png"))
+                     ) {
+                  n=aladin.calque.newPlanBG(new URL(f),label,null,null);
+
+               // ou progen ?
+               } else if( f.endsWith("HpxFinder") || f.endsWith("HpxFinder/") ) {
+                     TreeNodeAllsky gSky;
+                     try { gSky = new TreeNodeAllsky(aladin, f); }
+                     catch( Exception e ) {
+                        aladin.trace(4, "ServerFile.creatLocalPlane(...) Allsky properties file not found, assume default params");
+                        gSky = new TreeNodeAllsky(aladin, null, null, null, f, null, null, null, null, null, null, null, null, "15 progen");
+                     }
+                     n=aladin.calque.newPlanBG(gSky,label,null,null);
 
                // ou catalogue ?
-               else if( Util.isUrlResponding(new URL(f+"/Norder3/Allsky.xml")) ) {
+               } else if( Util.isUrlResponding(new URL(f+"/Norder3/Allsky.xml")) ) {
                   TreeNodeAllsky gSky;
                   try { gSky = new TreeNodeAllsky(aladin, f); }
                   catch( Exception e ) {
                      aladin.trace(4, "ServerFile.creatLocalPlane(...) Allsky properties file not found, assume default params");
-                     gSky = new TreeNodeAllsky(aladin, null, null, f, null, null, null, null, null, null, null, "15 cat");
+                     gSky = new TreeNodeAllsky(aladin, null, null, null, f, null, null, null, null, null, null, null, null, "15 cat");
                   }
                   n=aladin.calque.newPlanBG(gSky,label,null,null);
                }
@@ -455,6 +482,8 @@ public class ServerFile extends Server implements XMLConsumer {
          }
          defaultCursor();
 //         setSync(true);
+         
+         if( n>0 && (f!=null || u!=null)) aladin.memoLastFile(f!=null?f:u.toString());
          return n;
       } finally { aladin.synchroServer.stop(serverTaskId); }
    }
@@ -477,11 +506,18 @@ public class ServerFile extends Server implements XMLConsumer {
       of=f;
       if( tree!=null && !tree.isEmpty() ) {
          if( tree.nbSelected()>0 ) {
-            tree.loadSelected();
-            tree.resetCb();
+            if( !tooManyChecked() ) {
+               tree.loadSelected();
+               tree.resetCb();
+            }
          } else Aladin.warning(this,WNEEDCHECK);
          defaultCursor();
-      } else creatLocalPlane(f,null,null,null,null,null,this);
+      } else {
+         String code = "load "+f;
+         aladin.console.printCommand(code);
+         int n=creatLocalPlane(f,null,null,null,null,null,this,null,null);
+         if( n!=-1 ) aladin.calque.getPlan(n).setBookmarkCode(code);
+      }
    }
 
    /** Nettoyage du formulaire */
@@ -617,7 +653,6 @@ public class ServerFile extends Server implements XMLConsumer {
       String s;
       String type = (String)atts.get("type");
       typePlan= Util.indexInArrayOf(type, Plan.Tp);
-
       inFilter = inFitsHeader = inFilterScript = false;
       switch(typePlan) {
          case Plan.FILTER:
@@ -633,7 +668,7 @@ public class ServerFile extends Server implements XMLConsumer {
             plan = new PlanCatalog(aladin);
             if( (s=(String)atts.get("object"))!=null ) plan.objet = s;
             if( (s=(String)atts.get("param"))!=null )  plan.param = s+".";
-            if( (s=(String)atts.get("from"))!=null )   plan.from = s;
+            if( (s=(String)atts.get("from"))!=null )   plan.copyright = s;
             if( (s=(String)atts.get("RA"))!=null )     ra=Double.valueOf(s).doubleValue();
             if( (s=(String)atts.get("DE"))!=null )     de=Double.valueOf(s).doubleValue();
             if( (s=(String)atts.get("radius"))!=null ) rm=Double.valueOf(s).doubleValue();
@@ -666,7 +701,7 @@ public class ServerFile extends Server implements XMLConsumer {
             if( (s=(String)atts.get("param"))!=null )      plan.param = s+".";
             if( (s=(String)atts.get("fmt"))!=null )        pi.fmt = PlanImage.getFmt(s);
             if( (s=(String)atts.get("resolution"))!=null ) pi.res = PlanImage.getRes(s);
-            if( (s=(String)atts.get("from"))!=null )       plan.from = s;
+            if( (s=(String)atts.get("from"))!=null )       plan.copyright = s;
             if( (s=(String)atts.get("cacheID"))!=null )    pi.cacheID = s;
             if( (s=(String)atts.get("cacheOffset"))!=null )pi.cacheOffset = Long.parseLong(s);
             if( (s=(String)atts.get("url"))!=null ) {
@@ -833,7 +868,9 @@ public class ServerFile extends Server implements XMLConsumer {
       else if( name.equals("PLANE") ) plan = creatPlaneByAJ(atts);
       else if( name.equals("TABLE") )  vField = new Vector(10);
       else if( name.equals("SCRIPT") ) inFilterScript =true;
-      else if( name.equals("ORIRIGINALHEADERFITS") ) inFitsHeader=true;
+      else if( name.equals("ORIRIGINALHEADERFITS") ) {
+         inFitsHeader=true;
+      }
       else if( name.equals("FILTER") ) inFilter=true;
 
       else if( name.equals("FILTERS") ) {
@@ -914,6 +951,7 @@ public class ServerFile extends Server implements XMLConsumer {
             plan.flagOk = true;
             aladin.calque.addOnStack(plan);
             plan=null;
+            inFitsHeader=false;
             flagCatalogSource=false;
          }
 
@@ -1018,8 +1056,7 @@ public class ServerFile extends Server implements XMLConsumer {
       //rec = new String(ch,start,cur-start).trim();
 
       // Ajout de l'objet dans le plan courant
-      Source o = (leg!=null)?new Source(plan,ra,de,id,rec,leg):
-         new Source(plan,ra,de,id,rec);
+      Source o = (leg!=null)?new Source(plan,ra,de,id,rec,leg): new Source(plan,ra,de,id,rec);
 
       // Cas particulier de sources dans un plan tool
       if( leg!=null && typePlan==CATALOGTOOL && ((PlanTool)plan).legPhot==null ) ((PlanTool)plan).legPhot=leg;
@@ -1220,7 +1257,7 @@ public class ServerFile extends Server implements XMLConsumer {
          setScript(new String(ch,start,length).replaceAll("\\\\n", "\n"));
       } else if( inFitsHeader ) {
          if( ((PlanImage)plan).headerFits==null ) {
-            ((PlanImage)plan).headerFits = new FrameHeaderFits(new String(ch,start,length));
+            ((PlanImage)plan).headerFits = new FrameHeaderFits(plan,new String(ch,start,length));
          } else ((PlanImage)plan).headerFits.setOriginalHeaderFits(new String(ch,start,length));
       } else if( inFilter ) {
          if( plan.filters==null ) return;

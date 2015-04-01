@@ -306,8 +306,10 @@ public class ServerAllVO extends Server implements Runnable,MyListener {
       // Traitement des images par lot
       if( tree!=null && !tree.isEmpty() ) {
          if( tree.nbSelected()>0 ) {
-            tree.loadSelected();
-            tree.resetCb();
+            if( !tooManyChecked() ) {
+               tree.loadSelected();
+               tree.resetCb();
+            }
          } else {
             // Si aucune ligne n'a ete cochee et si la Frameinfo est ouverte, je charge
             // l'image de cette derniere
@@ -462,7 +464,7 @@ public class ServerAllVO extends Server implements Runnable,MyListener {
          aladin.log("Error","Discovery tool error.submit()");
       }
 
-System.out.println("C'est terminé pour le multiplexeur");
+//System.out.println("C'est terminé pour le multiplexeur");
 //seeJeton();
       finMultiplex();
       defaultCursor();

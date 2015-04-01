@@ -32,6 +32,7 @@ import cds.aladin.Ligne.Segment;
 import cds.aladin.prop.Prop;
 import cds.aladin.prop.PropAction;
 import cds.astro.AstroMath;
+import cds.astro.Astrocoo;
 import cds.astro.Coo;
 import cds.astro.Proj3;
 import cds.tools.Util;
@@ -210,11 +211,24 @@ public class Repere extends Position {
       Coord c = new Coord();
       Projection proj = v.getProj().copy();
       proj.setProjCenter(0,0);
+      double d=0;
       c.al=c.del=0;
+      
       proj.getXY(c);
+      
+      // Y a blême pour les Calibs qui ne sont pas en equatorial.
+      // Dans ce cas, je prend comme référence le point lui-même
+      // et je ne change pas le centre de projection
+      if( Double.isNaN(c.del) ) {
+         proj = v.getProj().copy();
+         c.al=raj;
+         c.del=dej;
+         d=dej;
+         proj.getXY(c);
+      }
       c.y+=r;
       proj.getCoord(c);
-      radius=Math.abs(c.del);
+      radius=Math.abs(d-c.del);
    }
 
    /** Positionnement d'un ID particulier */
@@ -247,7 +261,8 @@ public class Repere extends Position {
          xc = xv[v.n];
          yc = yv[v.n];
          
-         return(xc<=x+l+dw/2 && xc>=x-l-dw/2 && yc<=y+l+dh/2 && yc>=y-l-dh/2);
+         if( type==CARTOUCHE ) return(xc<=x+l+dw/2 && xc>=x-l-dw/2 && yc<=y+l+dh/2 && yc>=y-l-dh/2);
+         return(xc<=x+l && xc>=x-l && yc<=y+l && yc>=y-l);
       }
    }
    
@@ -344,7 +359,7 @@ public class Repere extends Position {
       
       boolean flagHist = v==v.aladin.view.getCurrentView();
       
-      if( v==null || v.isFree() || !v.pref.hasAvailablePixels() ) return false;
+      if( v==null || v.isFree() || !hasPhot(v.pref) ) return false;
       statInit();
       
       double xc,yc;
@@ -454,6 +469,7 @@ public class Repere extends Position {
       
       Projection proj = p.projd;
       if( !p.hasAvailablePixels() ) throw new Exception("getStats error: image without pixel values");
+      if( !hasPhot(p) )  throw new Exception("getStats error: not compatible image");
       if( !Projection.isOk(proj) ) throw new Exception("getStats error: image without astrometrical calibration");
       if( radius<=0 ) throw new Exception("getStats error: no radius");
       
@@ -540,6 +556,10 @@ public class Repere extends Position {
    
    /** Retourne true si l'objet contient des informations de photométrie  */
    public boolean hasPhot() { return hasRayon(); }
+   public boolean hasPhot(Plan p) { 
+      if( !hasPhot() ) return false;
+      return p.hasAvailablePixels();
+   }
    
    public String getCommand() {
       String r;
@@ -650,25 +670,11 @@ public class Repere extends Position {
                if( isSelected() && plan.aladin.view.nbSelectedObjet()<=2 ) cutOn();
                else cutOff();
             } else {
-//               if( v.pref instanceof PlanBG ) {
-//                  int l = (int)(getRayon(v)*v.getZoom());
-//                  g.drawOval(p.x-l, p.y-l, l*2, l*2);
-//                  
-////                  String s = plan.aladin.localisation.J2000ToString(raj, dej);
-////                  g.drawString(s, p.x - g.getFontMetrics().stringWidth(s)/2, p.y-2);
-////                  s = Coord.getUnit(getRadius());
-////                  g.drawString(s, p.x - g.getFontMetrics().stringWidth(s)/2, p.y+15);
-//                  
-////                  demiLargeur = (int)Math.min(Math.max(2,v.getZoom()*3),16);
-////                  demiCentre = 2*demiLargeur/3;
-////                  drawReticule(g,p.x,p.y,demiLargeur,demiCentre,getColor());
-////                  drawSpecialCircle(g,v);
-////                  id = PlanBG.CURRENTMODE;
-//               } else {
-                  int l = (int)(getRayon(v)*v.getZoom());
+               int l = (int)(getRayon(v)*v.getZoom());
+               if( hasPhot(v.pref) ) {
                   Util.drawFillOval(g, p.x-l, p.y-l, l*2, l*2, 0.1f * plan.getOpacityLevel(), null);
-//               }
-               if( isSelected() ) statDraw(g, v,dx,dy);
+                  if( isSelected() ) statDraw(g, v,dx,dy);
+               } else g.drawOval(p.x-l, p.y-l, l*2, l*2);
             }
             break;
          case ARROW:
@@ -698,10 +704,12 @@ public class Repere extends Position {
       if( isWithLabel() && !hasRayon() ) {
          if( id==null ) setId();
          if( type==CARTOUCHE ) {
+//            Util.drawStringOutline((Graphics2D)g,id, p.x-dw/2,p.y-L-1,null,null);
             Util.drawCartouche(g,p.x-dw/2,p.y-L-dh-1, dw-2, dh+3, 1f, Color.black,JAUNEPALE);
             g.setColor( getColor() );
             g.setFont(Aladin.SPLAIN);
             g.drawString(id,p.x-dw/2,p.y-L-1);
+            
 //            g.drawLine(p.x-dw/2,p.y-L,p.x+dw/2,p.y-L);
             
          } else g.drawString(id,p.x-dw/2,p.y-L-1);
@@ -725,7 +733,8 @@ public class Repere extends Position {
       Rectangle r = getClipRayon(v);
       int xc=0;
       int yc=0;
-
+      Color c = g.getColor();
+      
       // Trace des poignees de selection
       for( int i=0; i<4; i++ ) {
          switch(i ) {
@@ -734,11 +743,12 @@ public class Repere extends Position {
             case 2: xc=r.x+r.width-DS; yc=r.y+r.height/2-DS;  break;      // Droite
             case 3: xc=r.x; yc=r.y+r.height/2-DS;  break;              // Gauche
          }
-         g.setColor( Color.green );
+         g.setColor( c );
          g.fillRect( xc+1,yc+1 , DS,DS );
          g.setColor( Color.black );
          g.drawRect( xc,yc , DS,DS );
       }
+      g.setColor( c );
    }
 
    protected void drawRotCenterSelect(Graphics g,ViewSimple v) {
@@ -755,7 +765,7 @@ public class Repere extends Position {
     * => arret de son affichage
     */
    protected void cutOff() { 
-      plan.aladin.calque.zoom.zoomView.setHist(); 
+      plan.aladin.calque.zoom.zoomView.stopHist(); 
       plan.aladin.calque.zoom.zoomView.cutOff(this);
    }
 

@@ -48,7 +48,7 @@ import cds.xml.Field;
  * @version 1.0 : (10 mai 99)  Toilettage du code
  * @version 0.9 : (??) creation
  */
-public final class Mesure extends JPanel implements Runnable {
+public final class Mesure extends JPanel implements Runnable,Iterable<Source> {
    Aladin aladin;                 // Reference
    MCanvas mcanvas;               // Canvas des infos et mesures
    MyScrollbar scrollV;           // Scrollbar verticale
@@ -139,7 +139,7 @@ public final class Mesure extends JPanel implements Runnable {
        setSorting(false);
        scrollV.setValue(0);
        setStatus("");
-       aladin.makeCursor(mcanvas,Aladin.DEFAULT);
+       aladin.makeCursor(mcanvas,Aladin.DEFAULTCURSOR);
        memoWordLineClear();
        mcanvas.repaint();
     }
@@ -402,7 +402,7 @@ public final class Mesure extends JPanel implements Runnable {
           mcanvas.show(t,2);
           rep = aladin.view.setRepere(new Coord(t.raj,t.dej)) ? 1 : -1;
           if( !Aladin.NOGUI ) aladin.view.showSource(t);
-          aladin.view.memoUndo(aladin.view.getCurrentView(), new Coord(t.raj,t.dej),t);
+//          aladin.view.memoUndo(aladin.view.getCurrentView(), new Coord(t.raj,t.dej),t);
 //System.out.println("J'ai trouve en pos = "+n+" field="+field);                
        }
        
@@ -431,7 +431,8 @@ public final class Mesure extends JPanel implements Runnable {
 //      aladin.trace(4,"Mesure.scrollV("+s.id+") nbSrc="+nbSrc);
       
       mcanvas.unselect();
-      aladin.calque.zoom.zoomView.setHist();
+      aladin.calque.zoom.zoomView.stopHist();
+      aladin.calque.zoom.zoomView.resumeSED();
       aladin.console.setEnabledDumpButton(true);
       if( s.leg.isSorted() ) { s.leg.clearSort(); mcanvas.reloadHead(); }
       if( mcanvas.triTag!=Field.UNSORT ) mcanvas.triTag=Field.UNSORT;
@@ -443,7 +444,8 @@ public final class Mesure extends JPanel implements Runnable {
       else for( int i=0; i<nbSrc; i++ ) src[i]=null;	// Pour le GC
       nbSrc=0;
       mcanvas.unselect();
-      aladin.calque.zoom.zoomView.setHist();
+      aladin.calque.zoom.zoomView.stopHist();
+      aladin.calque.zoom.zoomView.resumeSED();
       aladin.console.setEnabledDumpButton(false);
    }
    
@@ -461,11 +463,11 @@ public final class Mesure extends JPanel implements Runnable {
       
       mcanvas.currentsee=-1;
       mcanvas.currentselect=-2;
-//      scrollV.setValues(nbSrc,1,0,nbSrc+1);
       scrollV.setMaximum(nbSrc);
       mcanvas.unselect();
       mcanvas.repaint();
-      aladin.calque.zoom.zoomView.setHist();
+      aladin.calque.zoom.zoomView.stopHist();
+      aladin.calque.zoom.zoomView.resumeSED();
       aladin.console.setEnabledDumpButton(nbSrc>0);
    }
    
@@ -500,7 +502,8 @@ public final class Mesure extends JPanel implements Runnable {
          }
          nbSrc=n;
       }
-      aladin.calque.zoom.zoomView.setHist();
+      aladin.calque.zoom.zoomView.stopHist();
+      aladin.calque.zoom.zoomView.resumeSED();
       aladin.console.setEnabledDumpButton(nbSrc>0);
    }
 
@@ -511,7 +514,8 @@ public final class Mesure extends JPanel implements Runnable {
       src[i]=null;
       nbSrc--;
       mcanvas.unselect();
-      aladin.calque.zoom.zoomView.setHist();
+      aladin.calque.zoom.zoomView.stopHist();
+      aladin.calque.zoom.zoomView.resumeSED();
       aladin.console.setEnabledDumpButton(nbSrc>0);
    }
    
@@ -519,6 +523,14 @@ public final class Mesure extends JPanel implements Runnable {
    protected int findSrc(Source s) {
       for( int i=0; i<nbSrc; i++) if( src[i]==s ) return i;
       return -1;
+   }
+   
+   public Iterator<Source> iterator() { return new SourceIterator(); }
+   class SourceIterator implements Iterator<Source> {
+      int i=nbSrc;
+      public boolean hasNext() { return i>0; }
+      public Source next() { return src[--i]; }
+      public void remove() { }
    }
    
    // Retourne la première source du tableau
@@ -568,6 +580,7 @@ public final class Mesure extends JPanel implements Runnable {
          Words w = new Words(leg.field[i].name,o.leg.getWidth(i),o.leg.getPrecision(i),
                              Words.CENTER,o.leg.computed.length==0?false:o.leg.computed[i],
                              leg.field[i].sort);
+         w.pin = i==0;
          wordLine.addElement(w);
       }
       return wordLine;
@@ -584,6 +597,8 @@ public final class Mesure extends JPanel implements Runnable {
       wordLine = new Vector(st.countTokens()+1);
       wordLine.addElement(o);           // L'objet lui-meme est tjrs en premiere place
       
+      int indexFootPrint = o.getIdxFootprint(); // position d'un Fov, -1 si aucun
+      
       for( int i=0; st.hasMoreTokens(); i++ ) {
          String tag = st.nextToken();
          Words w;
@@ -594,10 +609,10 @@ public final class Mesure extends JPanel implements Runnable {
 
             // Determination de l'alignement en fonction du type de donnees
             int align= o.leg.isNumField(i-1) ? Words.RIGHT : Words.LEFT;
-
+            
             // Creation d'un mot dans le cas d'un footprint associé (Thomas, VOTech)
-            if( o.getFootprint()!=null && o.getIdxFootprint()==i-1 ) {
-            	w = new Words(tag,o.leg.getWidth(i-1),o.leg.getPrecision(i-1),Words.LEFT,false,true);
+            if( indexFootPrint==i-1 ) {
+               w = new Words("  FoV",o.leg.getWidth(i-1),o.leg.getPrecision(i-1),Words.LEFT,false,true);
             }
             // Creation du nouveau mot
             else w = new Words(tag,o.leg.getWidth(i-1),o.leg.getPrecision(i-1),align,o.leg.computed.length==0?false:o.leg.computed[i-1],Field.UNSORT);
@@ -797,6 +812,11 @@ public final class Mesure extends JPanel implements Runnable {
    protected void display() {
       mcanvas.currentsee=-1;
       mcanvas.currentselect=-2;
+      
+      Source s = aladin.mesure.getFirstSrc();
+      if( s==null && aladin.view.zoomview.flagSED || s!=null && s.leg!=null && s.leg.isSED() ) {
+         aladin.view.zoomview.setSED(s);
+      }
       mcanvas.repaint();
    }
 

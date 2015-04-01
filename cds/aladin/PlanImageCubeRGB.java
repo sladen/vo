@@ -58,13 +58,14 @@ public final class PlanImageCubeRGB extends PlanImageCube implements PlanRGBInte
 Aladin.trace(2,"Loading FITS "+Tp[type]);
 
       // Lecture de l'entete Fits si ce n'est deja fait
-      if( headerFits==null ) headerFits = new FrameHeaderFits(dis);
+      if( headerFits==null ) headerFits = new FrameHeaderFits(this,dis);
  
       bitpix = headerFits.getIntFromHeader("BITPIX");
       if( bitpix!=32 && bitpix!=24) {
          error="BITPIX must be 24 or 32 for RGB or ARGB FITS cube !";
          return false;
       }
+      pixMode = bitpix==32 ? PIX_ARGB : PIX_RGB;
       naxis = headerFits.getIntFromHeader("NAXIS");
       
       // Il s'agit juste d'une entête FITS indiquant des EXTENSIONs

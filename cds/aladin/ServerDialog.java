@@ -88,7 +88,7 @@ public final class ServerDialog extends JFrame
 
 	// pour robot
 	Server curServer, localServer, vizierServer,vizierArchives,vizierSurveys,
-           vizierBestof,discoveryServer, aladinServer, fovServer, almaFovServer;
+           vizierBestof,discoveryServer, aladinServer, fovServer, almaFovServer, vizierSED;
 	JButton submit;
 
 	// Les references aux autres objets
@@ -116,6 +116,7 @@ public final class ServerDialog extends JFrame
 
     /** Memorisation du dernier target saisie par la saisie rapide */
     protected void setDefaultTarget(String s) {
+       if( s.equals(" --   --") ) return;
 //       System.out.println("setDefaultTarget("+s+")");
        defaultTarget=aladin.localisation.getICRSCoord(s);
     }
@@ -176,6 +177,12 @@ public final class ServerDialog extends JFrame
             ((ServerFolder) sv.elementAt(i)).addItem(sTmp.aladinLabel);
          }
       }
+   }
+   
+   /** Retourne l'indice du formulaire du dernier Serveur GLU chargé
+    * => afin de pouvoir le rendre visible immédiatement le cas échéant */
+   protected int getLastGluServerIndice() {
+      return findIndiceServer(aladin.glu.lastGluServer);
    }
 
 
@@ -331,8 +338,10 @@ long t1,t;
             sv.addElement(new ServerSimbad(aladin));
             sv.addElement(new ServerNED(aladin));
             if( Aladin.PROTO ) {
-                sv.addElement(new ServerSWarp(aladin));
-                sv.addElement(new ServerMocQuery(aladin));
+               sv.addElement(new ServerSWarp(aladin));
+            }
+            if( Aladin.BETA ) {
+               sv.addElement(new ServerMocQuery(aladin));
             }
          } else {
             sv.addElement(new ServerSimbad(aladin));
@@ -354,7 +363,7 @@ long t1,t;
       if( !Aladin.OUTREACH ) sv = triServer(sv);
 
       // L'arbre des allsky
-      sv.addElement(new ServerAllsky(aladin));
+      sv.addElement(new ServerHips(aladin));
 
       // L'acces local/url
       sv.addElement(localServer = new ServerFile(aladin));
@@ -369,7 +378,7 @@ long t1,t;
       }
 
       // L'arbre des catégories
-      sv.addElement(new ServerCategory(aladin));
+      sv.addElement(new ServerWatch(aladin));
 
       // Les serveurs Spectra via GLU
       if( !Aladin.OUTREACH && Aladin.NETWORK ) addGluServer(sv, Server.SPECTRUM);
@@ -613,7 +622,7 @@ long t1,t;
 
       aladin.manageDrop();
 
-//      setCurrent("Allsky");
+      setCurrent("hips");
 
       // INUTILE, C'EST MAINTENANT ASSEZ RAPIDE !
 //      Thread th = new Thread(this,"AladinServerPack");

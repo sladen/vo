@@ -20,6 +20,8 @@
 
 package cds.aladin;
 
+import cds.tools.Util;
+
 /**
  * Gestion des équivalences de commandes entre DS9 et Aladin
  * @version 1.0 (dec 2011) Creation
@@ -69,8 +71,11 @@ public final class CommandDS9  {
    public String translateOne(String s) throws Exception {
       s = trimCom(s);
       if( s==null ) return null;
-      String cmd = (new Tok(s,"( ")).nextToken();
+      Tok tok = new Tok(s,"( ");
+      String cmd = tok.nextToken();
       
+      if( cmd.equalsIgnoreCase("draw") && tok.nextToken().equalsIgnoreCase("stc")) return translateOne(s.substring(cmd.length()));
+      if( cmd.equalsIgnoreCase("stc") ) return translateOne(s.substring(cmd.length()));  // On supprime simplement le préfixe STC
       if( cmd.equalsIgnoreCase("circle") 
        || cmd.equalsIgnoreCase("line") 
        || cmd.equalsIgnoreCase("polygon")
@@ -202,7 +207,14 @@ public final class CommandDS9  {
   // absence de parenthèses
   // in : circle 293.00068 485.00134 31.69569  || ... # ...
   // out: draw circle(293.00068,485.00134,31.69569)
+  //
+  // Et si le premier paramètre n'est pas un numérique, on suppose que c'est
+  // le nom du système de référence à la STC
+  // in : POLYGON ICRS 293.00068 485.00134 31.69569..
+  // out : setconf frame=ICRS; draw polygon(293.00068,485.00134,31.69569...)
+  // Rq: La position de l'observateur en STC est simplement ignorée
   private String basicDS9toAladin(String cmd) throws Exception {
+     String frame = null;
      // On enlève ce qu'il y a au bout de la ligne (commentaire, paramètres...)
      int c1 = cmd.indexOf('#');
      int c2 = cmd.indexOf('|');
@@ -211,16 +223,33 @@ public final class CommandDS9  {
      if( c==-1 ) c = cmd.length();
      cmd = cmd.substring(0,c).trim();
      Tok tok = new Tok(cmd,"( ,)");
-     StringBuffer s = new StringBuffer("draw "+tok.nextToken()+"(");
+     StringBuffer s = new StringBuffer("draw "+tok.nextToken().toLowerCase()+"(");
      boolean first=true;
      while( tok.hasMoreTokens() ) {
+        String t = tok.nextToken();
+        if( isSTCKeyword(t) ) continue; // on ignore simplement
         if( !first ) s.append(',');
+        else {
+           if( !Character.isDigit( t.charAt(0) ) ) {
+              frame = "setconf frame="+t+";";
+              continue;
+           }
+        }
         first=false;
-        s.append(Tok.quote(tok.nextToken()));
+        s.append(Tok.quote(t));
      }
      s.append(')');
-     return s.toString();
+     return (frame!=null?frame:"")+s.toString();
   }
+  
+  static private String [] STCKEYS = {
+     "LOCAL_GROUP_CENTER","GALACTIC_CENTER","UNKNOWNRefPos",
+     "EMBARYCENTER","HELIOCENTER","BARYCENTER","TOPOCENTER",
+     "GEOCENTER","JUPITER","MERCURY","NEPTUNE","URANUS",
+     "SATURN","PLUTO","VENUS","LSRD","LSRK","MOON","MARS","LSR"
+     };
+  
+  private boolean isSTCKeyword(String s) { return Util.indexInArrayOf(s, STCKEYS,true)>=0; }
   
   static final private String [] TEST = {
    "# Region file format: DS9 version 4.1",
@@ -243,6 +272,9 @@ public final class CommandDS9  {
    "polygon(84.099463,21.761356,83.958987,21.817998,84.019991,21.948451,84.16057,21.891758) ||",
    "b1950; circle 82.907937d 22.010159d 31.940586",
    "circle(83.660376,22.042708,31.940586\")",
+   "# Region STC ",
+   "stc POLYGON ICRS 172.3051205700001 29.00697160000002 172.35133123000008 29.000585790000006 172.3475670999997 28.98066108000001 172.33490575999994 28.98246860000003 172.33324013999982 28.973249709999987 172.32257678999994 28.974723670000003 172.32063336000007 28.963602760000004 172.29783566999998 28.966582310000014", 
+   "draw stc POLYGON ICRS 172.3051205700001 29.00697160000002 172.35133123000008 29.000585790000006 172.3475670999997 28.98066108000001 172.33490575999994 28.98246860000003 172.33324013999982 28.973249709999987 172.32257678999994 28.974723670000003 172.32063336000007 28.963602760000004 172.29783566999998 28.966582310000014", 
 
   };
   

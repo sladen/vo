@@ -21,9 +21,10 @@
 
 package cds.tools;
 
-import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+
+import cds.aladin.MyInputStream;
 
 /**
  * Permet la lecture du contenu d'une URL avec un timeout (qui marche)
@@ -36,26 +37,37 @@ public class UrlLoader extends Thread {
    private long timeout;                                 // timeout en ms
    private String error=null;                            // erreur éventuelle, null si aucune
    private HttpURLConnection conn=null;               
-   private InputStream is=null;
+   private MyInputStream is=null;
    private boolean isWaiting=true;                       // false si l'URL a été totalement appelé et récupéré
+   private int length=-1;                                // Nombre d'octets à lire
+   private int size=0;                                   // Nombre d'octets lus
    
    /** Création d'un URL loader - ne peut être utilisée qu'une fois
     * @param url Url a lire
     * @param timeout temps maximum pour la lecture (en ms)
+    * @param mode =0 aucun test, =1: test sans lecture, =2 test avec lecture
     */
+   public UrlLoader(URL url,int timeout,int mode) throws Exception {
+      this(url,timeout);
+      if( mode>0 ) getData(mode==1 ? 0 : -1);
+   }
    public UrlLoader(URL url,int timeout) {
       this.timeout = timeout;
       this.url = url;
    }
    
    /** Demande la lecture effective de l'URL */
-   public String getData() throws Exception {
+   public String getData() throws Exception { return getData(-1); }
+   public String getData(int length) throws Exception {
+      if( res!=null && res.length()!=0 ) return res.toString();
+      
+      this.length=length;
       long t1 = System.currentTimeMillis();
 //      System.out.println("Pere en attente de résultat...");
       start();
-      while( isWaiting && System.currentTimeMillis()-t1 < timeout ) {
+      while( isWaiting && System.currentTimeMillis()-t1 < timeout*100 ) {
 //         System.out.println("Pere waiting..."+(System.currentTimeMillis()-t1));
-         try { Thread.currentThread().sleep(500); } catch( Exception e) {}
+         try { Thread.currentThread().sleep(100); } catch( Exception e) {}
       }
       if( isWaiting ) {
 //         System.out.println("Fils trop long, le pere disconnecte le fils !");
@@ -77,19 +89,30 @@ public class UrlLoader extends Thread {
    public void run() {
       try {
 //         System.out.println("Fils créé...");
-         conn = (HttpURLConnection) url.openConnection();
-         is = conn.getInputStream();
-         byte [] buf = new byte[512];
-         int n;
-         while( (n=is.read(buf))!=-1 ) {
-//            System.out.println("Fils en lecture...");
-            res.append( new String(buf,0,n) );
+         if( is==null ) {
+            is=Util.openStream(url,false,(int)timeout);
+//            conn = (HttpURLConnection) url.openConnection();
+//            is = new MyInputStream(conn.getInputStream());
          }
-         is.close();
+//         System.out.println("length="+length);
+         if( length!=0 ) {
+
+            byte [] buf = new byte[512];
+            int n;
+            while( (n=is.read(buf))!=-1 ) {
+//               System.out.println("Fils en lecture..."+n);
+               res.append( new String(buf,0,n) );
+               size+=n;
+               if( length>=0 && size>=length ) break;
+            }
+            is.close();
+         }
       } catch( Exception e ) {
-         error = e.getMessage();
+//         e.printStackTrace();
+         error = e.toString();
+//         error = e.getMessage();
       }
       isWaiting=false;
-//      System.out.println("Fils meurt...");
+//            System.out.println("Fils meurt...");
    }
 }

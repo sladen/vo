@@ -45,7 +45,8 @@
 %A AlaU.uk
 %D Aladin URL prefix for UKADC (Cambridge, UK)
 %O CDS'aladin
-%L http://archive.ast.cam.ac.uk/viz-bin
+#%L http://archive.ast.cam.ac.uk/viz-bin
+%L http://vizier.ast.cam.ac.uk/viz-bin
 
 %A AlaU.us
 %D Aladin URL prefix for CFA (Harvard USA)
@@ -94,7 +95,9 @@
 
 %A SimbadXML1
 %U http://simbad.u-strasbg.fr/simbad/sim-all?Ident=$1&Radius=$2&\Radius.unit=arcmin&Votable=main_id,otype,ra(s),dec(s),\coo_err_maja,coo_err_mina,coo_err_angle,pmra,pmdec,flux(B),\flux(V),sp,dim_majaxis,dim_minaxis,dim_angle,bibcodelist(N)
-#%U http://cdsweb.u-strasbg.fr/simsearch/simbad-cs.py?target=$1&SR=$2&format=votable-tsv&SRUNIT=arcmin
+
+%A VizieRXML++1
+%U http://cdsarc.u-strasbg.fr/local/viz-bin/votable?-source=$1&-c=$2&-out.add=_RAJ,_DEJ&-oc.form=dm&-out.meta=DhuL&-out.max=999999&-c.rm=$3&-out=_VizieR,*Mime(image/fits),*&-mime=TSV&$4
 
 %A ConvertToJpg
 %U http://cdsweb.u-strasbg.fr/~boch-bin/format-conversion/convert-img.py?img-url=
@@ -109,7 +112,6 @@
 %A getMOC
 %D CDS MOC Server for VizieR tables
 %O aladin
-#%U http://alasky.u-strasbg.fr/footprints/getMoc?baseUrl=http%3a%2f%2fvizier.u-strasbg.fr%2fviz-bin%2fvotable%2f-A%3f-source%3d$1%26&nside=$2 
 %U http://alasky.u-strasbg.fr/footprints/cats/vizier/$1?product=MOC&nside=$2
 %P.D 1:Catalog ID
 %P.K 1:E
@@ -120,6 +122,29 @@
 %P.V 2:512
 %T II/294::
 %R Mime(moc/fits)
+
+%A getDMap
+%D CDS Density Map Server for VizieR tables
+%O aladin
+%U http://alasky.u-strasbg.fr/footprints/cats/vizier/$1?product=densityMap&nside=$2
+%P.D 1:Catalog ID
+%P.K 1:E
+%P.D 2:Density Map Healpix resolution
+%P.V 2:64
+%P.V 2:128
+%P.V 2:256
+%P.V 2:512
+%T II/294::
+%R Mime(healpix/fits)
+
+%A getDMapIcon
+%D CDS Density Map Icon Server for VizieR tables
+%O aladin
+%U http://alasky.u-strasbg.fr/footprints/cats/vizier/$1?product=densityMap&format=png&size=small
+%P.D 1:Catalog ID
+%P.K 1:E
+%T II/294::
+%R Mime(image/png)
 
 #--------------------- à copier dans Aladin.dic -----------------
 
@@ -150,24 +175,27 @@
 #%Aladin.Filter #HII\nfilter HII {${OTYPE}="HII" { draw dot }}
 #%Aladin.Filter #X\nfilter X {${OTYPE}="X" { draw cross }}
 
-#%A Astrometry.net
-#%D Astrometry.net facility (v0.2)
-#%O aladin
-#%Z ALADIN
-#%Z CDS
-#%U http://cds-dev-tb.u-strasbg.fr:8080/astrometry/cgi-bin/solve-image.py?imageurl=$1&scale-low=$2&scale-high=$3
-#%P.D 1:Image reference
-#%P.D 2:Scale low
-#%P.D 3:Scale high
-#%P.K 1:Input(ALLIMG)
-#%R Mime(image/fits)
-#%R Mime(application/image)
-#%M.V This form allows to query remotely the Astrometry.net solve-field program on your current image in order to provide an astrometry (WCS) to your image
-#%F.U http://www.astrometry.net/
-#%Aladin.Profile >=10 beta
-#%Aladin.Label Astro.net
-#%Aladin.LabelPlane Astrometry $1
+%A Astrometry.net
+%D Astrometry.net facility (v0.2)
+%O aladin
+%Z ALADIN
+%Z CDS
+%U http://cds-dev-tb.u-strasbg.fr:8080/astrometry/cgi-bin/solve-image.py?imageurl=$1&scale-low=$2&scale-high=$3
+%P.D 1:Image reference
+%P.D 2:Scale low
+%P.D 3:Scale high
+%P.K 1:Input(ALLIMG)
+%R Mime(image/fits)
+%R Mime(application/image)
+%M.V This form allows to query remotely the Astrometry.net solve-field program on your current image in order to provide an astrometry (WCS) to your image
+%F.U http://www.astrometry.net/
+%Aladin.Profile >=7 beta
+%Aladin.Label Astro.net
+%Aladin.LabelPlane Astrometry $1
 #%Aladin.Logo AstrometryDotNet.gif
+%R Mime(application/xml)
+%Aladin.Menu Tools...
+
 
 %ActionName         GALEX
 %Description        Galaxy Evolution Explorer Catalog (STScI)
@@ -264,151 +292,6 @@
 %Aladin.Menu Proto...
 %Aladin.Profile proto
 
-
-
-########################################### Outreach records ####################################
-
-%A MellingerRGB.hpx.outreach
-%D Mellinger optical survey, color
-%O aladin
-%Z ALADIN
-%U http://alasky.u-strasbg.fr/MellingerRGB
-%M.C (c) Axel Mellinger. Permission is granted for use in research and personal,non-commercial use. Please contact Axel Mellinger for permission for other use
-%Aladin.Profile >=6.912 undergraduate
-%Aladin.XLabel Mellinger colored
-%Aladin.MenuNumber B11
-%Aladin.HpxParam 4 color
-%Copyright.Url http://home.arcor.de/axel.mellinger/
-
-%A DssColor.hpx.outreach
-%D Survey en JPEG couleur
-%M.C Digitized Sky Survey - STScI/NASA
-%O aladin
-%Z ALADIN
-%M.C DSS consortium & STScI/NASA
-%U http://alasky.u-strasbg.fr/DssColor
-%Aladin.Profile >=6.912 undergraduate
-%Aladin.XLabel DSS colored
-%Aladin.MenuNumber B1
-%Aladin.HpxParam 9 color equatorial
-
-%A IRIS100.hpx.outreach
-%D IRIS 100Mu in HEALPIX access
-%O aladin
-%Z ALADIN
-%U http://alasky.u-strasbg.fr/IRIS_4
-%Aladin.Profile >=6.912 undergraduate
-%Aladin.XLabel IRAS-IRIS - 100MU
-%Aladin.MenuNumber B3
-%Aladin.HpxParam 3 v1
-
-%A IRISColor.hpx.outreach
-%D IRIS 134 survey in HEALPIX access
-%O aladin
-%Z ALADIN
-%U http://alasky.u-strasbg.fr/IRISColor
-%Aladin.Profile >=6.912 undergraduate
-%Aladin.XLabel IRAS-IRIS colored
-%Aladin.MenuNumber B2
-%Aladin.HpxParam 3 color v1
-
-%A GLM.hpx.outreach
-%D GLIMPSE colored survey
-%O CDS'aladin
-%Z ALADIN
-%U http://alasky.u-strasbg.fr/GLIMPSEColor
-%M.C Spitzer mission - JPL/NASA
-%Aladin.Profile >=6.912 undergraduate
-%Aladin.XLabel GLIMPSE colored
-%Aladin.MenuNumber B4
-%Aladin.HpxParam 7 color equatorial
-
-%A HST-PR.outreach
-%D Hubble press release images
-%Z ALADIN
-%O aladin
-%U http://hubblesite.org/cgi-bin/sia/hst_pr_sia.pl?POS=$1,$2&SIZE=$3
-%P.D 1:Right Ascension
-%P.D 2:Declination
-%P.D 3:Radius in deg
-%P.K 1:Target(RAd)
-%P.K 2:Target(DEd)
-%P.K 3:Field(RADIUSd)
-%P.V 3:0.17
-%R Mime(sia/xml)
-#%F.U http://hubblesite.org
-%Aladin.Profile undergraduate
-%Aladin.Logo HubbleLogo.gif
-%Aladin.LabelPlane HST-PR $1/$2
-
-%A NVSS.outreach
-%D Radio : NVSS (NRAO/United States)
-%O aladin
-%Z ALADIN
-%U http://www.cv.nrao.edu/cgi-bin/postage.pl?Equinox=J2000&PolType=I&RA=$1&Dec=$2&Size=$3+$3&Cells=$4+$4&MAPROJ=TAN&Type=application/octet-stream
-%P.D 1:Right Ascension
-%P.D 2:Declination
-%P.D 3:Image Size (deg)
-%P.D 4:Pixel size (arcsec)
-%P.K 1:Target(RAb)
-%P.K 2:Target(DEb)
-%P.V 3:0.25
-%P.V 4:15.0
-%R Mime(image/fits)
-%F.U http://www.cv.nrao.edu/nvss/postage.shtml
-%Aladin.Profile undergraduate
-%Aladin.Logo RadioLogo.gif
-%Aladin.LabelPlane $query NVSS/NRAO
-
-%A 2MASS.Aladin.outreach
-%D Infrared : 2MASS (CDS/Strasbourg/France )
-%O CDS'aladin
-%Z ALADIN
-%U http://aladin.u-strasbg.fr/java/alapre-ok.pl?-c=$1&out=image&fmt=FITS&resolution=MOSAIC&qual=$2+_____
-%P.D 1:Target
-%P.D 2:Survey
-%P.K 1:Target(COOd|SIMBAD)
-%P.V 2:2MASS J
-%P.V 2:2MASS K
-%P.V 2:2MASS H
-%R Mime(image/fits)
-%Aladin.Profile undergraduate
-%Aladin.Logo IRLogo.gif
-%Aladin.LabelPlane $query $2/CDS
-
-%A DSS.ESO.outreach
-%D Optical : DSS (ESO/Garching/Germany)
-%O aladin
-%Z ALADIN
-%U http://archive.eso.org/dss/dss/image?ra=$2&dec=$3&equinox=J2000&x=$4&y=$5&Sky-Survey=$1&mime-type=download-gz-fits
-%P.D 1:Sky Survey
-%P.D 2:RA
-%P.D 3:DE
-%P.D 4:Height (arcmin)
-%P.D 5:Width (arcmin)
-%P.K 2:Target(RA)
-%P.K 3:Target(DE)
-%P.K 4:Radius(RA)
-%P.K 5:Radius(DE)
-%P.V 1:DSS1 - POSS1 Red and UKSTU Blue
-%P.V 1:DSS2-red - POSS2 UKSTU Red
-%P.V 1:DSS2-blue - POSS2 UKSTU Blue
-%P.V 1:DSS2-infrared - POSS2 UKSTU IR
-%P.V 4:15
-%P.V 5:15
-%R Mime(image/gfits)
-%F.U http://archive.eso.org
-%Aladin.Profile undergraduate
-%Aladin.Logo OptLogo.gif
-%Aladin.LabelPlane $query DSS/ESO
-
-%A Default.bkm.outreach
-%D Default Aladin bookmarks
-%O CDS'aladin
-%Z ALADIN
-%U http://aladin.u-strasbg.fr/java/Bookmarks.ajs
-%Aladin.Bookmarks Optical,Infrared
-%Aladin.Profile >=6.037 undergraduate
 
 ##################### Healpix surveys in test ###########################
 

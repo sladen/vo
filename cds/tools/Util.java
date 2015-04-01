@@ -8,7 +8,7 @@
 //       11 rue de l'Universite
 //       67000 STRASBOURG
 //       FRANCE
-//Email:   question@simbad.u-strasbg.fr
+//Email:   cds-question@unistra.fr
 //
 //-------
 //
@@ -62,6 +62,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
@@ -81,9 +82,9 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.StringTokenizer;
 import java.util.Vector;
 
 import javax.net.ssl.*;
@@ -119,15 +120,15 @@ public final class Util {
 	}
 
 	/** Ouverture d'un MyInputStream avec le User-Agent correspondant à Aladin */
-    static public MyInputStream openStream(String u) throws Exception { return openStream(new URL(u),true); }
-    static public MyInputStream openStream(String u,boolean useCache) throws Exception {
-       return openStream(new URL(u),useCache);
+    static public MyInputStream openStream(String u) throws Exception { return openStream(new URL(u),true,10000); }
+    static public MyInputStream openStream(String u,boolean useCache, int timeOut) throws Exception {
+       return openStream(new URL(u),useCache,timeOut);
     }
-    static public MyInputStream openStream(URL u) throws Exception { return openStream(u,true); }
-    static public MyInputStream openStream(URL u, boolean useCache) throws Exception {
+    static public MyInputStream openStream(URL u) throws Exception { return openStream(u,true,10000); }
+    static public MyInputStream openStream(URL u, boolean useCache,int timeOut) throws Exception {
 	   URLConnection conn = u.openConnection();
 	   if( !useCache ) conn.setUseCaches(false);
-	   conn.setConnectTimeout(10000);
+	   conn.setConnectTimeout(timeOut);
 // DEJA FAIT DANS Aladin.myInit() => mais sinon ne marche pas en applet
 	   if( conn instanceof HttpURLConnection ) {
 	      HttpURLConnection http = (HttpURLConnection)conn;
@@ -138,6 +139,7 @@ public final class Util {
 //       MyInputStream mis = new MyInputStream(conn.getInputStream());
 	   return mis.startRead();
 	}
+
 
     /**
      * Java does not follow HTTP --> HTTPS redirections by default
@@ -198,6 +200,8 @@ public final class Util {
     */
    static public boolean matchMask(String mask, String word) {
        if( word==null || mask==null ) return false;
+//       if( mask.indexOf('*')<0 && mask.indexOf('?')<0 ) return word.indexOf(mask)>=0;
+
        mask = mask+'\0';
        word = word+'\0';
        int indiceM,indiceA;
@@ -517,7 +521,7 @@ public final class Util {
 	   if( html ) res.append("</html>");
 	   return res.toString();
 	}
-	
+
 	/** Extrait la table des couleurs pour une composante sous la forme d'un tableau de 256 bytes
 	 * @param cm Le modèle de couleur
 	 * @param component 0-Rouge, 1-Vert, 2-Bleu
@@ -647,7 +651,7 @@ public final class Util {
     }
 
     /** Tracé d'une flèche entre (x,y) et (x1,y1), avec un label éventuel et une taille d'empennage de L pixels */
-    static public void drawFleche(Graphics g,double x,double y,double x1,double y1,int L, String s) {
+    static private void drawFleche1(Graphics g,double x,double y,double x1,double y1,int L) {
        g.drawLine((int)x,(int)y,(int)x1,(int)y1);
 
        double theta,delta;
@@ -667,6 +671,40 @@ public final class Util {
        g.drawLine((int)(x1+dx1),(int)(y1+dy1),(int)x1,(int)y1);
        g.drawLine((int)x1,(int)y1,(int)(x1+dx2),(int)(y1+dy2));
 
+    }
+
+    static public void drawFlecheOutLine(Graphics g,double x,double y,double x1,double y1,int L, String s) {
+       boolean fd2 =  g instanceof Graphics2D;
+       Graphics2D g2 = fd2 ? (Graphics2D)g:null;
+       Object aliasing = null;
+       Stroke st = null;
+       Color c = g.getColor();
+       if( fd2 ) {
+          g.setColor(Color.black);
+          aliasing = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+          st = g2.getStroke();
+          g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+          g2.setStroke(new BasicStroke(2.4f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_MITER));
+          drawFleche1(g,x,y,x1,y1,L);
+          g2.setStroke(st);
+          g.setColor(c);
+       }
+       drawFleche1(g,x,y,x1,y1,L);
+
+       if( s!=null ) {
+          if( x1<x ) x1-=10;
+          else x1+=2;
+          if( y1>y ) y1+=10;
+          else y1-=2;
+          if( fd2 ) Util.drawStringOutline(g, s,(int)x1,(int)y1, null,null);
+          else g.drawString(s,(int)x1,(int)y1);
+       }
+       if( fd2 ) g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aliasing);
+
+    }
+
+    static public void drawFleche(Graphics g,double x,double y,double x1,double y1,int L, String s) {
+       drawFleche1(g,x,y,x1,y1,L);
        if( s!=null ) {
           if( x1<x ) x1-=10;
           else x1+=2;
@@ -675,6 +713,7 @@ public final class Util {
           g.drawString(s,(int)x1,(int)y1);
        }
     }
+
 
     static public void drawFillOval(Graphics gr,int x, int y, int w, int h, float transparency,Color bg) {
        if( bg!=null ) gr.setColor(bg);
@@ -699,7 +738,39 @@ public final class Util {
       } catch( Exception e ) { }
       gr.drawPolygon(pol);
     }
-    
+
+    static public void drawStringOutline(Graphics g, String s, int x, int y, Color c, Color cOutLine) {
+
+       if( c==null ) c=g.getColor();
+       if( cOutLine==null ) cOutLine=Color.black;
+       if( !(g instanceof Graphics2D ) ) { g.drawString(s, x, y); return; }
+
+       Graphics2D g2 = (Graphics2D) g;
+       Color cb = g2.getColor();
+       Object aliasing = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+       g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+       AffineTransform t = g2.getTransform();
+       try {
+          Font f = g2.getFont();
+          FontMetrics fm = g2.getFontMetrics(f);
+          GlyphVector v = f.createGlyphVector(fm.getFontRenderContext(), s);
+          Shape s1 = v.getOutline();
+          g2.translate(x,y);
+          Stroke st = g2.getStroke();
+          g2.setStroke(new BasicStroke(1.6f,BasicStroke.CAP_SQUARE,BasicStroke.JOIN_BEVEL));
+          g.setColor(cOutLine);
+          g2.draw(s1);
+          g2.setStroke(st);
+          g2.setColor(c);
+//          g2.translate(-0.3,-0.3);
+          g2.fill(s1);
+       } finally {
+          g2.setTransform(t);
+       }
+       g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aliasing);
+       g2.setColor(cb);
+    }
+
     /** Tracé d'un cartouche, éventuellement semi-transparent
      * Retourne les coordonnées pour écrire dedans */
     static public void drawCartouche(Graphics gr,int x, int y, int w, int h,
@@ -777,7 +848,7 @@ public final class Util {
        g.drawLine(x-2,y+3,x-2,y+3);
        g.drawLine(x+2,y+3,x+2,y+3);
    }
-    
+
     /**
      * Dessin d'un bouton radio
      * @param g le contexte graphique
@@ -803,7 +874,7 @@ public final class Util {
              g.drawLine(x+1,y+1+i,x+CINT.length,y+1+i);
           }
        }
-       
+
        g.setColor(colorBord);
        g.drawArc(x,y,w,w,0,360);
 
@@ -916,7 +987,7 @@ public final class Util {
 //       g.drawLine(x+1,y+1,x+3,y+1);
 //       g.drawLine(x+2,y,x+2,y);
 //    }
-    
+
     /** Draws an ellipse which can be rotated
      *  @param g - the graphic context we draw on
      *  @param c - color of the ellipse
@@ -1156,6 +1227,42 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
        s.delete(0,n);
     }
 
+    /** Nettoie un StringBuilder pour éviter des allocations inutiles */
+    static public void resetString(StringBuilder s) {
+       int n = s.length();
+       if( n==0 ) return;
+       s.delete(0,n);
+    }
+    
+    /** Retourne un path sous une forme plus compact.
+     * Insére si nécessaire des /.../ au milieu du path si sa taille dépasse width
+     */ 
+    static public String getShortPath(String path,int width) {
+       try {
+         if( path.length()>width ) {
+             File f = new File(path);
+             StringTokenizer st = new StringTokenizer(f.getCanonicalPath(),Util.FS,true);
+             StringBuffer s = new StringBuffer();
+             width -= f.getName().length();
+             String w=null;
+             while( s.length()<width && st.hasMoreTokens() ) {
+                w = st.nextToken();
+                s.append(w);
+             }
+             if( st.hasMoreTokens() ) {
+                if( w!=null && !w.equals(Util.FS) ) s.append(st.nextToken());
+                w = st.nextToken();  // Pour vérifier si par hasard il ne reste que le nom
+                if( st.hasMoreElements() ) s.append("..."+Util.FS);
+                s.append(f.getName());
+             }
+             return s.toString();
+          }
+      } catch( IOException e ) { }
+                              
+       return path;
+    }
+
+
     /** Concaténation de paths.
      * et insère le séparateur / uniquement si c'est nécessaire.
      * Remplace les \ éventuelles par / (et réciproquement)
@@ -1242,15 +1349,18 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
 
     /** Retourne true s'il s'agit dun fichier JPEG couleur */
     static public boolean isJPEGColored(String file) throws Exception {
-       RandomAccessFile f = new RandomAccessFile(file,"r");
-       byte [] buf = new byte[(int)f.length()];
-       f.readFully(buf);
-       f.close();
-       return isJPEGColored(buf);
+       RandomAccessFile f = null;
+       byte [] buf = null;
+       try {
+          f = new RandomAccessFile(file,"r");
+          buf = new byte[(int)f.length()];
+          f.readFully(buf);
+       } finally { if( f!=null )  f.close(); }
+       return isColoredImage(buf);
     }
 
-    /** Retourne true s'il s'agit d'un buffer contenant un JPEG couleur */
-    static public boolean isJPEGColored(byte [] buf) throws Exception {
+    /** Retourne true s'il s'agit d'un buffer contenant une image couleur */
+    static public boolean isColoredImage(byte [] buf) throws Exception {
        JButton obs = new JButton();
        Image img = Toolkit.getDefaultToolkit().createImage(buf);
        boolean encore=true;
@@ -1381,7 +1491,7 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
 	   File f = new File(new File(filename).getParent());
 	   f.mkdirs();
 	   if( !f.exists() ) throw new Exception("Cannot create directory for "+filename);
-	   
+
 //	   File f;
 //	   String FS = filename.indexOf('/')>=0 ? "/" : "\\";
 //
@@ -1502,7 +1612,7 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
           runme.setPriority(ref.getPriority()-1);
        } catch( Exception e ) {}
     }
-    
+
     /** retourne un temps en milliseconde sous une forme lisible 3j 5h 10mn 3.101s */
     static public String getTemps(long ms) { return getTemps(ms,false);  }
     static public String getTemps(long ms,boolean round) {
@@ -1514,40 +1624,41 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
        return s.toString();
     }
 
-    static private boolean tryNano=false;
-    static private Method nanoMethod=null;
+//    static private boolean tryNano=false;
+//    static private Method nanoMethod=null;
 
     /** Récupération du temps en ms via la méthode System.nanoTime() si possible
      * sinon via la méthode classique System.currentTimeMillis().
      * @param unit 0-ns 1:ms 2:s
      */
-    static public long getTime() { return getTime(1); }
-    static public long getTime(int unit) {
-       if( !tryNano ) {
-          tryNano=true;
-          try { nanoMethod = System.class.getMethod("nanoTime",new Class[] {}); }
-          catch( Exception e) { }
-       }
-       if( nanoMethod!=null ) {
-          try { return ((Long)(nanoMethod.invoke((Object)null, (Object[])null))).longValue()/(unit==1? 1000000L : unit==2 ? 1000000000L : 1); }
-          catch( Exception e) { nanoMethod=null; }
-       }
-       long t=System.currentTimeMillis();
-       if( unit==0 ) return t*1000000L;
-       if( unit==2 ) return t/1000L;
-       return t;
+    static final public long getTime() { return getTime(1); }
+    static final public long getTime(int unit) {
+       return unit==1 ? System.currentTimeMillis() 
+             : unit==0 ? System.nanoTime() : System.currentTimeMillis()/1000L;
+             
+//       if( !tryNano ) {
+//          tryNano=true;
+//          try { nanoMethod = System.class.getMethod("nanoTime",new Class[] {}); }
+//          catch( Exception e) { }
+//       }
+//       if( nanoMethod!=null ) {
+//          try { return ((Long)(nanoMethod.invoke((Object)null, (Object[])null))).longValue()/(unit==1? 1000000L : unit==2 ? 1000000000L : 1); }
+//          catch( Exception e) { nanoMethod=null; }
+//       }
+//       long t=System.currentTimeMillis();
+//       if( unit==0 ) return t*1000000L;
+//       if( unit==2 ) return t/1000L;
+//       return t;
 
-       // DES QU'ON NE SUPPORTERA PLUS JAV 1.4
-//       return System.nanoTime()/1000000;
     }
-    
+
     /** Retourne la lettre code d'un champ TFORM FITS nD */
     static final public char getFitsType(String form) {
        int l=form.indexOf('(');
        if( l==-1 ) l=form.length();
        return form.charAt(l-1);
     }
-    
+
     /** retourne la taille du champs FITS exprimé sous la forme nD(xxx) ou nPD(xxx) */
     static final public int binSizeOf(String form) throws Exception {
        try {
@@ -1584,34 +1695,40 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
           0;
        return sizeOf * n;
     }
-    
+
 //    HashMap<String, String> getNextJsonObj(MyInputStream in) {
 //       while( encore ) {
 //          char ch = in.g
 //          switch
 //       }
 //    }
-    
+
     /**
      * Affiche le chiffre donné avec une unité de volume disque (K M T)
      * @param val taille en octets
      * @return le volume disque dans une unite coherente + l'unite utilisee
      */
-    static final public String unites[] = {"","KB","MB","GB","TB","PB","EB","ZB"};
-    static final public String getUnitDisk(double val) {
+    static final public String unites[] = {"B","KB","MB","GB","TB","PB","EB","ZB"};
+    static final public String getUnitDisk(long val) {
     	return getUnitDisk(val, 2);
     }
-    static final public String getUnitDisk(double val, int format) {
+    static final public String getUnitDisk(long val, int format) {
     	int unit = 0;
-    	while (val >= 1024 && unit<unites.length-1) {
+    	long div,rest=0;
+    	boolean neg=false;
+    	if( val<0 ) { neg=true; val=-val; }
+    	while (val >= 1024L && unit<unites.length-1) {
     		unit++;
-    		val /= 1024L;
+    		div = val / 1024L;
+    		rest = val % 1024L;
+    		val=div;
     	}
     	NumberFormat nf = NumberFormat.getInstance();
     	nf.setMaximumFractionDigits(format);
-    	return nf.format(val)+unites[unit];
+    	double x = (double)val+rest/1024.;
+    	return (neg?"-":"")+nf.format(x)+unites[unit];
     }
-    
+
 	public static ArrayList<File> getFiles(String path, final String suffix) {
 		ArrayList<File> flist = new ArrayList<File>();
 		File[] files = (new File(path)).listFiles();
@@ -1719,7 +1836,7 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
            .append("<DATA><TABLEDATA>\n");
 
        for (Forme forme: formes) {
-           sb.append(String.format((Locale)null, "<TR><TD>%.5f</TD><TD>%.5f</TD></TR>\n", forme.o[0].raj, forme.o[0].dej));
+           sb.append(String.format((Locale)null, "<TR><TD>%.5f</TD><TD>%.5f</TD></TR>\n", forme.o[0].getRa(), forme.o[0].getDec()));
        }
 
        sb.append("</TABLEDATA></DATA>\n")
@@ -1739,6 +1856,48 @@ static public void setCloseShortcut(final JFrame f, final boolean dispose) {
       if( o2<0 ) return null;
       return Tok.unQuote( (new Tok(s.substring(o2),"},")).nextToken() );
    }
+   
+   static private String B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+   
+   /** Conversion en base 64 - code Fox */
+   static public String toB64(byte [] p) {
+      StringBuffer res= new StringBuffer((int)(p.length*1.25));
+      
+      char [] tab = B64.toCharArray();
+      char [] b4 = new char[4];
+      int c, c3, nb=0;
+      int i=0;
+
+      while( i<p.length ) {
+         c = p[i++]&0xff;
+         c3 = c<<16;
+         b4[2] = b4[3] = '=';
+
+         if( i<p.length ) {
+            c = p[i++]&0xff;
+            c3 |= (c<<8);
+            b4[2]=0;
+            if( i<p.length ) {
+               c = p[i++]&0xff;
+               c3 |=  c;
+               b4[3]=0;
+            }
+         }
+         if( b4[3]==0 ) b4[3] = tab[c3&63];
+         c3 >>= 6;
+            if( b4[2]==0 ) b4[2] = tab[c3&63];
+            c3 >>= 6;
+            b4[1] = tab[c3&63];
+            c3 >>= 6;
+         b4[0] = tab[c3&63];
+         res.append(b4);
+         nb += 4;
+         if( (nb%64)==0 ) res.append(CR+" ");
+      }
+      return res.toString();
+   }
+
+
 
 // PAS ENCORE TESTE
 //    /** Extrait le premier nombre entier qui se trouve dans la chaine à partir

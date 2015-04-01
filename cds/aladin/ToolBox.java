@@ -73,12 +73,12 @@ public final class ToolBox extends JComponent implements
    static int NBTOOL = 21;        // Nombre d'outils existants
 
    // Ordre d'apparition des boutons
-   private int [] drawn = {SELECT,PAN,ZOOM,DIST,PHOT,DRAW,TAG,
+   private int [] drawn = {SELECT,PAN,/*ZOOM,*/DIST,PHOT,DRAW,TAG,
                          FILTER,XMATCH,PLOT,RGB,BLINK,CROP,CONTOUR,HIST,PROP,
                          DEL };
 
    // Ordre d'apparition des boutons
-   static int [] OUTREACHDRAWN = {SELECT,PAN,ZOOM,DIST,PHOT,DRAW,TAG,
+   static int [] OUTREACHDRAWN = {SELECT,PAN,/*ZOOM,*/DIST,PHOT,DRAW,TAG,
                          CONTOUR,HIST,PROP,
                          DEL };
 
@@ -171,6 +171,10 @@ public final class ToolBox extends JComponent implements
       }
       return -1;
    }
+   
+   
+   private boolean firstTag=true;
+   private boolean firstRepere=true;
 
 
   /** Creation d'un nouveau objet en fonction du bouton appuye.
@@ -181,8 +185,19 @@ public final class ToolBox extends JComponent implements
       int tool = getTool();
       switch(tool) {
          case DRAW: Ligne ligne = new Ligne(plan,v,x,y); ligne.bout=4; return ligne;
-         case TAG: return new Tag(plan,v,x,y);
+         case TAG:
+            if( firstTag && aladin.configuration.isHelp() &&
+               aladin.configuration.showHelpIfOk("TAGINFO") ) {
+               firstTag=false;
+               return null;
+            }
+            return new Tag(plan,v,x,y);
          case PHOT:
+            if( firstRepere && aladin.configuration.isHelp() && aladin.calque.getPlanBase().hasAvailablePixels() &&
+               aladin.configuration.showHelpIfOk("REPEREINFO") ) {
+               firstRepere=false;
+               return null;
+            }
             Repere r = new Repere(plan,v,x,y);
 //            r.setWithLabel(true);
             return r;
@@ -238,7 +253,7 @@ public final class ToolBox extends JComponent implements
       // supprime les tools qui ne peuvent lui etre associes
       for( i=0; i<allPlan.length; i++ ) {
         if( allPlan[i].type==Plan.NO || !allPlan[i].flagOk ) continue;
-        if( allPlan[i].hasAvailablePixels() || allPlan[i] instanceof PlanImageRGB )  nbSimpleImg++;
+        if( allPlan[i].isPixel() || allPlan[i] instanceof PlanImageRGB )  nbSimpleImg++;
         if( allPlan[i] instanceof PlanImageBlink )  nbBlinkImg++;
         if( allPlan[i].type==Plan.CATALOG ) nbSimpleCat++;
         if( allPlan[i].isCatalog() ) nbCat++;
@@ -291,18 +306,24 @@ public final class ToolBox extends JComponent implements
 
       // Si la vue courante a un plan de référence qui n'a pas de pixels accessibles
       // on invalide CONTOUR
-//      if( v==null || v.isFree() || !v.pref.hasAvailablePixels() || v.pref instanceof PlanBG ) {
-      if( aladin.calque.getFirstSelectedSimpleImage()==null ) {
+//      if( aladin.calque.getFirstSelectedSimpleImage()==null 
+//            && !(v.pref instanceof PlanBG && v.pref.isPixel()) ) {
+      if( v==null || v.isFree() || !v.pref.isPixel() ) {
          mode[ToolBox.CONTOUR]=Tool.UNAVAIL;
       }
       
-      // On invalide l'outil phot pour les plan BG
-      if( !aladin.BETA && (v!=null && !v.isFree() && v.pref instanceof PlanBG) ) mode[ToolBox.PHOT]=Tool.UNAVAIL;
+      // Si le premier plan sélectionné est un MOC, on peut faire un crop
+      if( aladin.calque.getFirstSelectedPlan() instanceof PlanMoc ) {
+         mode[ToolBox.CROP]=Tool.UP;
+      }
+      
+     // On invalide l'outil phot pour les plan BG
+//      if( v!=null && !v.isFree() && v.pref instanceof PlanBG ) mode[ToolBox.PHOT]=Tool.UNAVAIL;
 
       // Si la vue courante a un plan de référence qui n'est pas une image simple
       // ni RGB on invalide HIST et PHOT
       Plan p = aladin.calque.getFirstSelectedPlan();
-      if( p==null || !p.hasAvailablePixels() && p.type!=Plan.IMAGERGB && p.type!=Plan.ALLSKYIMG ) mode[ToolBox.HIST]=Tool.UNAVAIL;
+      if( p==null || !p.isPixel() && p.type!=Plan.IMAGERGB && p.type!=Plan.ALLSKYIMG ) mode[ToolBox.HIST]=Tool.UNAVAIL;
       else if( p!=null && p.type==Plan.ALLSKYIMG && p instanceof PlanBG && ((PlanBG)p).color ) mode[ToolBox.HIST]=Tool.UNAVAIL;
       
 //      if( v==null || v.isFree() 
@@ -452,7 +473,7 @@ public final class ToolBox extends JComponent implements
             else if( e.isShiftDown() ) {
                aladin.reset();
                tool[ToolBox.DEL].setMode(Tool.UNAVAIL);
-               aladin.console.setCommand("reset");
+               aladin.console.printCommand("reset");
              }
             // Suppression des vues sélectionnés
             else if( aladin.view.isViewSelected() && aladin.view.isMultiView() ) {
@@ -525,10 +546,10 @@ public final class ToolBox extends JComponent implements
    }
 
    // Gestion des curseurs
-   private int oc=Aladin.DEFAULT;
+   private int oc=Aladin.DEFAULTCURSOR;
    private void handCursor() { 	  makeCursor(Aladin.HANDCURSOR); }
    private void waitCursor() {    makeCursor(Aladin.WAITCURSOR); }
-   private void defaultCursor() { makeCursor(Aladin.DEFAULT); }
+   private void defaultCursor() { makeCursor(Aladin.DEFAULTCURSOR); }
    private void makeCursor(int c) {
       if( oc==c ) return;
       if( Aladin.makeCursor(this,c) ) oc=c;
@@ -549,7 +570,7 @@ public final class ToolBox extends JComponent implements
       oc=-1;
 //      inRedim=false;
       currentButton=-1;
-      Aladin.makeCursor(this,Aladin.DEFAULT);
+      Aladin.makeCursor(this,Aladin.DEFAULTCURSOR);
       repaint();
    }
 
@@ -700,12 +721,7 @@ public final class ToolBox extends JComponent implements
       }
 
       // AntiAliasing
-      if( Aladin.ANTIALIAS ) {
-         ((Graphics2D)g).setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-               RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-         ((Graphics2D)g).setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-               RenderingHints.VALUE_ANTIALIAS_ON);
-      }
+      aladin.setAliasing(g);
 
       // Remplissage du fond
       g.setColor( getBackground() );

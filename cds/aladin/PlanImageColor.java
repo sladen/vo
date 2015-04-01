@@ -72,15 +72,18 @@ public class PlanImageColor extends PlanImageRGB {
       // Recuperation de l'image 3x8 bits
       BufferedImage buf;
       
+      ImageInputStream iis = null;
       try {
          // 4EME METHODE POUR EVITER LE DOUBLEMENT DU BUFFER
             long type = dis.getType();
             String fmt = (type & MyInputStream.JPEG) != 0 ? "jpeg" :
                (type & MyInputStream.PNG) != 0 ? "png" : "gif";
+            
+            pixMode = (type & MyInputStream.JPEG) != 0 ? PIX_RGB : PIX_ARGB;
                
             Iterator readers = ImageIO.getImageReadersByFormatName(fmt);
             ImageReader reader = (ImageReader)readers.next();
-            ImageInputStream iis = ImageIO.createImageInputStream(dis);
+            iis = ImageIO.createImageInputStream(dis);
             reader.setInput(iis,true);
             naxis1=width = reader.getWidth(0);
             naxis2=height = reader.getHeight(0);
@@ -95,7 +98,7 @@ public class PlanImageColor extends PlanImageRGB {
             Aladin.trace(4,"PlanImageColor.cacheImageNatif()... RAM="+mem+"MB imageSize="+taille+"MB");
             if( mem<taille ) throw new Exception("Not enough memory for this image => required "+taille+"MB !");
             
-            if( true || mem<2*taille ) {
+//            if( mem<2*taille ) {
                Aladin.trace(4,"PlanImageColor.cacheImageNatif()... loading huge image piece by piece...");
 
                buf = new BufferedImage(width, height,BufferedImage.TYPE_INT_ARGB);
@@ -120,13 +123,13 @@ public class PlanImageColor extends PlanImageRGB {
                g.finalize(); g=null;
                pixelsRGB = ((DataBufferInt)buf.getRaster().getDataBuffer()).getData();
                
-            } else {
-               Aladin.trace(4,"PlanImageColor.cacheImageNatif()... loading image in one fast step...");
-               setPourcent(10);
-               buf = reader.read(0,param);
-               pixelsRGB = new int[width*height*4];
-               buf.getRGB(0, 0, width, height, pixelsRGB, 0, width);
-            }
+//            } else {
+//               Aladin.trace(4,"PlanImageColor.cacheImageNatif()... loading image in one fast step...");
+//               setPourcent(10);
+//               buf = reader.read(0,param);
+//               pixelsRGB = new int[width*height*4];
+//               buf.getRGB(0, 0, width, height, pixelsRGB, 0, width);
+//            }
             
 
 
@@ -197,7 +200,7 @@ public class PlanImageColor extends PlanImageRGB {
          aladin.error=e.getMessage();
          if( Aladin.levelTrace>=3 ) e.printStackTrace();
          return false;
-      }
+      } finally { if( iis!=null ) try { iis.close(); } catch( Exception e1) {} }
       
       return true;
    }

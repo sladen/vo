@@ -192,6 +192,13 @@ public class PlanImageHuge extends PlanImage implements Runnable {
       }
    }
    
+   private void resetPixelSub() {
+      synchronized( vPixelsSub ) {
+         for( int i=0; i<nbPixelsSub; i++ ) vPixelsSub[i]=null;
+         nbPixelsSub=0;
+      }
+   }
+   
    /** Permet de position le buffer pleine résolution courant s'il existe dans
     * la liste. Retourne false sinon */
    private boolean selectPixelsSub(int x,int y,int w,int h) {
@@ -263,7 +270,7 @@ public class PlanImageHuge extends PlanImage implements Runnable {
       restart=false;
       unlock();
       long t = System.currentTimeMillis();
-      double r = 256./(pixelMax - pixelMin);
+      double r = 255./(pixelMax - pixelMin);
       try {
          int size = w*h*step*step;
          pixelsWork = new byte[size];
@@ -278,8 +285,8 @@ public class PlanImageHuge extends PlanImage implements Runnable {
             for( int j=0; j<len; j++ ) {
                double c = getPixVal(buf,bitpix,j);
                if( Double.isNaN(c) || isBlank && c==blank ) { pixelsWork[pos++] = 0; continue; }
-               pixelsWork[pos++] = (byte)( c<=pixelMin?0x00:c>=pixelMax?0xff
-                     :(int)( ((c-pixelMin)*r) ) & 0xff);    
+               pixelsWork[pos++] = (byte)( 1+ (c<=pixelMin?0x00:c>=pixelMax?0xfe
+                     :(int)( ((c-pixelMin)*r)) ) & 0xff);    
             }
             
             if( restart ) {
@@ -371,6 +378,9 @@ Aladin.trace(3,"getSubImage["+n+"] from "+label+" ("+x*step+","+y*step+" "+w*ste
           // Chargement de l'image
           loadHugeImage();
           
+          // Reset des imagettes pleines résolutions
+          resetPixelSub();
+          
        } catch( Exception e ) { e.printStackTrace(); return false; }          
 
        setPourcent(-1);
@@ -435,7 +445,7 @@ Aladin.trace(3,"getSubImage["+n+"] from "+label+" ("+x*step+","+y*step+" "+w*ste
 Aladin.trace(2,"Loading Huge FITS image");
 
       // Lecture de l'entete Fits si ce n'est deja fait
-      if( headerFits==null ) headerFits = new FrameHeaderFits(dis);
+      if( headerFits==null ) headerFits = new FrameHeaderFits(this,dis);
  
       bitpix = headerFits.getIntFromHeader("BITPIX");
       naxis = headerFits.getIntFromHeader("NAXIS");

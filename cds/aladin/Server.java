@@ -60,10 +60,11 @@ public class Server extends JPanel
    static int WIDTH = Aladin.OUTREACH ? 430 : 500; 	// Largeur du Panel
    static int HEIGHT = Aladin.OUTREACH ? 300 : 400;	// Hauteur du Panel
    static final int YOUTREACH = 60; // Ordonnée du premier label en mode OUTREACH
+   static final int MAXSELECTEDPLANE = 10; // Nombre max d'images à charger avant affichage un warning
 
    protected String TARGET,RAD,GRABIT="",DEFAULT_METHODE,TARGET_EX,RADIUS_EX,WNEEDOBJ,
         WNEEDRAD,WNEEDDATE, WNEEDCAT,WERROR,WTOOLARGE,WERRORDATE,WDEJA,HASFILTER1,
-        HASFILTER2,NOINPUTITEM,WNEEDCHECK,UNKNOWNOBJ;
+        HASFILTER2,NOINPUTITEM,WNEEDCHECK,UNKNOWNOBJ,NOTTOOMANY;
 
 
    // Pour le positionnement des widgets en absolu
@@ -208,6 +209,7 @@ public class Server extends JPanel
       HASFILTER2     =aladin.chaine.getString("HASFILTER2");
       NOINPUTITEM    =aladin.chaine.getString("NOINPUTITEM");
       UNKNOWNOBJ     =aladin.chaine.getString("UNKNOWNOBJ");
+      NOTTOOMANY       =aladin.chaine.getString("NOTTOOMANY");
 
       statusAllVO=new JLabel(" "); // Le status pour le mode ALLVO
 
@@ -408,7 +410,7 @@ public class Server extends JPanel
 
   /** Mise en place des differents de curseurs */
    protected void waitCursor() { ball.setMode(Ball.WAIT); makeCursor(Aladin.WAITCURSOR); }
-   protected void defaultCursor() { ball.setMode(Ball.OK); makeCursor(Aladin.DEFAULT); }
+   protected void defaultCursor() { ball.setMode(Ball.OK); makeCursor(Aladin.DEFAULTCURSOR); }
    protected void makeCursor(int c) {
       Aladin.makeCursor(aladin.dialog,c);
       Aladin.makeCursor(aladin,c);
@@ -445,21 +447,32 @@ public class Server extends JPanel
        JLabel t = new JLabel(title.replace('\n',' '));
        t.setFont( Aladin.LBOLD );
        p.add(t);
-       JButton b = new JButton(FrameServer.INFO);
+       
+//       JButton b = new JButton(FrameServer.INFO);
+//       JButton b = Util.getHelpButton(this,MESSAGE)
+             
+       JButton b = new JButton(new ImageIcon(Aladin.aladin.getImagette("Help.gif")));
+       b.setMargin(new Insets(0,0,0,0));
+       b.setBorderPainted(false);
+       b.setContentAreaFilled(false);
+       b.addActionListener( new ActionListener() {
+          public void actionPerformed(ActionEvent e) { showStatusReport(); }
+       });
+
        Insets m = b.getMargin();
        b.setMargin(new Insets(m.top,3,m.bottom,3));
        b.setOpaque(false);
        b.addActionListener(this);
        p.add(b);
 
-       int width = stringSize(t)+30;
+       int width = stringSize(t)+20;
        if( TESTSERVER ) {
           testServer=new JCheckBox("test",true);
           testServer.setMargin(new Insets(m.top,10,m.bottom,3));
           testServer.setOpaque(false);
           testServer.setSelected(false);
           p.add(testServer);
-          width+=100;
+          width+=120;
        }
 
        return new Dimension(width,HAUT+5);
@@ -516,6 +529,7 @@ public class Server extends JPanel
 
          target = new JTextField(40);
          target.addKeyListener(this);
+         target.addActionListener(this);
          x=XTAB2;
          l = XWIDTH-XTAB2/*-20*/;
          if( forVizieR ) { l=XWIDTH-180-30; x=70+30; }
@@ -837,11 +851,24 @@ public void layout() {
       target.setText(s);
 
       // Activation ou non du bouton GrabIt
-      if( aladin.dialog!=null && !aladin.dialog.isGrabIt() && grab!=null ) {
+//      if( aladin.dialog!=null && !aladin.dialog.isGrabIt() && grab!=null ) {
+//         Plan pref = aladin.calque.getPlanRef();
+//         boolean grabEnable = pref!=null && Projection.isOk(pref.projd);
+//         grab.setEnabled(grabEnable);
+//      }
+   }
+   
+   protected boolean updateWidgets() {
+      if( aladin.dialog==null ) return false;
+      
+      // Activation ou non du bouton GrabIt
+      if( !aladin.dialog.isGrabIt() && grab!=null ) {
          Plan pref = aladin.calque.getPlanRef();
          boolean grabEnable = pref!=null && Projection.isOk(pref.projd);
          grab.setEnabled(grabEnable);
       }
+      
+      return true;
    }
    
    /** Pre-remplissage du champ Date. Si c'est une valeur double, on considère
@@ -1129,6 +1156,13 @@ public void layout() {
       return rep.toString();
    }
 
+   /** Retourne true si l'utilisateur a indiqué qu'il y avait trop d'images sélectionnées
+    * dans l'arbre */
+   protected boolean tooManyChecked() {
+      int n = tree.nbSelected();
+      if( n>0 && n<MAXSELECTEDPLANE ) return false;
+      return !aladin.confirmation(this,NOTTOOMANY+" ("+n+")");
+   }
 
    /** Voir classes derivees */
    public void submit() {}
@@ -1158,8 +1192,9 @@ public void layout() {
    public void actionPerformed(ActionEvent arg0) {
       Object s = arg0.getSource();
       if( s instanceof JComboBox && tree!=null && !tree.isEmpty() ) tree.clear();
-      if( s instanceof JButton
-            && ((JButton)s).getActionCommand().equals(FrameServer.INFO)) showStatusReport();
+//      if( s instanceof JButton
+//            && ((JButton)s).getActionCommand().equals(FrameServer.INFO)) showStatusReport();
+      updateWidgets();
    }
 
 //   // Je mange l'évènement pour pas qu'il se propage
@@ -1191,7 +1226,7 @@ public void layout() {
       }
    }
    
-   public void keyReleased(KeyEvent e) { }
+   public void keyReleased(KeyEvent e) { updateWidgets(); }
    public void keyTyped(KeyEvent e) { }
 
   /** Retourne le Nom du server éventuellement précédé par son Popup.
