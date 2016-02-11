@@ -20,10 +20,23 @@
 
 package cds.aladin;
 
+import java.awt.Color;
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.util.HashSet;
+
 import javax.swing.ButtonGroup;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
+import javax.swing.tree.DefaultMutableTreeNode;
+
+import cds.aladin.MyTree.NoeudEditor;
+import cds.tools.Util;
 
 /**
  * Le formulaire d'interrogation de l'arbre des Allskys
@@ -42,7 +55,7 @@ public class ServerHips extends ServerTree  {
       aladinLabel = "hips";
       aladinLogo  = "Hips.png";
    }
-   
+
    // boutons radio pour choix JPEG/FITS
    protected int addTailPanel(int y) {
       int h=25;
@@ -61,14 +74,14 @@ public class ServerHips extends ServerTree  {
       b.setBackground(Aladin.BLUE);
       group.add(b);
       formatPanel.add(b);
-      
+
       formatPanel.setBackground(Aladin.BLUE);
       formatPanel.setBounds(0,y,XWIDTH,h); y+=h;
 
       add(formatPanel);
       return y;
    }
-   
+
    protected int makeTarget(int y) {
       JPanel tPanel = new JPanel();
       int h = makeTargetPanel(tPanel,0);
@@ -82,7 +95,7 @@ public class ServerHips extends ServerTree  {
    protected void createChaine() {
       super.createChaine();
       title = aladin.chaine.getString("ALLSKYTITLE");
-//      info = aladin.chaine.getString("ALLSKYINFO");
+      //      info = aladin.chaine.getString("ALLSKYINFO");
       info=null;
       info1 = null;
       description = aladin.chaine.getString("ALLSKYDESC");
@@ -92,23 +105,23 @@ public class ServerHips extends ServerTree  {
    protected ServerHips(Aladin aladin) { super(aladin); }
 
    @Override
-   protected int createPlane(String target,String radius,String criteria, 
+   protected int createPlane(String target,String radius,String criteria,
          String label, String origin) {
       String survey;
       int defaultMode=PlanBG.UNKNOWN;
-      
+
       if( criteria==null || criteria.trim().length()==0 ) survey="DSS colored";
       else {
          Tok tok = new Tok(criteria,", ");
          survey = tok.nextToken();
-         
+
          while( tok.hasMoreTokens() ) {
             String s = tok.nextToken();
             if( s.equalsIgnoreCase("Fits") ) defaultMode=PlanBG.FITS;
-            else if( s.equalsIgnoreCase("Jpeg") || s.equalsIgnoreCase("jpg") ) defaultMode=PlanBG.JPEG;
+            else if( s.equalsIgnoreCase("Jpeg") || s.equalsIgnoreCase("jpg") || s.equalsIgnoreCase("png") ) defaultMode=PlanBG.JPEG;
          }
       }
-      
+
       int j = aladin.glu.findGluSky(survey,2);
       if( j<0 ) {
          Aladin.warning(this,"Progressive survey (HiPS) unknown ["+survey+"]",1);
@@ -116,29 +129,115 @@ public class ServerHips extends ServerTree  {
       }
 
       TreeNodeAllsky gSky = aladin.glu.getGluSky(j);
-      
-      try { gSky.setDefaultMode(defaultMode);
+
+      try {
+         if( defaultMode!=PlanBG.UNKNOWN ) gSky.setDefaultMode(defaultMode);
       } catch( Exception e ) {
          aladin.command.printConsole("!!! "+e.getMessage());
       }
 
       return aladin.hips(gSky,label,target,radius);
-      
-//      return j;
-      
+
+      //      return j;
+
+   }
+
+
+   // Dernier champs interrogé sur le MocServer
+   private Coord oc=null;
+   private double osize=-1;
+
+   /** Interroge le MocServer pour connaître les HiPS disponibles dans le champ.
+    * Met à jour l'arbre en conséquence
+    */
+   protected void hipsUpdate() {
+      try {
+
+         BufferedReader in=null;
+         try {
+
+            ViewSimple v = aladin.view.getCurrentView();
+//            if( v.isFree() ) return;
+
+            if( v.isFree() || v.isAllSky() ) {
+               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) gSky.ok=true;
+
+            } else {
+               String params;
+
+               // Pour éviter de faire 2x la même chose
+               Coord c = v.getCooCentre();
+               double size = v.getTaille();
+               if( c.equals(oc) && size==osize ) return;
+               oc=c;
+               osize=size;
+
+               // Interrogation par cercle
+               if( v.getTaille()>45 ) {
+                  params = "client_application=AladinDesktop"+(aladin.BETA?"*":"")+"&hips_service_url=*&RA="+c.al+"&DEC="+c.del+"&SR="+size*Math.sqrt(2);
+
+                  // Interrogation par rectangle
+               } else {
+                  StringBuilder s1 = new StringBuilder("Polygon");
+                  for( Coord c1: v.getCooCorners())  s1.append(" "+c1.al+" "+c1.del);
+                  params = "client_application=AladinDesktop"+(aladin.BETA?"*":"")+"&hips_service_url=*&stc="+URLEncoder.encode(s1.toString());
+               }
+
+               URL u = aladin.glu.getURL("MocServer", params, true);
+               Aladin.trace(4,"ServerHips.hipsUpdate: Contacting MocServer : "+u);
+               in= new BufferedReader( new InputStreamReader( Util.openStream(u) ));
+               String s;
+
+               // récupération de chaque IVORN concernée (1 par ligne)
+               HashSet<String> set = new HashSet<String>();
+               while( (s=in.readLine())!=null ) set.add( getId(s) );
+
+               // Nettoyage préalable de l'arbre
+               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) gSky.ok=false;
+
+               // Positionnement des datasets dans le champ
+               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) {
+                  gSky.ok = set.contains(gSky.internalId);
+//                  if( !gSky.ok ) System.out.println(gSky.internalId+" is out");
+               }
+            }
+
+            // Mise à jour de la cellule de l'arbre en cours d'édition
+            try {
+               NoeudEditor c = (NoeudEditor)tree.getCellEditor();
+               if( c!=null ) {
+                  TreeNode n = (TreeNode)c.getCellEditorValue();
+                  if( n!=null &&  n.hasCheckBox() ) {
+                     if( n.isOk() ) n.checkbox.setForeground(Color.black);
+                     else n.checkbox.setForeground(Color.lightGray);
+                  }
+               }
+            } catch( Exception e ) {
+               if( Aladin.levelTrace>=3 ) e.printStackTrace();
+            }
+
+            // Mise à jour des branches de l'arbre
+            DefaultMutableTreeNode root = tree.getRoot();
+            tree.setOkTree(root);
+            validate();
+            repaint();
+
+         } finally{ if( in!=null ) in.close(); }
+      } catch( Exception e1 ) { if( Aladin.levelTrace>=3 ) e1.printStackTrace(); }
+
+   }
+
+   // Extraction de l'obs_id de l'IVORN pour rester compatible avec la nomenclature interne de l'arbre (TreeNodeAllsky.internalId)
+   private String getId(String ivorn) {
+      int start = ivorn.startsWith("ivo://") ? 6 : 0;
+      int offset = ivorn.indexOf("/",start);
+      String id = ivorn.substring(offset+1);
+      return id;
    }
 
    @Override
    protected boolean is(String s) { return s.equalsIgnoreCase(aladinLabel); }
 
-   @Override
-   protected void initTree() { 
-      if( populated ) return;
-      populated=true;
-      tree.freeTree();
-      tree.populateTree( aladin.glu.vGluSky.elements() );
-   }
-   
    public void submit() {
       String mode = fitsRadio!=null && fitsRadio.isSelected() ? ",fits":"";
       for( TreeNode n : tree ) {
@@ -156,22 +255,49 @@ public class ServerHips extends ServerTree  {
          if( m!=-1 ) aladin.calque.getPlan(m).setBookmarkCode(code+" $TARGET $RADIUS");
       }
       reset();
-
-      
-//      int mode = fitsRadio!=null && fitsRadio.isSelected() ? PlanBG.FITS : PlanBG.JPEG;
-//      for( TreeNode n : tree ) {
-//         if( !(n instanceof TreeNodeAllsky) ) continue;
-//         ((TreeNodeAllsky)n).setDefaultMode( mode );
-//      }
-//      super.submit();
    }
-   
-//   public void submit(TreeNode n) {
-//      TreeNodeAllsky gsky = (TreeNodeAllsky)n;
-//      gsky.setDefaultMode( fitsRadio.isSelected() ? PlanBG.FITS : PlanBG.JPEG);
-//      
-//      aladin.calque.newPlanBG(gsky, null, getTarget(false), getRadius(false) );
-//   }
 
 
+   private boolean dynTree=false;
+   protected void initTree() {
+      if( dynTree ) return;
+      (new Thread("initTree") {
+         public void run() {
+            loadRemoteTree();
+            tree.populateTree(aladin.glu.vGluSky.elements());
+            aladin.gluSkyReload();
+         }
+      }).start();
+   }
+
+   /** Chargement des descriptions de l'arbre */
+   protected void loadRemoteTree() {
+      if( dynTree ) return;
+      DataInputStream dis=null;
+
+      // Recherche sur le site principal, et sinon dans le cache local
+      try {
+         dynTree=true;
+         Aladin.trace(3,"Loading HiPS Tree definitions...");
+         String params = "client_application=AladinDesktop"+(aladin.BETA?"*":"")+"&hips_service_url=*&fmt=glu&get=record";
+         String u = aladin.glu.getURL("MocServer", params, true).toString();
+         InputStream in;
+         try {
+            in = aladin.cache.getWithBackup(u);
+
+            // Peut être un site esclave actif ?
+         } catch( Exception e) {
+            if( !aladin.glu.checkIndirection("MocServer", null) ) throw e;
+            u = aladin.glu.getURL("MocServer", params, true).toString();
+            in = Util.openStream(u);
+         }
+         dis = new DataInputStream(in);
+         aladin.glu.loadGluDic(dis,0,false,true,false,false);
+         aladin.glu.tri();
+
+      }
+      catch( Exception e1 ) { if( Aladin.levelTrace>=3 ) e1.printStackTrace(); }
+      finally { if( dis!=null ) { try { dis.close(); } catch( Exception e) {} }
+      }
+   }
 }

@@ -19,7 +19,9 @@
 
 package cds.aladin;
 
-import java.awt.*;
+import java.awt.AWTEvent;
+import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
@@ -57,13 +59,11 @@ import cds.tools.Util;
  * @version 0.9 : (18 mai 99) Creation
  */
 public class FrameHeaderFits extends JFrame {
-   private StringBuffer	memoHeaderFits = null;	// Memorisation de l'entete FITS telle quelle (en Strings)
    private JTextPane ta;
    private JTextField ts;
    static String CLOSE,CLEAR,SAVE,CANCEL,SAVEINFO;
    private DefaultStyledDocument df;
    private JButton clear,cancel,save;
-   private static final boolean SAVABLE=true;
    private Plan plan;
 
    protected HeaderFits headerFits;
@@ -83,6 +83,7 @@ public class FrameHeaderFits extends JFrame {
 
    public FrameHeaderFits(HeaderFits headerFits) {
       this.headerFits = headerFits;
+      makeTA(false);
    }
 
   /** Creation du header.
@@ -92,7 +93,7 @@ public class FrameHeaderFits extends JFrame {
       super("FITS header");
       this.plan=plan;
       Aladin.setIcon(this);
-      makeTA();
+      makeTA(true);
       headerFits = new HeaderFits();
       headerFits.readHeader(dis,this);
    }
@@ -105,7 +106,7 @@ public class FrameHeaderFits extends JFrame {
    protected FrameHeaderFits(Plan plan,String s,boolean specialHHH) {
       Aladin.setIcon(this);
       this.plan=plan;
-      makeTA();
+      makeTA(true);
       headerFits = new HeaderFits();
       headerFits.readFreeHeader(s,specialHHH,this);
    }
@@ -115,7 +116,7 @@ public class FrameHeaderFits extends JFrame {
    /** Retourne l'objet de manipulation de l'entête Fits */
    protected HeaderFits getHeaderFits() { return headerFits; }
 
-   static private SimpleAttributeSet atKey=null,atValue,atComment,atCom,atHist,atYellow,atWhite;
+   static private SimpleAttributeSet atKey=null,atValue,atComment,atCom,atHist,atYellow,atWhite,atErr;
    private boolean first=true;  // Pour ne faire la mise en forme complète qu'une seule fois
 
    /** Mise en forme du texte de l'entête fits avec surlignage éventuel d'un mot */
@@ -134,6 +135,9 @@ public class FrameHeaderFits extends JFrame {
          atCom = new SimpleAttributeSet();
          atCom.addAttribute(StyleConstants.CharacterConstants.Foreground,Aladin.GREEN);
          atCom.addAttribute(StyleConstants.CharacterConstants.Background,Color.white);
+         atErr = new SimpleAttributeSet();
+         atErr.addAttribute(StyleConstants.CharacterConstants.Foreground,Color.red);
+         atErr.addAttribute(StyleConstants.CharacterConstants.Background,Color.white);
          atHist = new SimpleAttributeSet();
          atHist.addAttribute(StyleConstants.CharacterConstants.Foreground,new Color(127,0,85));
          atHist.addAttribute(StyleConstants.CharacterConstants.Background,Color.white);
@@ -146,19 +150,41 @@ public class FrameHeaderFits extends JFrame {
       int pos;
 
       // Mise en forme de base (uniquement sur les couleurs des lettres)
-      if( first && s.length()<64*1024 ) {
+      if( first && s.length()<128*1024 ) {
          first =false;
          int opos=0;
-         while( (pos=s.indexOf("\n",opos))>=0 ) {
+         while( (pos=s.indexOf("\n",opos))>=0 ) {            
             String k="";
             if( opos+7<s.length() ) k=s.substring(opos,opos+8).trim();
-            if(  k.equals("HISTORY")  ) df.setCharacterAttributes(opos,pos,atHist,true);
-            else if( k.startsWith("/")  || k.equals("COMMENT") ) df.setCharacterAttributes(opos,pos,atComment,true);
+            if(  k.equals("HISTORY") || k.equals("CONTINUE") ) df.setCharacterAttributes(opos,pos,atHist,true);
+            else if( k.startsWith("/")  || k.equals("COMMENT") || k.startsWith("#") ) df.setCharacterAttributes(opos,pos,atComment,true);
             else {
-               df.setCharacterAttributes(opos,opos+8,atKey,true);
-               df.setCharacterAttributes(opos+9,pos,atValue,true);
-               int com = s.indexOf('/',opos+30);
-               if( com>=0 ) df.setCharacterAttributes(com,pos,atCom,true);
+               boolean flagPDS = this instanceof FrameHeaderPDS || this instanceof FrameHipsProperties;
+               if( flagPDS ) {
+                  int keyLen = s.indexOf('=',opos);
+                  if( keyLen>opos && (pos==-1 || keyLen<=pos)) {
+                     df.setCharacterAttributes(opos,keyLen,atKey,true);
+                     df.setCharacterAttributes(keyLen+1,pos,atValue,true);
+                  }
+               } else if( k.equals("HIERARCH") ) {
+                  int keyLen = s.indexOf('=',opos);
+                  if( keyLen>0 ) {
+                     df.setCharacterAttributes(opos,opos+8,atHist,true);
+                     df.setCharacterAttributes(opos+8,keyLen,atKey,true);
+                     df.setCharacterAttributes(keyLen+1,pos,atValue,true);
+                     int com = s.indexOf('/',keyLen);
+                     if( com>=0 ) df.setCharacterAttributes(com,pos,atCom,true);
+                  }
+               } else {
+                  boolean comment = s.indexOf('=',opos)!=opos+8;
+                  if( comment ) df.setCharacterAttributes(opos,pos,atErr,true);
+                  else {
+                     df.setCharacterAttributes(opos,opos+8,atKey,true);
+                     df.setCharacterAttributes(opos+9,pos,atValue,true);
+                     int com = s.indexOf('/',opos+30);
+                     if( com>=0 ) df.setCharacterAttributes(com,pos,atCom,true);
+                  }
+               }
             }
             opos=pos+1;
          }
@@ -205,7 +231,7 @@ public class FrameHeaderFits extends JFrame {
    }
    
    private void applyThisHeader(String s) throws Exception {
-      memoHeaderFits=null;
+      setOriginalHeaderFits(null);
       headerFits = new HeaderFits(s,this);
       if( plan!=null ) {
          Calib c = new Calib(headerFits);
@@ -214,9 +240,21 @@ public class FrameHeaderFits extends JFrame {
          plan.aladin.view.newView(1);
          plan.aladin.view.repaintAll();
       }
-      ta.setText(memoHeaderFits.toString());
+      ta.setText(getOriginalHeaderFits());
       search("");
    }
+   
+   /** Retourne le header FITS original (en Strings) */
+   protected String getOriginalHeaderFits() { return headerFits.getOriginalHeaderFits(); }
+   
+   /** Mémorise le header FITS original (en Strings) */
+   protected void setOriginalHeaderFits(String s) { headerFits.setOriginalHeaderFits(s); }
+
+  /** Ajoute la ligne courante a la memorisation du header FITS
+   * en supprimant les blancs en fin de ligne
+   * @param s la chaine a ajouter
+   */
+   public void appendMHF(String s) { headerFits.appendMHF(s); }
    
    protected void cancel() {
       try {
@@ -238,7 +276,7 @@ public class FrameHeaderFits extends JFrame {
    }
 
   /** Construction du Frame de visualisation du Header FITS */
-   public void makeTA() {
+   public void makeTA(boolean savable) {
       JButton b;
 
       df=new DefaultStyledDocument() ;
@@ -250,7 +288,7 @@ public class FrameHeaderFits extends JFrame {
       });
 
       ta.setFont( Aladin.COURIER );
-      ta.setEditable(SAVABLE); 
+      ta.setEditable(savable); 
 
       JScrollPane sc = new JScrollPane(ta);
       sc.setPreferredSize(new Dimension(600,600));
@@ -278,13 +316,13 @@ public class FrameHeaderFits extends JFrame {
       p.add(new JLabel(" - "));
       save = b =  new JButton(SAVE);
       b.setEnabled(false);
-      if( SAVABLE ) p.add(b);
+      if( savable ) p.add(b);
       b.addActionListener(new ActionListener() {
          public void actionPerformed(ActionEvent e) { save(); }
       });
       cancel = b =  new JButton(CANCEL);
       b.setEnabled(false);
-      if( SAVABLE ) p.add(b);
+      if( savable ) p.add(b);
       b.addActionListener(new ActionListener() {
          public void actionPerformed(ActionEvent e) { cancel(); }
       });
@@ -322,21 +360,6 @@ public class FrameHeaderFits extends JFrame {
       setVisible(true);
    }
 
-
-  /** Retourne le header FITS original (en Strings) */
-   protected String getOriginalHeaderFits() { return memoHeaderFits.toString(); }
-   
-   /** Mémorise le header FITS original (en Strings) */
-   protected void setOriginalHeaderFits(String s) { memoHeaderFits= new StringBuffer(s); }
-
-  /** Ajoute la ligne courante a la memorisation du header FITS
-   * en supprimant les blancs en fin de ligne
-   * @param s la chaine a ajouter
-   */
-   public void appendMHF(String s) {
-      if( memoHeaderFits==null ) memoHeaderFits=new StringBuffer();
-      memoHeaderFits.append(s.trim()+"\n");
-   }
 
   /** Taille en octets de l'entete FITS.
    * Uniquemenent mis a jour apres readHeader()

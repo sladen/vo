@@ -28,7 +28,7 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Vector;
 
-import cds.allsky.Context;
+import cds.allsky.Constante;
 import cds.tools.Util;
 
 public class PlanBGCat extends PlanBG {
@@ -126,7 +126,7 @@ public class PlanBGCat extends PlanBG {
 
    private HealpixAllskyCat allsky[] = new HealpixAllskyCat[4];
 
-   protected int getLosangeOrder() { return 9; }
+   protected int getTileOrder() { return 9; }
    
    /** Dessin du ciel complet en rapide à l'ordre indiqué */
    protected boolean drawAllSky(Graphics g,ViewSimple v,int order) {
@@ -242,9 +242,6 @@ public class PlanBGCat extends PlanBG {
             // Inconnu => on ne dessine pas
             if( healpix==null ) continue;
             
-            // Positionnement de la priorité d'affichage
-            healpix.priority=250-(priority++);
-
             int status = healpix.getStatus();
 //            debug.append(","+pix[i]+HealpixKey.STATUS[status]);
 
@@ -253,6 +250,9 @@ public class PlanBGCat extends PlanBG {
 
             // On change d'avis
             if( status==HealpixKey.ABORTING ) healpix.setStatus(HealpixKey.ASKING,true);
+            
+            // Positionnement de la priorité d'affichage
+            healpix.priority=250-(priority++);
 
             // Losange à gérer
             healpix.resetTimer();
@@ -268,7 +268,7 @@ public class PlanBGCat extends PlanBG {
             if( healpix.isLast() ) npixLength-=4;
 
             if( order==norder ) {
-               HealpixKeyCat h = (HealpixKeyCat)healpix;
+               HealpixKeyCat h = healpix;
                if( !moreDetails && !h.isReallyLast(v) ) moreDetails = true;
 
                nLoaded += h.nLoaded;
@@ -310,7 +310,7 @@ public class PlanBGCat extends PlanBG {
       int nb=0;
       for( HealpixKey healpix : pixList.values() ) {
          if( healpix.order<=order ) continue;
-         if( healpix.allSky ) continue;
+//         if( healpix.allSky ) continue;
          if( healpix.getStatus()!=HealpixKey.READY ) continue;
          if( !((HealpixKeyCat)healpix).pcat.hasSelectedOrTaggedObj() ) continue;
          if( healpix.isOutView(v) ) continue;
@@ -414,7 +414,7 @@ public class PlanBGCat extends PlanBG {
 
    /** Charge la légende générique via le fichier metadata.xml (s'il existe) */
    protected void loadGenericLegende() {
-      String filename = getUrl()+"/"+Context.METADATA;
+      String filename = getUrl()+"/"+Constante.FILE_METADATAXML;
       Pcat pcat = new Pcat(this);
       MyInputStream in = null;
       try {
@@ -484,6 +484,7 @@ public class PlanBGCat extends PlanBG {
       ObjIterator(ViewSimple v) {
          super();
          order = v!=null ? getCurrentMaxOrder(v) : -1;
+         if( order==1 ) order=2;
       }
 
       public boolean hasNext() {

@@ -20,23 +20,106 @@
 
 package cds.aladin;
 
+import healpix.essentials.Moc;
+import healpix.essentials.MocQuery;
+//import healpix.essentials.MocUtil;
+import healpix.essentials.Pointing;
+import healpix.essentials.Vec3;
+
 import java.applet.Applet;
 import java.applet.AppletContext;
-import java.awt.*;
-import java.awt.datatransfer.*;
-import java.awt.dnd.*;
-import java.awt.event.*;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Event;
+import java.awt.FileDialog;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Image;
+import java.awt.Insets;
+import java.awt.MediaTracker;
+import java.awt.Panel;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.ClipboardOwner;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DragGestureEvent;
+import java.awt.dnd.DragGestureListener;
+import java.awt.dnd.DragSource;
+import java.awt.dnd.DragSourceDragEvent;
+import java.awt.dnd.DragSourceDropEvent;
+import java.awt.dnd.DragSourceEvent;
+import java.awt.dnd.DragSourceListener;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.dnd.DropTargetEvent;
+import java.awt.dnd.DropTargetListener;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
 import java.awt.image.MemoryImageSource;
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.Authenticator;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.text.DateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.StringTokenizer;
+import java.util.Vector;
 
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
+import javax.swing.ImageIcon;
+import javax.swing.JApplet;
+import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JRadioButtonMenuItem;
+import javax.swing.JSplitPane;
+import javax.swing.JToolBar;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
 import javax.swing.plaf.basic.BasicSplitPaneDivider;
@@ -44,13 +127,15 @@ import javax.swing.plaf.basic.BasicSplitPaneUI;
 
 import cds.aladin.bookmark.Bookmarks;
 import cds.allsky.Context;
-import cds.allsky.MocGen;
 import cds.allsky.HipsGen;
+import cds.allsky.MocGen;
+import cds.moc.HealpixMoc;
 import cds.tools.CDSFileDialog;
 import cds.tools.ExtApp;
 import cds.tools.Util;
 import cds.tools.VOApp;
 import cds.tools.VOObserver;
+import cds.tools.pixtools.CDSHealpix;
 import cds.xml.Field;
 import cds.xml.XMLParser;
 
@@ -64,434 +149,450 @@ import cds.xml.XMLParser;
  *
  * @author   Pierre Fernique [CDS], Thomas Boch [CDS], Anaïs Oberto[CDS], François Bonnarel [CDS]
  *
- * @beta The beta version incorporates new features in test phase for the next official Aladin version.<BR>
- * @beta The stability of these features is not totally guaranteed.
- * @beta <P>
+ * The beta version incorporates new features in test phase for the next official Aladin version.<BR>
+ * The stability of these features is not totally guaranteed.
+ *
  * @beta <B>New features and performance improvements:</B>
  * @beta <UL>
- * @beta    <LI> HiPS improvements: thumbnail generator, original image links, JPEG|PNG support, ...
- * @beta    <LI> Obj.iterator() plugin method for multi-component object manipulation
- * @beta    <LI> Pixel and coordinate toolbox
- * @beta    <LI> Footprint MOC operations (generation, filtering, ...)
- * @beta    <LI> Recently open file menu
- * @beta    <LI> Copy/Paste data
- * @beta    <LI> Solid shape paint (source property)
- * @beta    <LI> HipsGen improvements (speed x5 - PNG, MEF support - circle mask)
- * @beta    <LI> GLON/GLAT, ELON/ELAT, SLON/SLAT column autodetect in basic ASCII formats
- * @beta    <LI> Automatical distance tool for 2 selected sources   
- * @beta    <LI> MOC & SkyGen generation support (-mocgen & -skygen script programs)
- * @beta    <LI> STC-s region support (as a script command)
- * @beta    <LI> PNG compressed zTXt comment segment (for FITs header) support
- * @beta    <LI> VOTable 1.3 support (BINARY2 + LINK + Note STC in VOTable 1.2 & 2.0)
- * @beta    <LI> New script commands: "match", "=" (arithmetic expression solver), "convto"
- * @beta    <LI> Catalog proper motion support
- * @beta    <LI> All-sky progressive zoom (not only powers of 2)
- * @beta    <LI> Automatic All-sky + Sesame switcher (load balancing + fault tolerance)
- * @beta    <LI> "transparency pixel" support 
- * @beta    <LI> 3 panel mode
- * @beta    <LI> Tool plan "movable" property
- * @beta    <LI> VizieR phot. tool
- * @beta    <LI> Tagging source feature
- * @beta    <LI> Spectrum SAMP management dedicated to source catalog
- * @beta    <LI> Specifical color parameter for "draw" script command
- * @beta    <LI> JPEG large image improvements (required RAM divided by 2)
- * @beta    <LI> Plugin synchronisation support
+ * @beta    <LI> High Dynamic Range button
+ * @beta    <LI> Script console history via the location field (arrow control)
+ * @beta    <LI> JSON catalog export
+ * @beta    <LI> Constellation drawing
+ * @beta    <LI> Dynamic display improvements (faster, without GC "stop all" effect)
+ * @beta    <LI> MocServer support (remote server of coverages)
+ * @beta    <LI> Astrometrical calibration improvements (SCAMP PV, TPV, SINSIP)
+ * @beta    <LI> Widgets in fullscreen mode
+ * @beta    <LI> New colormap controller
+ * @beta    <LI> Full MOC adaptative drawing
+ * @beta    <LI> draw MOC ... script command
+ * @beta    <LI> Improvement of Planetary Data System image support (LSB,PREFIX,SUFFIX...)
+ * @beta    <LI> ObsTAP VOTable result support
+ * @beta    <LI> Pixel autocut estimation around the reticle (localcut)
+ * @beta    <LI> MOC improvements (Mocgen)
+ * @beta    <LI> HiPS improvements :
+ * @beta       <UL>
+ * @beta         <LI> Pix local cut/full dynamic button
+ * @beta         <LI> properties display
+ * @beta         <LI> Obscore vocabulary support
+ * @beta         <LI> Hipsgen full multi-threading support
+ * @beta         <LI> Hipsgen MIRROR and RGB actions
+ * @beta         <LI> Hipsgen ADD mode
+ * @beta         <LI> Colormap control for colored HiPS
+ * @beta         <LI> HEALPix FITS map support (any NSIDE, NESTED or RING)
+ * @beta         <LI> Cube support
+ * @beta         <LI> HTTPS support
+ * @beta         <LI> index.html HiPS directory description
+ * @beta         <LI> tileOrder Hipsgen parameter
+ * @beta         <LI> maxRatio Hipsgen parameter
+ * @beta         <LI> shape & polygon Hipsgen parameters
+ * @beta       </UL>
  * @beta </UL>
  * @beta
  * @beta <B>Major fixed bugs:</B>
- * @beta    <LI> Oversampling crop HiPS bilinear bug fixed
- * @beta    <LI> FITS HEALPix maps with  TFORM=B bug fixed
- * @beta    <LI> FITS HEALPix maps with  NSIDE>=16384 bug fixed
- * @beta    <LI> Allsky generator .hhh bug fixed
- * @beta    <LI> Allsky generator cell <64 bug fixed
- * @beta    <LI> MOLLWEIDE projection bug fixed
- * @beta    <LI> FOV target precision bug fixed
- * @beta    <LI> TAN SIP bug fixed
- * @beta    <LI> EPS NorthUP bug fixed
- * @beta    <LI> VOTable base64 BINARY STREAM with variable fields bug fixed
- * @beta    <LI> HEALPix sky => RGB missing tiles supported
  * @beta <UL>
+ * @beta    <LI> Mocgen RICE support
+ * @beta    <LI> HEALPix map crop save
+ * @beta    <LI> Multi-session cache bug
+ * @beta    <LI> HiPS building by iterations
+ * @beta    <LI> Astrometrical calibration ZPN & SIN bugs
+ * @beta    <LI> "Match" mode bugs (colormap, phot and fov tools)
+ * @beta    <LI> AVM XML bug.
+ * @beta    <LI> HiPS generation with PNG black pixel bug
+ * @beta    <LI> Some grid drawing bugs (missing segments or labels)
+ * @beta    <LI> Contour parameter bug refresh on HiPS planes
+ * @beta    <LI> DS9 region multi plane bug
+ * @beta    <LI> HiPS catalog object selection bug (allsky level 2)
+ * @beta    <LI> Very extended catalogs bug display
+ * @beta    <LI> Solar image v8 bug
+ * @beta    <LI> VOTable dedicated NULL value
+ * @beta    <LI> Polygon phot tool bug (cube + multi-segments)
+ * @beta    <LI> FITS table GLON/GLAT coord system error
+ * @beta    <LI> Undesired deselection of tables generated by a MOC filtering
+ * @beta    <LI> HiPS generation "." directory bug
  * @beta </UL>
  *
  */
 public class Aladin extends JApplet
-                    implements ExtApp,VOApp,ClipboardOwner,
-                               MouseListener,MouseMotionListener,
-                               ActionListener,
-                               DropTargetListener, DragSourceListener, DragGestureListener
-                    {
+implements ExtApp,VOApp,ClipboardOwner,
+MouseListener,MouseMotionListener,
+ActionListener,
+DropTargetListener, DragSourceListener, DragGestureListener
+{
 
 
-//   static final boolean VP=true;
-   
-//   static final Dimension SCREENSIZE= Toolkit.getDefaultToolkit().getScreenSize();
-    static Dimension SCREENSIZE= null;
-    static final boolean LSCREEN= true; //SCREENSIZE.width>1000;
+   //   static final boolean VP=true;
 
-    /** Nom de l'application */
-    static protected final String TITRE   = "Aladin";
-    static protected final String FULLTITRE   = "Aladin Sky Atlas";
+   //   static final Dimension SCREENSIZE= Toolkit.getDefaultToolkit().getScreenSize();
+   static Dimension SCREENSIZE= null;
+   static final boolean LSCREEN= true; //SCREENSIZE.width>1000;
 
-    /** Numero de version */
-    static public final    String VERSION = "v8.040";
-    static protected final String AUTHORS = "P.Fernique, T.Boch, A.Oberto, F.Bonnarel";
-    static protected final String OUTREACH_VERSION = "    *** UNDERGRADUATE MODE (based on "+VERSION+") ***";
-    static protected final String BETA_VERSION     = "    *** BETA VERSION (based on "+VERSION+") ***";
-    static protected final String PROTO_VERSION    = "    *** PROTOTYPE VERSION (based on "+VERSION+") ***";
-    static protected  String currentVersion = null;	// Version courante dispo
+   /** Nom de l'application */
+   static protected final String TITRE   = "Aladin";
+   static protected final String FULLTITRE   = "Aladin Sky Atlas";
 
-    /** MRdecomp active */
-    static protected final boolean MRDECOMP= false;
+   /** Numero de version */
+   static public final    String VERSION = "v9.008";
+   static protected final String AUTHORS = "P.Fernique, T.Boch, A.Oberto, F.Bonnarel";
+   static protected final String OUTREACH_VERSION = "    *** UNDERGRADUATE MODE (based on "+VERSION+") ***";
+   static protected final String BETA_VERSION     = "    *** BETA VERSION (based on "+VERSION+") ***";
+   static protected final String PROTO_VERSION    = "    *** PROTOTYPE VERSION (based on "+VERSION+") ***";
+   static protected  String currentVersion = null;	// Version courante dispo
 
-    /** Taille moyenne des fonts */
-    static protected int  SIZE   = 12;
+   /** MRdecomp active */
+   static protected final boolean MRDECOMP= false;
 
-    static final String ICON              = "icon.gif";
-    static final String ALADINMAINSITE    = "aladin.u-strasbg.fr";
-    static final String WELCOME           = "Bienvenue sur "+TITRE+
-                                            " - "+getReleaseNumber();
-    static String COPYRIGHT         = "(c) 2014 UDS/CNRS - by CDS - Distributed under GNU GPL v3";
+   /** Taille moyenne des fonts */
+   static protected int  SIZE   = 12;
 
-    static protected String CACHE = ".aladin"; // Nom du répertoire cache
-    static protected String CACHEDIR = null;   // Filename du répertoire cache, null si non encore
-                                               // créé, "" si impossible à créer
+   static final String ICON              = "icon.gif";
+   static final String ALADINMAINSITE    = "aladin.u-strasbg.fr";
+   static final String WELCOME           = "Bienvenue sur "+TITRE+
+         " - "+getReleaseNumber();
+   static String COPYRIGHT         = "(c) 2016 Unistra/CNRS - by CDS - Distributed under GNU GPL v3";
 
-    static protected final String FOVURL  = "http://"+Aladin.ALADINMAINSITE+"/java/FOVs.xml";
-    static protected final String TREEURL = "http://"+Aladin.ALADINMAINSITE+"/java/Tree.dic";
-    static protected final String LANGURL = "http://"+Aladin.ALADINMAINSITE+"/java/nph-aladin.pl?frame=getLang";
+   static protected String CACHE = ".aladin"; // Nom du répertoire cache
+   static protected String CACHEDIR = null;   // Filename du répertoire cache, null si non encore
+   // créé, "" si impossible à créer
 
-    // La couleur du fond
-    static final Color BKGD   = Color.lightGray;
-//    static final Color BKGD   = new Color(246,246,246);
-    static final Color GREEN = new Color(27,137,0);
-    static final Color DARKBLUE = new Color(102,102,153);
-    static final Color MYBLUE = new Color(49,106,197);
-    static final Color LBLUE = new Color(229,229,229);
-    public static final Color BLUE =  new Color(214,214,255);
-    static final Color MAXBLUE =  new Color(153,153,255);
-    static final Color BLUEHELP = new Color(25,76,127);
-    static final Color MYGRAY = new Color(180,183,187);
-    static final Color STACKBLUE = new Color(140,140,255);
-    static final Color STACKGRAY = new Color(150,150,150);
-    static final Color BLACKBLUE = new Color(0,0,200);
-    static final Color BACKGROUND   = new Color(198,218,239); 
-    static final Color ORANGE   = new Color(255,137,58); 
-    static final Color LIGHTORANGE   = new Color(255,211,58); 
+   static protected final String FOVURL  = "http://"+Aladin.ALADINMAINSITE+"/java/FOVs.xml";
+   static protected final String TREEURL = "http://"+Aladin.ALADINMAINSITE+"/java/Tree.dic";
+   static protected final String LANGURL = "http://"+Aladin.ALADINMAINSITE+"/java/nph-aladin.pl?frame=getLang";
 
-    // couleur de fond du bouton Load... lorsqu'il est opérationnel
-//    static final Color COLOR_LOAD_READY = new Color(110,230,50);
-    static final Color COLOR_LOAD_READY = new Color(50,205,110);
+   // La couleur du fond
+   static final Color BKGD   = Color.lightGray;
+   //    static final Color BKGD   = new Color(246,246,246);
+   static final Color GREEN = new Color(27,137,0);
+   static final Color DARKBLUE = new Color(102,102,153);
+   static final Color MYBLUE = new Color(49,106,197);
+   static final Color LBLUE = new Color(229,229,229);
+   public static final Color BLUE =  new Color(214,214,255);
+   static final Color MAXBLUE =  new Color(153,153,255);
+   static final Color BLUEHELP = new Color(25,76,127);
+   static final Color MYGRAY = new Color(180,183,187);
+   static final Color STACKBLUE = new Color(140,140,255);
+   static final Color STACKGRAY = new Color(150,150,150);
+   static final Color BLACKBLUE = new Color(0,0,200);
+   static final Color BACKGROUND   = new Color(198,218,239);
+   static final Color ORANGE   = new Color(255,137,58);
+   static final Color LIGHTORANGE   = new Color(255,211,58);
 
-    // Le repertoire d'installation d'Aladin
-    static String HOME;
+   // couleur de fond du bouton Load... lorsqu'il est opérationnel
+   //    static final Color COLOR_LOAD_READY = new Color(110,230,50);
+   static final Color COLOR_LOAD_READY = new Color(50,205,110);
 
-    // Le nom de la machine d'ou provient l'applet (s'il y a lieu)
-    static String APPLETSERVER=null;
-    static String HOSTSERVER=null;
+   // Le repertoire d'installation d'Aladin
+   static String HOME;
 
-    // Le nom de la base de données qui a lancé l'applet ( champ &from=XXX dans l'url )
-    static String FROMDB=null;
+   // Le nom de la machine d'ou provient l'applet (s'il y a lieu)
+   static String APPLETSERVER=null;
+   static String HOSTSERVER=null;
 
-    // Les noms des fichiers GLU locaux additionnels passés en ligne de commande
-    static String GLUFILE=null;
+   // Le nom de la base de données qui a lancé l'applet ( champ &from=XXX dans l'url )
+   static String FROMDB=null;
 
-    // url pour passer un script à l'applet
-    static String SCRIPTFILE=null;
+   // Les noms des fichiers GLU locaux additionnels passés en ligne de commande
+   static String GLUFILE=null;
 
-    // Les noms des fichiers Strings locaux additionnels passés en ligne de commande
-    static String STRINGFILE=null;
+   // url pour passer un script à l'applet
+   static String SCRIPTFILE=null;
 
-    // Le nom de la machine distante qui utilise Aladin Java à travers un cgi
-    static String RHOST=null;
+   // Les noms des fichiers Strings locaux additionnels passés en ligne de commande
+   static String STRINGFILE=null;
 
-    // Le mode de démarrage d'Aladin (full, frame, preview, le défaut si null)
-    protected String SCREEN=null;
-    private boolean flagScreen=false;   // true si le mode SCREEN doit être pris en compte (voir paint())
+   // Le nom de la machine distante qui utilise Aladin Java à travers un cgi
+   static String RHOST=null;
 
-    // true si on tourne sous LINUX (pour pallier à un bug MemoryImage.newPixel)
-    static boolean ISLINUX=false;
+   // Le mode de démarrage d'Aladin (full, frame, preview, le défaut si null)
+   protected String SCREEN=null;
+   private boolean flagScreen=false;   // true si le mode SCREEN doit être pris en compte (voir paint())
 
-    static boolean ISJNLP=false;
-    static boolean ISJVM15=false;
-    static boolean ISJVM16=false;
+   // true si on tourne sous LINUX (pour pallier à un bug MemoryImage.newPixel)
+   static boolean ISLINUX=false;
 
-    // true si mode robot supporte !
-    static boolean ROBOTSUPPORT=false;
+   static boolean ISJNLP=false;
+   static boolean ISJVM15=false;
+   static boolean ISJVM16=false;
 
-    // true si Centre de rotation FOV déporté supporté
-    static boolean ROTATEFOVCENTER=true;
+   // true si mode robot supporte !
+   static boolean ROBOTSUPPORT=false;
 
-    // true si le reseau est accessible
-    static boolean NETWORK=true;
+   // true si Centre de rotation FOV déporté supporté
+   static boolean ROTATEFOVCENTER=true;
 
-    // true si on affiche la console
-    static boolean CONSOLE=true;
+   // true si le reseau est accessible
+   static boolean NETWORK=true;
 
-    // true si on affiche le banner
-    static boolean BANNER=true;
+   // true si on affiche la console
+   static boolean CONSOLE=true;
 
-    // true si on affiche le copyright sur les sorties PNG,JPG EPS et autres
-    static boolean CREDIT=true;
+   // true si on affiche le banner
+   static boolean BANNER=true;
 
-    // true si on charge les bookmarks
-    static boolean BOOKMARKS=true;
+   // true si on affiche le copyright sur les sorties PNG,JPG EPS et autres
+   static boolean CREDIT=true;
 
-    // true si on compare le numéro de version avec la version courante
-    static boolean TESTRELEASE=true;
+   // true si on charge les bookmarks
+   static boolean BOOKMARKS=true;
 
-    // true si on ne lance pas de hub interne, quelles que soient les preferences
-    static boolean NOHUB=false;
+   // true si on effectue un test de présence du réseau
+   static boolean TESTNETWORK=true;
 
-    // true si on ne lance ne charge pas les plugins
-    static boolean NOPLUGIN=false;
+   // true si on compare le numéro de version avec la version courante
+   static boolean TESTRELEASE=true;
 
-     // Gère le mode particuliers
-    static boolean LOG=true;  // false si on inhibe les logs
-    public static boolean BETA                                                         =false;
-    public static boolean CDS=false;   // true si on tourne en mode CDS
-    public static boolean PROTO=false;	// true si on tourne en mode PROTO (nécessite Proto.jar)
-    static public boolean OUTREACH                                                         =false;
-    static boolean setOUTREACH                                                         =false;
-    static int ALIASING=0;            // 0-défaut système, 1-actif, -1-désactivé
+   // true si on ne lance pas de hub interne, quelles que soient les preferences
+   static boolean NOHUB=false;
 
-    static boolean ENABLE_FOOTPRINT_OPACITY=true; // footprints en transparence ?
-    static float DEFAULT_FOOTPRINT_OPACITY_LEVEL=0.15f+0.000111f; // niveau de transparence (entre 0.0 et 1.0)
+   // true si on ne lance ne charge pas les plugins
+   static boolean NOPLUGIN=false;
 
-    // Si le menu ou le sous-menu commence par l'une des chaines ci-dessous,
-    // il ne s'affichera que dans le mode correspondant.
-    // Rq: le mode proto active automatiquement le mode beta
-    static final String BETAPREFIX = "BETA:";
-    static final String PROTOPREFIX = "PROTO:";
-    static final String OUTREACHPREFIX = "OUTREACH:";
-    static final String NOAPPLETPREFIX = "NOAPPLET:";
+   // Gère le mode particuliers
+   static boolean LOG=true;  // false si on inhibe les logs
+   public static boolean BETA    =false;
+   public static boolean CDS=false;   // true si on tourne en mode CDS
+   public static boolean PROTO=false;	// true si on tourne en mode PROTO (nécessite Proto.jar)
+   static public boolean OUTREACH    =false;
+   static boolean setOUTREACH    =false;
+   static int ALIASING=0;            // 0-défaut système, 1-actif, -1-désactivé
 
-    // Si une image est plus petite que cette limite, on préférera garder les pixels
-    // d'origine (PlanImage.pixelsOrigin) en mémoire pour éviter des accès disques
-    // pour chaque valeur de pixel
-    static final int LIMIT_PIXELORIGIN_INMEM = 8*1024*1024;
+   static boolean ENABLE_FOOTPRINT_OPACITY=true; // footprints en transparence ?
+   static float DEFAULT_FOOTPRINT_OPACITY_LEVEL=0.15f+0.000111f; // niveau de transparence (entre 0.0 et 1.0)
 
-    // Limite image en full access
-    static final long LIMIT_HUGEFILE = Math.min(Integer.MAX_VALUE,Runtime.getRuntime().maxMemory()/2L);
-    
-    static long MAXMEM = Runtime.getRuntime().maxMemory()/(1024*1024);
-    
-    // Marge limite en MO pour le chargement des cubes en RAM.
-    // Il faut au-moins 500Mo de disponible pour une telle stratégie 
-//    static int MARGERAM = !PROTO ? 20000 : MAXMEM>500 ? 150 : 500;
-    static int MARGERAM = MAXMEM>500 ? 150 : 500;
+   // Si le menu ou le sous-menu commence par l'une des chaines ci-dessous,
+   // il ne s'affichera que dans le mode correspondant.
+   // Rq: le mode proto active automatiquement le mode beta
+   static final String BETAPREFIX = "BETA:";
+   static final String PROTOPREFIX = "PROTO:";
+   static final String OUTREACHPREFIX = "OUTREACH:";
+   static final String NOAPPLETPREFIX = "NOAPPLET:";
 
-    // Le nom du dico GLU specifique a Aladin
-    static String ALAGLU = "AlaGlu.dic";
+   // Si une image est plus petite que cette limite, on préférera garder les pixels
+   // d'origine (PlanImage.pixelsOrigin) en mémoire pour éviter des accès disques
+   // pour chaque valeur de pixel
+   static final int LIMIT_PIXELORIGIN_INMEM = 8*1024*1024;
 
-    // Caractères (éventuellement plusieurs) utilisés comme séparateur
-    // de colonne pour les tables CSV
-    protected String CSVCHAR = "\t";
-    
-    // True si par défaut l'outil Tag doit centrer sur l'objet le plus proche
-    protected boolean CENTEREDTAG = false;
+   // Limite image en full access
+   static final long LIMIT_HUGEFILE = Math.min(Integer.MAX_VALUE,Runtime.getRuntime().maxMemory()/2L);
 
-    // Le mapping des pixels par defaut (si surcharge via setconf)
-    protected String CMDEFAULT = null;
-//    protected String CMDEFAULT = "reverse gray autocut Log";
+   static long MAXMEM = Runtime.getRuntime().maxMemory()/(1024*1024);
 
-    // Le mapping du background par defaut (si surcharge via setconf)
-    protected String BKGDEFAULT = null;
+   // Marge limite en MO pour le chargement des cubes en RAM.
+   // Il faut au-moins 500Mo de disponible pour une telle stratégie
+   //    static int MARGERAM = !PROTO ? 20000 : MAXMEM>500 ? 150 : 500;
+   static int MARGERAM = MAXMEM>500 ? 150 : 500;
 
-    // Un filtre dédié doit-il être appliqué par défaut
-    protected String FILTERDEFAULT=null;
+   // Le nom du dico GLU specifique a Aladin
+   static String ALAGLU = "AlaGlu.dic";
 
-    // Le numéro de session d'Aladin
-    static private int ALADINSESSION = -1;
-    protected int aladinSession=0;
+   // Caractères (éventuellement plusieurs) utilisés comme séparateur
+   // de colonne pour les tables CSV
+   protected String CSVCHAR = "\t";
 
-    // Les fontes associees a Aladin
-    static int  SSIZE,SSSIZE,LSIZE  ;
-    static public Font BOLD,PLAIN,ITALIC,SBOLD,SSBOLD,SPLAIN,SSPLAIN,SITALIC,
-                LPLAIN,LBOLD,LITALIC,LLITALIC,L,COURIER,BCOURIER;
+   // True si par défaut l'outil Tag doit centrer sur l'objet le plus proche
+   protected boolean CENTEREDTAG = false;
 
-    // L'instance d'aladin lui-meme, pour la methode main() et
-    // l'utilisation par une autre application java (voir methode launch() );
-    public static Aladin aladin;
+   // Le mapping des pixels par defaut (si surcharge via setconf)
+   protected String CMDEFAULT = null;
+   //    protected String CMDEFAULT = "reverse gray autocut Log";
 
-    static boolean PLASTIC_SUPPORT = true; // activation ou non du support PLASTIC/SAMP
-    static boolean USE_ACR = false; // True si on utilise les librairies ACR (AstroGrid)
+   // Le mapping du background par defaut (si surcharge via setconf)
+   protected String BKGDEFAULT = null;
 
-    private Banner banner=null;
+   // Un filtre dédié doit-il être appliqué par défaut
+   protected String FILTERDEFAULT=null;
 
-    // Les objets associees a l'interface
-    FullScreen fullScreen=null;   // Gère le Frame du mode plein écran, null si non actif
-    public Bookmarks bookmarks;          // Gère les favoris
-    View view;                    // Gere la "View frame"
-    Status status;                // Gere la ligne de "Status"
-    Match sync;                   // Gere le logo pour la grille
-    Grid grid;                    // Gere le logo pour la grille
-    Oeil oeil;                    // Gere le logo pour l'oeil
-    Northup northup;              // Gère le logo pour le Nord en haut
-    ViewControl viewControl;	  // Gere le logo de controle des views
-    Tips urlStatus;               // Gere la ligne de l'info sur les URLs
-    MyLabel memStatus;            // Gere la ligne de l'info sur l'usage de la mémoire
-    Mesure mesure;                // Gere la "Frame of measurements"
-    MySplitPane splitH;           // Gère la séparation mesure/Vue
-    Search search;                // Gère le bandeau de recherche dans les mesures
-    public ToolBox toolBox;       // Gere la "Tool bar"
-    public Calque calque;         // Gere a la fois les plans et le zoom
-    Localisation localisation;    // Gere l'affichage de la "Localisation"
-    Logo logo;                    // Gere le "logo"
-    PlasticWidget plasticWidget;  // Gere le widget PLASTIC
-    PlasticPreferences plasticPrefs; // Gere les preferences PLASTIC
-    Help help;                    // Gere le "Help" en ligne
-    public ServerDialog dialog;   // Gere l'interrogation des serveurs
-    TreeView treeView;            // Gere l'arbre contenant l'historique des interrogations
-    FrameColorMap frameCM;              // Gere la fenetre du controle de la table des couleurs
-    FrameRGB frameRGB;            // Gere la fenetre pour la creation des plans RGB
-    FrameBlink frameBlink;        // Gere la fenetre pour la creation des plans Blink
-    FrameArithmetic frameArithm;   // Gere la fenetre pour la creation des plans Arithmetic via une opération arithmétique
-    FrameMocFiltering frameMocFiltering;   // Gere la fenetre pour les opérations de filtrage par les MOCs
-    FrameMocOperation frameMocOperation;   // Gere la fenetre pour les opérations sur les MOCs
-    FrameMocGenImgs frameMocGenImgs; // Gere la fenetre pour la génération d'un MOC à partir d'une collection d'images
-    FrameMocGenImg frameMocGenImg;   // Gere la fenetre pour la génération d'un MOC à partir d'images
-    FrameMocGenCat frameMocGenCat;   // Gere la fenetre pour la génération d'un MOC à partir de catalogues
-    FrameMocGenRes frameMocGenRes;   // Gere la fenetre pour la génération d'un MOC à partir d'un autre MOC de meilleure résolution
-    FrameBitpix frameBitpix;       // Gere la fenetre pour de conversion du bitpix d'une image
-    FrameConvolution frameConvolution; // Gere la fenetre pour la creation des plans Arithmetic via une convolution
-    FrameHealpixArithmetic frameHealpixArithm;   // Gere la fenetre pour la creation des plans Arithmetic pour Healpix
-    FrameCDSXMatch frameCDSXMatch;// Gere la fenetre pour le x-match
-    FrameColumnCalculator frameCalc; // Gere la fenetre pour ajout de colonnes
-    FrameContour frameContour;    // Gere la fenetre pour les choix de niveaux de contour
-    FrameInfo frameInfo;          // Gere la fenetre d'informations sur un noeud de l'arbre
-    FrameInfoServer frameInfoServer; // Gère la fenêtre des infos sur un serveur
-    FrameMacro frameMacro;        // Gere la fenetre des Macros
-    FrameVOTool frameVOTool;      // Gère les applications VO accessibles par Aladin
-    protected FrameProgenAjeter frameProgen = null;
-    protected FrameProp frameProp;// Fenêtre des propriétés individuelles d'un objet graphique
-    public FrameAllskyTool frameAllsky;  // Gère la creation locale d'un allsky
-    public Console console;                  // Gere la fenetre de la console
-    public Command command=null;	      // Gere les commandes asynchrones
-    Synchro synchroServer;              // Gère les synchronisations des servers
-    Synchro synchroPlan;              // Gère les synchronisations des Plans
-    FrameNewCalib frameNewCalib=null; // Gere la fenetre de recalibration astrometrique
-    public Configuration configuration;	      // Configuration utilisateur
-    public KernelList kernelList;    // Gère la liste des noyaux de convolution
-    static protected Chaine chaine;     // Gère les chaines de textes (support multilangage
-    AppMessagingInterface appMessagingMgr;    // Gère la connexion/l'envoi de messages PLASTIC/SAMP
+   // Le numéro de session d'Aladin
+   static private int ALADINSESSION = -1;
+   protected int aladinSession=0;
 
-    // Les objets internes
-    public Glu glu=null;   // Gere les interactions avec le GLU
-    static Cache cache=null; // Gère le cache
-    protected Plugins plugins;    // Accès aux plugins
-    CardLayout cardView;          // Gere la permutation entre le "Help" et la "View"
-    CreatObj co;		          // pour gerer la creation parallele des widgets
-    public Save save=null;		          // pour gerer les sauvegardes
-    ExtApp extApp = null;         // Application cooperative a Aladin
-    String javaVersion;
-    static boolean macPlateform = false; // Aladin est-il exécuté sur un Mac ?
-    private String lastDir=null;  // Le dernier répertoire utilisé
-    private final long startTime = System.currentTimeMillis();  // Date de démarrage
-    private long sizeCache=0L;    // Taille du cache disque pour les grosses images
+   // Les fontes associees a Aladin
+   static int  SSIZE,SSSIZE,LSIZE  ;
+   static public Font BOLD,PLAIN,ITALIC,SBOLD,SSBOLD,SPLAIN,SSPLAIN,SITALIC,
+   LPLAIN,LBOLD,LITALIC,LLITALIC,L,COURIER,BCOURIER;
 
-    // plugin VOSpec
-    Object vospec;
+   // L'instance d'aladin lui-meme, pour la methode main() et
+   // l'utilisation par une autre application java (voir methode launch() );
+   public static Aladin aladin;
 
-    // référence sur la dernière fenetre FilterProperties à avoir été créée (pour robot)
-    FilterProperties lastFilterCreated;
+   static boolean PLASTIC_SUPPORT = true; // activation ou non du support PLASTIC/SAMP
+   static boolean USE_ACR = false; // True si on utilise les librairies ACR (AstroGrid)
 
-    // référence sur le bouton Load (pour robot)
-    MyButton loadBtn;
+   private Banner banner=null;
 
-    // Les memorisations en vue de mises a jour
-    JPanel infoPanel;             // Panel de la ligne tout en bas
-    JPanel bigView;               // Panel contenant a la fois le view et le help
-    JPanel mesurePanel;		      // Panel contenant les mesures
-    Vector vButton;               // Vecteur des boutons du menu a (des/)activer
-    Container myParent=null;      // Pour pouvoir re-fenestrer
-    Rectangle origPos=null;       // Dimension d'origine dans le navigateur
-    static public String error;          // La derniere chaine d'erreur (DEVRAIT NE PAS ETRE STATIC)
-    protected JMenuBar jBar;      // La barre de menu
-    private JButton bDetach;
-    private JMenuItem miDetach,miCalImg,miCalCat,miAddCol,miSimbad,miAutoDist,miVizierSED,miXmatch,miROI,/*miTip,*/
-                      miVOtool,miGluSky,miGluTool,miPref,miPlasReg,miPlasUnreg,miPlasBroadcast,
-                      miDel,miDelAll,miPixel,miContour,miSave,miPrint,miSaveG,miScreen,miPScreen,miMore,miNext,
-                      miLock,miDelLock,miStick,miOne,miNorthUp,
-                      miProp,miGrid,miReticle,miReticleL,miNoReticle,
-                      miTarget,miOverlay,miRainbow,miZoomPt,miZoom,miSync,miSyncProj,miCopy1,miPaste,
-                      /* miPrevPos,miNextPos, */
-                      miPan,miGlass,miGlassTable,miPanel1,miPanel2c,miPanel2l,miPanel4,miPanel9,miPanel16,
-                      miImg,miOpen,miCat,miPlugs,miRsamp,miRGB,miMosaic,miBlink,
-                      miGrey,miFilter,miFilterB,miSelect,miSelectAll,miSelectTag,miTagSelect,miDetag,miSearch,
-                      miUnSelect,miCut,miStatSurf,miTransp,miTranspon,miTag,miDist,miDraw,miTexte,miCrop,miCreateHpx,
-                      miCopy,miHpxGrid,miHpxDump,
-                      miTableInfo,miClone,miPlotcat,miConcat,miExport,miExportEPS,miBackup, /* miHistory, */
-                      miInFold,miConv,miArithm,miMocHips,miMocGenImg,miMocGenCat,miMocOp,miMocToOrder,miMocFiltering,miMocCrop,
-                      miHealpixArithm,miNorm,miBitpix,miPixExtr,miHead,miFlip,
-                      miSAMPRegister,miSAMPUnregister,miSAMPStartHub,miSAMPStopHub,miLastFile,
-                      miBroadcastAll,miBroadcastTables,miBroadcastImgs; // Pour pouvoir modifier ces menuItems
-    JButton ExportYourWork,searchData,avant,apres;
+   // Les objets associees a l'interface
+   public FrameFullScreen fullScreen=null;   // Gère le Frame du mode plein écran, null si non actif
+   public Bookmarks bookmarks;          // Gère les favoris
+   View view;                    // Gere la "View frame"
+   Status status;                // Gere la ligne de "Status"
+   Match match;                   // Gere le logo pour la grille
+   Grid grid;                    // Gere le logo pour la grille
+   Oeil oeil;                    // Gere le logo pour l'oeil
+   Northup northup;              // Gère le logo pour le Nord en haut
+   Hdr pix;                      // Gère le logo pour le passage en full dynamique
+   ViewControl viewControl;	     // Gere le logo de controle des views
+   Tips urlStatus;               // Gere la ligne de l'info sur les URLs
+   MyLabel memStatus;            // Gere la ligne de l'info sur l'usage de la mémoire
+   Mesure mesure;                // Gere la "Frame of measurements"
+   MySplitPane splitH;           // Gère la séparation mesure/Vue
+   Search search;                // Gère le bandeau de recherche dans les mesures
+   public ToolBox toolBox;       // Gere la "Tool bar"
+   public Calque calque;         // Gere a la fois les plans et le zoom
+   Localisation localisation;    // Gere l'affichage de la "Localisation"
+   Logo logo;                    // Gere le "logo"
+   PlasticWidget plasticWidget;  // Gere le widget PLASTIC
+   PlasticPreferences plasticPrefs; // Gere les preferences PLASTIC
+   Help help;                    // Gere le "Help" en ligne
+   public ServerDialog dialog;   // Gere l'interrogation des serveurs
+   TreeView treeView;            // Gere l'arbre contenant l'historique des interrogations
+   FrameColorMap frameCM;              // Gere la fenetre du controle de la table des couleurs
+   FrameRGB frameRGB;            // Gere la fenetre pour la creation des plans RGB
+   FrameBlink frameBlink;        // Gere la fenetre pour la creation des plans Blink
+   FrameArithmetic frameArithm;   // Gere la fenetre pour la creation des plans Arithmetic via une opération arithmétique
+   FrameMocFiltering frameMocFiltering;   // Gere la fenetre pour les opérations de filtrage par les MOCs
+   FrameMocOperation frameMocOperation;   // Gere la fenetre pour les opérations sur les MOCs
+   FrameMocGenImgs frameMocGenImgs; // Gere la fenetre pour la génération d'un MOC à partir d'une collection d'images
+   FrameMocGenImg frameMocGenImg;   // Gere la fenetre pour la génération d'un MOC à partir d'images
+   FrameMocGenCat frameMocGenCat;   // Gere la fenetre pour la génération d'un MOC à partir de catalogues
+   FrameMocGenRes frameMocGenRes;   // Gere la fenetre pour la génération d'un MOC à partir d'un autre MOC de meilleure résolution
+   FrameBitpix frameBitpix;       // Gere la fenetre pour de conversion du bitpix d'une image
+   FrameConvolution frameConvolution; // Gere la fenetre pour la creation des plans Arithmetic via une convolution
+   FrameHealpixArithmetic frameHealpixArithm;   // Gere la fenetre pour la creation des plans Arithmetic pour Healpix
+   FrameCDSXMatch frameCDSXMatch;// Gere la fenetre pour le x-match
+   FrameColumnCalculator frameCalc; // Gere la fenetre pour ajout de colonnes
+   FrameContour frameContour;    // Gere la fenetre pour les choix de niveaux de contour
+   FrameInfo frameInfo;          // Gere la fenetre d'informations sur un noeud de l'arbre
+   FrameInfoServer frameInfoServer; // Gère la fenêtre des infos sur un serveur
+   FrameMacro frameMacro;        // Gere la fenetre des Macros
+   FrameVOTool frameVOTool;      // Gère les applications VO accessibles par Aladin
+   protected FrameProp frameProp;// Fenêtre des propriétés individuelles d'un objet graphique
+   public FrameAllskyTool frameAllsky;  // Gère la creation locale d'un allsky
+   public Console console;                  // Gere la fenetre de la console
+   public Command command=null;	      // Gere les commandes asynchrones
+   Synchro synchroServer;              // Gère les synchronisations des servers
+   Synchro synchroPlan;              // Gère les synchronisations des Plans
+   FrameNewCalib frameNewCalib=null; // Gere la fenetre de recalibration astrometrique
+   public Configuration configuration;	      // Configuration utilisateur
+   public KernelList kernelList;    // Gère la liste des noyaux de convolution
+   static protected Chaine chaine;     // Gère les chaines de textes (support multilangage
+   AppMessagingInterface appMessagingMgr;    // Gère la connexion/l'envoi de messages PLASTIC/SAMP
 
-    static boolean STANDALONE = false;	// True si on fonctionne en mode standalone
-    static boolean SIGNEDAPPLET = false;// True si on fonctionne en mode applet signé
+   // Les objets internes
+   public Glu glu=null;   // Gere les interactions avec le GLU
+   static Cache cache=null; // Gère le cache
+   protected Plugins plugins;    // Accès aux plugins
+   CardLayout cardView;          // Gere la permutation entre le "Help" et la "View"
+   CreatObj co;		          // pour gerer la creation parallele des widgets
+   public Save save=null;		          // pour gerer les sauvegardes
+   ExtApp extApp = null;         // Application cooperative a Aladin
+   String javaVersion;
+   static boolean macPlateform = false; // Aladin est-il exécuté sur un Mac ?
+   private String lastDir=null;  // Le dernier répertoire utilisé
+   private final long startTime = System.currentTimeMillis();  // Date de démarrage
+   private long sizeCache=0L;    // Taille du cache disque pour les grosses images
 
-    // Juste pour les essais NED
-    static String CGIPATH = null;
+   // plugin VOSpec
+   Object vospec;
 
-    // Pour savoir si on a déjà affiché un message d'usage restreint de l'applet
-    static private boolean warningRestricted = false;
+   // référence sur la dernière fenetre FilterProperties à avoir été créée (pour robot)
+   FilterProperties lastFilterCreated;
 
-    // Gestion du niveau de trace
-    static final int MAXLEVELTRACE = 4;
-    static public int levelTrace=0;
+   // référence sur le bouton Load (pour robot)
+   MyButton loadBtn;
 
-    // Variables associees au mode de fonctionnement
-    boolean flagLoad=false;	      // true si on est en mode de chargement
-    MyFrame f=null;        // Le "Frame" en mode "Standalone"
-    protected boolean msgOn=true;           // True si le message d'accueil est actif
-    static boolean flagLaunch=false; // true si on a demarre aladin par launch
-    static boolean NOGUI=false;  // True si le mode script est actif (sans interface)
-    boolean inHelp=false;  // True si le mode "Help" est actif
-    boolean inScriptHelp=false;  // True si le mode "ScriptHelp" est actif
-    static int iv=0;              // Indice de la performance JAVA
-    static long speed=-1;         // Indice de performance (lower is better)
-    static final long slownessThreshold = 800; // Seuil a partir duquel on considere la JVM comme lente
-    static boolean isSlow;        // true si lance en mode APPLET et speed>seuil
-//    boolean flagInsets=false;     // True si on a deja pris en compte le Insets du peer
-    boolean print=false;	  // true si on est entrain d'imprimer
-    protected boolean gc=true;	// false si on a inhibé l'appel à Aladin.gc()
-    static Applet extApplet=null; // Decrit l'applet qui aurait appele launch()
-    protected boolean firstLoad=true; // true si on n'a pas encore affiché le ServerDialog
-    protected boolean flagDetach=true; // true si on tourne aladin dans sa propre frame
+   // Les memorisations en vue de mises a jour
+   JPanel infoPanel;             // Panel de la ligne tout en bas
+   JPanel bigView;               // Panel contenant a la fois le view et le help
+   JPanel mesurePanel;		      // Panel contenant les mesures
+   Vector vButton;               // Vecteur des boutons du menu a (des/)activer
+   Container myParent=null;      // Pour pouvoir re-fenestrer
+   Rectangle origPos=null;       // Dimension d'origine dans le navigateur
+   static public String error;          // La derniere chaine d'erreur (DEVRAIT NE PAS ETRE STATIC)
+   protected JMenuBar jBar;      // La barre de menu
+   private JButton bDetach;
+   private JMenuItem miDetach,miCalImg,miCalCat,miAddCol,miSimbad,miAutoDist,miVizierSED,miXmatch,miROI,/*miTip,*/
+   miVOtool,miGluSky,miGluTool,miPref,miPlasReg,miPlasUnreg,miPlasBroadcast,
+   miDel,miDelAll,miPixel,miContour,miSave,miPrint,miSaveG,miScreen,miPScreen,miMore,miNext,
+   miLock,miDelLock,miStick,miOne,miNorthUp,
+   miProp,miGrid,miNoGrid,miReticle,miReticleL,miNoReticle,
+   miTarget,miOverlay,miConst,miRainbow,miZoomPt,miZoom,miSync,miSyncProj,miCopy1,miPaste,
+   /* miPrevPos,miNextPos, */
+   miPan,miGlass,miGlassTable,miPanel1,miPanel2c,miPanel2l,miPanel4,miPanel9,miPanel16,
+   miImg,miOpen,miCat,miPlugs,miRsamp,miRGB,miMosaic,miBlink,
+   miGrey,miFilter,miFilterB,miSelect,miSelectAll,miSelectTag,miTagSelect,miDetag,miSearch,
+   miUnSelect,miCut,miStatSurf,miTransp,miTranspon,miTag,miDist,miDraw,miTexte,miCrop,miCreateHpx,
+   miCopy,miHpxGrid,miHpxDump,
+   miTableInfo,miClone,miPlotcat,miConcat,miExport,miExportEPS,miBackup, /* miHistory, */
+   miInFold,miConv,miArithm,miMocHips,miMocPol,miMocGenImg,miMocGenCat,miMocOp,miMocToOrder,miMocFiltering,miMocCrop,
+   miHealpixArithm,miNorm,miBitpix,miPixExtr,miHead,miFlip,
+   miSAMPRegister,miSAMPUnregister,miSAMPStartHub,miSAMPStopHub,miLastFile,
+   miBroadcastAll,miBroadcastTables,miBroadcastImgs; // Pour pouvoir modifier ces menuItems
+   JButton ExportYourWork,searchData,avant,apres;
+
+   static boolean STANDALONE = false;	// True si on fonctionne en mode standalone
+   static boolean SIGNEDAPPLET = false;// True si on fonctionne en mode applet signé
+
+   // Juste pour les essais NED
+   static String CGIPATH = null;
+
+   // Pour savoir si on a déjà affiché un message d'usage restreint de l'applet
+   static private boolean warningRestricted = false;
+
+   // Gestion du niveau de trace
+   static final int MAXLEVELTRACE = 6;
+   static public int levelTrace=0;
+
+   // Variables associees au mode de fonctionnement
+   boolean flagLoad=false;	      // true si on est en mode de chargement
+   MyFrame f=null;        // Le "Frame" en mode "Standalone"
+   protected boolean msgOn=true;           // True si le message d'accueil est actif
+   static boolean flagLaunch=false; // true si on a demarre aladin par launch
+   static boolean NOGUI=false;  // True si le mode script est actif (sans interface)
+   boolean inHelp=false;  // True si le mode "Help" est actif
+   boolean inScriptHelp=false;  // True si le mode "ScriptHelp" est actif
+   static int iv=0;              // Indice de la performance JAVA
+   static long speed=-1;         // Indice de performance (lower is better)
+   static final long slownessThreshold = 800; // Seuil a partir duquel on considere la JVM comme lente
+   static boolean isSlow;        // true si lance en mode APPLET et speed>seuil
+   //    boolean flagInsets=false;     // True si on a deja pris en compte le Insets du peer
+   boolean print=false;	  // true si on est entrain d'imprimer
+   protected boolean gc=true;	// false si on a inhibé l'appel à Aladin.gc()
+   static Applet extApplet=null; // Decrit l'applet qui aurait appele launch()
+   protected boolean firstLoad=true; // true si on n'a pas encore affiché le ServerDialog
+   protected boolean flagDetach=true; // true si on tourne aladin dans sa propre frame
 
 
-    // Les textes associes aux differentes possibilites du menu
-    static final int GETHEIGHT  = 15;		// Cochonnerie de getHeight()
+   // Les textes associes aux differentes possibilites du menu
+   static final int GETHEIGHT  = 15;		// Cochonnerie de getHeight()
 
-    // Les menus;
-    String MFILE,MSAVE,OPENLOAD,LASTFILE,OPENFILE,OPENURL,LOADIMG,LOADCAT,LOADVO,LOADFOV,/*HISTORY,*/MEDIT,MVIEW,
-           MIMAGE,MCATALOG,MOVERLAY,MDOC ;
-    String MTOOLS,MPLUGS,MINTEROP,MHELP,MDCH1,MDCH2,MPRINT,MQUIT,MCLOSE,PROP;
-    String MBGKG; // menus pour les backgrounds
+   // Les menus;
+   String MFILE,MSAVE,OPENLOAD,LASTFILE,OPENFILE,OPENURL,LOADIMG,LOADCAT,LOADVO,LOADFOV,/*HISTORY,*/MEDIT,MVIEW,
+   MIMAGE,MCATALOG,MOVERLAY,MDOC ;
+   String MTOOLS,MPLUGS,MINTEROP,MHELP,MDCH1,MDCH2,MPRINT,MQUIT,MCLOSE,PROP;
+   String MBGKG; // menus pour les backgrounds
 
-    // Sous-menus
-    String CMD,MBKM,XMATCH,CALIMG,PIXEL,CONTOUR,GRID,RETICLE,RETICLEL,NORETICLE,
-           TARGET,OVERLAY,RAINBOW,DEL,DELALL,CALCAT,ADDCOL,ROI,VOTOOL,SIMBAD,VIZIERSED,AUTODIST,/*TIP,*/MSCROLL,
-           COOTOOL,PIXELTOOL,CALCULATOR, SESAME,NEW,PREF,
-           /*CEA_TOOLS,*/MACRO,TUTO,HELP,HELPSCRIPT,FAQ,MAN,FILTER,FILTERB,
-           TUTORIAL,SENDBUG,PLUGINFO,NEWS,ABOUT,ZOOMP,ZOOMM,ZOOM,ZOOMPT,PAN,SYNC,PREVPOS,NEXTPOS,
-           SYNCPROJ,GLASS,GLASSTABLE,RSAMP,VOINFO,FULLSCREEN,PREVIEWSCREEN,MOREVIEWS,ONEVIEW,NEXT,LOCKVIEW,
-           DELLOCKVIEW,STICKVIEW,FULLINT,NORTHUP,COPIER,COLLER,
-           RGB,MOSAIC,BLINK,GREY,SELECT,SELECTTAG,DETAG,TAGSELECT,SELECTALL,UNSELECT,PANEL,
-           PANEL1,PANEL2C,PANEL2L,PANEL4,PANEL9,PANEL16,NTOOL,DIST,DRAW,PHOT,TAG,STATSURF,STATSURFCIRC,
-           STATSURFPOLY,CUT,TRANSP,TRANSPON,CROP,COPY,CLONE,CLONE1,CLONE2,PLOTCAT,CONCAT,CONCAT1,CONCAT2,TABLEINFO,
-           SAVEVIEW,EXPORTEPS,EXPORT,BACKUP,FOLD,INFOLD,ARITHM,MOC,MOCGENIMG,MOCGENIMGS,MOCGENCAT,
-           MOCM,MOCTOORDER,MOCFILTERING,MOCCROP,MOCHELP,MOCLOAD,MOCHIPS,
-           HEALPIXARITHM,/*ADD,SUB,MUL,DIV,*/
-           CONV,NORM,BITPIX,PIXEXTR,HEAD,FLIP,TOPBOTTOM,RIGHTLEFT,SEARCH,ALADIN_IMG_SERVER,GLUTOOL,GLUINFO,
-           REGISTER,UNREGISTER,BROADCAST,BROADCASTTABLE,BROADCASTIMAGE,SAMPPREFS,STARTINTERNALHUB,STOPINTERNALHUB,
-           HPXCREATE,HPXGRID,HPXDUMP,FOVEDITOR,HPXGENERATE,GETOBJ;
-    String JUNIT=PROTOPREFIX+"*** Aladin internal code tests ***";
+   // Sous-menus
+   String CMD,MBKM,XMATCH,CALIMG,PIXEL,CONTOUR,GRID,CONST,HPXGRID,NOGRID,RETICLE,RETICLEL,NORETICLE,
+   TARGET,OVERLAY,RAINBOW,DEL,DELALL,CALCAT,ADDCOL,ROI,VOTOOL,SIMBAD,VIZIERSED,AUTODIST,/*TIP,*/MSCROLL,
+   COOTOOL,PIXELTOOL,CALCULATOR, SESAME,NEW,PREF,
+   /*CEA_TOOLS,*/MACRO,TUTO,HELP,HELPSCRIPT,FAQ,MAN,FILTER,FILTERB,
+   TUTORIAL,SENDBUG,PLUGINFO,NEWS,ABOUT,ZOOMP,ZOOMM,ZOOM,ZOOMPT,PAN,SYNC,PREVPOS,NEXTPOS,
+   SYNCPROJ,GLASS,GLASSTABLE,RSAMP,VOINFO,FULLSCREEN,PREVIEWSCREEN,MOREVIEWS,ONEVIEW,NEXT,LOCKVIEW,
+   DELLOCKVIEW,STICKVIEW,FULLINT,NORTHUP,COPIER,COLLER,
+   RGB,MOSAIC,BLINK,GREY,SELECT,SELECTTAG,DETAG,TAGSELECT,SELECTALL,UNSELECT,PANEL,
+   PANEL1,PANEL2C,PANEL2L,PANEL4,PANEL9,PANEL16,NTOOL,DIST,DRAW,PHOT,TAG,STATSURF,STATSURFCIRC,
+   STATSURFPOLY,CUT,TRANSP,TRANSPON,CROP,COPY,CLONE,CLONE1,CLONE2,PLOTCAT,CONCAT,CONCAT1,CONCAT2,TABLEINFO,
+   SAVEVIEW,EXPORTEPS,EXPORT,BACKUP,FOLD,INFOLD,ARITHM,MOC,MOCGENIMG,MOCGEN,MOCPOL,MOCGENIMGS,MOCGENCAT,
+   MOCM,MOCTOORDER,MOCFILTERING,MOCCROP,MOCHELP,MOCLOAD,MOCHIPS,
+   HEALPIXARITHM,/*ADD,SUB,MUL,DIV,*/
+   CONV,NORM,BITPIX,PIXEXTR,HEAD,FLIP,TOPBOTTOM,RIGHTLEFT,SEARCH,ALADIN_IMG_SERVER,GLUTOOL,GLUINFO,
+   REGISTER,UNREGISTER,BROADCAST,BROADCASTTABLE,BROADCASTIMAGE,SAMPPREFS,STARTINTERNALHUB,STOPINTERNALHUB,
+   HPXCREATE,HPXDUMP,FOVEDITOR,HPXGENERATE,GETOBJ;
+   String JUNIT=PROTOPREFIX+"*** Aladin internal code tests ***";
 
-     /** Retourne l'objet gérant les chaines */
-     public static Chaine getChaine() { return chaine; }
+   /** Retourne l'objet gérant les chaines */
+   public static Chaine getChaine() { return chaine; }
 
-  /**
+   /**
     * Retourne le host dans une URL, null si probleme
     */
    static protected String getSite(String url) {
@@ -551,1991 +652,1998 @@ public class Aladin extends JApplet
    }
 
    /** Demarrage d'Aladin JAVA.
-     * Dans le cas d'un demarrage par applet et que le parametre
-     * frame=load est positionne, init se contente
-     * de re-appeler Aladin JAVA avec le parametre frame=launching
-     * ce qui permet de changer la page HTML qui contient le message pour
-     * patienter (avec re-transmission des autres parametres)
-     *
-     * @see aladin.Aladin#suiteInit()
-     */
-    public void myInit() {
-       if( SCREENSIZE==null ) SCREENSIZE = Toolkit.getDefaultToolkit().getScreenSize();
+    * Dans le cas d'un demarrage par applet et que le parametre
+    * frame=load est positionne, init se contente
+    * de re-appeler Aladin JAVA avec le parametre frame=launching
+    * ce qui permet de changer la page HTML qui contient le message pour
+    * patienter (avec re-transmission des autres parametres)
+    *
+    * @see aladin.Aladin#suiteInit()
+    */
+   public void myInit() {
+      if( SCREENSIZE==null ) SCREENSIZE = Toolkit.getDefaultToolkit().getScreenSize();
 
-       setMacProperties();
+      setMacProperties();
 
-       // set user-agent (see RFC 2616, User-Agent section)
-       try {
-           System.setProperty("http.agent", "Aladin/"+Aladin.VERSION);
-       }
-       catch(Exception e) {e.printStackTrace();}
+      // set user-agent (see RFC 2616, User-Agent section)
+      try {
+         System.setProperty("http.agent", "Aladin/"+Aladin.VERSION);
+      }
+      catch(Exception e) {e.printStackTrace();}
 
-       // a bit of magic for supporting all HTTPS connections
-       Util.httpsInit();
+      // a bit of magic for supporting all HTTPS connections
+      Util.httpsInit();
 
 
-       // Pour gerer le chargement en deux fois
-       if( isApplet() ) {
-          String [] var = { "-c","-rm","-server","-source","img","-preview",
-                            "-fov","-aladin.resolution","-aladin.zoom","script","inFrame","from" };
+      // Pour gerer le chargement en deux fois
+      if( isApplet() ) {
+         String [] var = { "-c","-rm","-server","-source","img","-preview",
+               "-fov","-aladin.resolution","-aladin.zoom","script","inFrame","from" };
 
-          // Mode trace (pour aider au debogage)
-          String trace = getParameter("-trace");
-          if( trace!=null ) levelTrace=3;
+         // Mode trace (pour aider au debogage)
+         String trace = getParameter("-trace");
+         if( trace!=null ) levelTrace=3;
 
-          // Mode trace++ (pour aider au debogage)
-          trace = getParameter("-debug");
-          if( trace!=null ) levelTrace=4;
-          
-          // désactivation du lancement automatique du hub interne
-          try { if( getParameter("-nohub")!=null ) NOHUB = true; } catch(Exception e) {}
+         // Mode trace++ (pour aider au debogage)
+         trace = getParameter("-debug");
+         if( trace!=null ) levelTrace=4;
 
-          try {
+         // désactivation du lancement automatique du hub interne
+         try { if( getParameter("-nohub")!=null ) NOHUB = true; } catch(Exception e) {}
+
+         try {
             // Provenance de l'applet (si different de aladin.u-strasbg.fr)
-             HOSTSERVER = getSite(getCodeBase().toString());
-             if( HOSTSERVER!=null  && !HOSTSERVER.equals(ALADINMAINSITE) ) APPLETSERVER=HOSTSERVER;
+            HOSTSERVER = getSite(getCodeBase().toString());
+            if( HOSTSERVER!=null  && !HOSTSERVER.equals(ALADINMAINSITE) ) APPLETSERVER=HOSTSERVER;
 
-             // Recuperation du CGIPATH s'il est different du getCodeBase();
-             CGIPATH=getCodeBase()+"";
-             try {
-                String cgi = getParameter("cgi");
-                if( cgi!=null ) CGIPATH="http://"+HOSTSERVER+cgi;
-             } catch( Exception e3 ) {};
+            // Recuperation du CGIPATH s'il est different du getCodeBase();
+            CGIPATH=getCodeBase()+"";
+            try {
+               String cgi = getParameter("cgi");
+               if( cgi!=null ) CGIPATH="http://"+HOSTSERVER+cgi;
+            } catch( Exception e3 ) {};
          } catch( Exception e1 ) {
             e1.printStackTrace();
          }
 
-          // Recupération du nom du lanceur de l'applet (Simbad, VizieR, NED...)
-          try { FROMDB = getParameter("from"); } catch( Exception e ) {}
+         // Recupération du nom du lanceur de l'applet (Simbad, VizieR, NED...)
+         try { FROMDB = getParameter("from"); } catch( Exception e ) {}
 
-          // Recupération d'une éventuelle surcharge glu
-          try { GLUFILE = getParameter("-glufile"); } catch( Exception e ) {}
+         // Recupération d'une éventuelle surcharge glu
+         try { GLUFILE = getParameter("-glufile"); } catch( Exception e ) {}
 
-          // Recupération d'un script passé par url
-          try { SCRIPTFILE = getParameter("-scriptfile"); } catch( Exception e ) {}
+         // Recupération d'un script passé par url
+         try { SCRIPTFILE = getParameter("-scriptfile"); } catch( Exception e ) {}
 
-          // Recupération du mode de démarrage
-          try {
-             SCREEN = getParameter("-screen");
-             flagScreen = SCREEN!=null;
-          } catch( Exception e ) {}
+         // Recupération du mode de démarrage
+         try {
+            SCREEN = getParameter("-screen");
+            flagScreen = SCREEN!=null;
+         } catch( Exception e ) {}
 
-          // Dans le cas d'une applet non signée,
-          // on va vérifier que le site qui a fourni l'applet Aladin est aussi un site GLU,
-          // sinon il faudra demander un redémarrage sur un site Aladin complet puisque le client
-          // ne supporte pas l'applet signée
-          String load=null;
-          if( isNonCertifiedApplet() ) {
-             try {
-                URL testGlu=new URL(CGIPATH + "/"+Glu.NPHGLU+"?J2000");
-                DataInputStream dis=new DataInputStream(testGlu.openStream());
-                if( !dis.readLine().startsWith("%DataTypeName") ) throw new Exception();
+         // Dans le cas d'une applet non signée,
+         // on va vérifier que le site qui a fourni l'applet Aladin est aussi un site GLU,
+         // sinon il faudra demander un redémarrage sur un site Aladin complet puisque le client
+         // ne supporte pas l'applet signée
+         String load=null;
+         if( isNonCertifiedApplet() ) {
+            try {
+               URL testGlu=new URL(CGIPATH + "/"+Glu.NPHGLU+"?J2000");
+               DataInputStream dis=new DataInputStream(testGlu.openStream());
+               if( !dis.readLine().startsWith("%DataTypeName") ) throw new Exception();
 
-             } catch( Exception e) {
-                System.err.println("Unsigned applet not supported for this HTTP Aladin site\n => redirection in progress...");
-                load="redirect";
-             }
-          }
+            } catch( Exception e) {
+               System.err.println("Unsigned applet not supported for this HTTP Aladin site\n => redirection in progress...");
+               load="redirect";
+            }
+         }
 
-          if( load==null ) try { load = getParameter("-load"); } catch( Exception e4 ) {};
+         if( load==null ) try { load = getParameter("-load"); } catch( Exception e4 ) {};
 
-          if( !flagFrame && load!=null ) {
-             if( !flagLoad ) {
-                URL utest=null;
-                String param="";
-                String s;
+         if( !flagFrame && load!=null ) {
+            if( !flagLoad ) {
+               URL utest=null;
+               String param="";
+               String s;
 
-                trace(1,"init loading");
+               trace(1,"init loading");
 
-                // Recopie des parametres a transmettre
-                for( int i=0; i<var.length; i++ ) {
-                   s = getParameter(var[i]);
-                   if( s!=null ) param=param+"&"+var[i]+"="+URLEncoder.encode(s);
-                }
+               // Recopie des parametres a transmettre
+               for( int i=0; i<var.length; i++ ) {
+                  s = getParameter(var[i]);
+                  if( s!=null ) param=param+"&"+var[i]+"="+URLEncoder.encode(s);
+               }
 
-                // Simple redémarrage ou demande de redirection
-                String mode = load.equals("redirect")?"redirect":"launching";
+               // Simple redémarrage ou demande de redirection
+               String mode = load.equals("redirect")?"redirect":"launching";
 
-                try {
-                   utest = new URL(CGIPATH+"/nph-aladin.pl?frame="+mode+param);
-                } catch( Exception eurl ) { System.out.println("Pb :"+eurl); }
-                getAppletContext().showDocument(utest);
-             }
-             flagLoad=true;
-             return;
-          }
-       }
-       suiteInit();
-    }
+               try {
+                  utest = new URL(CGIPATH+"/nph-aladin.pl?frame="+mode+param);
+               } catch( Exception eurl ) { System.out.println("Pb :"+eurl); }
+               getAppletContext().showDocument(utest);
+            }
+            flagLoad=true;
+            return;
+         }
+      }
+      suiteInit();
+   }
 
-    /**
-     * Pour supporter le lancement d'Aladin depuis une autre applet
-     * via la methode launch()
-     */
-    @Override
-    public String getParameter(String key) {
-       if( extApplet!=null ) return extApplet.getParameter(key);
-       return super.getParameter(key);
-    }
-    @Override
-    public URL getCodeBase() {
-       try {
+   /**
+    * Pour supporter le lancement d'Aladin depuis une autre applet
+    * via la methode launch()
+    */
+   @Override
+   public String getParameter(String key) {
+      if( extApplet!=null ) return extApplet.getParameter(key);
+      return super.getParameter(key);
+   }
+   @Override
+   public URL getCodeBase() {
+      try {
          if( extApplet!=null ) return extApplet.getCodeBase();
-          return super.getCodeBase();
+         return super.getCodeBase();
       } catch( Exception e ) {
          return null;
       }
-    }
-    @Override
-    public AppletContext getAppletContext() {
-       if( extApplet!=null ) return extApplet.getAppletContext();
-       return super.getAppletContext();
-    }
+   }
+   @Override
+   public AppletContext getAppletContext() {
+      if( extApplet!=null ) return extApplet.getAppletContext();
+      return super.getAppletContext();
+   }
 
-    /** Mémorisation du dernier répertoire utilisé dans Aladin */
-    protected void memoDefaultDirectory(FileDialog f) { lastDir = f.getDirectory();  }
-    protected void memoDefaultDirectory(String f)     { lastDir = f; }
+   /** Mémorisation du dernier répertoire utilisé dans Aladin */
+   protected void memoDefaultDirectory(FileDialog f) { lastDir = f.getDirectory();  }
+   protected void memoDefaultDirectory(String f)     { lastDir = f; }
 
-    /** Selection du dernier répertoire utilisé dans Aladin */
-    protected void setDefaultDirectory(FileDialog f) {
-       f.setDirectory(getDefaultDirectory());
-    }
+   /** Selection du dernier répertoire utilisé dans Aladin */
+   protected void setDefaultDirectory(FileDialog f) {
+      f.setDirectory(getDefaultDirectory());
+   }
 
-    /** Selection du dernier répertoire utilisé dans Aladin */
-    protected void setDefaultDirectory(CDSFileDialog f) {
-       f.setDirectory(getDefaultDirectory());
-    }
+   /** Selection du dernier répertoire utilisé dans Aladin */
+   protected void setDefaultDirectory(CDSFileDialog f) {
+      f.setDirectory(getDefaultDirectory());
+   }
 
 
-    /** Récupération du répertoire par défaut de l'utilisateur */
-    public String getDefaultDirectory() {
-       String dir=null;
+   /** Récupération du répertoire par défaut de l'utilisateur */
+   public String getDefaultDirectory() {
+      String dir=null;
 
-       if( lastDir!=null ) dir=lastDir;
-       if( dir==null ) dir=configuration.get(Configuration.DIR);
+      if( lastDir!=null ) dir=lastDir;
+      if( dir==null ) dir=configuration.get(Configuration.DIR);
 
-       // On va essayer le répertoire courant de l'utilisateur
-       if( dir==null ) {
-          try { dir = System.getProperty("user.dir");
-          } catch( Exception e ) { dir=null; }
-       }
+      // On va essayer le répertoire courant de l'utilisateur
+      if( dir==null ) {
+         try { dir = System.getProperty("user.dir");
+         } catch( Exception e ) { dir=null; }
+      }
 
-       // On va essayer le répertoire HOME de l'utilisateur
-       if( dir==null ) {
-          try { dir = System.getProperty("user.home");
-          } catch( Exception e ) { dir=null; }
-       }
+      // On va essayer le répertoire HOME de l'utilisateur
+      if( dir==null ) {
+         try { dir = System.getProperty("user.home");
+         } catch( Exception e ) { dir=null; }
+      }
 
-       // Toujours pas de répertoire par défaut => on prend celui qui contient Aladin.jar
-       if( dir==null ) {
-          if( Aladin.HOME==null ) setAladinHome();
-          dir = Aladin.HOME.substring(0,Aladin.HOME.length()-1);
-       }
-       return dir;
-    }
+      // Toujours pas de répertoire par défaut => on prend celui qui contient Aladin.jar
+      if( dir==null ) {
+         if( Aladin.HOME==null ) setAladinHome();
+         dir = Aladin.HOME.substring(0,Aladin.HOME.length()-1);
+      }
+      return dir;
+   }
 
-    /** Complète le filename si nécessaire par le répertoire par défaut
-     *  Réécrit écalement les URLs du type file://localhost/<path> pour qu'elles soient comprises par Java
-     *
-     * @param filename le nom de fichier tel que reçu par l'application
-     */
-    public String getFullFileName(String filename) {
-       if( filename==null || filename.length()==0 ) return filename;
+   /** Complète le filename si nécessaire par le répertoire par défaut
+    *  Réécrit écalement les URLs du type file://localhost/<path> pour qu'elles soient comprises par Java
+    *
+    * @param filename le nom de fichier tel que reçu par l'application
+    */
+   public String getFullFileName(String filename) {
+      if( filename==null || filename.length()==0 ) return filename;
 
-       if( filename.startsWith("http://") || filename.startsWith("https://") || filename.startsWith("ftp://") ) return filename;
+      if( filename.startsWith("http://") || filename.startsWith("https://") || filename.startsWith("ftp://") ) return filename;
 
-       File f;
-       try {
-          if( filename.startsWith("file:/")) {
-             // les URLs du type file://localhost/<path> ne sont pas bien traitées
-          	 // et Java lance une exception si on crée un fichier du type new File(new URI("file://localhost/path"))
-             int idx = filename.indexOf("file://localhost");
-             if( idx>=0 ) {
-             	f = new File(new URI("file://"+filename.substring(idx+16)));
-             }
-             else f = new File(new URI(filename));
+      File f;
+      try {
+         if( filename.startsWith("file:/")) {
+            // les URLs du type file://localhost/<path> ne sont pas bien traitées
+            // et Java lance une exception si on crée un fichier du type new File(new URI("file://localhost/path"))
+            int idx = filename.indexOf("file://localhost");
+            if( idx>=0 ) {
+               f = new File(new URI("file://"+filename.substring(idx+16)));
+            }
+            else f = new File(new URI(filename));
 
-             return f.getAbsolutePath();
-          }
-          else f = new File(filename);
-       }
-       catch(Exception e) {
-           f = new File(filename);
-       }
+            return f.getAbsolutePath();
+         }
+         else f = new File(filename);
+      }
+      catch(Exception e) {
+         f = new File(filename);
+      }
 
-       String path = f.getParent();
-       String name = f.getName();
-       if( path!=null && (path.charAt(0)!='/' && path.charAt(0)!='\\' && path.indexOf(':')<0) ) { path=""; name=filename; }
-       if( path==null || path.length()==0 ) path = getDefaultDirectory();
-       if( path==null || path.length()==0 ) return filename;
+      String path = f.getParent();
+      String name = f.getName();
+      if( path!=null && (path.charAt(0)!='/' && path.charAt(0)!='\\' && path.indexOf(':')<0) ) { path=""; name=filename; }
+      if( path==null || path.length()==0 ) path = getDefaultDirectory();
+      if( path==null || path.length()==0 ) return filename;
 
-       String s=path+ (path.endsWith(Util.FS) ? "":Util.FS) + name;
-       return s;
-    }
+      String s=path+ (path.endsWith(Util.FS) ? "":Util.FS) + name;
+      return s;
+   }
 
    /** Creation des fonts */
-    protected void creatFonts() {
-       if( BOLD!=null ) return;
-       String s = "SansSerif";
+   protected void creatFonts() {
+      if( BOLD!=null ) return;
+      String s = "SansSerif";
 
-       trace(1,"Creating Fonts");
+      trace(1,"Creating Fonts");
 
-       BOLD   = new Font(s,Font.BOLD,  SIZE);
-       PLAIN  = new Font(s,Font.PLAIN, SIZE);
-       ITALIC = new Font(s,Font.ITALIC,SIZE);
-       SSIZE  = SIZE-2;
-       SSSIZE  = SSIZE-1;
-       SBOLD  = new Font(s,Font.BOLD,  SSIZE);
-       SSBOLD = new Font(s,Font.BOLD,  SSSIZE);
-       SPLAIN = new Font(s,Font.PLAIN, SSIZE);
-       SSPLAIN= new Font(s,Font.PLAIN, SSSIZE);
-       SITALIC= new Font(s,Font.ITALIC,SSIZE);
-       LSIZE  = SIZE+2;
-       LPLAIN = new Font(s,Font.PLAIN, LSIZE);
-       LBOLD  = new Font(s,Font.BOLD,  LSIZE);
-       LITALIC= new Font(s,Font.ITALIC,LSIZE);
-       LLITALIC= LBOLD;
-       COURIER= new Font("Monospaced",Font.PLAIN,Aladin.SIZE);
-       BCOURIER= new Font("Monospaced",Font.PLAIN+Font.BOLD,Aladin.SIZE);
-    }
+      BOLD   = new Font(s,Font.BOLD,  SIZE);
+      PLAIN  = new Font(s,Font.PLAIN, SIZE);
+      ITALIC = new Font(s,Font.ITALIC,SIZE);
+      SSIZE  = SIZE-2;
+      SSSIZE  = SSIZE-1;
+      SBOLD  = new Font(s,Font.BOLD,  SSIZE);
+      SSBOLD = new Font(s,Font.BOLD,  SSSIZE);
+      SPLAIN = new Font(s,Font.PLAIN, SSIZE);
+      SSPLAIN= new Font(s,Font.PLAIN, SSSIZE);
+      SITALIC= new Font(s,Font.ITALIC,SSIZE);
+      LSIZE  = SIZE+2;
+      LPLAIN = new Font(s,Font.PLAIN, LSIZE);
+      LBOLD  = new Font(s,Font.BOLD,  LSIZE);
+      LITALIC= new Font(s,Font.ITALIC,LSIZE);
+      LLITALIC= LBOLD;
+      COURIER= new Font("Monospaced",Font.PLAIN,Aladin.SIZE);
+      BCOURIER= new Font("Monospaced",Font.PLAIN+Font.BOLD,Aladin.SIZE);
+   }
 
-    /** Création des chaines dans la langue */
-    protected void creatChaine() {
-       MBGKG   = chaine.getString("MBKGD");
-       MEDIT   = chaine.getString("MEDIT");
-       MFILE   = chaine.getString("MFILE");
-       MSAVE   = chaine.getString("MSAVE");
-       MVIEW   = chaine.getString("MVIEW");
-       MIMAGE  = chaine.getString("IMAGE");
-       MCATALOG= chaine.getString("VZCAT");
-       MOVERLAY= chaine.getString("MOVERLAY");
-       OPENFILE= chaine.getString("MOPENFILE");
-       OPENLOAD= chaine.getString("MOPENLOAD");
-       LASTFILE=chaine.getString("MLASTFILE");
-       OPENURL = chaine.getString("MOPENURL");
-       LOADIMG = chaine.getString("MLOADIMG");
-       LOADCAT = chaine.getString("MLOADCAT");
-       LOADVO  = chaine.getString("MLOADVO");
-//       HISTORY = chaine.getString("HISTORY");
-       LOADFOV = chaine.getString("MLOADFOV");
-       PIXEL   = chaine.getString("MPIXEL");
-       CONTOUR = chaine.getString("MCONTOUR");
-       GRID    = chaine.getString("VWMGRID");
-       RETICLE = chaine.getString("VWMRETICLE");
-       RETICLEL= chaine.getString("VWMRETICLEL");
-       NORETICLE=chaine.getString("VWMNORETICLE");
-       TARGET =  chaine.getString("VWMTARGET");
-       OVERLAY = chaine.getString("VWMSCALE");
-       RAINBOW = chaine.getString("MRAINBOW");
-       DEL     = chaine.getString("MDEL");
-       DELALL  = chaine.getString("MDELALL");
-       PROP    = chaine.getString("MPROP");
-       ZOOMP   = chaine.getString("MZOOMP");
-       ZOOMM   = chaine.getString("MZOOMM");
-       ZOOM    = chaine.getString("MZOOM");
-       ZOOMPT  = chaine.getString("MZOOMPT");
-       COPIER  = chaine.getString("MCOPYALL");
-       COLLER  = chaine.getString("MPASTEALL");
-       PREVPOS = chaine.getString("MPREVPOS");
-       NEXTPOS = chaine.getString("MNEXTPOS");
-       SYNC    = chaine.getString("MSYNC");
-       SYNCPROJ= chaine.getString("MSYNCPROJ");
-       LOCKVIEW   = aladin.chaine.getString("VWMNEWROI");
-       DELLOCKVIEW   = aladin.chaine.getString("VWMDELROI");
-       STICKVIEW = BETAPREFIX+aladin.chaine.getString("VWMSTICKON");
-       PAN     = chaine.getString("MPAN");
-       RSAMP   = chaine.getString("MRSAMP");
-       GLASS   = chaine.getString("MGLASS");
-       GLASSTABLE   = chaine.getString("MGLASSTABLE");
-       RGB     = chaine.getString("MRGB");
-       MOSAIC  = chaine.getString("MMOSAIC");
-       BLINK   = chaine.getString("MBLINK");
-       GREY    = chaine.getString("SLMGREY");
-       SELECT  = chaine.getString("SLMSELECT");
-       SELECTTAG=chaine.getString("SELECTTAG");
-       TAGSELECT=chaine.getString("TAGSELECT");
-       DETAG   = chaine.getString("DETAG");
-       SEARCH  = chaine.getString("MSEARCH");
-       SELECTALL=chaine.getString("MSELECTALL");
-       UNSELECT= chaine.getString("MUNSELECT");
-       FILTERB = chaine.getString("MFILTERB");
-       FILTER  = chaine.getString("SLMFILTER");
-       PANEL   = chaine.getString("MPANEL");
-       PANEL1  = chaine.getString("MPANEL1");
-       PANEL2C = chaine.getString("MPANEL2");
-       PANEL2L  = chaine.getString("MPANEL2L");
-       PANEL4  = chaine.getString("MPANEL4");
-       PANEL9  = chaine.getString("MPANEL9");
-       PANEL16 = chaine.getString("MPANEL16");
-       DIST    = chaine.getString("MDIST");
-       NTOOL   = chaine.getString("MTOOL");
-       DRAW    = chaine.getString("MDRAW");
-       PHOT    = chaine.getString("MPHOT");
-       TAG     = chaine.getString("MTAG");
-       CUT     = chaine.getString("MCUT");
-       STATSURF= chaine.getString("MSTATSURF");
-       STATSURFCIRC= chaine.getString("MSTATSURFCIRC");
-       STATSURFPOLY= chaine.getString("MSTATSURFPOLY");
-       TRANSP  = chaine.getString("MTRANSP");
-       TRANSPON= chaine.getString("MTRANSPON");
-       CROP    = chaine.getString("VWMCROP1");
-       HPXGENERATE = chaine.getString("HPXGENERATE");
-       FOVEDITOR = chaine.getString("FOVEDITOR");
-       HPXCREATE=chaine.getString("HPXCREATE");
-       HPXGRID  =chaine.getString("HPXGRID");
-       COPY     = chaine.getString("MCOPY");
-       TABLEINFO= chaine.getString("VWTABLEINFO");
-       CLONE   = chaine.getString("VWCPLANE");
-       CLONE1   = chaine.getString("VWCPLANEUNIQ");
-       CLONE2   = chaine.getString("VWCPLANEMULTI");
-       PLOTCAT  = chaine.getString("VWPLOTCAT");
-       CONCAT  = chaine.getString("VWCONCAT");
-       CONCAT1 = chaine.getString("VWCONCATUNIQ");
-       CONCAT2 = chaine.getString("VWCONCATMULTI");
-       SAVEVIEW= chaine.getString("MSAVEVIEW");
-       EXPORTEPS=chaine.getString("MEXPORTEPS");
-       EXPORT  = chaine.getString("MEXPORT");
-       BACKUP  = chaine.getString("MBACKUP");
-       FOLD    = chaine.getString("SLMCREATFOLD");
-       INFOLD  = chaine.getString("SLMINSFOLD");
-       ARITHM  = chaine.getString("MARITHM");
-       MOC    =  chaine.getString("MMOC");
-       MOCGENIMG   =chaine.getString("MMOCGENIMG");
-       MOCGENIMGS  =chaine.getString("MMOCGENIMGS");
-       MOCGENCAT   =chaine.getString("MMOCGENCAT");
-       MOCM     =chaine.getString("MMOCOP");
-       MOCTOORDER     =chaine.getString("MMOCTOORDER");
-       MOCFILTERING =chaine.getString("MMOCFILTERING");
-       MOCCROP =chaine.getString("MMOCCROP");
-       MOCHELP =chaine.getString("MMOCHELP");
-       MOCLOAD =chaine.getString("MMOCLOAD");
-       MOCHIPS =chaine.getString("MMOCHIPS");
-       HEALPIXARITHM = PROTOPREFIX + chaine.getString("MHEALPIXARITHM");
-//       ADD     = chaine.getString("MADD");
-//       SUB     = chaine.getString("MSUB");
-//       MUL     = chaine.getString("MMUL");
-//       DIV     = chaine.getString("MDIV");
-       NORM    = chaine.getString("MNORM");
-       BITPIX  = chaine.getString("MBITPIX");
-       PIXEXTR = chaine.getString("MPIXEXTR");
-       CONV    = chaine.getString("MCONV");
-       HEAD    = chaine.getString("MHEAD");
-       FLIP    = chaine.getString("PROPFLIPFLOP");
-       TOPBOTTOM = chaine.getString("PROPTOPBOTTOM");
-       RIGHTLEFT = chaine.getString("PROPRIGHTLEFT");
-       MDOC    = chaine.getString("MDOC");
+   /** Création des chaines dans la langue */
+   protected void creatChaine() {
+      MBGKG   = chaine.getString("MBKGD");
+      MEDIT   = chaine.getString("MEDIT");
+      MFILE   = chaine.getString("MFILE");
+      MSAVE   = chaine.getString("MSAVE");
+      MVIEW   = chaine.getString("MVIEW");
+      MIMAGE  = chaine.getString("IMAGE");
+      MCATALOG= chaine.getString("VZCAT");
+      MOVERLAY= chaine.getString("MOVERLAY");
+      OPENFILE= chaine.getString("MOPENFILE");
+      OPENLOAD= chaine.getString("MOPENLOAD");
+      LASTFILE=chaine.getString("MLASTFILE");
+      OPENURL = chaine.getString("MOPENURL");
+      LOADIMG = chaine.getString("MLOADIMG");
+      LOADCAT = chaine.getString("MLOADCAT");
+      LOADVO  = chaine.getString("MLOADVO");
+      //       HISTORY = chaine.getString("HISTORY");
+      LOADFOV = chaine.getString("MLOADFOV");
+      PIXEL   = chaine.getString("MPIXEL");
+      CONTOUR = chaine.getString("MCONTOUR");
+      GRID    = chaine.getString("VWMGRID");
+      CONST   = chaine.getString("VWMCONST");
+      NOGRID   =chaine.getString("VWMNOGRID");
+      RETICLE = chaine.getString("VWMRETICLE");
+      RETICLEL= chaine.getString("VWMRETICLEL");
+      NORETICLE=chaine.getString("VWMNORETICLE");
+      TARGET =  chaine.getString("VWMTARGET");
+      OVERLAY = chaine.getString("VWMSCALE");
+      RAINBOW = chaine.getString("MRAINBOW");
+      DEL     = chaine.getString("MDEL");
+      DELALL  = chaine.getString("MDELALL");
+      PROP    = chaine.getString("MPROP");
+      ZOOMP   = chaine.getString("MZOOMP");
+      ZOOMM   = chaine.getString("MZOOMM");
+      ZOOM    = chaine.getString("MZOOM");
+      ZOOMPT  = chaine.getString("MZOOMPT");
+      COPIER  = chaine.getString("MCOPYALL");
+      COLLER  = chaine.getString("MPASTEALL");
+      PREVPOS = chaine.getString("MPREVPOS");
+      NEXTPOS = chaine.getString("MNEXTPOS");
+      SYNC    = chaine.getString("MSYNC");
+      SYNCPROJ= chaine.getString("MSYNCPROJ");
+      LOCKVIEW   = aladin.chaine.getString("VWMNEWROI");
+      DELLOCKVIEW   = aladin.chaine.getString("VWMDELROI");
+      STICKVIEW = BETAPREFIX+aladin.chaine.getString("VWMSTICKON");
+      PAN     = chaine.getString("MPAN");
+      RSAMP   = chaine.getString("MRSAMP");
+      GLASS   = chaine.getString("MGLASS");
+      GLASSTABLE   = chaine.getString("MGLASSTABLE");
+      RGB     = chaine.getString("MRGB");
+      MOSAIC  = chaine.getString("MMOSAIC");
+      BLINK   = chaine.getString("MBLINK");
+      GREY    = chaine.getString("SLMGREY");
+      SELECT  = chaine.getString("SLMSELECT");
+      SELECTTAG=chaine.getString("SELECTTAG");
+      TAGSELECT=chaine.getString("TAGSELECT");
+      DETAG   = chaine.getString("DETAG");
+      SEARCH  = chaine.getString("MSEARCH");
+      SELECTALL=chaine.getString("MSELECTALL");
+      UNSELECT= chaine.getString("MUNSELECT");
+      FILTERB = chaine.getString("MFILTERB");
+      FILTER  = chaine.getString("SLMFILTER");
+      PANEL   = chaine.getString("MPANEL");
+      PANEL1  = chaine.getString("MPANEL1");
+      PANEL2C = chaine.getString("MPANEL2");
+      PANEL2L  = chaine.getString("MPANEL2L");
+      PANEL4  = chaine.getString("MPANEL4");
+      PANEL9  = chaine.getString("MPANEL9");
+      PANEL16 = chaine.getString("MPANEL16");
+      DIST    = chaine.getString("MDIST");
+      NTOOL   = chaine.getString("MTOOL");
+      DRAW    = chaine.getString("MDRAW");
+      PHOT    = chaine.getString("MPHOT");
+      TAG     = chaine.getString("MTAG");
+      CUT     = chaine.getString("MCUT");
+      STATSURF= chaine.getString("MSTATSURF");
+      STATSURFCIRC= chaine.getString("MSTATSURFCIRC");
+      STATSURFPOLY= chaine.getString("MSTATSURFPOLY");
+      TRANSP  = chaine.getString("MTRANSP");
+      TRANSPON= chaine.getString("MTRANSPON");
+      CROP    = chaine.getString("VWMCROP1");
+      HPXGENERATE = chaine.getString("HPXGENERATE");
+      FOVEDITOR = chaine.getString("FOVEDITOR");
+      HPXCREATE=chaine.getString("HPXCREATE");
+      HPXGRID  =chaine.getString("HPXGRID");
+      COPY     = chaine.getString("MCOPY");
+      TABLEINFO= chaine.getString("VWTABLEINFO");
+      CLONE   = chaine.getString("VWCPLANE");
+      CLONE1   = chaine.getString("VWCPLANEUNIQ");
+      CLONE2   = chaine.getString("VWCPLANEMULTI");
+      PLOTCAT  = chaine.getString("VWPLOTCAT");
+      CONCAT  = chaine.getString("VWCONCAT");
+      CONCAT1 = chaine.getString("VWCONCATUNIQ");
+      CONCAT2 = chaine.getString("VWCONCATMULTI");
+      SAVEVIEW= chaine.getString("MSAVEVIEW");
+      EXPORTEPS=chaine.getString("MEXPORTEPS");
+      EXPORT  = chaine.getString("MEXPORT");
+      BACKUP  = chaine.getString("MBACKUP");
+      FOLD    = chaine.getString("SLMCREATFOLD");
+      INFOLD  = chaine.getString("SLMINSFOLD");
+      ARITHM  = chaine.getString("MARITHM");
+      MOC    =  chaine.getString("MMOC");
+      MOCGEN   =chaine.getString("MMOCGEN");
+      MOCGENIMG   =chaine.getString("MMOCGENIMG");
+      MOCPOL =chaine.getString("MMOCGENPOL");
+      MOCGENIMGS  =chaine.getString("MMOCGENIMGS");
+      MOCGENCAT   =chaine.getString("MMOCGENCAT");
+      MOCM     =chaine.getString("MMOCOP");
+      MOCTOORDER     =chaine.getString("MMOCTOORDER");
+      MOCFILTERING =chaine.getString("MMOCFILTERING");
+      MOCCROP =chaine.getString("MMOCCROP");
+      MOCHELP =chaine.getString("MMOCHELP");
+      MOCLOAD =chaine.getString("MMOCLOAD");
+      MOCHIPS =chaine.getString("MMOCHIPS");
+      HEALPIXARITHM = PROTOPREFIX + chaine.getString("MHEALPIXARITHM");
+      NORM    = chaine.getString("MNORM");
+      BITPIX  = chaine.getString("MBITPIX");
+      PIXEXTR = chaine.getString("MPIXEXTR");
+      CONV    = chaine.getString("MCONV");
+      HEAD    = chaine.getString("MHEAD");
+      FLIP    = chaine.getString("PROPFLIPFLOP");
+      TOPBOTTOM = chaine.getString("PROPTOPBOTTOM");
+      RIGHTLEFT = chaine.getString("PROPRIGHTLEFT");
+      MDOC    = chaine.getString("MDOC");
 
-       MTOOLS = chaine.getString("MTOOLS");
-       MPLUGS = chaine.getString("MPLUGS");
-       MINTEROP = chaine.getString("MINTEROP");
-       MHELP  = chaine.getString("MHELP");
-       MDCH1  = chaine.getString("MDCH1");
-       MDCH2  = chaine.getString("MDCH2");
-       MPRINT = chaine.getString("MPRINT");
-       MQUIT  = chaine.getString("MQUIT");
-       MCLOSE = chaine.getString("MCLOSE");
-       CMD    = chaine.getString("CMD");
-       MBKM   = chaine.getString("MBKM");
-       XMATCH = chaine.getString("SLMXMATCH");
-       CALIMG = chaine.getString("CALIMG");
-       CALCAT = chaine.getString("CALCAT");
-       ADDCOL = chaine.getString("SLMNEWCOL");
-       ROI    = chaine.getString("ROI");
-       SESAME = chaine.getString("SESAME");
-       COOTOOL= chaine.getString("COOTOOL");
-       PIXELTOOL= chaine.getString("PIXELTOOL");
-       CALCULATOR= chaine.getString("CALCULATOR");
-       SIMBAD = chaine.getString("SIMBAD");
-       VIZIERSED = chaine.getString("VIZIERSED");
-       AUTODIST = chaine.getString("AUTODIST");
-//       TIP    = chaine.getString("TIP");
-//       MSCROLL= chaine.getString("MSCROLL");
-       VOTOOL = chaine.getString("VOTOOL");
-       PREF   = chaine.getString("PREF");
-       NEW    = NOAPPLETPREFIX+chaine.getString("NEW");
-//       CEA_TOOLS = chaine.getString("CEA_TOOLS");
-       MACRO  = chaine.getString("MACRO");
-       TUTO   = chaine.getString("TUTO");
-       HELP   = chaine.getString("HELP");
-       HELPSCRIPT = chaine.getString("HELPSCRIPT");
-       FAQ    = chaine.getString("FAQ");
-       MAN    = chaine.getString("MAN");
-       TUTORIAL= chaine.getString("TUTORIAL");
-       SENDBUG = chaine.getString("SENDBUG");
-       PLUGINFO = chaine.getString("PLUGINFO");
-       VOINFO = chaine.getString("VOTOOLINFO");
-       GLUTOOL = chaine.getString("GLUTOOL");
-       NEWS   = chaine.getString("NEWS");
-       ABOUT  = chaine.getString("ABOUT");
-       FULLSCREEN = chaine.getString("FULLSCREEN");
-       PREVIEWSCREEN = chaine.getString("PREVIEWSCREEN");
-       MOREVIEWS = chaine.getString("VWMOREVIEWS");
-       ONEVIEW = chaine.getString("VWONEVIEW");
-       NEXT = chaine.getString("VWNEXT");
-       FULLINT = chaine.getString("VWFULLINT");
-       NORTHUP = chaine.getString("VWNORTHUP");
-       GETOBJ =    chaine.getString("GETOBJ");
+      MTOOLS = chaine.getString("MTOOLS");
+      MPLUGS = chaine.getString("MPLUGS");
+      MINTEROP = chaine.getString("MINTEROP");
+      MHELP  = chaine.getString("MHELP");
+      MDCH1  = chaine.getString("MDCH1");
+      MDCH2  = chaine.getString("MDCH2");
+      MPRINT = chaine.getString("MPRINT");
+      MQUIT  = chaine.getString("MQUIT");
+      MCLOSE = chaine.getString("MCLOSE");
+      CMD    = chaine.getString("CMD");
+      MBKM   = chaine.getString("MBKM");
+      XMATCH = chaine.getString("SLMXMATCH");
+      CALIMG = chaine.getString("CALIMG");
+      CALCAT = chaine.getString("CALCAT");
+      ADDCOL = chaine.getString("SLMNEWCOL");
+      ROI    = chaine.getString("ROI");
+      SESAME = chaine.getString("SESAME");
+      COOTOOL= chaine.getString("COOTOOL");
+      PIXELTOOL= chaine.getString("PIXELTOOL");
+      CALCULATOR= chaine.getString("CALCULATOR");
+      SIMBAD = chaine.getString("SIMBAD");
+      VIZIERSED = chaine.getString("VIZIERSED");
+      AUTODIST = chaine.getString("AUTODIST");
+      //       TIP    = chaine.getString("TIP");
+      //       MSCROLL= chaine.getString("MSCROLL");
+      VOTOOL = chaine.getString("VOTOOL");
+      PREF   = chaine.getString("PREF");
+      NEW    = NOAPPLETPREFIX+chaine.getString("NEW");
+      //       CEA_TOOLS = chaine.getString("CEA_TOOLS");
+      MACRO  = chaine.getString("MACRO");
+      TUTO   = chaine.getString("TUTO");
+      HELP   = chaine.getString("HELP");
+      HELPSCRIPT = chaine.getString("HELPSCRIPT");
+      FAQ    = chaine.getString("FAQ");
+      MAN    = chaine.getString("MAN");
+      TUTORIAL= chaine.getString("TUTORIAL");
+      SENDBUG = chaine.getString("SENDBUG");
+      PLUGINFO = chaine.getString("PLUGINFO");
+      VOINFO = chaine.getString("VOTOOLINFO");
+      GLUTOOL = chaine.getString("GLUTOOL");
+      NEWS   = chaine.getString("NEWS");
+      ABOUT  = chaine.getString("ABOUT");
+      FULLSCREEN = chaine.getString("FULLSCREEN");
+      PREVIEWSCREEN = chaine.getString("PREVIEWSCREEN");
+      MOREVIEWS = chaine.getString("VWMOREVIEWS");
+      ONEVIEW = chaine.getString("VWONEVIEW");
+      NEXT = chaine.getString("VWNEXT");
+      FULLINT = chaine.getString("VWFULLINT");
+      NORTHUP = chaine.getString("VWNORTHUP");
+      GETOBJ =    chaine.getString("GETOBJ");
 
 
-       // les chaines pour SAMP
-       String name = getMessagingMgr().getProtocolName();
+      // les chaines pour SAMP
+      String name = getMessagingMgr().getProtocolName();
 
-       REGISTER = chaine.getString("PWREGISTER").replaceAll("SAMP", name);
-       UNREGISTER = chaine.getString("PWUNREGISTER").replaceAll("SAMP", name);
-       BROADCAST = chaine.getString("PWBROADCAST");
-       BROADCASTIMAGE = chaine.getString("SLMBDCASTIMAGES");
-       BROADCASTTABLE = chaine.getString("SLMBDCASTTABLES");
-       SAMPPREFS = chaine.getString("PWPREFS").replaceAll("SAMP", name);
-       STARTINTERNALHUB = chaine.getString("PWSTARTINTERNALHUB");
-       STOPINTERNALHUB = chaine.getString("PWSTOPINTERNALHUB");
-    }
+      REGISTER = chaine.getString("PWREGISTER").replaceAll("SAMP", name);
+      UNREGISTER = chaine.getString("PWUNREGISTER").replaceAll("SAMP", name);
+      BROADCAST = chaine.getString("PWBROADCAST");
+      BROADCASTIMAGE = chaine.getString("SLMBDCASTIMAGES");
+      BROADCASTTABLE = chaine.getString("SLMBDCASTTABLES");
+      SAMPPREFS = chaine.getString("PWPREFS").replaceAll("SAMP", name);
+      STARTINTERNALHUB = BETAPREFIX+chaine.getString("PWSTARTINTERNALHUB");
+      STOPINTERNALHUB = BETAPREFIX+chaine.getString("PWSTOPINTERNALHUB");
+   }
 
-    /** Création du menu principal sous la forme d'un tableau à trois dimensions permettant
-     * deux sous-niveaux de menus
-     * voir createJBar();
-     */
-    protected String[][][] createMenu() {
-       // TODO : je n'obtiens pas ce que je veux sous Mac ...
-       String meta = macPlateform?"meta":"ctrl";
-       String alt = macPlateform?"meta shift":"alt";
+   /** Création du menu principal sous la forme d'un tableau à trois dimensions permettant
+    * deux sous-niveaux de menus
+    * voir createJBar();
+    */
+   protected String[][][] createMenu() {
+      // TODO : je n'obtiens pas ce que je veux sous Mac ...
+      String meta = macPlateform?"meta":"ctrl";
+      String alt = macPlateform?"meta shift":"alt";
 
-       // TODO : meta ne fonctionne pas sous windows
-       if( OUTREACH ) {
-          return new String[][][]{
-          { {MFILE},
-             {OPENLOAD+"|"+meta+" L"},{OPENFILE+"|"+meta+" O"},
-             {},{LOADIMG,"-"},{LOADCAT,"-"},{BACKUP},{MPRINT+"|"+meta+" P"},
-             {},{ extApplet!=null ? MCLOSE : isApplet()?MDCH1: MQUIT}
-        },
-        { {MEDIT},
-             {"?"+PAN+"|"+alt+" Z"},
-                 {ZOOM,"?"+ZOOMPT+"|F6","",ZOOMM+"|F7",ZOOMP+"|F8"},
-             {},{COPIER+"|"+meta+" C"},{COLLER+"|"+meta+" V"},
-             {},{SELECTALL+"|"+meta+" A"},{UNSELECT+"|"+meta+" U"},
-             {},{DEL+"|DELETE"},{DELALL+"|shift DELETE"},
-             {},{HEAD+"|"+alt+" H"},{PROP+"|"+alt+" ENTER"}, {}, {PREF},
-        },
-        { {MIMAGE},
-           {PIXEL+"|"+meta+" M"},{"?"+GLASS+"|"+meta+" G"},
-//           {},{TRANSP},
-           {},{RGB},{GREY},{BLINK},
-           {},{CALIMG},
-           {},{FLIP,TOPBOTTOM,RIGHTLEFT},
-        },
-        { {MCATALOG},
-           {XMATCH},{ADDCOL},{FILTERB,"-"},
-           {},{CLONE},
-        },
-        { {MOVERLAY},
-           {CONTOUR},
-           {},{DIST+"|"+alt+" D"},{PHOT},{DRAW},{TAG},
-           {},{"?"+GRID+"|"+alt+" G"},{"?"+OVERLAY+"|"+alt+" O"},
-        },
-        { {MTOOLS},
-           {SESAME+"|"+meta+" R"},{VOTOOL,VOINFO},
-        },
-        { {MVIEW},
-           {"?"+FULLSCREEN+"|F11"}, {PREVIEWSCREEN+"|F12"}, {NEXT+"|TAB"},
-           {},{MOREVIEWS+"|F9"}
-        },
-        { {MHELP},
-             {HELP},{ABOUT},
-        },
-  };
-
-       }
-
-       
-       String[][][] menu = new String[][][] {
-             { {MFILE},
-                  {OPENLOAD+"|"+meta+" L"},{OPENFILE+"|"+meta+" O"},{OPENURL},
-                  {LASTFILE,"???"},
-                  {},{MBGKG,"???"},
-                  {},{LOADIMG,"-"},{LOADCAT,"-"}, {LOADVO}, {LOADFOV},
-                  {},{MSAVE+"|"+meta+" S"},{SAVEVIEW,"-"},{EXPORTEPS},{EXPORT},{BACKUP},
-//                  {},{HISTORY+"|"+(macPlateform?alt:meta)+" H"},
-                  {},{MPRINT+"|"+meta+" P"},
-                  {},{NEW+"|"+meta+" N"},
-                  {},{aladinSession>0 || extApplet!=null ? MCLOSE : isApplet()?MDCH1: MQUIT}
-             },
-             { {MEDIT},
+      // TODO : meta ne fonctionne pas sous windows
+      if( OUTREACH ) {
+         return new String[][][]{
+               { {MFILE},
+                  {OPENLOAD+"|"+meta+" L"},{OPENFILE+"|"+meta+" O"},
+                  {},{LOADIMG,"-"},{LOADCAT,"-"},{BACKUP},{MPRINT+"|"+meta+" P"},
+                  {},{ extApplet!=null ? MCLOSE : isApplet()?MDCH1: MQUIT}
+               },
+               { {MEDIT},
                   {"?"+PAN+"|"+alt+" Z"},
-                      {ZOOM,ZOOMM+"|F2",ZOOMP+"|F3","","?"+ZOOMPT+"|F4"},
+                  {ZOOM,"?"+ZOOMPT+"|F6","",ZOOMM+"|F7",ZOOMP+"|F8"},
                   {},{COPIER+"|"+meta+" C"},{COLLER+"|"+meta+" V"},
-                  {},{FOLD},{INFOLD},
-                  {},{SELECTALL+"|"+meta+" A"},{SELECT},{SELECTTAG},{UNSELECT+"|"+meta+" U"},
-                  /*{},{TAGSELECT},*/{DETAG},
+                  {},{SELECTALL+"|"+meta+" A"},{UNSELECT+"|"+meta+" U"},
                   {},{DEL+"|DELETE"},{DELALL+"|shift DELETE"},
                   {},{HEAD+"|"+alt+" H"},{PROP+"|"+alt+" ENTER"}, {}, {PREF},
-             },
-             { {MIMAGE},
-                {PIXEL+"|"+meta+" M"},{"?"+GLASS+"|"+meta+" G"},{"?"+GLASSTABLE},
-                {},{STATSURF, STATSURFCIRC, STATSURFPOLY},{CUT},
-//                {},{TRANSP},{"?"+TRANSPON},
-                {},{RGB},{GREY},{MOSAIC},{BLINK},
-                {},{RSAMP},{CALIMG},
-                {},{FLIP,TOPBOTTOM,RIGHTLEFT},{ARITHM},{HEALPIXARITHM},{CONV},{NORM},{BITPIX},{PIXEXTR},
-                {},{COPY},{CROP},
-             },
-             { {MCATALOG},
-                {PLOTCAT},{XMATCH},{ADDCOL},
-                {},{SEARCH+"|"+meta+" F"},
-                {},{FILTER},{FILTERB,"-"},
-                {},
-                {},{CONCAT,CONCAT1,CONCAT2},{CLONE,CLONE1,CLONE2},
-                {},{TABLEINFO},
-             },
-             { {MOVERLAY},
-                {CONTOUR},
-//                {MOC,MOCGEN,MOCFILTERING,MOCCROP,MOCM},
-                {},{DIST+"|"+alt+" D"},{PHOT},{DRAW},{TAG},
-                {},{NTOOL+"|"+alt+" N"},
-                {},{"?"+OVERLAY+"|"+alt+" O"},{"?"+RAINBOW+"|"+alt+" R"},{"?"+TARGET+"|"+alt+" T"},
-                   {"?"+GRID+"|"+alt+" G"},/*{"?"+HPXGRID+"|"+(macPlateform?"meta shift":"alt")+" W"},*/
-                {},{"%"+RETICLE},{"%"+RETICLEL},{"%"+NORETICLE},
-             },
-             { {MOC},
-                {MOCHIPS},{MOCLOAD},{MOCGENCAT},{MOCGENIMG},{MOCGENIMGS},{},{MOCM},{MOCTOORDER},{},{MOCFILTERING},{MOCCROP},{MOCHELP}
-             },
-             { {MTOOLS},
-                {SESAME+"|"+meta+" R"},{COOTOOL},{PIXELTOOL},{CALCULATOR},
-                {},{"?"+SIMBAD},{"?"+VIZIERSED},{"?"+AUTODIST},/*{"?"+TIP},{"?"+MSCROLL},{CEA_TOOLS},*/
-                {}, {ROI}, {MBKM},{CMD+"|F5"},{MACRO},
-                {},{VOTOOL,VOINFO}, {GLUTOOL,"-"}, {MPLUGS,PLUGINFO},
-                {},{HPXGENERATE},{HPXCREATE},
-                   { PROTOPREFIX+"HEALPix mouse control","%No mouse NSIDE control","%Mouse NSIDE 2^0","%Mouse NSIDE 2^1","%Mouse NSIDE 2^2","%Mouse NSIDE 2^3","%Mouse NSIDE 2^4","%Mouse NSIDE 2^5","%Mouse NSIDE 2^6",
-                   "%Mouse NSIDE 2^7","%Mouse NSIDE 2^8","%Mouse NSIDE 2^9","%Mouse NSIDE 2^10","%Mouse NSIDE 2^11",
-                   "%Mouse NSIDE 2^12","%Mouse NSIDE 2^13","%Mouse NSIDE 2^14","%Mouse NSIDE 2^15","%Mouse NSIDE 2^16",
-                   "%Mouse NSIDE 2^17","%Mouse NSIDE 2^18","%Mouse NSIDE 2^19","%Mouse NSIDE 2^20","%Mouse NSIDE 2^21",
-                   "%Mouse NSIDE 2^22","%Mouse NSIDE 2^23","%Mouse NSIDE 2^24","%Mouse NSIDE 2^25","%Mouse NSIDE 2^26",
-                   "%Mouse NSIDE 2^27","%Mouse NSIDE 2^28","%Mouse NSIDE 2^29",},
-                {},{FOVEDITOR},
+               },
+               { {MIMAGE},
+                  {PIXEL+"|"+meta+" M"},{"?"+GLASS+"|"+meta+" G"},
+                  //           {},{TRANSP},
+                  {},{RGB},{GREY},{BLINK},
+                  {},{CALIMG},
+                  {},{FLIP,TOPBOTTOM,RIGHTLEFT},
+               },
+               { {MCATALOG},
+                  {XMATCH},{ADDCOL},{FILTERB,"-"},
+                  {},{CLONE},
+               },
+               { {MOVERLAY},
+                  {CONTOUR},
+                  {},{DIST+"|"+alt+" D"},{PHOT},{DRAW},{TAG},
+                  {},{"?"+GRID+"|"+alt+" G"},{"?"+CONST},{"?"+OVERLAY+"|"+alt+" O"},
+               },
+               { {MTOOLS},
+                  {SESAME+"|"+meta+" R"},{VOTOOL,VOINFO},
+               },
+               { {MVIEW},
+                  {"?"+FULLSCREEN+"|F11"}, {PREVIEWSCREEN+"|F12"}, {NEXT+"|TAB"},
+                  {},{MOREVIEWS+"|F9"}, {"?"+LOCKVIEW},
+               },
+               { {MHELP},
+                  {HELP},{ABOUT},
+               },
+         };
 
-                {JUNIT},
-             },
-             { {MVIEW},
-                {FULLSCREEN+"|F11"}, {PREVIEWSCREEN+"|F12"}, {NEXT+"|TAB"},
-                {},{PANEL,"%"+PANEL1+"|shift F1","%"+PANEL2C,"%"+PANEL2L,
-                   "%"+PANEL4+"|shift F2","%"+PANEL9+"|shift F3","%"+PANEL16+"|shift F4"},
-                {},{MOREVIEWS+"|F9"},{ONEVIEW}, {DELLOCKVIEW}, {"?"+LOCKVIEW},
-//                {},{"?"+LOCKVIEW},{DELLOCKVIEW}, 
-                {},{"?"+STICKVIEW},
-                {},{"?"+NORTHUP+"|"+alt+" X"},{"?"+SYNC+"|"+alt+" S"},{"?"+SYNCPROJ+"|"+alt+" Q"},
-             },
-             { {MHELP},
-                  {HELP+"|F1"}, 
-//                                {TUTO, "Show me how to load an image",
-//                                 "Show me how to display catalogs on an image",
-//                                 "Show me how to play with the Aladin stack",
-//                                 "Show me how to use the multiview mode",
-//                                 "Show me how to do a contour",
-//                                 "Show me how to control the image contrast",
-//                                 "Show me how to create a colored image",
-//                                 "What is a filter",
-//                                 "Show me how to play with the metadata lists and trees"},
-                  {MDOC,FAQ,TUTORIAL,MAN},
-                  {},{HELPSCRIPT+"|"+(macPlateform?alt:meta)+" F5"},
-                  {},{SENDBUG}, {NEWS}, {ABOUT}
-             },
-       };
+      }
 
-       // ajout menu interop
-       if( PLASTIC_SUPPORT ) {
-          String[][][] retMenu = new String[menu.length+1][][];
-          for( int i=0; i<menu.length-1; i++ ) {
-             retMenu[i] = menu[i];
-          }
-          if( Aladin.BETA ) {
-             retMenu[retMenu.length-2] = new String[][] { {MINTEROP},
-                   {REGISTER}, {UNREGISTER},
-                   {}, {STARTINTERNALHUB}, {STOPINTERNALHUB},
-                   {}, {BROADCAST}, {BROADCASTIMAGE, "-"}, {BROADCASTTABLE, "-"},
-                   {}, {SAMPPREFS}
-             };
-          }
-          else {
-             retMenu[retMenu.length-2] = new String[][] { {MINTEROP},
-                   {REGISTER}, {UNREGISTER},
-                   {}, {BROADCAST}, {BROADCASTIMAGE, "-"}, {BROADCASTTABLE, "-"},
-                   {}, {SAMPPREFS}
-             };
-          }
 
-          retMenu[retMenu.length-1] = menu[menu.length-1];
-          return retMenu;
-       }
-       else {
-           return menu;
-       }
+      String[][][] menu = new String[][][] {
+            { {MFILE},
+               {OPENLOAD+"|"+meta+" L"},{OPENFILE+"|"+meta+" O"},{OPENURL},
+               {LASTFILE,"???"},
+               {},{MBGKG,"???"},
+               {},{LOADIMG,"-"},{LOADCAT,"-"}, {LOADVO}, {LOADFOV},
+               {},{MSAVE+"|"+meta+" S"},{SAVEVIEW,"-"},{EXPORTEPS},{EXPORT},{BACKUP},
+               //                  {},{HISTORY+"|"+(macPlateform?alt:meta)+" H"},
+               {},{MPRINT+"|"+meta+" P"},
+               {},{NEW+"|"+meta+" N"},
+               {},{aladinSession>0 || extApplet!=null ? MCLOSE : isApplet()?MDCH1: MQUIT}
+            },
+            { {MEDIT},
+               {"?"+PAN+"|"+alt+" Z"},
+               {ZOOM,ZOOMM+"|F2",ZOOMP+"|F3","","?"+ZOOMPT+"|F4"},
+               {},{COPIER+"|"+meta+" C"},{COLLER+"|"+meta+" V"},
+               {},{FOLD},{INFOLD},
+               {},{SELECTALL+"|"+meta+" A"},{SELECT},{SELECTTAG},{UNSELECT+"|"+meta+" U"},
+               /*{},{TAGSELECT},*/{DETAG},
+               {},{DEL+"|DELETE"},{DELALL+"|shift DELETE"},
+               {},{HEAD+"|"+alt+" H"},{PROP+"|"+alt+" ENTER"}, {}, {PREF},
+            },
+            { {MIMAGE},
+               {PIXEL+"|"+meta+" M"},{"?"+GLASS+"|"+meta+" G"},{"?"+GLASSTABLE},
+               {},{STATSURF, STATSURFCIRC, STATSURFPOLY},{CUT},
+               //                {},{TRANSP},{"?"+TRANSPON},
+               {},{RGB},{GREY},{MOSAIC},{BLINK},
+               {},{RSAMP},{CALIMG},
+               {},{FLIP,TOPBOTTOM,RIGHTLEFT},{ARITHM},{HEALPIXARITHM},{CONV},{NORM},{BITPIX},{PIXEXTR},
+               {},{COPY},{CROP},
+            },
+            { {MCATALOG},
+               {PLOTCAT},{XMATCH},{ADDCOL},
+               {},{SEARCH+"|"+meta+" F"},
+               {},{FILTER},{FILTERB,"-"},
+               {},
+               {},{CONCAT,CONCAT1,CONCAT2},{CLONE,CLONE1,CLONE2},
+               {},{TABLEINFO},
+            },
+            { {MOVERLAY},
+               {CONTOUR},
+               //                {MOC,MOCGEN,MOCFILTERING,MOCCROP,MOCM},
+               {},{DIST+"|"+alt+" D"},{PHOT},{DRAW},{TAG},
+               {},{NTOOL+"|"+alt+" N"},
+               {},{"?"+OVERLAY+"|"+alt+" O"},{"?"+RAINBOW+"|"+alt+" R"},{"?"+TARGET+"|"+alt+" T"},{"?"+CONST+"|"+alt+" C"},
+//               {"?"+GRID+"|"+alt+" G"},/*{"?"+HPXGRID+"|"+(macPlateform?"meta shift":"alt")+" W"},*/
+               {},{"%"+GRID+"|"+alt+" G"},{"%"+HPXGRID+"|"+(macPlateform?"meta shift":"alt")+" W"},{"%"+NOGRID},
+               {},{"%"+RETICLE},{"%"+RETICLEL},{"%"+NORETICLE},
+            },
+            { {MOC},
+               {MOCHIPS},{MOCLOAD}, {MOCGEN, MOCPOL, MOCGENCAT,MOCGENIMG,MOCGENIMGS},
+               {},{MOCM},{MOCTOORDER},{},{MOCFILTERING},{MOCCROP},{},{MOCHELP}
+            },
+            { {MTOOLS},
+               {SESAME+"|"+meta+" R"},{COOTOOL},{PIXELTOOL},{CALCULATOR},
+               {},{"?"+SIMBAD},{"?"+VIZIERSED},{"?"+AUTODIST},/*{"?"+TIP},{"?"+MSCROLL},{CEA_TOOLS},*/
+               {}, {ROI}, {MBKM},{CMD+"|F5"},{MACRO},
+               {},{VOTOOL,VOINFO}, {GLUTOOL,"-"}, {MPLUGS,PLUGINFO},
+               {},{HPXGENERATE},{HPXCREATE},
+               { BETAPREFIX+"HEALPix mouse control","%No mouse NSIDE control","%Mouse NSIDE 2^0","%Mouse NSIDE 2^1","%Mouse NSIDE 2^2","%Mouse NSIDE 2^3","%Mouse NSIDE 2^4","%Mouse NSIDE 2^5","%Mouse NSIDE 2^6",
+                  "%Mouse NSIDE 2^7","%Mouse NSIDE 2^8","%Mouse NSIDE 2^9","%Mouse NSIDE 2^10","%Mouse NSIDE 2^11",
+                  "%Mouse NSIDE 2^12","%Mouse NSIDE 2^13","%Mouse NSIDE 2^14","%Mouse NSIDE 2^15","%Mouse NSIDE 2^16",
+                  "%Mouse NSIDE 2^17","%Mouse NSIDE 2^18","%Mouse NSIDE 2^19","%Mouse NSIDE 2^20","%Mouse NSIDE 2^21",
+                  "%Mouse NSIDE 2^22","%Mouse NSIDE 2^23","%Mouse NSIDE 2^24","%Mouse NSIDE 2^25","%Mouse NSIDE 2^26",
+                  "%Mouse NSIDE 2^27","%Mouse NSIDE 2^28","%Mouse NSIDE 2^29",},
+                  {},{FOVEDITOR},
+
+                  {JUNIT},
+            },
+            { {MVIEW},
+               {FULLSCREEN+"|F11"}, {PREVIEWSCREEN+"|F12"}, {NEXT+"|TAB"},
+               {},{PANEL,"%"+PANEL1+"|shift F1","%"+PANEL2C,"%"+PANEL2L,
+                  "%"+PANEL4+"|shift F2","%"+PANEL9+"|shift F3","%"+PANEL16+"|shift F4"},
+                  {},{MOREVIEWS+"|F9"},{ONEVIEW}, {DELLOCKVIEW}, {"?"+LOCKVIEW},
+                  //                {},{"?"+LOCKVIEW},{DELLOCKVIEW},
+                  {},{"?"+STICKVIEW},
+                  {},{"?"+NORTHUP+"|"+alt+" X"},{"?"+SYNC+"|"+alt+" S"},{"?"+SYNCPROJ+"|"+alt+" Q"},
+            },
+            { {MHELP},
+               {HELP+"|F1"},
+               //                                {TUTO, "Show me how to load an image",
+               //                                 "Show me how to display catalogs on an image",
+               //                                 "Show me how to play with the Aladin stack",
+               //                                 "Show me how to use the multiview mode",
+               //                                 "Show me how to do a contour",
+               //                                 "Show me how to control the image contrast",
+               //                                 "Show me how to create a colored image",
+               //                                 "What is a filter",
+               //                                 "Show me how to play with the metadata lists and trees"},
+               {MDOC,FAQ,TUTORIAL,MAN},
+               {},{HELPSCRIPT+"|"+(macPlateform?alt:meta)+" F5"},
+               {},{SENDBUG}, {NEWS}, {ABOUT}
+            },
+      };
+
+      // ajout menu interop
+      if( PLASTIC_SUPPORT ) {
+         String[][][] retMenu = new String[menu.length+1][][];
+         for( int i=0; i<menu.length-1; i++ ) {
+            retMenu[i] = menu[i];
+         }
+         if( Aladin.BETA ) {
+            retMenu[retMenu.length-2] = new String[][] { {MINTEROP},
+                  {REGISTER}, {UNREGISTER},
+                  {}, {STARTINTERNALHUB}, {STOPINTERNALHUB},
+                  {}, {BROADCAST}, {BROADCASTIMAGE, "-"}, {BROADCASTTABLE, "-"},
+                  {}, {SAMPPREFS}
+            };
+         }
+         else {
+            retMenu[retMenu.length-2] = new String[][] { {MINTEROP},
+                  {REGISTER}, {UNREGISTER},
+                  {}, {BROADCAST}, {BROADCASTIMAGE, "-"}, {BROADCASTTABLE, "-"},
+                  {}, {SAMPPREFS}
+            };
+         }
+
+         retMenu[retMenu.length-1] = menu[menu.length-1];
+         return retMenu;
+      }
+      else {
+         return menu;
+      }
 
    }
 
-    /** Retourne true si la barre de menu et/ou les ComboBox de
-     * localisation et de pixel sont déroulé et cachent une partie
-     * de la zone des vues (voir ViewSimple.mouseEntered()
-     * et ViewSimple.mouseExited())
-     */
-    protected boolean menuActivated() {
-       int n = jBar.getMenuCount();
-       for( int i=0; i<n; i++ ) {
-          JMenu jm = jBar.getMenu(i);
-          if( jm!=null && jm.isPopupMenuVisible() ) return true;
-       }
-//       if( pixel.isPopupVisible() ) return true;
-       if( localisation.isPopupVisible() ) return true;
+   /** Retourne true si la barre de menu et/ou les ComboBox de
+    * localisation et de pixel sont déroulé et cachent une partie
+    * de la zone des vues (voir ViewSimple.mouseEntered()
+    * et ViewSimple.mouseExited())
+    */
+   protected boolean menuActivated() {
+      int n = jBar.getMenuCount();
+      for( int i=0; i<n; i++ ) {
+         JMenu jm = jBar.getMenu(i);
+         if( jm!=null && jm.isPopupMenuVisible() ) return true;
+      }
+      //       if( pixel.isPopupVisible() ) return true;
+      if( localisation.isPopupVisible() ) return true;
 
-       return false;
-    }
-    
-    protected void memoLastFile(String path) {
-       if( NOGUI ) return;
-       configuration.setLastFile(path, true);
-       updateLastFileMenu();
-    }
-    
-    /** Met à jour le menu des fichiers récemment ouverts */
-    protected void updateLastFileMenu() {
-       if( miLastFile==null ) return;
-       if( configuration.lastFile==null ) {
-          miLastFile.setEnabled(false);
-          return;
-       }
-       miLastFile.setEnabled(configuration.lastFile.size()>0);
-       miLastFile.removeAll();
-       JMenuItem item;
-       Iterator<String> it = configuration.lastFile.descendingIterator();
-       while( it.hasNext() ) {
-          String a = it.next();
-          miLastFile.add(item = new JMenuItem( Util.getShortPath(a,50)));
-          item.setActionCommand(a);
-          item.addActionListener( new ActionListener() {
+      return false;
+   }
+
+   protected void memoLastFile(String path) {
+      if( NOGUI ) return;
+      configuration.setLastFile(path, true);
+      updateLastFileMenu();
+   }
+
+   /** Met à jour le menu des fichiers récemment ouverts */
+   protected void updateLastFileMenu() {
+      if( miLastFile==null ) return;
+      if( configuration.lastFile==null ) {
+         miLastFile.setEnabled(false);
+         return;
+      }
+      miLastFile.setEnabled(configuration.lastFile.size()>0);
+      miLastFile.removeAll();
+      JMenuItem item;
+      Iterator<String> it = configuration.lastFile.descendingIterator();
+      while( it.hasNext() ) {
+         String a = it.next();
+         miLastFile.add(item = new JMenuItem( Util.getShortPath(a,50)));
+         item.setActionCommand(a);
+         item.addActionListener( new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                String filename = e.getActionCommand();
                calque.newPlan(filename, null, null);
             }
          });
-       }
-       miLastFile.add(item = new JMenuItem( chaine.getString("MLASTFILECLEAR")));
-       item.addActionListener( new ActionListener() {
-          public void actionPerformed(ActionEvent e) {
-             configuration.lastFile=null;
-             updateLastFileMenu();
-          }
-       });
-    }
-    
-    /**
-     * Met à jour le menu Interop
-     */
-    private void updateInteropMenu() {
-        AppMessagingInterface mgr = getMessagingMgr();
+      }
+      miLastFile.add(item = new JMenuItem( chaine.getString("MLASTFILECLEAR")));
+      item.addActionListener( new ActionListener() {
+         public void actionPerformed(ActionEvent e) {
+            configuration.lastFile=null;
+            updateLastFileMenu();
+         }
+      });
+   }
 
-        boolean isRegistered = mgr.isRegistered();
-        miSAMPRegister.setEnabled(! isRegistered);
-        miSAMPUnregister.setEnabled(isRegistered);
+   /**
+    * Met à jour le menu Interop
+    */
+   private void updateInteropMenu() {
+      AppMessagingInterface mgr = getMessagingMgr();
 
-        if( Aladin.PROTO ) {
-            boolean plaskitRunning = mgr.internalHubRunning();
-            miSAMPStartHub.setEnabled(!plaskitRunning);
-            miSAMPStopHub.setEnabled(plaskitRunning);
-        }
+      boolean isRegistered = mgr.isRegistered();
+      miSAMPRegister.setEnabled(! isRegistered);
+      miSAMPUnregister.setEnabled(isRegistered);
 
-        ArrayList<String> imgApps = mgr.getAppsSupporting(AppMessagingInterface.ABSTRACT_MSG_LOAD_FITS);
-        ArrayList<String> tabApps = mgr.getAppsSupporting(AppMessagingInterface.ABSTRACT_MSG_LOAD_VOT_FROM_URL);
+      if( Aladin.PROTO ) {
+         boolean plaskitRunning = mgr.internalHubRunning();
+         miSAMPStartHub.setEnabled(!plaskitRunning);
+         miSAMPStopHub.setEnabled(plaskitRunning);
+      }
 
-        int nbCatalog=0;
-        int nbImg=0;
-        Plan [] plan = aladin.calque.getPlans();
-        for( int i=0; i<plan.length; i++ ) {
-            Plan pc = plan[i];
-            if( !pc.selected ) continue;
-            if( pc.isCatalog() && pc.flagOk ) nbCatalog++;
-            if( pc.type==Plan.IMAGE && pc.flagOk ) nbImg++;
-            if( pc.type==Plan.IMAGEHUGE && pc.flagOk ) nbImg++;
-        }
+      ArrayList<String> imgApps = mgr.getAppsSupporting(AppMessagingInterface.ABSTRACT_MSG_LOAD_FITS);
+      ArrayList<String> tabApps = mgr.getAppsSupporting(AppMessagingInterface.ABSTRACT_MSG_LOAD_VOT_FROM_URL);
 
-        JMenuItem item;
-        // ajout des applis pouvant recevoir des images
-        miBroadcastImgs.removeAll();
-        miBroadcastImgs.add(item = new JMenuItem(calque.select.MALLAPPS));
-        item.setActionCommand(BROADCASTIMAGE);
-        item.addActionListener(this);
-        ((JMenu)miBroadcastImgs).addSeparator();
+      int nbCatalog=0;
+      int nbImg=0;
+      Plan [] plan = aladin.calque.getPlans();
+      for( int i=0; i<plan.length; i++ ) {
+         Plan pc = plan[i];
+         if( !pc.selected ) continue;
+         if( pc.isCatalog() && pc.flagOk ) nbCatalog++;
+         if( pc.type==Plan.IMAGE && pc.flagOk ) nbImg++;
+         if( pc.type==Plan.IMAGEHUGE && pc.flagOk ) nbImg++;
+      }
 
-        for (String app : imgApps) {
-            miBroadcastImgs.add(item = new JMenuItem(app));
-            item.setActionCommand(BROADCASTIMAGE);
-            item.addActionListener(this);
-        }
+      JMenuItem item;
+      // ajout des applis pouvant recevoir des images
+      miBroadcastImgs.removeAll();
+      miBroadcastImgs.add(item = new JMenuItem(calque.select.MALLAPPS));
+      item.setActionCommand(BROADCASTIMAGE);
+      item.addActionListener(this);
+      ((JMenu)miBroadcastImgs).addSeparator();
 
-        // ajout des applis pouvant recevoir des tables
-        miBroadcastTables.removeAll();
-        miBroadcastTables.add(item = new JMenuItem(calque.select.MALLAPPS));
-        item.setActionCommand(BROADCASTTABLE);
-        item.addActionListener(this);
-        ((JMenu)miBroadcastTables).addSeparator();
-        for (String app: tabApps) {
-            miBroadcastTables.add(item = new JMenuItem(app));
-            item.setActionCommand(BROADCASTTABLE);
-            item.addActionListener(this);
-       }
+      for (String app : imgApps) {
+         miBroadcastImgs.add(item = new JMenuItem(app));
+         item.setActionCommand(BROADCASTIMAGE);
+         item.addActionListener(this);
+      }
 
-        boolean canBroadcast = isRegistered && (nbCatalog>0 || nbImg>0);;
+      // ajout des applis pouvant recevoir des tables
+      miBroadcastTables.removeAll();
+      miBroadcastTables.add(item = new JMenuItem(calque.select.MALLAPPS));
+      item.setActionCommand(BROADCASTTABLE);
+      item.addActionListener(this);
+      ((JMenu)miBroadcastTables).addSeparator();
+      for (String app: tabApps) {
+         miBroadcastTables.add(item = new JMenuItem(app));
+         item.setActionCommand(BROADCASTTABLE);
+         item.addActionListener(this);
+      }
 
-        miBroadcastAll.setEnabled( canBroadcast && (imgApps.size()>0 || tabApps.size()>0));
+      boolean canBroadcast = isRegistered && (nbCatalog>0 || nbImg>0);;
 
-        miBroadcastImgs.setEnabled(isRegistered && nbImg>0 && imgApps.size()>0);
-        miBroadcastTables.setEnabled(isRegistered && nbCatalog>0 && tabApps.size()>0);
-    }
+      miBroadcastAll.setEnabled( canBroadcast && (imgApps.size()>0 || tabApps.size()>0));
 
-    /** Creation d'un JMenuBar en fonction d'un tableau à 3 dimensionspermettant
-     * deux sous-niveaux de menus.
-     * - une dimension vide au niveau 1, ou une chaine vide au niveau 2 donne lieu à un Séparateur
-     * - un menu qui commence par "?" va donner lieu à une JCheckboxMenuItem
-     * - un menu qui commence par "%" var donner lieu à un JRadioButtonMenuItem
-     * { {Niveau0-A}, {Niveau1-A}, {}, {Niveau1-B,"",Niveau2-A}, {Niveau1-C} },
-     * { {Niveau0-B}, ...
-     */
-    protected JMenuBar createJBar(String menu[][][]) {
-       jBar = new JMenuBar();
-       boolean separator=false;     // pour éviter de séparation de suite
+      miBroadcastImgs.setEnabled(isRegistered && nbImg>0 && imgApps.size()>0);
+      miBroadcastTables.setEnabled(isRegistered && nbCatalog>0 && tabApps.size()>0);
+   }
 
-       for( int i=0; i<menu.length; i++ ) {
-          String s=menu[i][0][0];
-          if( (s = isSpecialMenu(s))==null ) continue;
-          JMenu jm = new JMenu(s);
-          if (s.equals(MINTEROP)) {
-                jm.addMenuListener(new MenuListener() {
-                    public void menuSelected(MenuEvent e) {
-                        updateInteropMenu();
-                    }
-                    public void menuCanceled(MenuEvent e) {}
-                    public void menuDeselected(MenuEvent e) {}
-                });
+   /** Creation d'un JMenuBar en fonction d'un tableau à 3 dimensionspermettant
+    * deux sous-niveaux de menus.
+    * - une dimension vide au niveau 1, ou une chaine vide au niveau 2 donne lieu à un Séparateur
+    * - un menu qui commence par "?" va donner lieu à une JCheckboxMenuItem
+    * - un menu qui commence par "%" var donner lieu à un JRadioButtonMenuItem
+    * { {Niveau0-A}, {Niveau1-A}, {}, {Niveau1-B,"",Niveau2-A}, {Niveau1-C} },
+    * { {Niveau0-B}, ...
+    */
+   protected JMenuBar createJBar(String menu[][][]) {
+      jBar = new JMenuBar();
+      boolean separator=false;     // pour éviter de séparation de suite
+
+      for( int i=0; i<menu.length; i++ ) {
+         String s=menu[i][0][0];
+         if( (s = isSpecialMenu(s))==null ) continue;
+         JMenu jm = new JMenu(s);
+         if (s.equals(MINTEROP)) {
+            jm.addMenuListener(new MenuListener() {
+               public void menuSelected(MenuEvent e) {
+                  updateInteropMenu();
+               }
+               public void menuCanceled(MenuEvent e) {}
+               public void menuDeselected(MenuEvent e) {}
+            });
+         }
+         JMenuItem ji;
+         ButtonGroup mg=null;
+
+         memoMenuItem(s,jm);
+
+         for( int j=1; j<menu[i].length; j++ ) {
+            if( menu[i][j].length==0 ) { if( !separator ) { jm.addSeparator(); separator=true; mg=null; } continue; }
+            s=menu[i][j][0];
+            if( (s = isSpecialMenu(s))==null ) continue;
+
+            if( menu[i][j].length>1 ) {
+               JMenu jms = new JMenu(s);
+               memoMenuItem(s,jms);
+               for( int k=1; k<menu[i][j].length; k++ ) {
+                  s=menu[i][j][k];
+                  if( (s = isSpecialMenu(s))==null ) continue;
+                  if( s.length()==0 ) { if( !separator ) { jms.addSeparator(); separator=true; mg=null; } continue; }
+                  StringBuffer key = new StringBuffer();
+                  s = hasKeyStroke(key,s);
+                  if( s.charAt(0)=='%' ) {
+                     ji = new JRadioButtonMenuItem(s=s.substring(1));
+                     if( mg==null ) { mg = new ButtonGroup(); ji.setSelected(true); }
+                     mg.add(ji);
+                  } else {
+                     ji = s.charAt(0)=='?' ? new JCheckBoxMenuItem(s=s.substring(1)) : new JMenuItem(s);
+                     if( jms.getText().equals(TUTO) ) ji.setActionCommand(TUTO);
+                     mg=null;
+                  }
+                  if( key.length()>0 ) {
+                     ji.setAccelerator(KeyStroke.getKeyStroke(key.toString()));
+                  }
+                  ji.addActionListener(this);
+                  memoMenuItem(s,ji);
+                  separator=false;
+                  jms.add(ji);
+               }
+               jm.add(jms);
+            } else {
+               StringBuffer key = new StringBuffer();
+               s = hasKeyStroke(key,s);
+               if( s.charAt(0)=='%' ) {
+                  ji = new JRadioButtonMenuItem(s=s.substring(1));
+                  if( mg==null ) { mg = new ButtonGroup(); ji.setSelected(true); }
+                  mg.add(ji);
+               } else {
+                  ji = s.charAt(0)=='?' ? new JCheckBoxMenuItem(s=s.substring(1)) : new JMenuItem(s);
+                  mg=null;
+               }
+               if( key.length()>0 ) {
+                  ji.setAccelerator(KeyStroke.getKeyStroke(key.toString()));
+               }
+               ji.addActionListener(this);
+               memoMenuItem(s,ji);
+               separator=false;
+               jm.add(ji);
             }
-          JMenuItem ji;
-          ButtonGroup mg=null;
+         }
+         jBar.add(jm);
+      }
 
-          memoMenuItem(s,jm);
+      jBar.add(javax.swing.Box.createGlue());
+      JButton b;
 
-          for( int j=1; j<menu[i].length; j++ ) {
-             if( menu[i][j].length==0 ) { if( !separator ) { jm.addSeparator(); separator=true; } continue; }
-             s=menu[i][j][0];
-             if( (s = isSpecialMenu(s))==null ) continue;
-
-             if( menu[i][j].length>1 ) {
-                JMenu jms = new JMenu(s);
-                memoMenuItem(s,jms);
-                for( int k=1; k<menu[i][j].length; k++ ) {
-                   s=menu[i][j][k];
-                   if( (s = isSpecialMenu(s))==null ) continue;
-                   if( s.length()==0 ) { if( !separator ) { jms.addSeparator(); separator=true; } continue; }
-                   StringBuffer key = new StringBuffer();
-                   s = hasKeyStroke(key,s);
-                   if( s.charAt(0)=='%' ) {
-                      ji = new JRadioButtonMenuItem(s=s.substring(1));
-                      if( mg==null ) { mg = new ButtonGroup(); ji.setSelected(true); }
-                      mg.add(ji);
-                   } else {
-                      ji = s.charAt(0)=='?' ? new JCheckBoxMenuItem(s=s.substring(1)) : new JMenuItem(s);
-                      if( jms.getText().equals(TUTO) ) ji.setActionCommand(TUTO);
-                      mg=null;
-                   }
-                   if( key.length()>0 ) {
-                      ji.setAccelerator(KeyStroke.getKeyStroke(key.toString()));
-                   }
-                   ji.addActionListener(this);
-                   memoMenuItem(s,ji);
-                   separator=false;
-                   jms.add(ji);
-                }
-                jm.add(jms);
-             } else {
-                StringBuffer key = new StringBuffer();
-                s = hasKeyStroke(key,s);
-                if( s.charAt(0)=='%' ) {
-                   ji = new JRadioButtonMenuItem(s=s.substring(1));
-                   if( mg==null ) { mg = new ButtonGroup(); ji.setSelected(true); }
-                   mg.add(ji);
-                } else {
-                   ji = s.charAt(0)=='?' ? new JCheckBoxMenuItem(s=s.substring(1)) : new JMenuItem(s);
-                   mg=null;
-                }
-                if( key.length()>0 ) {
-                   ji.setAccelerator(KeyStroke.getKeyStroke(key.toString()));
-                }
-                ji.addActionListener(this);
-                memoMenuItem(s,ji);
-                separator=false;
-                jm.add(ji);
-             }
-          }
-          jBar.add(jm);
-       }
-
-       jBar.add(javax.swing.Box.createGlue());
-       JButton b;
-
-       // Si applet, ajout d'un bouton tout à droite pour proposer l'installation
-       if( isApplet() ) {
-          bDetach = b=new JButton(MDCH1);
-          b.setBorderPainted(false);
-          b.setContentAreaFilled(false);
-          b.addMouseListener(new MouseAdapter() {
-             @Override
+      // Si applet, ajout d'un bouton tout à droite pour proposer l'installation
+      if( isApplet() ) {
+         bDetach = b=new JButton(MDCH1);
+         b.setBorderPainted(false);
+         b.setContentAreaFilled(false);
+         b.addMouseListener(new MouseAdapter() {
+            @Override
             public void mouseEntered(MouseEvent e) {
-                ((JButton)e.getSource()).setForeground(Color.blue);
-             }
-             @Override
+               ((JButton)e.getSource()).setForeground(Color.blue);
+            }
+            @Override
             public void mouseExited(MouseEvent e) {
-                ((JButton)e.getSource()).setForeground(Color.black);
-             }
-          });
-          b.addActionListener(new ActionListener() {
-             public void actionPerformed(ActionEvent e) {
-                if( ! flagDetach ) detach();
-                else unDetach();
-             }
-          });
-          jBar.add(b);
+               ((JButton)e.getSource()).setForeground(Color.black);
+            }
+         });
+         b.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+               if( ! flagDetach ) detach();
+               else unDetach();
+            }
+         });
+         jBar.add(b);
 
-          b=new JButton(chaine.getString("MINSTALL"));
-          b.setBorderPainted(false);
-          b.setContentAreaFilled(false);
-          b.addMouseListener(new MouseAdapter() {
-             @Override
+         b=new JButton(chaine.getString("MINSTALL"));
+         b.setBorderPainted(false);
+         b.setContentAreaFilled(false);
+         b.addMouseListener(new MouseAdapter() {
+            @Override
             public void mouseEntered(MouseEvent e) {
-                ((JButton)e.getSource()).setForeground(Color.blue);
-             }
-             @Override
+               ((JButton)e.getSource()).setForeground(Color.blue);
+            }
+            @Override
             public void mouseExited(MouseEvent e) {
-                ((JButton)e.getSource()).setForeground(Color.black);
-             }
-          });
-          b.addActionListener(new ActionListener() {
-             public void actionPerformed(ActionEvent e) {
-                install();
-             }
-          });
-          jBar.add(b);
-          
-          jBar.add(javax.swing.Box.createGlue());
-       }
+               ((JButton)e.getSource()).setForeground(Color.black);
+            }
+         });
+         b.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+               install();
+            }
+         });
+         jBar.add(b);
 
-       try {
-          b = new JButton(new ImageIcon(aladin.getImagette("Preview.gif")));
-          b.setMargin(new Insets(0,0,0,0));
-          b.setToolTipText(PREVIEWSCREEN);
-          b.setBorderPainted(false);
-          b.setContentAreaFilled(false);
-          b.addActionListener( new ActionListener() {
-             public void actionPerformed(ActionEvent e) {  fullScreen(1); }
-          });
-          if( !isApplet() ) jBar.add(b);
+         jBar.add(javax.swing.Box.createGlue());
+      }
 
-          b = new JButton(new ImageIcon(aladin.getImagette("Fullscreen.gif")));
-          b.setMargin(new Insets(0,0,0,0));
-          b.setToolTipText(FULLSCREEN);
-          b.setBorderPainted(false);
-          b.setContentAreaFilled(false);
-          b.addActionListener( new ActionListener() {
-             public void actionPerformed(ActionEvent e) {  fullScreen(0); }
-          });
-          if( !isApplet() ) jBar.add(b);
-       } catch( Exception e ) { if( levelTrace>=3 ) e.printStackTrace(); }
+      try {
+         b = new JButton(new ImageIcon(aladin.getImagette("Preview.gif")));
+         b.setMargin(new Insets(0,0,0,0));
+         b.setToolTipText(PREVIEWSCREEN);
+         b.setBorderPainted(false);
+         b.setContentAreaFilled(false);
+         b.addActionListener( new ActionListener() {
+            public void actionPerformed(ActionEvent e) {  fullScreen(1); }
+         });
+         if( !isApplet() ) jBar.add(b);
+
+         b = new JButton(new ImageIcon(aladin.getImagette("Fullscreen.gif")));
+         b.setMargin(new Insets(0,0,0,0));
+         b.setToolTipText(FULLSCREEN);
+         b.setBorderPainted(false);
+         b.setContentAreaFilled(false);
+         b.addActionListener( new ActionListener() {
+            public void actionPerformed(ActionEvent e) {  fullScreen(0); }
+         });
+         if( !isApplet() ) jBar.add(b);
+      } catch( Exception e ) { if( levelTrace>=3 ) e.printStackTrace(); }
 
 
-       // Chargement des plugins éventuels
-       if( !NOPLUGIN && !isApplet() && !ISJNLP ) {
-          (new Thread("plugin search"){
-             @Override
+      // Chargement des plugins éventuels
+      if( !NOPLUGIN && !isApplet() && !ISJNLP ) {
+         (new Thread("plugin search"){
+            @Override
             public void run() { pluginReload();}
-          }).start();
-       }
+         }).start();
+      }
 
-       // Pour les Cieux
-       gluSkyReload();
+      // Pour les Cieux
+      gluSkyReload();
 
-       // Pour les applications VO
-       VOReload();
-       
-       // Pour les fichiers récents
-       updateLastFileMenu();
+      // Pour les applications VO
+      VOReload();
 
-       // Ajout des formats de sauvegarde supportés
-       if( miSave!=null ) {
-          miSave.removeAll();
-          appendJMenu((JMenu)miSave,Save.getFormatMenu());
-       }
+      // Pour les fichiers récents
+      updateLastFileMenu();
 
-//       // Ajout des kernels de convolution
-//       if( miConv!=null ) {
-//          new Kernel();
-//          miConv.removeAll();
-//          appendJMenu((JMenu)miConv,Kernel.getKernelMenu());
-//       }
+      // Ajout des formats de sauvegarde supportés
+      if( miSave!=null ) {
+         miSave.removeAll();
+         appendJMenu((JMenu)miSave,Save.getFormatMenu());
+      }
 
-       // Chargement des filtres prédéfinis
-       if( miFilterB!=null ) {
-          miFilterB.removeAll();
-          appendJMenu((JMenu)miFilterB,FilterProperties.getBeginnerFilters());
-       }
+      //       // Ajout des kernels de convolution
+      //       if( miConv!=null ) {
+      //          new Kernel();
+      //          miConv.removeAll();
+      //          appendJMenu((JMenu)miConv,Kernel.getKernelMenu());
+      //       }
 
-       return jBar;
-    }
+      // Chargement des filtres prédéfinis
+      if( miFilterB!=null ) {
+         miFilterB.removeAll();
+         appendJMenu((JMenu)miFilterB,FilterProperties.getBeginnerFilters());
+      }
 
-    /** Retourne le path à la profondeur prof, ou null si impossible */
-    private String prefixMenu(String pathMenu,int prof) {
-       int pos=0;
-       for( int i=0; i<prof-1; i++) pos = indexOfSlash(pathMenu,pos)+1;
-       int npos = indexOfSlash(pathMenu,pos);
-       if( npos==-1 ) return null;
-       return unBackSlash( pathMenu.substring(0,npos) );
-    }
+      return jBar;
+   }
 
-    /** Retourne l'indice du prochain / à partir de la position pos.
-     * Ne prend pas en compte les / précédé de \ */
-    private int indexOfSlash(String s, int pos ) {
-       pos--;
-       do { pos = s.indexOf('/',pos+1); }
-       while( pos>0 && s.charAt(pos-1)=='\\' );
-       return pos;
-    }
+   /** Retourne le path à la profondeur prof, ou null si impossible */
+   private String prefixMenu(String pathMenu,int prof) {
+      int pos=0;
+      for( int i=0; i<prof-1; i++) pos = indexOfSlash(pathMenu,pos)+1;
+      int npos = indexOfSlash(pathMenu,pos);
+      if( npos==-1 ) return null;
+      return unBackSlash( pathMenu.substring(0,npos) );
+   }
 
-    /** Retourne true si le path à la profondeur prof n'est pas terminé */
-    private boolean hasSubMenu(String pathMenu,int prof) { return prefixMenu(pathMenu,prof)!=null; }
+   /** Retourne l'indice du prochain / à partir de la position pos.
+    * Ne prend pas en compte les / précédé de \ */
+   private int indexOfSlash(String s, int pos ) {
+      pos--;
+      do { pos = s.indexOf('/',pos+1); }
+      while( pos>0 && s.charAt(pos-1)=='\\' );
+      return pos;
+   }
 
-    /** Dernier terme du path. ON doit prendre garde au / préfixé par \ qui ne
-     * comptent pas */
-    private String suffixMenu(String pathMenu) {
-       int pos=pathMenu.length()+1;
-       do { pos= pathMenu.lastIndexOf('/',pos-1); }
-       while( pos>0 && pathMenu.charAt(pos-1)=='\\');
-       if( pos<0 ) return pathMenu;
-       return unBackSlash(pathMenu.substring(pos+1));
-    }
+   /** Retourne true si le path à la profondeur prof n'est pas terminé */
+   private boolean hasSubMenu(String pathMenu,int prof) { return prefixMenu(pathMenu,prof)!=null; }
 
-    /** Supprime les \ qui précédent les / */
-    private String unBackSlash(String s) {
-       int n;
-       StringBuffer res = new StringBuffer(n=s.length());
-       for( int i=0; i<n; i++ ) {
-          if( s.charAt(i)=='\\' && i<n-1 && s.charAt(i+1)=='/' ) continue;
-          res.append(s.charAt(i));
-       }
-       return res.toString();
-    }
+   /** Dernier terme du path. ON doit prendre garde au / préfixé par \ qui ne
+    * comptent pas */
+   private String suffixMenu(String pathMenu) {
+      int pos=pathMenu.length()+1;
+      do { pos= pathMenu.lastIndexOf('/',pos-1); }
+      while( pos>0 && pathMenu.charAt(pos-1)=='\\');
+      if( pos<0 ) return pathMenu;
+      return unBackSlash(pathMenu.substring(pos+1));
+   }
 
-    /** Création récursive des sous-menus (utilisé par appendJMenu() */
-    private JMenu createJMenu1(String []sm, int index, int prof) {
-       String name = prefixMenu(sm[index],prof);
-       JMenu jm = new JMenu(suffixMenu(name)+"...");
-       JMenuItem ji;
-       ButtonGroup mg = null;
+   /** Supprime les \ qui précédent les / */
+   private String unBackSlash(String s) {
+      int n;
+      StringBuffer res = new StringBuffer(n=s.length());
+      for( int i=0; i<n; i++ ) {
+         if( s.charAt(i)=='\\' && i<n-1 && s.charAt(i+1)=='/' ) continue;
+         res.append(s.charAt(i));
+      }
+      return res.toString();
+   }
 
-       for(int i=index; i<sm.length; i++ ) {
-          if( sm[i]==null ) continue;             // déjà traité
-          if( !sm[i].startsWith(name+"/") ) continue; // pas concerné
-          if( hasSubMenu(sm[i],prof+1) ) {
-             jm.add(createJMenu1(sm,i,prof+1) );
-          }
-          else {
-             String s = suffixMenu(sm[i]);
-             if( s.charAt(0)=='%' ) {
-                ji = new JRadioButtonMenuItem(s=s.substring(1));
-                if( mg==null ) { mg = new ButtonGroup(); ji.setSelected(true); }
-                mg.add(ji);
-             } else ji = new JMenuItem(s);
-             ji.addActionListener(this);
-             jm.add(ji);
-             sm[i]=null;
-          }
-       }
-       return jm;
-    }
+   /** Création récursive des sous-menus (utilisé par appendJMenu() */
+   private JMenu createJMenu1(String []sm, int index, int prof) {
+      String name = prefixMenu(sm[index],prof);
+      JMenu jm = new JMenu(suffixMenu(name)+"...");
+      JMenuItem ji;
+      ButtonGroup mg = null;
 
-    /** Ajout au menu passé en paramètre de la liste des chaines indiquées
-     * en paramètre. Les menus peuvent être récursifs si ils sont construits
-     * avec un path. Exemple: Catalog/Browser. Les / qui ne décrivent pas
-     * la hiérarchie doivent être précédés de \. Les menus précédés du
-     * caractère % donnera lieu à un JRadioMenu */
-    private JMenu appendJMenu(JMenu jm,String []SM) {
-       JMenuItem ji;
-       ButtonGroup mg=null;
+      for(int i=index; i<sm.length; i++ ) {
+         if( sm[i]==null ) continue;             // déjà traité
+         if( !sm[i].startsWith(name+"/") ) continue; // pas concerné
+         if( hasSubMenu(sm[i],prof+1) ) {
+            jm.add(createJMenu1(sm,i,prof+1) );
+         }
+         else {
+            String s = suffixMenu(sm[i]);
+            if( s.charAt(0)=='%' ) {
+               ji = new JRadioButtonMenuItem(s=s.substring(1));
+               if( mg==null ) { mg = new ButtonGroup(); ji.setSelected(true); }
+               mg.add(ji);
+            } else ji = new JMenuItem(s);
+            ji.addActionListener(this);
+            jm.add(ji);
+            sm[i]=null;
+         }
+      }
+      return jm;
+   }
 
-       // La copie est indispensable car on va utiliser le tableau pour "marquer"
-       // les items déjà traités
-       String sm[] = new String[SM.length];
-       System.arraycopy(SM,0,sm,0,SM.length);
+   /** Ajout au menu passé en paramètre de la liste des chaines indiquées
+    * en paramètre. Les menus peuvent être récursifs si ils sont construits
+    * avec un path. Exemple: Catalog/Browser. Les / qui ne décrivent pas
+    * la hiérarchie doivent être précédés de \. Les menus précédés du
+    * caractère % donnera lieu à un JRadioMenu */
+   private JMenu appendJMenu(JMenu jm,String []SM) {
+      JMenuItem ji;
+      ButtonGroup mg=null;
 
-       for( int k=0; k<sm.length; k++ ) {
-          if( sm[k]==null ) continue;
-          String s = new String(sm[k]);
+      // La copie est indispensable car on va utiliser le tableau pour "marquer"
+      // les items déjà traités
+      String sm[] = new String[SM.length];
+      System.arraycopy(SM,0,sm,0,SM.length);
 
-          if( hasSubMenu(s,1) ) jm.add(createJMenu1(sm,k,1));
-          else {
-             if( s.charAt(0)=='%' ) {
-                ji = new JRadioButtonMenuItem(s=s.substring(1));
-                if( mg==null ) { mg = new ButtonGroup(); ji.setSelected(true); }
-                mg.add(ji);
-             } else  {
-            	 ji = new JMenuItem( unBackSlash(s) );
-            	 // ajout raccourci ctrl-I pour accès serveur Aladin
-            	 if( s.equals(ALADIN_IMG_SERVER) ) {
-            		 ji.setAccelerator(KeyStroke.getKeyStroke(
-            			        KeyEvent.VK_I, macPlateform?ActionEvent.META_MASK:ActionEvent.CTRL_MASK));
-            	 }
-             }
-             ji.addActionListener(this);
-             jm.add(ji);
-          }
+      for( int k=0; k<sm.length; k++ ) {
+         if( sm[k]==null ) continue;
+         String s = new String(sm[k]);
 
-       }
-       return jm;
-    }
+         if( hasSubMenu(s,1) ) jm.add(createJMenu1(sm,k,1));
+         else {
+            if( s.charAt(0)=='%' ) {
+               ji = new JRadioButtonMenuItem(s=s.substring(1));
+               if( mg==null ) { mg = new ButtonGroup(); ji.setSelected(true); }
+               mg.add(ji);
+            } else  {
+               ji = new JMenuItem( unBackSlash(s) );
+               // ajout raccourci ctrl-I pour accès serveur Aladin
+               if( s.equals(ALADIN_IMG_SERVER) ) {
+                  ji.setAccelerator(KeyStroke.getKeyStroke(
+                        KeyEvent.VK_I, macPlateform?ActionEvent.META_MASK:ActionEvent.CTRL_MASK));
+               }
+            }
+            ji.addActionListener(this);
+            jm.add(ji);
+         }
+
+      }
+      return jm;
+   }
 
 
-    /** Mise en forme d'un sous-menu muni d'une extension pour décrire un touche d'accélération
-     * Celle-ci est préfixée par le caractère réservé '|'
-     * ex : "Copy|ctrl c"
-     * @param key Retourne la chaine décrivant la touche d'accélération, "" si aucune
-     * @param s le menu
-     * @return le menu dont on a enlévé l'accélérateur,
-     */
-    private String hasKeyStroke(StringBuffer key,String s) {
-       int i=s.lastIndexOf('|');
-       if( i<0 ) return s;
-       key.append( s.substring(i+1) );
-       return s.substring(0,i);
-    }
+   /** Mise en forme d'un sous-menu muni d'une extension pour décrire un touche d'accélération
+    * Celle-ci est préfixée par le caractère réservé '|'
+    * ex : "Copy|ctrl c"
+    * @param key Retourne la chaine décrivant la touche d'accélération, "" si aucune
+    * @param s le menu
+    * @return le menu dont on a enlévé l'accélérateur,
+    */
+   private String hasKeyStroke(StringBuffer key,String s) {
+      int i=s.lastIndexOf('|');
+      if( i<0 ) return s;
+      key.append( s.substring(i+1) );
+      return s.substring(0,i);
+   }
 
-    /** Mise en forme des sous-menus BETA, PROTO ou OUTREACH si besoin, return null si
-     * le sous-menu doit être ommis */
-    protected String isSpecialMenu(String sm){
-       if( sm==null ) {
-          try { throw new Exception(); } catch(Exception e) { e.printStackTrace(); return "XXX undefined XXX";}
-       }
-       if( sm.length()==0 ) return sm;
-       char c=sm.charAt(0);
-       boolean flagSwitch=c=='%' || c=='?';
-       int len = flagSwitch ? 1:0;
-       if( sm.startsWith(BETAPREFIX,len) ) {
-          if( !BETA ) return null;
-          return (flagSwitch?c+"":"")+sm.substring(len+BETAPREFIX.length());
-       } else if( sm.startsWith(PROTOPREFIX,len) ) {
-          if( !PROTO ) return null;
-          return (flagSwitch?c+"":"")+sm.substring(len+PROTOPREFIX.length());
-       } else if( sm.startsWith(OUTREACHPREFIX,len) ) {
-          if( !OUTREACH ) return null;
-          return (flagSwitch?c+"":"")+sm.substring(len+OUTREACHPREFIX.length());
-       } else if( sm.startsWith(NOAPPLETPREFIX,len) ) {
-          if( isApplet() ) return null;
-          return (flagSwitch?c+"":"")+sm.substring(len+NOAPPLETPREFIX.length());
-       }
-       return sm;
-    }
+   /** Mise en forme des sous-menus BETA, PROTO ou OUTREACH si besoin, return null si
+    * le sous-menu doit être ommis */
+   protected String isSpecialMenu(String sm){
+      if( sm==null ) {
+         try { throw new Exception(); } catch(Exception e) { e.printStackTrace(); return "XXX undefined XXX";}
+      }
+      if( sm.length()==0 ) return sm;
+      char c=sm.charAt(0);
+      boolean flagSwitch=c=='%' || c=='?';
+      int len = flagSwitch ? 1:0;
+      if( sm.startsWith(BETAPREFIX,len) ) {
+         if( !BETA ) return null;
+         return (flagSwitch?c+"":"")+sm.substring(len+BETAPREFIX.length());
+      } else if( sm.startsWith(PROTOPREFIX,len) ) {
+         if( !PROTO ) return null;
+         return (flagSwitch?c+"":"")+sm.substring(len+PROTOPREFIX.length());
+      } else if( sm.startsWith(OUTREACHPREFIX,len) ) {
+         if( !OUTREACH ) return null;
+         return (flagSwitch?c+"":"")+sm.substring(len+OUTREACHPREFIX.length());
+      } else if( sm.startsWith(NOAPPLETPREFIX,len) ) {
+         if( isApplet() ) return null;
+         return (flagSwitch?c+"":"")+sm.substring(len+NOAPPLETPREFIX.length());
+      }
+      return sm;
+   }
 
-    /** Repérage des sous-menus particuliers pour d'éventuelles modif. ultérieures */
-    private void memoMenuItem(String m,JMenuItem ji) {
-       int i;
+   /** Repérage des sous-menus particuliers pour d'éventuelles modif. ultérieures */
+   private void memoMenuItem(String m,JMenuItem ji) {
+      int i;
 
-            if( isMenu(m,CALIMG))  miCalImg  = ji;
-       else if( isMenu(m,CALCAT))  miCalCat  = ji;
-       else if( isMenu(m,MDCH1))   miDetach  = ji;
-       else if( isMenu(m,ADDCOL))  miAddCol  = ji;
-       else if( isMenu(m,XMATCH))  miXmatch  = ji;
-       else if( isMenu(m,SIMBAD))  miSimbad  = ji;
-       else if( isMenu(m,AUTODIST))  miAutoDist  = ji;
-       else if( isMenu(m,VIZIERSED))  miVizierSED  = ji;
-//       else if( isMenu(m,TIP))     miTip     = ji;
-       else if( isMenu(m,VOTOOL))  miVOtool  = ji;
-       else if( isMenu(m,MBGKG))   miGluSky  = ji;
-       else if( isMenu(m,GLUTOOL)) miGluTool = ji;
-       else if( isMenu(m,ROI))     miROI     = ji;
-       else if( isMenu(m,PREF))    miPref    = ji;
-       else if( isMenu(m,DEL))     miDel     = ji;
-       else if( isMenu(m,PROP))    miProp    = ji;
-       else if( isMenu(m,DELALL))  miDelAll  = ji;
-       else if( isMenu(m,PIXEL))   miPixel   = ji;
-       else if( isMenu(m,CONTOUR)) miContour = ji;
-       else if( isMenu(m,MPRINT))  miPrint   = ji;
-       else if( isMenu(m,MSAVE))   miSaveG   = ji;
-       else if( isMenu(m,FULLSCREEN))miScreen   = ji;
-       else if( isMenu(m,PREVIEWSCREEN))miPScreen   = ji;
-       else if( isMenu(m,MOREVIEWS))miMore   = ji;
-       else if( isMenu(m,ONEVIEW)) miOne     = ji;
-       else if( isMenu(m,NEXT))    miNext    = ji;
-       else if( isMenu(m,LOCKVIEW))miLock    = ji;
-       else if( isMenu(m,NORTHUP)) miNorthUp = ji;
-       else if( isMenu(m,DELLOCKVIEW)) miDelLock= ji;
-       else if( isMenu(m,STICKVIEW)) miStick = ji;
-       else if( isMenu(m,GRID))    miGrid    = ji;
-       else if( isMenu(m,HPXGRID)) miHpxGrid = ji;
-       else if( isMenu(m,RETICLE)) miReticle = ji;
-       else if( isMenu(m,RETICLEL))  miReticleL  = ji;
-       else if( isMenu(m,NORETICLE)) miNoReticle = ji;
-       else if( isMenu(m,TARGET))  miTarget  = ji;
-       else if( isMenu(m,OVERLAY)) miOverlay = ji;
-       else if( isMenu(m,RAINBOW)) miRainbow = ji;
-       else if( isMenu(m,ZOOM))    miZoom    = ji;
-       else if( isMenu(m,COPIER))   miCopy1    = ji;
-       else if( isMenu(m,COLLER))   miPaste    = ji;
-       else if( isMenu(m,ZOOMPT))  miZoomPt  = ji;
-//       else if( isMenu(m,PREVPOS)) miPrevPos  = ji;
-//       else if( isMenu(m,NEXTPOS)) miNextPos  = ji;
-       else if( isMenu(m,SYNC))    miSync    = ji;
-       else if( isMenu(m,SYNCPROJ))miSyncProj= ji;
-       else if( isMenu(m,PAN))     miPan     = ji;
-       else if( isMenu(m,RSAMP))   miRsamp   = ji;
-       else if( isMenu(m,RGB))     miRGB     = ji;
-       else if( isMenu(m,MOSAIC))  miMosaic  = ji;
-       else if( isMenu(m,BLINK))   miBlink   = ji;
-       else if( isMenu(m,GLASS))   miGlass   = ji;
-       else if( isMenu(m,GLASSTABLE))   miGlassTable   = ji;
-       else if( isMenu(m,PANEL1))  miPanel1  = ji;
-       else if( isMenu(m,PANEL2C))  miPanel2c  = ji;
-       else if( isMenu(m,PANEL2L))  miPanel2l  = ji;
-       else if( isMenu(m,PANEL4))  miPanel4  = ji;
-       else if( isMenu(m,PANEL9))  miPanel9  = ji;
-       else if( isMenu(m,PANEL16)) miPanel16 = ji;
-       else if( isMenu(m,LOADIMG)) miImg     = ji;
-       else if( isMenu(m,OPENFILE))miOpen    = ji;
-       else if( isMenu(m,LOADCAT)) miCat     = ji;
-       else if( isMenu(m,MPLUGS) ) miPlugs   = ji;
-       else if( isMenu(m,GREY) )   miGrey    = ji;
-       else if( isMenu(m,FILTER) ) miFilter  = ji;
-       else if( isMenu(m,FILTERB) )miFilterB = ji;
-       else if( isMenu(m,SEARCH) ) miSearch  = ji;
-       else if( isMenu(m,SELECT) ) miSelect  = ji;
-       else if( isMenu(m,SELECTTAG) ) miSelectTag  = ji;
-       else if( isMenu(m,TAGSELECT) ) miTagSelect  = ji;
-       else if( isMenu(m,DETAG) )  miDetag   = ji;
-       else if( isMenu(m,SELECTALL) ) miSelectAll = ji;
-       else if( isMenu(m,UNSELECT) )  miUnSelect  = ji;
-       else if( isMenu(m,CUT) )    miCut     = ji;
-       else if( isMenu(m,STATSURF) ) miStatSurf     = ji;
-       else if( isMenu(m,TRANSP) ) miTransp  = ji;
-       else if( isMenu(m,TRANSPON) ) miTranspon  = ji;
-       else if( isMenu(m,DIST) )   miDist    = ji;
-       else if( isMenu(m,PHOT) )    miTag     = ji;
-       else if( isMenu(m,DRAW) )   miDraw    = ji;
-       else if( isMenu(m,TAG) )  miTexte   = ji;
-       else if( isMenu(m,CROP) )   miCrop    = ji;
-       else if( isMenu(m,HPXCREATE) ) miCreateHpx = ji;
-       else if( isMenu(m,HPXDUMP) )   miHpxDump = ji;
-       else if( isMenu(m,COPY) )   miCopy    = ji;
-       else if( isMenu(m,TABLEINFO) ) miTableInfo = ji;
-       else if( isMenu(m,CLONE) )  miClone   = ji;
-       else if( isMenu(m,PLOTCAT) )  miPlotcat   = ji;
-       else if( isMenu(m,CONCAT) )  miConcat   = ji;
-       else if( isMenu(m,SAVEVIEW) )  miSave      = ji;
-       else if( isMenu(m,LASTFILE) )  miLastFile      = ji;
-       else if( isMenu(m,EXPORT) )    miExport    = ji;
-       else if( isMenu(m,EXPORTEPS) ) miExportEPS = ji;
-       else if( isMenu(m,BACKUP) )    miBackup    = ji;
-//       else if( isMenu(m,HISTORY) )   miHistory   = ji;
-       else if( isMenu(m,INFOLD) ) miInFold  = ji;
-       else if( isMenu(m,ARITHM) ) miArithm  = ji;
-       else if( isMenu(m,MOCM) )   miMocOp  = ji;
-       else if( isMenu(m,MOCTOORDER) )   miMocToOrder  = ji;
-       else if( isMenu(m,MOCFILTERING) )   miMocFiltering  = ji;
-       else if( isMenu(m,MOCCROP) )   miMocCrop  = ji;
-       else if( isMenu(m,MOCGENIMG) )   miMocGenImg  = ji;
-       else if( isMenu(m,MOCHIPS) )   miMocHips  = ji;
-       else if( isMenu(m,MOCGENCAT) )   miMocGenCat  = ji;
-       else if( isMenu(m,HEALPIXARITHM) ) miHealpixArithm  = ji;
-       else if( isMenu(m,NORM) )   miNorm    = ji;
-       else if( isMenu(m,BITPIX) ) miBitpix  = ji;
-       else if( isMenu(m,PIXEXTR) ) miPixExtr  = ji;
-       else if( isMenu(m,CONV) )   miConv    = ji;
-       else if( isMenu(m,HEAD) )   miHead    = ji;
-       else if( isMenu(m,FLIP) )   miFlip    = ji;
-       else if( isMenu(m,REGISTER))          miSAMPRegister = ji;
-       else if( isMenu(m,UNREGISTER))        miSAMPUnregister = ji;
-       else if( isMenu(m, STARTINTERNALHUB)) miSAMPStartHub = ji;
-       else if( isMenu(m, STOPINTERNALHUB))  miSAMPStopHub = ji;
-       else if( isMenu(m,BROADCAST))         miBroadcastAll = ji;
-       else if( isMenu(m,BROADCASTTABLE))    miBroadcastTables = ji;
-       else if( isMenu(m,BROADCASTIMAGE))    miBroadcastImgs = ji;
-       else if( (i=m.indexOf("NSIDE"))>=0 ) {
-          try { miNside.put(new Integer(m.substring(i+8)),ji); } catch( Exception e) {}
-       }
-    }
+      if( isMenu(m,CALIMG))  miCalImg  = ji;
+      else if( isMenu(m,CALCAT))  miCalCat  = ji;
+      else if( isMenu(m,MDCH1))   miDetach  = ji;
+      else if( isMenu(m,ADDCOL))  miAddCol  = ji;
+      else if( isMenu(m,XMATCH))  miXmatch  = ji;
+      else if( isMenu(m,SIMBAD))  miSimbad  = ji;
+      else if( isMenu(m,AUTODIST))  miAutoDist  = ji;
+      else if( isMenu(m,VIZIERSED))  miVizierSED  = ji;
+      //       else if( isMenu(m,TIP))     miTip     = ji;
+      else if( isMenu(m,VOTOOL))  miVOtool  = ji;
+      else if( isMenu(m,MBGKG))   miGluSky  = ji;
+      else if( isMenu(m,GLUTOOL)) miGluTool = ji;
+      else if( isMenu(m,ROI))     miROI     = ji;
+      else if( isMenu(m,PREF))    miPref    = ji;
+      else if( isMenu(m,DEL))     miDel     = ji;
+      else if( isMenu(m,PROP))    miProp    = ji;
+      else if( isMenu(m,DELALL))  miDelAll  = ji;
+      else if( isMenu(m,PIXEL))   miPixel   = ji;
+      else if( isMenu(m,CONTOUR)) miContour = ji;
+      else if( isMenu(m,MPRINT))  miPrint   = ji;
+      else if( isMenu(m,MSAVE))   miSaveG   = ji;
+      else if( isMenu(m,FULLSCREEN))miScreen   = ji;
+      else if( isMenu(m,PREVIEWSCREEN))miPScreen   = ji;
+      else if( isMenu(m,MOREVIEWS))miMore   = ji;
+      else if( isMenu(m,ONEVIEW)) miOne     = ji;
+      else if( isMenu(m,NEXT))    miNext    = ji;
+      else if( isMenu(m,LOCKVIEW))miLock    = ji;
+      else if( isMenu(m,NORTHUP)) miNorthUp = ji;
+      else if( isMenu(m,DELLOCKVIEW)) miDelLock= ji;
+      else if( isMenu(m,STICKVIEW)) miStick = ji;
+      else if( isMenu(m,GRID))    miGrid    = ji;
+      else if( isMenu(m,NOGRID))  miNoGrid    = ji;
+      else if( isMenu(m,HPXGRID)) miHpxGrid = ji;
+      else if( isMenu(m,RETICLE)) miReticle = ji;
+      else if( isMenu(m,RETICLEL))  miReticleL  = ji;
+      else if( isMenu(m,NORETICLE)) miNoReticle = ji;
+      else if( isMenu(m,TARGET))  miTarget  = ji;
+      else if( isMenu(m,OVERLAY)) miOverlay = ji;
+      else if( isMenu(m,CONST))   miConst = ji;
+      else if( isMenu(m,RAINBOW)) miRainbow = ji;
+      else if( isMenu(m,ZOOM))    miZoom    = ji;
+      else if( isMenu(m,COPIER))   miCopy1    = ji;
+      else if( isMenu(m,COLLER))   miPaste    = ji;
+      else if( isMenu(m,ZOOMPT))  miZoomPt  = ji;
+      //       else if( isMenu(m,PREVPOS)) miPrevPos  = ji;
+      //       else if( isMenu(m,NEXTPOS)) miNextPos  = ji;
+      else if( isMenu(m,SYNC))    miSync    = ji;
+      else if( isMenu(m,SYNCPROJ))miSyncProj= ji;
+      else if( isMenu(m,PAN))     miPan     = ji;
+      else if( isMenu(m,RSAMP))   miRsamp   = ji;
+      else if( isMenu(m,RGB))     miRGB     = ji;
+      else if( isMenu(m,MOSAIC))  miMosaic  = ji;
+      else if( isMenu(m,BLINK))   miBlink   = ji;
+      else if( isMenu(m,GLASS))   miGlass   = ji;
+      else if( isMenu(m,GLASSTABLE))   miGlassTable   = ji;
+      else if( isMenu(m,PANEL1))  miPanel1  = ji;
+      else if( isMenu(m,PANEL2C))  miPanel2c  = ji;
+      else if( isMenu(m,PANEL2L))  miPanel2l  = ji;
+      else if( isMenu(m,PANEL4))  miPanel4  = ji;
+      else if( isMenu(m,PANEL9))  miPanel9  = ji;
+      else if( isMenu(m,PANEL16)) miPanel16 = ji;
+      else if( isMenu(m,LOADIMG)) miImg     = ji;
+      else if( isMenu(m,OPENFILE))miOpen    = ji;
+      else if( isMenu(m,LOADCAT)) miCat     = ji;
+      else if( isMenu(m,MPLUGS) ) miPlugs   = ji;
+      else if( isMenu(m,GREY) )   miGrey    = ji;
+      else if( isMenu(m,FILTER) ) miFilter  = ji;
+      else if( isMenu(m,FILTERB) )miFilterB = ji;
+      else if( isMenu(m,SEARCH) ) miSearch  = ji;
+      else if( isMenu(m,SELECT) ) miSelect  = ji;
+      else if( isMenu(m,SELECTTAG) ) miSelectTag  = ji;
+      else if( isMenu(m,TAGSELECT) ) miTagSelect  = ji;
+      else if( isMenu(m,DETAG) )  miDetag   = ji;
+      else if( isMenu(m,SELECTALL) ) miSelectAll = ji;
+      else if( isMenu(m,UNSELECT) )  miUnSelect  = ji;
+      else if( isMenu(m,CUT) )    miCut     = ji;
+      else if( isMenu(m,STATSURF) ) miStatSurf     = ji;
+      else if( isMenu(m,TRANSP) ) miTransp  = ji;
+      else if( isMenu(m,TRANSPON) ) miTranspon  = ji;
+      else if( isMenu(m,DIST) )   miDist    = ji;
+      else if( isMenu(m,PHOT) )    miTag     = ji;
+      else if( isMenu(m,DRAW) )   miDraw    = ji;
+      else if( isMenu(m,TAG) )  miTexte   = ji;
+      else if( isMenu(m,CROP) )   miCrop    = ji;
+      else if( isMenu(m,HPXCREATE) ) miCreateHpx = ji;
+      else if( isMenu(m,HPXDUMP) )   miHpxDump = ji;
+      else if( isMenu(m,COPY) )   miCopy    = ji;
+      else if( isMenu(m,TABLEINFO) ) miTableInfo = ji;
+      else if( isMenu(m,CLONE) )  miClone   = ji;
+      else if( isMenu(m,PLOTCAT) )  miPlotcat   = ji;
+      else if( isMenu(m,CONCAT) )  miConcat   = ji;
+      else if( isMenu(m,SAVEVIEW) )  miSave      = ji;
+      else if( isMenu(m,LASTFILE) )  miLastFile      = ji;
+      else if( isMenu(m,EXPORT) )    miExport    = ji;
+      else if( isMenu(m,EXPORTEPS) ) miExportEPS = ji;
+      else if( isMenu(m,BACKUP) )    miBackup    = ji;
+      //       else if( isMenu(m,HISTORY) )   miHistory   = ji;
+      else if( isMenu(m,INFOLD) ) miInFold  = ji;
+      else if( isMenu(m,ARITHM) ) miArithm  = ji;
+      else if( isMenu(m,MOCM) )   miMocOp  = ji;
+      else if( isMenu(m,MOCTOORDER) )   miMocToOrder  = ji;
+      else if( isMenu(m,MOCFILTERING) )   miMocFiltering  = ji;
+      else if( isMenu(m,MOCCROP) )   miMocCrop  = ji;
+      else if( isMenu(m,MOCGENIMG) )   miMocGenImg  = ji;
+      else if( isMenu(m,MOCHIPS) )   miMocHips  = ji;
+      else if( isMenu(m,MOCPOL) )   miMocPol  = ji;
+      else if( isMenu(m,MOCGENCAT) )   miMocGenCat  = ji;
+      else if( isMenu(m,HEALPIXARITHM) ) miHealpixArithm  = ji;
+      else if( isMenu(m,NORM) )   miNorm    = ji;
+      else if( isMenu(m,BITPIX) ) miBitpix  = ji;
+      else if( isMenu(m,PIXEXTR) ) miPixExtr  = ji;
+      else if( isMenu(m,CONV) )   miConv    = ji;
+      else if( isMenu(m,HEAD) )   miHead    = ji;
+      else if( isMenu(m,FLIP) )   miFlip    = ji;
+      else if( isMenu(m,REGISTER))          miSAMPRegister = ji;
+      else if( isMenu(m,UNREGISTER))        miSAMPUnregister = ji;
+      else if( isMenu(m, STARTINTERNALHUB)) miSAMPStartHub = ji;
+      else if( isMenu(m, STOPINTERNALHUB))  miSAMPStopHub = ji;
+      else if( isMenu(m,BROADCAST))         miBroadcastAll = ji;
+      else if( isMenu(m,BROADCASTTABLE))    miBroadcastTables = ji;
+      else if( isMenu(m,BROADCASTIMAGE))    miBroadcastImgs = ji;
+      else if( (i=m.indexOf("NSIDE"))>=0 ) {
+         try { miNside.put(new Integer(m.substring(i+8)),ji); } catch( Exception e) {}
+      }
+   }
 
-    int lastOrder=-2;  // -2:à calculer, -1:inutilisé, 0 et suivant:order courant
-    boolean healpixCtrl=true;
-    Hashtable<Integer, JMenuItem> miNside = new Hashtable<Integer, JMenuItem>();
+   int lastOrder=-2;  // -2:à calculer, -1:inutilisé, 0 et suivant:order courant
+   boolean healpixCtrl=true;
+   Hashtable<Integer, JMenuItem> miNside = new Hashtable<Integer, JMenuItem>();
 
-    /** Dessin des losanges Healpix de controle */
-    protected int getOrder() {
-       if( lastOrder!=-2 ) return lastOrder;
-       lastOrder=-1;
-       Enumeration<Integer> e = aladin.miNside.keys();
-       while( e.hasMoreElements() ) {
-          int order = e.nextElement();
-          JMenuItem mi = aladin.miNside.get(order);
+   /** Dessin des losanges Healpix de controle */
+   protected int getOrder() {
+      if( lastOrder!=-2 ) return lastOrder;
+      lastOrder=-1;
+      Enumeration<Integer> e = aladin.miNside.keys();
+      while( e.hasMoreElements() ) {
+         int order = e.nextElement();
+         JMenuItem mi = aladin.miNside.get(order);
 
-          if( mi.isSelected() ) { lastOrder=order; break; }
-       }
-       return lastOrder;
-    }
+         if( mi.isSelected() ) { lastOrder=order; break; }
+      }
+      return lastOrder;
+   }
 
-    /** Ajoute au menu principal la liste des servers d'images et des servers catalogues */
-    protected void addServerMenu(ServerDialog dialog) {
-       if( miImg!=null ) miImg.removeAll();
-       if( miCat!=null ) miCat.removeAll();
-       if( miGluTool!=null ) miGluTool.removeAll();
-       String[] names = dialog.getServerNames(Server.IMAGE,true);
-       if( names!=null && names.length>0 && names[0].indexOf("Aladin")>=0) ALADIN_IMG_SERVER = names[0];
-       if( miImg!=null ) appendJMenu((JMenu)miImg,names);
-       if( miCat!=null ) appendJMenu((JMenu)miCat,dialog.getServerNames(Server.CATALOG,true));
-       if( miGluTool!=null ) appendJMenu((JMenu)miGluTool,
-             dialog.getServerNames(Server.APPLI | Server.APPLIIMG,false));
-    }
+   /** Ajoute au menu principal la liste des servers d'images et des servers catalogues */
+   protected void addServerMenu(ServerDialog dialog) {
+      if( miImg!=null ) miImg.removeAll();
+      if( miCat!=null ) miCat.removeAll();
+      if( miGluTool!=null ) miGluTool.removeAll();
+      String[] names = dialog.getServerNames(Server.IMAGE,true);
+      if( names!=null && names.length>0 && names[0].indexOf("Aladin")>=0) ALADIN_IMG_SERVER = names[0];
+      if( miImg!=null ) appendJMenu((JMenu)miImg,names);
+      if( miCat!=null ) appendJMenu((JMenu)miCat,dialog.getServerNames(Server.CATALOG,true));
+      if( miGluTool!=null ) appendJMenu((JMenu)miGluTool,
+            dialog.getServerNames(Server.APPLI | Server.APPLIIMG,false));
+   }
 
-    /** Regénère le popup menu associé aux plugins */
-    protected void pluginReload() {
-       if( miPlugs==null ) return;
-//       if( plugins!=null ) plugins.controleur.dispose();
-       plugins = new Plugins(this);         // On le regénère systématiquement
-       JMenuItem ji = ((JMenu)miPlugs).getItem(0);
-       miPlugs.removeAll();
-       miPlugs.add(ji);
-       String m[] = plugins.getNames();
-       if( m.length>0 ) {
-          ((JMenu)miPlugs).addSeparator();
-          appendJMenu((JMenu)miPlugs,m);
-       }
-    }
+   /** Regénère le popup menu associé aux plugins */
+   protected void pluginReload() {
+      if( miPlugs==null ) return;
+      //       if( plugins!=null ) plugins.controleur.dispose();
+      plugins = new Plugins(this);         // On le regénère systématiquement
+      JMenuItem ji = ((JMenu)miPlugs).getItem(0);
+      miPlugs.removeAll();
+      miPlugs.add(ji);
+      String m[] = plugins.getNames();
+      if( m.length>0 ) {
+         ((JMenu)miPlugs).addSeparator();
+         appendJMenu((JMenu)miPlugs,m);
+      }
+   }
 
-    /** Regénère le popup menu associé aux Ciels */
-    public void gluSkyReload() {
-       if( isNonCertifiedApplet() || miGluSky==null ) return;
+   /** Regénère le popup menu associé aux Ciels */
+   public void gluSkyReload() {
+      if( isNonCertifiedApplet() || miGluSky==null ) return;
 
-       String m[] = glu.getGluSkyMenu();
+      String m[] = glu.getGluSkyMenu();
 
-       if( m.length==0 ) return;
-       miGluSky.removeAll();
-       appendJMenu((JMenu)miGluSky,m);
-//       sky(m[0].substring(1));  // POUR LE MOMENT JE SELECTIONNE LE PREMIER, IL FAUDRA PRENDRE EN COMPTE LES PREF
+      if( m.length==0 ) return;
+      miGluSky.removeAll();
+      appendJMenu((JMenu)miGluSky,m);
+      //       sky(m[0].substring(1));  // POUR LE MOMENT JE SELECTIONNE LE PREMIER, IL FAUDRA PRENDRE EN COMPTE LES PREF
 
-     }
+   }
 
-    /** Regénère le popup menu associé aux VOtools */
-    protected void VOReload() {
-       if( isNonCertifiedApplet() || miVOtool==null ) return;
-       JMenuItem ji = ((JMenu)miVOtool).getItem(0);
-       miVOtool.removeAll();
-       miVOtool.add(ji);
-       String m[] = glu.getAppMenu();
-       if( m.length>0 ) {
-          ((JMenu)miVOtool).addSeparator();
-          appendJMenu((JMenu)miVOtool,m);
-       }
-     }
+   /** Regénère le popup menu associé aux VOtools */
+   protected void VOReload() {
+      if( isNonCertifiedApplet() || miVOtool==null ) return;
+      JMenuItem ji = ((JMenu)miVOtool).getItem(0);
+      miVOtool.removeAll();
+      miVOtool.add(ji);
+      String m[] = glu.getAppMenu();
+      if( m.length>0 ) {
+         ((JMenu)miVOtool).addSeparator();
+         appendJMenu((JMenu)miVOtool,m);
+      }
+   }
 
-    /** Retourne le numéro de session d'Aladin. N'a d'intérêt que dans le
-     * cas d'instanciation multiple d'Aladin */
-    public int getInstanceId() { return aladinSession; }
+   /** Retourne le numéro de session d'Aladin. N'a d'intérêt que dans le
+    * cas d'instanciation multiple d'Aladin */
+   public int getInstanceId() { return aladinSession; }
 
 
    /** Creation des objets et mise en place de l'interface.
-     * On utilisera la plupart du temps des Panels hierarchises
-     */
-    protected void suiteInit() {
-       aladin=this;                 // Une horreur pour que ça marche en applet
+    * On utilisera la plupart du temps des Panels hierarchises
+    */
+   protected void suiteInit() {
+      aladin=this;                 // Une horreur pour que ça marche en applet
 
-       if( !flagLaunch ) {
-          try {
-             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-             
-//           UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
+      if( !flagLaunch ) {
+         try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 
-          } catch( Exception e ) { e.printStackTrace(); }
-       }
+            //           UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
 
-       addMouseMotionListener(this);
-       addMouseListener(this);
-       setBackground((new JButton()).getBackground());   // UN PEU TORDU
-       ((JPanel)getContentPane()).setBorder(BorderFactory.createEmptyBorder(0,3,0,2));
+         } catch( Exception e ) { e.printStackTrace(); }
+      }
 
-       aladinSession = (++ALADINSESSION);
-//       CDSHealpix.init();
-       configuration = new Configuration(this);
-       if( STANDALONE ) {
-          try {  configuration.load(); }
-          catch( Exception e ) { System.err.println(e.getMessage()); }
-       }
+      addMouseMotionListener(this);
+      addMouseListener(this);
+      setBackground((new JButton()).getBackground());   // UN PEU TORDU
+      ((JPanel)getContentPane()).setBorder(BorderFactory.createEmptyBorder(0,3,0,2));
 
-       if( !setOUTREACH ) OUTREACH = configuration.isOutReach();
-       ENABLE_FOOTPRINT_OPACITY = configuration.isTransparent();
-       DEFAULT_FOOTPRINT_OPACITY_LEVEL = configuration.getTransparencyLevel();
-       if( configuration.isBeginner() && !flagScreen ) { SCREEN="preview"; flagScreen=true; }
-       
-       if( kernelList==null ) kernelList = new KernelList(this);
-       if( chaine==null ) chaine = new Chaine(this);
-       creatChaine();
+      aladinSession = (++ALADINSESSION);
+      //       CDSHealpix.init();
+      configuration = new Configuration(this);
+      if( STANDALONE ) {
+         try {  configuration.load(); }
+         catch( Exception e ) { System.err.println(e.getMessage()); }
+      }
 
-       osName = System.getProperty("os.name");
-       osArch = System.getProperty("os.arch");
-       osVersion = System.getProperty("os.version");
-       javaVersion = System.getProperty("java.version");
-       javaVendor = System.getProperty("java.vendor");
+      if( !setOUTREACH ) OUTREACH = configuration.isOutReach();
+      ENABLE_FOOTPRINT_OPACITY = configuration.isTransparent();
+      DEFAULT_FOOTPRINT_OPACITY_LEVEL = configuration.getTransparencyLevel();
+      if( configuration.isBeginner() && !flagScreen ) { SCREEN="preview"; flagScreen=true; }
 
-       int v = numJVMVersion(javaVersion);
-       ISLINUX = osName.indexOf("Linux")>=0;
-       ISJNLP = FROMDB!=null && FROMDB.equals("CDS-WebStart");
-       ISJVM15 = javaVersion.startsWith("1.5");
-       ISJVM16 = javaVersion.startsWith("1.6");
+      if( kernelList==null ) kernelList = new KernelList(this);
+      if( chaine==null ) chaine = new Chaine(this);
+      creatChaine();
 
-       makeCursor(this,WAITCURSOR);
+      osName = System.getProperty("os.name");
+      osArch = System.getProperty("os.arch");
+      osVersion = System.getProperty("os.version");
+      javaVersion = System.getProperty("java.version");
+      javaVendor = System.getProperty("java.vendor");
 
-       // Pour gérer les accès protégé.
-       try {
-//          Class auth = Class.forName("java.net.Authenticator");
-//          Method setDefault = auth.getDeclaredMethod("setDefault",new Class[]{ auth });
-//          setDefault.invoke((Object)null, new Object[] { new MyAuthenticator() } );
+      int v = numJVMVersion(javaVersion);
+      ISLINUX = osName.indexOf("Linux")>=0;
+      ISJNLP = FROMDB!=null && FROMDB.equals("CDS-WebStart");
+      ISJVM15 = javaVersion.startsWith("1.5");
+      ISJVM16 = javaVersion.startsWith("1.6");
 
-          // METHODE PLUS SIMPLE DES QUE COMPATIBLE JVM 1.2
-          Authenticator.setDefault(new MyAuthenticator());
+      makeCursor(this,WAITCURSOR);
 
-       } catch( Exception e) {  }
+      // Pour gérer les accès protégé.
+      try {
+         //          Class auth = Class.forName("java.net.Authenticator");
+         //          Method setDefault = auth.getDeclaredMethod("setDefault",new Class[]{ auth });
+         //          setDefault.invoke((Object)null, new Object[] { new MyAuthenticator() } );
 
-       // Affichage du banner
-       if( BANNER && !NOGUI && aladinSession==0 && (!isApplet() || flagLaunch) ) {
-          (new Thread("AladinBanner") {
-             @Override
+         // METHODE PLUS SIMPLE DES QUE COMPATIBLE JVM 1.2
+         Authenticator.setDefault(new MyAuthenticator());
+
+      } catch( Exception e) {  }
+
+      // Affichage du banner
+      if( BANNER && !NOGUI && aladinSession==0 && (!isApplet() || flagLaunch) ) {
+         (new Thread("AladinBanner") {
+            @Override
             public void run() { banner=new Banner(aladin); }
 
-          }).start();
-          Util.pause(50);
-       }
-
-       getContentPane().setLayout( new BorderLayout(0,0) );
-       int id = getInstanceId();
-
-       if( !flagLaunch && !NOGUI ) {
-          System.out.println("\nAladin ("+VERSION+") "+(id>0?"- instance "+id+" ":"")+chaine.getString("STARTING")+ "...");
-          System.out.println(chaine.getString("BANNER")+"\n  "+Aladin.COPYRIGHT);
-       }
-
-       //Recuperation d'un frame bidon pour l'applet qui n'en a pas
-       if( f==null ) f = new MyFrame(this,TITRE+" "+getReleaseNumber());
-
-       // Initialisation des objets
-       // Rq:  L'ordre de creation des objets n'est pas qcq
-       creatFonts();
-       
-       cache = new Cache(aladin);
-       bookmarks = new Bookmarks(this);
-       co = new CreatObj(this);
-
-       // Mise à jour des langues supportées
-       configuration.loadRemoteLang();
-       
-       
-       JButton b;
-       ButtonGroup bg = new ButtonGroup();
-       searchData = b = new JButton(new ImageIcon(getImagette("Load.gif")));
-       b.setMargin(new Insets(0,0,0,0));
-       b.setBorderPainted(false);
-       b.setContentAreaFilled(false);
-       // sera activé dans CreatObj apres creation de ServerDialog
-       b.setEnabled(false);
-       Util.toolTip(searchData,chaine.getString("TIPOPEN"));
-       b.addActionListener( new ActionListener() {
-          public void actionPerformed(ActionEvent e) {
-             setHelp(false);
-             execute(OPENLOAD);
-          }
-       });
-       bg.add(b);
-
-       ExportYourWork = b = new JButton(new ImageIcon(getImagette("Export.gif")));
-       b.setMargin(new Insets(0,0,0,0));
-       b.setBorderPainted(false);
-       b.setContentAreaFilled(false);
-       Util.toolTip(b,chaine.getString("TIPEXPORT"));
-       b.addActionListener( new ActionListener() {
-          public void actionPerformed(ActionEvent e) {
-             setHelp(false);
-             execute(MSAVE);
-          }
-       });
-       bg.add(b);
-
-//       avant = b = new JButton(new ImageIcon(getImagette("Avant.gif")));
-//       b.setMargin(new Insets(0,0,0,0));
-//       b.setBorderPainted(false);
-//       b.setContentAreaFilled(false);
-//       Util.toolTip(b,chaine.getString("TIPAVANT"));
-//       b.addActionListener( new ActionListener() {
-//          public void actionPerformed(ActionEvent e) {
-//             view.undo( (e.SHIFT_MASK & e.getModifiers())!=0 );
-//          }
-//       });
-//       bg.add(b);
-//
-//       apres = b = new JButton(new ImageIcon(getImagette("Apres.gif")));
-//       b.setMargin(new Insets(0,0,0,0));
-//       b.setBorderPainted(false);
-//       b.setContentAreaFilled(false);
-//       Util.toolTip(b,chaine.getString("TIPPRES"));
-//       b.addActionListener( new ActionListener() {
-//          public void actionPerformed(ActionEvent e) {
-//             view.redo( (e.SHIFT_MASK & e.getModifiers())!=0 );
-//          }
-//       });
-//       bg.add(b);
-
-       // Le bandeau sous le menu : Panel saisie comportant la localisation
-       // et le target lie au plan de reference
-       JToolBar saisie1 = new JToolBar();
-       saisie1.setFloatable(false);
-       saisie1.setBorder(BorderFactory.createEmptyBorder());
-       saisie1.add(searchData);
-       saisie1.add(ExportYourWork);
-//       saisie1.addSeparator();
-//       saisie1.add(avant);
-//       saisie1.add(apres);
-       JPanel saisie = new JPanel( new BorderLayout(0,0));
-       saisie.add(saisie1,BorderLayout.WEST);
-       saisie.add(localisation, BorderLayout.CENTER);
-//       if( !OUTREACH && !BETA ) saisie.add(pixel);
-
-       // creation widget plastic (doit se faire avant la creation du menu)
-       if( PLASTIC_SUPPORT ) {
-           plasticWidget = new PlasticWidget(this);
-       }
-
-       // Creation du menu
-       if( !NOGUI ) {
-          trace(1,"Creating the Menu");
-          JMenuBar jBar = createJBar( createMenu() );
-          // TODO : que faire en mode applet ??
-          if( STANDALONE && macPlateform && !isApplet() ) f.setJMenuBar(jBar);
-          else setJMenuBar(jBar);
-       }
-
-       trace(1,"Creating the main interface");
-
-       // Le Panel contenant a la fois le View et le help
-       cardView =  new CardLayout();
-       bigView = new JPanel(cardView);
-       bigView.add("Help",help);
-       bigView.add("View",view);
-       
-       JPanel gauche1 = new JPanel( new BorderLayout(3,0));
-       gauche1.add(bigView,BorderLayout.CENTER);
-
-       // Désactivation des éléments de menus et des boutons non encore accessible
-       setButtonMode();
-
-       // Le panel gauche : contient la boite a boutons et les calques
-       final JPanel gauche = new JPanel(new BorderLayout(3,0));
-       gauche.add(calque,BorderLayout.CENTER);
-       
-       JPanel gauche2;
-       gauche2 = new JPanel(new BorderLayout(2,0));
-       gauche2.setBorder( BorderFactory.createEmptyBorder(0, 2, 0, 0));
-       gauche2.add(toolBox,BorderLayout.WEST);
-       gauche2.add(gauche,BorderLayout.CENTER);
-
-       // Le panel haut1 : contient le menu et le bandeau d'info
-       JPanel haut1 = new JPanel(new BorderLayout(1,1));
-       haut1.add(saisie,BorderLayout.NORTH);
-       JPanel  panelBookmarks = new JPanel( new BorderLayout(0,0));
-       panelBookmarks.add( bookmarks.getToolBar(), BorderLayout.CENTER);
-       haut1.add(panelBookmarks,BorderLayout.SOUTH);
-
-       // Le panel haut : contient le logo et le haut1
-       JPanel haut = new JPanel(new BorderLayout(0,0));
-       haut.setBorder(BorderFactory.createEmptyBorder(4,0,0,40));
-       haut.add(haut1,BorderLayout.CENTER);
-       haut.add(logo,BorderLayout.EAST);
-
-       // le panel du status
-       JPanel searchPanel = new JPanel(new BorderLayout(0,0));
-       searchPanel.setBorder(BorderFactory.createEmptyBorder(3,0,0,0));
-       
-       JPanel y = new JPanel( new FlowLayout(FlowLayout.CENTER,0,0));
-       y.setBorder(BorderFactory.createEmptyBorder());
-       y.add(grid);
-       if( !OUTREACH ) { y.add(oeil); y.add(northup); }
-       y.add(viewControl);
-       if( !OUTREACH ) y.add(sync);
-
-       makeAdd(searchPanel,y,"West");
-       makeAdd(searchPanel,status,"Center");
-       makeAdd(searchPanel,search,"East");
-
-       GridBagLayout g = new GridBagLayout();
-       infoPanel = new JPanel(g);
-       GridBagConstraints gc = new GridBagConstraints();
-       gc.gridwidth = 3;
-       gc.weightx = 1;
-       gc.anchor=GridBagConstraints.WEST;
-       gc.fill=GridBagConstraints.HORIZONTAL;
-       g.setConstraints(urlStatus, gc);
-       infoPanel.add(urlStatus);
-
-       gc.weightx = 0;
-       gc.anchor=GridBagConstraints.EAST;
-       g.setConstraints(memStatus, gc);
-       infoPanel.add(memStatus);
-
-       if( PLASTIC_SUPPORT ) {
-          getMessagingMgr().setPlasticWidget(plasticWidget);
-
-          if( macPlateform ) gc.insets.right = 14;
-          g.setConstraints(plasticWidget, gc);
-          infoPanel.add(plasticWidget);
-
-          plasticPrefs = new PlasticPreferences(this);
-       }
-
-       // Le panel principal
-
-       JPanel ct;
-       // indispensable sous MacOS, sinon les raccourcis clavier ne fonctionneront pas !
-       if( f!=null && macPlateform && !isApplet() ) ct = (JPanel)f.getContentPane();
-       else ct = (JPanel)getContentPane();
-
-       ct.setBackground(getBackground());
-       ct.setLayout( new BorderLayout(3,3) );
-       ct.setBorder(BorderFactory.createEmptyBorder(0,0,0,0));
-//       ct.setBorder(BorderFactory.createEmptyBorder(0,3,0,3));
-
-       // test thomas (avec un séparateur) + Pierre
-//       final MySplitPane splitV = new MySplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
-//             gauche1, gauche2);
-//       splitV.setBorder(BorderFactory.createEmptyBorder());
-//       splitV.setResizeWeight(1);
-//       gauche.setMinimumSize(new Dimension(ZoomView.SIZE + ToolBox.W,200));
-//       gauche1.setMinimumSize(new Dimension(300,300));
-       
-       JPanel splitV = new JPanel( new BorderLayout(0,0));
-       splitV.add(gauche1,BorderLayout.CENTER);
-       splitV.add(gauche2,BorderLayout.EAST);
-
-       JPanel bigViewSearch = new JPanel( new BorderLayout(0,0));
-       bigViewSearch.add(splitV,BorderLayout.CENTER);
-       bigViewSearch.add(searchPanel,BorderLayout.SOUTH);
-
-       splitH = new MySplitPane(JSplitPane.VERTICAL_SPLIT, true,
-             bigViewSearch, mesure);
-       mesure.setPreferredSize(new Dimension(100,150));
-       mesure.setMinimumSize(new Dimension(100,0));
-       splitH.remove(mesure);
-       splitH.setBorder(BorderFactory.createEmptyBorder());
-       makeAdd(ct,haut,"North");
-       makeAdd(ct,splitH,"Center");
-       makeAdd(ct,infoPanel,"South");
-
-       // Dernier objet a creer et traitement des parametres
-       co.creatLastObj();
-
-       // Juste pour s'en souvenir en cas de re-fenestration
-       if( SIGNEDAPPLET || (!STANDALONE && extApp==null) ) {
-          origPos = getBounds();
-          myParent = getParent();
-       }
-
-       // Evaluation de la vitesse, methode Thomas
-       speed = getSpeed();
-       isSlow = speed>slownessThreshold;
-
-       // Log
-       log("Start",(SIGNEDAPPLET?"signed applet ":STANDALONE?"standalone ":"applet ")+VERSION+
-                       " perf="+speed+
-                       " java="+javaVersion+"/"+javaVendor+
-                       " syst="+osName+"/"+osArch+"/"+osVersion+
-                       (FROMDB!=null?" from="+FROMDB:"")+
-                       " lang="+configuration.getLanguage());
-
-       if( !flagLaunch && !NOGUI ) {
-          System.out.println(chaine.getString("YOURJVM")+" "+javaVersion+" / "+javaVendor);
-       }
-
-       // En mode trace, affichage du classpath
-       if( STANDALONE ) Aladin.trace(1, "Classpath is : ** "+System.getProperty("java.class.path")+" **");
-
-       // Suppression d'éventuels vieux caches oubliés
-       if( STANDALONE && getInstanceId()==0 ) removeOldCaches();
-
-       // Cache le banner si ce n'est déjà fait
-       if( banner!=null ) banner.setVisible(false);
-
-       // Le mot d'accueil pour le demarrage
-       if( aladinSession==0 ) {
-          msgOn=true;
-          help.setCenter(true);
-          help.setText(isLoading()?logo.inProgress():logo.Help());
-       } else {
-          cardView.show(bigView,"View");
-          msgOn=false;
-       }
-
-       // Lecture des commandes scripts sur la console (et/ou stdin)
-       if( CONSOLE ) command.readStandardInput();
-
-       // Message d'avertissement pour le mode applet bridée
-       if( !STANDALONE && v>=120 && !warningRestricted) {
-          warningRestricted = true;
-          warning(chaine.getString("RESTRICTED"));
-       }
-       
-       manageDrop();
-
-       if( !aladin.NOGUI ) {
-          (new Thread("Start"){
-             @Override
-            public void run () {
-                Util.pause(7000);
-                localisation.infoStart();
-             }
-          }).start();
-       }
-    }
-    
-    protected void manageDrop() {
-       // IL Y A UN GROS BUG SOUS LINUX QUI FAIT QUE LA JVM DU BROWSER SE PLANTE ET
-       // PLANTE LE BROWSER LORSQUE L'ON FAIT UN DETACH() SI LA FRAME EST DRAG&DROP
-       if( !( isApplet() && osName.startsWith("Linux")) ) {
-
-          // Pour gérer le DnD de fichiers externes
-          new DropTarget (this, this);
-          DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(
-                this, DnDConstants.ACTION_COPY_OR_MOVE, this);
-       }
-    }
-    
-    // Surcharges de classes pour supprimer le trait séparateur du JSplitPane
-    class MySplitPane extends JSplitPane {
-       public MySplitPane(int newOrientation, boolean newContinuousLayout,
-             Component newLeftComponent, Component newRightComponent ) {
-          super(newOrientation,newContinuousLayout,newLeftComponent,newRightComponent);
-          flagMesure = newOrientation==JSplitPane.VERTICAL_SPLIT;
-          setUI(new MyBasicSplitPaneUI());
-       }
-       
-       private boolean flagMesure;
-       private int mesureHeight;
-       
-       // Repositionne le diviseur à la position mémorisée
-       public void restoreMesureHeight() {
-          setDividerLocation(getHeight()-(mesureHeight<=0 ? 150 : mesureHeight)); }
-       
-       // Positionne le diviseur en fonction de la taille de la fenêtre des mesures,
-       // et mémorise cette valeur pour pouvoir y revenir 
-       public void setMesureHeight(int h) { mesureHeight=h; }
-       
-       // Retourne la taille de la fenêtre des mesures.
-       public int getMesureHeight() { return mesureHeight; }
-       
-       // On bride à 55 pixels minimum pour la taille de la fenêtre des mesures
-       public void setDividerLocation(int n) {
-          if( flagMesure ) {
-             int h = getHeight();
-             if( h-n<53 ) return;
-             mesureHeight = h-n;
-          }
-          super.setDividerLocation(n);
-       }
-       
-    }
-    class MyBasicSplitPaneUI extends BasicSplitPaneUI {
-       @Override
-    public BasicSplitPaneDivider createDefaultDivider() {
-          return new MySplitPaneDivider(this);
+         }).start();
+         Util.pause(50);
       }
-    }
-    class MySplitPaneDivider extends BasicSplitPaneDivider {
-       public MySplitPaneDivider(BasicSplitPaneUI ui) { super(ui); }
-       @Override
-    public void paint(Graphics g) {
-//          g.setColor(Color.gray);
-//          if( getBasicSplitPaneUI().getOrientation()==JSplitPane.HORIZONTAL_SPLIT ) {
-//             Util.drawVerticalSplitPaneTriangle(g,0,view.getHeight()-25);
-//          } else {
-//             Util.drawHorizontalSplitPaneTriangle(g,view.getWidth()-25,0);
-//          }
-       }
-    }
+
+      getContentPane().setLayout( new BorderLayout(0,0) );
+      int id = getInstanceId();
+
+      if( !flagLaunch && !NOGUI ) {
+         System.out.println("\nAladin ("+VERSION+") "+(id>0?"- instance "+id+" ":"")+chaine.getString("STARTING")+ "...");
+         System.out.println(chaine.getString("BANNER")+"\n  "+Aladin.COPYRIGHT);
+      }
+
+      //Recuperation d'un frame bidon pour l'applet qui n'en a pas
+      if( f==null ) f = new MyFrame(this,TITRE+" "+getReleaseNumber());
+
+      // Initialisation des objets
+      // Rq:  L'ordre de creation des objets n'est pas qcq
+      creatFonts();
+
+      cache = new Cache(aladin);
+      bookmarks = new Bookmarks(this);
+      co = new CreatObj(this);
+
+      // Mise à jour des langues supportées
+      configuration.loadRemoteLang();
+
+      JButton b;
+      ButtonGroup bg = new ButtonGroup();
+      searchData = b = new JButton(new ImageIcon(getImagette("Load.gif")));
+      b.setMargin(new Insets(0,0,0,0));
+      b.setBorderPainted(false);
+      b.setContentAreaFilled(false);
+      // sera activé dans CreatObj apres creation de ServerDialog
+      b.setEnabled(false);
+      Util.toolTip(searchData,chaine.getString("TIPOPEN"));
+      b.addActionListener( new ActionListener() {
+         public void actionPerformed(ActionEvent e) {
+            setHelp(false);
+            execute(OPENLOAD);
+         }
+      });
+      bg.add(b);
+
+      ExportYourWork = b = new JButton(new ImageIcon(getImagette("Export.gif")));
+      b.setMargin(new Insets(0,0,0,0));
+      b.setBorderPainted(false);
+      b.setContentAreaFilled(false);
+      Util.toolTip(b,chaine.getString("TIPEXPORT"));
+      b.addActionListener( new ActionListener() {
+         public void actionPerformed(ActionEvent e) {
+            setHelp(false);
+            execute(MSAVE);
+         }
+      });
+      bg.add(b);
+
+      //       avant = b = new JButton(new ImageIcon(getImagette("Avant.gif")));
+      //       b.setMargin(new Insets(0,0,0,0));
+      //       b.setBorderPainted(false);
+      //       b.setContentAreaFilled(false);
+      //       Util.toolTip(b,chaine.getString("TIPAVANT"));
+      //       b.addActionListener( new ActionListener() {
+      //          public void actionPerformed(ActionEvent e) {
+      //             view.undo( (e.SHIFT_MASK & e.getModifiers())!=0 );
+      //          }
+      //       });
+      //       bg.add(b);
+      //
+      //       apres = b = new JButton(new ImageIcon(getImagette("Apres.gif")));
+      //       b.setMargin(new Insets(0,0,0,0));
+      //       b.setBorderPainted(false);
+      //       b.setContentAreaFilled(false);
+      //       Util.toolTip(b,chaine.getString("TIPPRES"));
+      //       b.addActionListener( new ActionListener() {
+      //          public void actionPerformed(ActionEvent e) {
+      //             view.redo( (e.SHIFT_MASK & e.getModifiers())!=0 );
+      //          }
+      //       });
+      //       bg.add(b);
+
+      // Le bandeau sous le menu : Panel saisie comportant la localisation
+      // et le target lie au plan de reference
+      JToolBar saisie1 = new JToolBar();
+      saisie1.setFloatable(false);
+      saisie1.setBorder(BorderFactory.createEmptyBorder());
+      saisie1.add(searchData);
+      saisie1.add(ExportYourWork);
+      //       saisie1.addSeparator();
+      //       saisie1.add(avant);
+      //       saisie1.add(apres);
+      JPanel saisie = new JPanel( new BorderLayout(0,0));
+      saisie.add(saisie1,BorderLayout.WEST);
+      saisie.add(localisation, BorderLayout.CENTER);
+      //       if( !OUTREACH && !BETA ) saisie.add(pixel);
+
+      // creation widget plastic (doit se faire avant la creation du menu)
+      if( PLASTIC_SUPPORT ) {
+         plasticWidget = new PlasticWidget(this);
+      }
+
+      // Creation du menu
+      if( !NOGUI ) {
+         trace(1,"Creating the Menu");
+         JMenuBar jBar = createJBar( createMenu() );
+         // TODO : que faire en mode applet ??
+         if( STANDALONE && macPlateform && !isApplet() ) f.setJMenuBar(jBar);
+         else setJMenuBar(jBar);
+      }
+
+      trace(1,"Creating the main interface");
+
+      // Le Panel contenant a la fois le View et le help
+      cardView =  new CardLayout();
+      bigView = new JPanel(cardView);
+      bigView.add("Help",help);
+      bigView.add("View",view);
+
+      JPanel gauche1 = new JPanel( new BorderLayout(3,0));
+      gauche1.add(bigView,BorderLayout.CENTER);
+
+      // Désactivation des éléments de menus et des boutons non encore accessible
+      setButtonMode();
+
+      // Le panel gauche : contient la boite a boutons et les calques
+      final JPanel gauche = new JPanel(new BorderLayout(3,0));
+      gauche.add(calque,BorderLayout.CENTER);
+
+      JPanel gauche2;
+      gauche2 = new JPanel(new BorderLayout(2,0));
+      gauche2.setBorder( BorderFactory.createEmptyBorder(0, 2, 0, 0));
+      gauche2.add(toolBox,BorderLayout.WEST);
+      gauche2.add(gauche,BorderLayout.CENTER);
+
+      // Le panel haut1 : contient le menu et le bandeau d'info
+      JPanel haut1 = new JPanel(new BorderLayout(1,1));
+      haut1.add(saisie,BorderLayout.NORTH);
+      JPanel  panelBookmarks = new JPanel( new BorderLayout(0,0));
+      panelBookmarks.add( bookmarks.getToolBar(), BorderLayout.CENTER);
+      haut1.add(panelBookmarks,BorderLayout.SOUTH);
+
+      // Le panel haut : contient le logo et le haut1
+      JPanel haut = new JPanel(new BorderLayout(0,0));
+      haut.setBorder(BorderFactory.createEmptyBorder(4,0,0,40));
+      haut.add(haut1,BorderLayout.CENTER);
+      haut.add(logo,BorderLayout.EAST);
+
+      // le panel du status
+      JPanel searchPanel = new JPanel(new BorderLayout(0,0));
+      searchPanel.setBorder(BorderFactory.createEmptyBorder(3,0,0,0));
+
+      JPanel y = new JPanel( new FlowLayout(FlowLayout.CENTER,0,0));
+      y.setBorder(BorderFactory.createEmptyBorder());
+      y.add(grid);
+      if( !OUTREACH ) { y.add(oeil); y.add(northup); y.add(pix); }
+      y.add(viewControl);
+      if( !OUTREACH ) y.add(match);
+
+      makeAdd(searchPanel,y,"West");
+      makeAdd(searchPanel,status,"Center");
+      makeAdd(searchPanel,search,"East");
+
+      GridBagLayout g = new GridBagLayout();
+      infoPanel = new JPanel(g);
+      GridBagConstraints gc = new GridBagConstraints();
+      gc.gridwidth = 3;
+      gc.weightx = 1;
+      gc.anchor=GridBagConstraints.WEST;
+      gc.fill=GridBagConstraints.HORIZONTAL;
+      g.setConstraints(urlStatus, gc);
+      infoPanel.add(urlStatus);
+
+      gc.weightx = 0;
+      gc.anchor=GridBagConstraints.EAST;
+      g.setConstraints(memStatus, gc);
+      infoPanel.add(memStatus);
+
+      if( PLASTIC_SUPPORT ) {
+         getMessagingMgr().setPlasticWidget(plasticWidget);
+
+         if( macPlateform ) gc.insets.right = 14;
+         g.setConstraints(plasticWidget, gc);
+         infoPanel.add(plasticWidget);
+
+         plasticPrefs = new PlasticPreferences(this);
+      }
+
+      // Le panel principal
+
+      JPanel ct;
+      // indispensable sous MacOS, sinon les raccourcis clavier ne fonctionneront pas !
+      if( f!=null && macPlateform && !isApplet() ) ct = (JPanel)f.getContentPane();
+      else ct = (JPanel)getContentPane();
+
+      ct.setBackground(getBackground());
+      ct.setLayout( new BorderLayout(3,3) );
+      ct.setBorder(BorderFactory.createEmptyBorder(0,0,0,0));
+      //       ct.setBorder(BorderFactory.createEmptyBorder(0,3,0,3));
+
+      // test thomas (avec un séparateur) + Pierre
+      //       final MySplitPane splitV = new MySplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
+      //             gauche1, gauche2);
+      //       splitV.setBorder(BorderFactory.createEmptyBorder());
+      //       splitV.setResizeWeight(1);
+      //       gauche.setMinimumSize(new Dimension(ZoomView.SIZE + ToolBox.W,200));
+      //       gauche1.setMinimumSize(new Dimension(300,300));
+
+      JPanel splitV = new JPanel( new BorderLayout(0,0));
+      splitV.add(gauche1,BorderLayout.CENTER);
+      splitV.add(gauche2,BorderLayout.EAST);
+
+      JPanel bigViewSearch = new JPanel( new BorderLayout(0,0));
+      bigViewSearch.add(splitV,BorderLayout.CENTER);
+      bigViewSearch.add(searchPanel,BorderLayout.SOUTH);
+
+      splitH = new MySplitPane(JSplitPane.VERTICAL_SPLIT, true,
+            bigViewSearch, mesure);
+      mesure.setPreferredSize(new Dimension(100,150));
+      mesure.setMinimumSize(new Dimension(100,0));
+      splitH.remove(mesure);
+      splitH.setBorder(BorderFactory.createEmptyBorder());
+      makeAdd(ct,haut,"North");
+      makeAdd(ct,splitH,"Center");
+      makeAdd(ct,infoPanel,"South");
+
+      // Dernier objet a creer et traitement des parametres
+      co.creatLastObj();
+
+      // Juste pour s'en souvenir en cas de re-fenestration
+      if( SIGNEDAPPLET || (!STANDALONE && extApp==null) ) {
+         origPos = getBounds();
+         myParent = getParent();
+      }
+
+      // Evaluation de la vitesse, methode Thomas
+      speed = getSpeed();
+      isSlow = speed>slownessThreshold;
+
+      // Log
+      log("Start",(SIGNEDAPPLET?"signed applet ":STANDALONE?"standalone ":"applet ")+VERSION+
+            " perf="+speed+
+            " java="+javaVersion+"/"+javaVendor+
+            " syst="+osName+"/"+osArch+"/"+osVersion+
+            (FROMDB!=null?" from="+FROMDB:"")+
+            " lang="+configuration.getLanguage());
+
+      if( !flagLaunch && !NOGUI ) {
+         System.out.println(chaine.getString("YOURJVM")+" "+javaVersion+" / "+javaVendor);
+      }
+
+      // En mode trace, affichage du classpath
+      if( STANDALONE ) Aladin.trace(1, "Classpath is : ** "+System.getProperty("java.class.path")+" **");
+
+      // Suppression d'éventuels vieux caches oubliés
+      if( STANDALONE && getInstanceId()==0 ) removeOldCaches();
+
+      // Cache le banner si ce n'est déjà fait
+      if( banner!=null ) banner.setVisible(false);
+
+      // Le mot d'accueil pour le demarrage
+      if( aladinSession==0 ) {
+         msgOn=true;
+         help.setCenter(true);
+         help.setText(isLoading()?logo.inProgress():logo.Help());
+      } else {
+         cardView.show(bigView,"View");
+         msgOn=false;
+      }
+
+      // Lecture des commandes scripts sur la console (et/ou stdin)
+      if( CONSOLE ) command.readStandardInput();
+
+      // Message d'avertissement pour le mode applet bridée
+      if( !STANDALONE && v>=120 && !warningRestricted) {
+         warningRestricted = true;
+         warning(chaine.getString("RESTRICTED"));
+      }
+
+      manageDrop();
+
+      if( !aladin.NOGUI ) {
+         (new Thread("Start"){
+            @Override
+            public void run () {
+               Util.pause(7000);
+               localisation.infoStart();
+            }
+         }).start();
+      }
+   }
+
+   protected void manageDrop() {
+      // IL Y A UN GROS BUG SOUS LINUX QUI FAIT QUE LA JVM DU BROWSER SE PLANTE ET
+      // PLANTE LE BROWSER LORSQUE L'ON FAIT UN DETACH() SI LA FRAME EST DRAG&DROP
+      if( !( isApplet() && osName.startsWith("Linux")) ) {
+
+         // Pour gérer le DnD de fichiers externes
+         new DropTarget (this, this);
+         DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(
+               this, DnDConstants.ACTION_COPY_OR_MOVE, this);
+      }
+   }
+
+   // Surcharges de classes pour supprimer le trait séparateur du JSplitPane
+   class MySplitPane extends JSplitPane {
+      public MySplitPane(int newOrientation, boolean newContinuousLayout,
+            Component newLeftComponent, Component newRightComponent ) {
+         super(newOrientation,newContinuousLayout,newLeftComponent,newRightComponent);
+         flagMesure = newOrientation==JSplitPane.VERTICAL_SPLIT;
+         setUI(new MyBasicSplitPaneUI());
+      }
+
+      private boolean flagMesure;
+      private int mesureHeight;
+
+      // Repositionne le diviseur à la position mémorisée
+      public void restoreMesureHeight() {
+         setDividerLocation(getHeight()-(mesureHeight<=0 ? 150 : mesureHeight)); }
+
+      // Positionne le diviseur en fonction de la taille de la fenêtre des mesures,
+      // et mémorise cette valeur pour pouvoir y revenir
+      public void setMesureHeight(int h) { mesureHeight=h; }
+
+      // Retourne la taille de la fenêtre des mesures.
+      public int getMesureHeight() { return mesureHeight; }
+
+      // On bride à 55 pixels minimum pour la taille de la fenêtre des mesures
+      public void setDividerLocation(int n) {
+         if( flagMesure ) {
+            int h = getHeight();
+            if( h-n<53 ) return;
+            mesureHeight = h-n;
+         }
+         super.setDividerLocation(n);
+      }
+
+   }
+   class MyBasicSplitPaneUI extends BasicSplitPaneUI {
+      @Override
+      public BasicSplitPaneDivider createDefaultDivider() {
+         return new MySplitPaneDivider(this);
+      }
+   }
+   class MySplitPaneDivider extends BasicSplitPaneDivider {
+      public MySplitPaneDivider(BasicSplitPaneUI ui) { super(ui); }
+      @Override
+      public void paint(Graphics g) {
+         //          g.setColor(Color.gray);
+         //          if( getBasicSplitPaneUI().getOrientation()==JSplitPane.HORIZONTAL_SPLIT ) {
+         //             Util.drawVerticalSplitPaneTriangle(g,0,view.getHeight()-25);
+         //          } else {
+         //             Util.drawHorizontalSplitPaneTriangle(g,view.getWidth()-25,0);
+         //          }
+      }
+   }
 
 
-    /** Subtilité pour faire de la mise en page une fois que toutes les peer classes
-     * aient été correctement initialisées
-     */
-    @Override
-    public void paint(Graphics g) {
-       if( !flagScreen || isApplet() ) { super.paint(g); return; }
+   /** Subtilité pour faire de la mise en page une fois que toutes les peer classes
+    * aient été correctement initialisées
+    */
+   @Override
+   public void paint(Graphics g) {
+      if( !flagScreen || isApplet() ) { super.paint(g); return; }
 
-       if( SCREEN.equals("full") ) {
-          detach(false);
-          fullScreen(0);
-       } else if( SCREEN.startsWith("preview") ) {
-          detach(false);
-          fullScreen(SCREEN.equals("previewhidden") ? 2 : 1);
-       } else if( SCREEN.equals("frame") ) {
-          detach();
-       }
-       flagScreen=false;
-    }
+      if( SCREEN.equals("full") ) {
+         detach(false);
+         fullScreen(0);
+      } else if( SCREEN.equals("cinema") ) {
+         detach(false);
+         fullScreen(3);
+      } else if( SCREEN.startsWith("preview") ) {
+         detach(false);
+         fullScreen(SCREEN.equals("previewhidden") ? 2 : 1);
+      } else if( SCREEN.equals("frame") ) {
+         detach();
+      }
+      flagScreen=false;
+   }
 
-    /** Positionnement d'un message d'attente */
-    protected void setBannerWait() {
-       help.setText(logo.inProgress());
-    }
+   /** Positionnement d'un message d'attente */
+   protected void setBannerWait() {
+      help.setText(logo.inProgress());
+   }
 
-    public void dragGestureRecognized(DragGestureEvent dragGestureEvent) { }
-    public void dragEnter(DropTargetDragEvent dropTargetDragEvent) {
-       dropTargetDragEvent.acceptDrag (DnDConstants.ACTION_COPY_OR_MOVE);
-    }
-    public void dragExit (DropTargetEvent dropTargetEvent) {}
-    public void dragOver (DropTargetDragEvent dropTargetDragEvent) {}
-    public void dropActionChanged (DropTargetDragEvent dropTargetDragEvent){}
-    public void dragDropEnd(DragSourceDropEvent DragSourceDropEvent){}
-    public void dragEnter(DragSourceDragEvent DragSourceDragEvent){}
-    public void dragExit(DragSourceEvent DragSourceEvent){}
-    public void dragOver(DragSourceDragEvent DragSourceDragEvent){}
-    public void dropActionChanged(DragSourceDragEvent DragSourceDragEvent){}
+   public void dragGestureRecognized(DragGestureEvent dragGestureEvent) { }
+   public void dragEnter(DropTargetDragEvent dropTargetDragEvent) {
+      dropTargetDragEvent.acceptDrag (DnDConstants.ACTION_COPY_OR_MOVE);
+   }
+   public void dragExit (DropTargetEvent dropTargetEvent) {}
+   public void dragOver (DropTargetDragEvent dropTargetDragEvent) {}
+   public void dropActionChanged (DropTargetDragEvent dropTargetDragEvent){}
+   public void dragDropEnd(DragSourceDropEvent DragSourceDropEvent){}
+   public void dragEnter(DragSourceDragEvent DragSourceDragEvent){}
+   public void dragExit(DragSourceEvent DragSourceEvent){}
+   public void dragOver(DragSourceDragEvent DragSourceDragEvent){}
+   public void dropActionChanged(DragSourceDragEvent DragSourceDragEvent){}
 
-    public synchronized void drop(DropTargetDropEvent dropTargetDropEvent) {
-       try {
-          DataFlavor uriList = new DataFlavor("text/uri-list; class=java.lang.String");
-          Transferable tr = dropTargetDropEvent.getTransferable();
+   public synchronized void drop(DropTargetDropEvent dropTargetDropEvent) {
+      try {
+         DataFlavor uriList = new DataFlavor("text/uri-list; class=java.lang.String");
+         Transferable tr = dropTargetDropEvent.getTransferable();
 
-          // On préfère tout d'abord charger via une URL si possible
-          // car cela évite de planter sur les caches de Firefox
-          // et permet également de supporter IE
-          if( tr.isDataFlavorSupported(uriList) ) {
-             dropTargetDropEvent.acceptDrop(DnDConstants.ACTION_COPY_OR_MOVE);
-             String s = (String)tr.getTransferData(uriList);
-             StringTokenizer st = new StringTokenizer(s,"\n\r");
-             while( st.hasMoreTokens() ) {
-                String f = st.nextToken();
-                if( f.trim().length()==0 ) continue;
-                calque.newPlan(f,null,null);
-                console.printCommand("load "+f);
-             }
-             dropTargetDropEvent.getDropTargetContext().dropComplete(true);
+         // On préfère tout d'abord charger via une URL si possible
+         // car cela évite de planter sur les caches de Firefox
+         // et permet également de supporter IE
+         if( tr.isDataFlavorSupported(uriList) ) {
+            dropTargetDropEvent.acceptDrop(DnDConstants.ACTION_COPY_OR_MOVE);
+            String s = (String)tr.getTransferData(uriList);
+            StringTokenizer st = new StringTokenizer(s,"\n\r");
+            while( st.hasMoreTokens() ) {
+               String f = st.nextToken();
+               if( f.trim().length()==0 ) continue;
+               calque.newPlan(f,null,null);
+               console.printCommand("load "+f);
+            }
+            dropTargetDropEvent.getDropTargetContext().dropComplete(true);
 
-          // Sinon par le nom de fichier
-          } else if( tr.isDataFlavorSupported(DataFlavor.javaFileListFlavor) ) {
-                dropTargetDropEvent.acceptDrop(DnDConstants.ACTION_COPY_OR_MOVE);
-             java.util.List fileList = (java.util.List) tr.getTransferData(DataFlavor.javaFileListFlavor);
-             Iterator iterator = fileList.iterator();
-             while( iterator.hasNext() ) {
-                File file = (File) iterator.next();
-                calque.newPlan(file.getAbsolutePath(),file.getName(),null);
-                console.printCommand("load "+file.getAbsolutePath());
-             }
-             dropTargetDropEvent.getDropTargetContext().dropComplete(true);
+            // Sinon par le nom de fichier
+         } else if( tr.isDataFlavorSupported(DataFlavor.javaFileListFlavor) ) {
+            dropTargetDropEvent.acceptDrop(DnDConstants.ACTION_COPY_OR_MOVE);
+            java.util.List fileList = (java.util.List) tr.getTransferData(DataFlavor.javaFileListFlavor);
+            Iterator iterator = fileList.iterator();
+            while( iterator.hasNext() ) {
+               File file = (File) iterator.next();
+               calque.newPlan(file.getAbsolutePath(),file.getName(),null);
+               console.printCommand("load "+file.getAbsolutePath());
+            }
+            dropTargetDropEvent.getDropTargetContext().dropComplete(true);
 
-          } else dropTargetDropEvent.rejectDrop();
+         } else dropTargetDropEvent.rejectDrop();
 
-       } catch( Exception e ) {
-          e.printStackTrace();
-          dropTargetDropEvent.rejectDrop();
-       }
-    }
-
-
-    /** Retourne true si Aladin a été lancé avec des paramètres de chargement */
-    protected boolean isLoading() { return flagLoad; }
-
-    /** Création si nécessaire d'un répertoire cache destiné à Aladin
-     *  se trouvera dans ${HOME}/.aladin
-     *  @return true si ok, false sinon
-     */
-    protected boolean createCache() {
-       if( CACHEDIR!=null ) return CACHEDIR.length()!=0;
-
-       try {
-          // Existe-il déjà un répertoire générique .aladin sinon je le crée ?
-          CACHEDIR = System.getProperty("user.home")+Util.FS+CACHE;
-          File f = new File(CACHEDIR);
-          if( !f.isDirectory() ) if( !f.mkdir() ) { CACHEDIR=""; return false; }
-
-          // Je vais créer un sous-répertoire cache pour la session uniquement
-          CACHEDIR = CACHEDIR+Util.FS+CACHE+"."+(int)(Math.random()*65536);
-          f = new File(CACHEDIR);
-
-          if( !f.mkdir() ) { CACHEDIR=""; return false; }
-          Aladin.trace(3,"Create cache directory: "+CACHEDIR);
-          launchCacheUpdater();
-       } catch( Exception e ) { e.printStackTrace(); return false; }
-       return true;
-    }
-
-    // Thread du cacheUpdater
-    private Thread updaterCache=null;
-
-    // Pour pouvoir arrêter proprement le thread d'update de la date du cache
-    private boolean cacheUpdaterRunning=false;
-
-    /** Demande d'arrêt du thread de mise à jour de la date de dernière modif du cache */
-    private void stopCacheUpdater() {
-       cacheUpdaterRunning=false;
-       if( updaterCache!=null ) updaterCache.interrupt();
-    }
-
-    /** Mise à jour de la date de modif du répertoire cache afin qu'une autre session
-     * ne puisse faire un nettoyage intempestif (toutes les minutes) */
-    private void launchCacheUpdater() {
-       cacheUpdaterRunning=true;
-       (updaterCache=new Thread("cacheUpdater"){
-          @Override
-        public void run() {
-//System.out.println("Cache updater started for "+CACHEDIR);
-             while( cacheUpdaterRunning ) {
-                try {
-                   Util.pause(60*1000);
-                   if( CACHEDIR==null ) { cacheUpdaterRunning=false; continue; }
-                   File f = new File(CACHEDIR);
-                   f.setLastModified(System.currentTimeMillis());
-//System.out.println("Update cache "+CACHEDIR);
-                } catch( Exception e) {}
-             }
-             updaterCache=null;
-//System.out.println("Cache updater stopped");
-          }
-       }).start();
-    }
-
-    // Permet de connaître la taille approximative du cache disque
-    protected void setInCache(long size) {
-       sizeCache+=size;
-    }
-
-    /** Construit le répertoire des VOTools et le crée si nécessaire */
-    protected String getVOPath() {
-       String dir = System.getProperty("user.home")
-       +Util.FS+aladin.CACHE
-       +Util.FS+"VOTools";
-       try {
-          File f = new File(dir);
-          if( !f.isDirectory() ) if( !f.mkdir() ) throw new Exception();
-       } catch( Exception e ) {
-//        aladin.warning("Your plugin directory can not be created !\n["+dir+"]");
-          if( Aladin.levelTrace>=3 ) e.printStackTrace();
-       }
-       return dir;
-    }
-    
-    public Glu getGlu() { return glu; }
-    public Cache getCache() { return cache; }
-    public Command getCommand() { return command; }
-    public Configuration getConfiguration() { return configuration; }
-
-    /** Suppression du cache de la session et de tout ce qu'il contient */
-    static protected void removeCache() {
-
-       // Suppression du cache de la session
-       if( CACHEDIR==null || CACHEDIR.length()==0 ) return;
-       removeThisCache(CACHEDIR);
-       CACHEDIR=null;
-    }
-
-    /**  Sauvegarde de la config utilisateur si nécessaire
-     */
-    protected void saveConfig() {
-    	if( !STANDALONE ) return;
-        try{
-           configuration.save();
-           configuration.saveLocalFunction();
-        } catch( Exception e ) { System.err.println(e.getMessage()); }
-
-        try {
-           if( !NOGUI ) console.saveHistory();
-        } catch( Exception e ) { System.err.println(e.getMessage()); }
-    }
-
-    /** Suppression d'éventuels vieux caches oubliés dans une session précédente (plus vieux de 24h)
-     * On cherche tous les répertoires qui se trouvent dans le home/.aladin de l'utilisateur
-     * et qui suivent la syntaxe ".aladin.nnnn ou nnn est un nombre */
-    protected void removeOldCaches() {
-       long date = System.currentTimeMillis()-24*3600000L;
-       try {
-          String alaCache = System.getProperty("user.home")+Util.FS+CACHE;
-          File fcache = new File(alaCache);
-          String f[] = fcache.list();
-          for( int i=0; f!=null && i<f.length; i++ ) {
-             File g = new File(fcache+Util.FS+f[i]);
-             if( !g.isDirectory() ) continue;
-             String name = g.getName();
-             if( !name.startsWith(CACHE+".")) continue;
-             if( g.lastModified()>date ) continue;
-             boolean flagCont=false;
-             for( int j=CACHE.length()+2; j<name.length(); j++ ) {
-                if( !Character.isDigit(name.charAt(j) ) ) { flagCont=true; break; }
-             }
-             if( flagCont ) continue;
-             removeThisCache(alaCache+Util.FS+name);
-          }
-       } catch( Exception e ) { e.printStackTrace(); }
-
-    }
+      } catch( Exception e ) {
+         e.printStackTrace();
+         dropTargetDropEvent.rejectDrop();
+      }
+   }
 
 
-    /** Suppression du cache passé en paramètre et de tout ce qu'il contient */
-    static protected void removeThisCache(String cacheDir) {
-       try {
-          File cache = new File(cacheDir);
-          String f[] = cache.list();
-          for( int i=0; f!=null && i<f.length; i++ ) {
-// System.out.println("f="+f[i]);
-             (new File(cacheDir+Util.FS+f[i])).delete();
-          }
-          cache.delete();
-       } catch( Exception e ) { e.printStackTrace(); }
- Aladin.trace(3,"Remove cache directory: "+cacheDir);
-    }
+   /** Retourne true si Aladin a été lancé avec des paramètres de chargement */
+   protected boolean isLoading() { return flagLoad; }
+
+   /** Création si nécessaire d'un répertoire cache destiné à Aladin
+    *  se trouvera dans ${HOME}/.aladin
+    *  @return true si ok, false sinon
+    */
+   protected boolean createCache() {
+      if( CACHEDIR!=null ) return CACHEDIR.length()!=0;
+
+      try {
+         // Existe-il déjà un répertoire générique .aladin sinon je le crée ?
+         CACHEDIR = System.getProperty("user.home")+Util.FS+CACHE;
+         File f = new File(CACHEDIR);
+         if( !f.isDirectory() ) if( !f.mkdir() ) { CACHEDIR=""; return false; }
+
+         // Je vais créer un sous-répertoire cache pour la session uniquement
+         CACHEDIR = CACHEDIR+Util.FS+CACHE+"."+(int)(Math.random()*65536);
+         f = new File(CACHEDIR);
+
+         if( !f.mkdir() ) { CACHEDIR=""; return false; }
+         Aladin.trace(3,"Create cache directory: "+CACHEDIR);
+         launchCacheUpdater();
+      } catch( Exception e ) { e.printStackTrace(); return false; }
+      return true;
+   }
+
+   // Thread du cacheUpdater
+   private Thread updaterCache=null;
+
+   // Pour pouvoir arrêter proprement le thread d'update de la date du cache
+   private boolean cacheUpdaterRunning=false;
+
+   /** Demande d'arrêt du thread de mise à jour de la date de dernière modif du cache */
+   private void stopCacheUpdater() {
+      cacheUpdaterRunning=false;
+      if( updaterCache!=null ) updaterCache.interrupt();
+   }
+
+   /** Mise à jour de la date de modif du répertoire cache afin qu'une autre session
+    * ne puisse faire un nettoyage intempestif (toutes les minutes) */
+   private void launchCacheUpdater() {
+      cacheUpdaterRunning=true;
+      (updaterCache=new Thread("cacheUpdater"){
+         @Override
+         public void run() {
+            //System.out.println("Cache updater started for "+CACHEDIR);
+            while( cacheUpdaterRunning ) {
+               try {
+                  Util.pause(60*1000);
+                  if( CACHEDIR==null ) { cacheUpdaterRunning=false; continue; }
+                  File f = new File(CACHEDIR);
+                  f.setLastModified(System.currentTimeMillis());
+                  //System.out.println("Update cache "+CACHEDIR);
+               } catch( Exception e) {}
+            }
+            updaterCache=null;
+            //System.out.println("Cache updater stopped");
+         }
+      }).start();
+   }
+
+   // Permet de connaître la taille approximative du cache disque
+   protected void setInCache(long size) {
+      sizeCache+=size;
+   }
+
+   /** Construit le répertoire des VOTools et le crée si nécessaire */
+   protected String getVOPath() {
+      String dir = System.getProperty("user.home")
+            +Util.FS+aladin.CACHE
+            +Util.FS+"VOTools";
+      try {
+         File f = new File(dir);
+         if( !f.isDirectory() ) if( !f.mkdir() ) throw new Exception();
+      } catch( Exception e ) {
+         //        aladin.warning("Your plugin directory can not be created !\n["+dir+"]");
+         if( Aladin.levelTrace>=3 ) e.printStackTrace();
+      }
+      return dir;
+   }
+
+   public Glu getGlu() { return glu; }
+   public Cache getCache() { return cache; }
+   public Command getCommand() { return command; }
+   public Configuration getConfiguration() { return configuration; }
+
+   /** Suppression du cache de la session et de tout ce qu'il contient */
+   static protected void removeCache() {
+
+      // Suppression du cache de la session
+      if( CACHEDIR==null || CACHEDIR.length()==0 ) return;
+      removeThisCache(CACHEDIR);
+      CACHEDIR=null;
+   }
+
+   /**  Sauvegarde de la config utilisateur si nécessaire
+    */
+   protected void saveConfig() {
+      if( !STANDALONE ) return;
+      try{
+         configuration.save();
+         configuration.saveLocalFunction();
+      } catch( Exception e ) { System.err.println(e.getMessage()); }
+
+      try {
+         if( !NOGUI ) console.saveHistory();
+      } catch( Exception e ) { System.err.println(e.getMessage()); }
+   }
+
+   /** Suppression d'éventuels vieux caches oubliés dans une session précédente (plus vieux de 24h)
+    * On cherche tous les répertoires qui se trouvent dans le home/.aladin de l'utilisateur
+    * et qui suivent la syntaxe ".aladin.nnnn ou nnn est un nombre */
+   protected void removeOldCaches() {
+      long date = System.currentTimeMillis()-24*3600000L;
+      try {
+         String alaCache = System.getProperty("user.home")+Util.FS+CACHE;
+         File fcache = new File(alaCache);
+         String f[] = fcache.list();
+         for( int i=0; f!=null && i<f.length; i++ ) {
+            File g = new File(fcache+Util.FS+f[i]);
+            if( !g.isDirectory() ) continue;
+            String name = g.getName();
+            if( !name.startsWith(CACHE+".")) continue;
+            if( g.lastModified()>date ) continue;
+            boolean flagCont=false;
+            for( int j=CACHE.length()+2; j<name.length(); j++ ) {
+               if( !Character.isDigit(name.charAt(j) ) ) { flagCont=true; break; }
+            }
+            if( flagCont ) continue;
+            removeThisCache(alaCache+Util.FS+name);
+         }
+      } catch( Exception e ) { e.printStackTrace(); }
+
+   }
+
+
+   /** Suppression du cache passé en paramètre et de tout ce qu'il contient */
+   static protected void removeThisCache(String cacheDir) {
+      try {
+         File cache = new File(cacheDir);
+         String f[] = cache.list();
+         for( int i=0; f!=null && i<f.length; i++ ) {
+            // System.out.println("f="+f[i]);
+            (new File(cacheDir+Util.FS+f[i])).delete();
+         }
+         cache.delete();
+      } catch( Exception e ) { e.printStackTrace(); }
+      Aladin.trace(3,"Remove cache directory: "+cacheDir);
+   }
 
    /** Memorisation de la derniere version disponible (transmis par Glu.log)
     * En cas de modification, on efface le cache, notamment le dico GLU */
    protected void setCurrentVersion(String s )  {
-       currentVersion = s;
-       if( !NETWORK ) return;
-       
-       // Banner de demande de maj de la version si nécessaire
-       testUpgrade();
+      currentVersion = s;
+      if( !NETWORK ) return;
 
-       // Doit-on nettoyer le cache et recharger les bookmarks officielles
-       // car le numéro officiel de la version Aladin a changé ?
-       String lastCurrentVersion = configuration.getOfficialVersion();
-       if( currentVersion!=null && currentVersion.length()!=0 &&
-             (lastCurrentVersion==null || !lastCurrentVersion.equals(currentVersion)) ) {
-          configuration.setOfficialVersion(currentVersion);
-          trace(1,"Reset cache & bookmarks definition (new official Aladin version)...");
-          cache.clear();
-          if( bookmarks!=null ) bookmarks.reload();
-       }
-       
-       // Doit-on nettoyer le cache et recharger les bookmarks officielles
-       // car le numéro de version Aladin a changé par rapport à la dernière utilisation
-       else if( configuration.getVersion()==null || !configuration.getVersion().equals(VERSION) ) {
-          trace(1,"Reset cache & bookmarks definition (new Aladin version)...");
-          cache.clear();
-          if( bookmarks!=null ) bookmarks.reload();
-       }
+      // Banner de demande de maj de la version si nécessaire
+      testUpgrade();
 
-       // Doit-on nettoyer le cache car la dernière session date de plus de 15 jours
-       else if((System.currentTimeMillis()-configuration.getLastRun())>15*86400*1000L ) {
-          trace(1,"Reloading GLU records & VizieR keywords (too old definitions) => clear local cache...");
-          cache.clear();
-       }
-    }
-   
+      // Doit-on nettoyer le cache et recharger les bookmarks officielles
+      // car le numéro officiel de la version Aladin a changé ?
+      String lastCurrentVersion = configuration.getOfficialVersion();
+      if( currentVersion!=null && currentVersion.length()!=0 &&
+            (lastCurrentVersion==null || !lastCurrentVersion.equals(currentVersion)) ) {
+         configuration.setOfficialVersion(currentVersion);
+         trace(1,"Reset cache & bookmarks definition (new official Aladin version)...");
+         cache.clear();
+         if( bookmarks!=null ) bookmarks.reload();
+      }
+
+      // Doit-on nettoyer le cache et recharger les bookmarks officielles
+      // car le numéro de version Aladin a changé par rapport à la dernière utilisation
+      else if( configuration.getVersion()==null || !configuration.getVersion().equals(VERSION) ) {
+         trace(1,"Reset cache & bookmarks definition (new Aladin version)...");
+         cache.clear();
+         if( bookmarks!=null ) bookmarks.reload();
+      }
+
+      // Doit-on nettoyer le cache car la dernière session date de plus de 15 jours
+      else if((System.currentTimeMillis()-configuration.getLastRun())>15*86400*1000L ) {
+         trace(1,"Reloading GLU records & VizieR keywords (too old definitions) => clear local cache...");
+         cache.clear();
+      }
+   }
+
    /** Vérifie s'il est nécessaire de demander à l'utilisateur l'installation
     * de la nouvelle version */
    private void testUpgrade() {
       if( NOGUI || isApplet() || !TESTRELEASE ) return;
-      
+
       (new Thread("testUpgrade"){
          @Override
-         public void run() { 
+         public void run() {
             try {
                Thread.currentThread().sleep(5000);
                testVersion();
@@ -2560,159 +2668,163 @@ public class Aladin extends JApplet
     * @return 11 par exemple (on ne prend pas en compte le 2 derniers digits)
     *         ou 0 si s==null ou d'un mauvais format;
     */
-    protected int numVersion(String s) {
-       if( s==null || s.length()<6 ) return 0;
-       char [] a = s.toCharArray();
-       if( a[0]!='v' || a[2]!='.' ) return 0;
-       int i= (a[1]-'0')*10 + (a[3]-'0');
-       return i;
-    }
+   protected int numVersion(String s) {
+      if( s==null || s.length()<6 ) return 0;
+      char [] a = s.toCharArray();
+      if( a[0]!='v' || a[2]!='.' ) return 0;
+      int i= (a[1]-'0')*10 + (a[3]-'0');
+      return i;
+   }
 
-    /** Transformation de la chaine du numero de version vx.xxx en valeur
-     * numerique x.xxx (tous les digits sont pris en compte)
-     * ex: v6.037  => 6.037 */
-    public double realNumVersion(String s) {
-       try {
-          int deb=0;
-          while( !Character.isDigit(s.charAt(deb)) ) deb++;
-          int fin=s.length()-1;
-          while( !Character.isDigit(s.charAt(fin)) ) fin--;
-          s = s.substring(deb,fin+1);
-          return Double.parseDouble(s);
-       } catch( Exception e ) {}
-       return 0;
-    }
+   /** Transformation de la chaine du numero de version vx.xxx en valeur
+    * numerique x.xxx (tous les digits sont pris en compte)
+    * ex: v6.037  => 6.037 */
+   public double realNumVersion(String s) {
+      try {
+         int deb=0;
+         while( !Character.isDigit(s.charAt(deb)) ) deb++;
+         int fin=s.length()-1;
+         while( !Character.isDigit(s.charAt(fin)) ) fin--;
+         s = s.substring(deb,fin+1);
+         return Double.parseDouble(s);
+      } catch( Exception e ) {}
+      return 0;
+   }
 
    /** Transformation de la chaine du numero de version n.n.n en valeur
     * numerique
     * @param s la chaine 1.3.1 par exemple
     * @return 131 par exemple  ou 0 si s==null ou d'un mauvais format;
     */
-    protected int numJVMVersion(String s) {
-       if( s==null || s.length()<5 ) return 0;
-       char [] a = s.toCharArray();
-       int i= (a[0]-'0')*100 + (a[2]-'0')*10 + (a[4]-'0');
-       return i;
-    }
+   protected int numJVMVersion(String s) {
+      if( s==null || s.length()<5 ) return 0;
+      char [] a = s.toCharArray();
+      int i= (a[0]-'0')*100 + (a[2]-'0')*10 + (a[4]-'0');
+      return i;
+   }
 
    /** calcule la vitesse de la machine virtuelle
     *  @return un indicateur de performance (lower is better)
     *
     */
    protected static long getSpeed() {
-       return 0;
-//       long start = System.currentTimeMillis();
-//       Vector vec = new Vector();
-//
-//       for(int i=0;i<30000;i++) {
-//          vec.addElement(new Vector(30));
-//          /* Vector pipo = (Vector) */ vec.elementAt(i);
-//       }
-//       long end = System.currentTimeMillis();
-//
-//       vec=null;
-//       return (end-start);
-//   }
-       }
+      return 0;
+      //       long start = System.currentTimeMillis();
+      //       Vector vec = new Vector();
+      //
+      //       for(int i=0;i<30000;i++) {
+      //          vec.addElement(new Vector(30));
+      //          /* Vector pipo = (Vector) */ vec.elementAt(i);
+      //       }
+      //       long end = System.currentTimeMillis();
+      //
+      //       vec=null;
+      //       return (end-start);
+      //   }
+   }
 
    /** Transformation de la chaine du numero de version vx.abc en sa valeur
     * generale x.a
     */
-    static protected String getReleaseNumber() {
-       return VERSION.substring(0,VERSION.indexOf('.')+2);
-    }
+   static protected String getReleaseNumber() {
+      return VERSION.substring(0,VERSION.indexOf('.')+2);
+   }
 
    /** Test du numero de version */
-    protected void testVersion() {
-       int cv = numVersion(currentVersion);
-       if( cv==0 ) return;
-       int v = numVersion(VERSION);
-       if( v>=cv ) return;
-       String s = chaine.getString("MAJOR")
-          +"!Aladin Java "+currentVersion
-          +chaine.getString("MAJOR1");
-       if( !confirmation(s) ) return;
-       glu.showDocument("AladinJava.SA","");
-    }
+   protected void testVersion() {
+      int cv = numVersion(currentVersion);
+      if( cv==0 ) return;
+      int v = numVersion(VERSION);
+      if( v>=cv ) return;
+      String s = chaine.getString("MAJOR")
+            +"!Aladin Java "+currentVersion
+            +chaine.getString("MAJOR1");
+      if( !confirmation(s) ) return;
+      glu.showDocument("AladinJava.SA","");
+   }
 
    /** Fin du message d'accueil */
-    protected void endMsg() {
-       if( !msgOn ) return;
-       cardView.show(bigView,"View");
-       msgOn=false;
-       if( isFullScreen() ) fullScreen.repaint();
-       setHelp(false);
-    }
-    
-    
-    
-//    /** Visualisation (création si nécessaire) de la fenêtre des progéniteurs */ 
-//    protected void showFrameProgen() {
-//       if( frameProgen==null ) frameProgen = new FrameProgen(aladin);
-//       else frameProgen.setVisible(true);
-//    }
+   protected void endMsg() {
+      if( !msgOn || cardView==null ) return;
+      cardView.show(bigView,"View");
+      msgOn=false;
+      if( isFullScreen() ) fullScreen.repaint();
+      setHelp(false);
+   }
+
+
+
+   //    /** Visualisation (création si nécessaire) de la fenêtre des progéniteurs */
+   //    protected void showFrameProgen() {
+   //       if( frameProgen==null ) frameProgen = new FrameProgen(aladin);
+   //       else frameProgen.setVisible(true);
+   //    }
 
    /** Efface le contenu du Status. En fait, si l'evenement
     * arrive jusqu'ici c'est qu'il n'a pas ete traite par les autres
     * objets, donc on peut effacer
     */
-    public void mouseMoved(MouseEvent e) {
-       if( inHelp ) help.setDefault();
-       else if( status!=null ) {
-          if( dialog!=null && !command.isSync() ) status.setText(chaine.getString("SEESTACK"));
-          else status.setText("");
-       }
-    }
+   public void mouseMoved(MouseEvent e) {
+      if( inHelp ) help.setDefault();
+      else if( status!=null ) {
+         if( dialog!=null && !command.isSync() ) status.setText(chaine.getString("SEESTACK"));
+         else status.setText("");
+      }
+   }
 
-    /** On insère l'applet dans sa propre fenetre */
-    protected void detach() { detach(true); }
-    protected void detach(boolean show) {
-       try {
-          if( flagDetach ) return;
-          makeAdd(f,this,"Center");
-          bDetach.setText(MDCH2);
-          miDetach.setText(MDCH2);
-          f.pack();
-          if( show ) f.setVisible(true);
-          flagDetach=true;
-       } catch( Exception e ) {
-          if( levelTrace>=3 ) e.printStackTrace();
-       }
-    }
+   /** On insère l'applet dans sa propre fenetre */
+   protected void detach() { detach(true); }
+   protected void detach(boolean show) {
+      try {
+         if( flagDetach ) return;
+         makeAdd(f,this,"Center");
+         bDetach.setText(MDCH2);
+         miDetach.setText(MDCH2);
+         f.pack();
+         if( show ) f.setVisible(true);
+         flagDetach=true;
+      } catch( Exception e ) {
+         if( levelTrace>=3 ) e.printStackTrace();
+      }
+   }
 
    /** Remise en place de l'Applet dans la fenetre du navigateur */
-    protected void unDetach() {
-       if( !flagDetach ) return;
-       f.remove(this);
-       f.dispose();
-       flagDetach=false;
-       makeAdd(myParent,this,"Center");
-       bDetach.setText(MDCH1);
-       miDetach.setText(MDCH1);
-       reshape(origPos.x,origPos.y,origPos.width,origPos.height);
-       myParent.show();
-       myParent.invalidate();
-       myParent.layout();
-    }
+   protected void unDetach() {
+      if( !flagDetach ) return;
+      f.remove(this);
+      f.dispose();
+      flagDetach=false;
+      makeAdd(myParent,this,"Center");
+      bDetach.setText(MDCH1);
+      miDetach.setText(MDCH1);
+      reshape(origPos.x,origPos.y,origPos.width,origPos.height);
+      myParent.show();
+      myParent.invalidate();
+      myParent.layout();
+   }
 
-    /** Passage en plein écran
-     * @param mode 0-plein écran classique,
-     *             1-fenêtre preview
-     *             2-fenêtre preview mais démarre caché (très utile en mode applet
-     */
-    protected void fullScreen(int mode) {
-       if( fullScreen==null ) {
-          boolean full = mode==0;
-          boolean startHidden = mode==2;
-          pan(false);
-          fullScreen = new FullScreen(this,view.getCurrentView(),full,startHidden);
-//          f.setVisible(false);
-       } else {
-          fullScreen.end();
-          fullScreen=null;
-//          f.setVisible(true);
-       }
-    }
+   /** Passage en plein écran
+    * @param mode 0-plein écran classique,
+    *             1-fenêtre preview
+    *             2-fenêtre preview mais démarre caché (très utile en mode applet
+    *             3-plein écran mode cinéma (exclusif)
+    */
+   protected void fullScreen(int mode) {
+      if( fullScreen==null ) {
+//         boolean full = mode==0;
+//         boolean startHidden = mode==2;
+         
+         int m = mode==0 ? FrameFullScreen.FULL : mode==3 ? FrameFullScreen.CINEMA
+               : mode==2 ? FrameFullScreen.WINDOW_HIDDEN : FrameFullScreen.WINDOW;
+         pan(false);
+//         fullScreen = new FrameFullScreen(this,view.getCurrentView(),full,startHidden);
+         fullScreen = new FrameFullScreen(this,view.getCurrentView(),m);
+      } else {
+         fullScreen.end();
+         fullScreen=null;
+      }
+
+   }
 
    // Juste pour eviter que la classe Save.class ne soit chargee
    // dans la version applet
@@ -2776,8 +2888,9 @@ public class Aladin extends JApplet
             chaine.getString("CDS")+
             "Authors: Pierre Fernique, Thomas Boch,\n      Anaïs Oberto, François Bonnarel\n" +
             "      (see also the Aladin FAQ for all other contributers)\n \n" +
-            "* Copyright: UDS/CNRS - distributed under GNU GPL v3\n  \n" +
-            "Portions of the code (progressive catalogs, PM facility) have been developped  in the framework of GAIA CU9 (2012-2022)." +
+            "* Copyright: Unistra/CNRS - distributed under GNU GPL v3\n  \n" +
+            "Portions of the code (HiPS & MOCs) have been developped  in the framework of ASTERICS project (2015-2018)." +
+            "Progressive catalogs, PM facility, have been developped  in the framework of GAIA CU9 (2012-2022)." +
             "The outreach mode has been developed in the framework of EuroVO AIDA & ICE projects (2008-2012)." +
             "WCS in JPEG, extended SIA, IDL bridge, FoV advanced integration, Fits cubes, Xmatcher by ellipses, SAMP " +
             "integration have been developed in the framework of the EuroVO VOTech project (2005-2008). " +
@@ -2791,33 +2904,33 @@ public class Aladin extends JApplet
 
    // Pour envoyer un rapport de bug/une question
    private void sendBugReport() {
-       String s = "mailto:cds-question@unistra.fr?subject=[Aladin] Bug report/question";
-       // on ajoute la date pour générer des sujets uniques, sinon on a des problemes à trier dans question
-       String date = DateFormat.getDateTimeInstance(DateFormat.LONG, DateFormat.LONG, Locale.ENGLISH).format(new Date());
-       s += " ("+date+")";
-       s += "&body=";
-       s += "Aladin version: "+(SIGNEDAPPLET?"signed applet ":STANDALONE?"standalone ":"applet ")+VERSION;
-       s += "%0A" + "JVM: "+javaVersion+" / "+javaVendor;
-       s += "%0A" + "OS: "+osName+"/"+osArch+"/"+osVersion;
-       s += "%0A" + "Language: "+configuration.getLanguage();
-       s += "%0A%0A" + "Bug description: ";
+      String s = "mailto:cds-question@unistra.fr?subject=[Aladin] Bug report/question";
+      // on ajoute la date pour générer des sujets uniques, sinon on a des problemes à trier dans question
+      String date = DateFormat.getDateTimeInstance(DateFormat.LONG, DateFormat.LONG, Locale.ENGLISH).format(new Date());
+      s += " ("+date+")";
+      s += "&body=";
+      s += "Aladin version: "+(SIGNEDAPPLET?"signed applet ":STANDALONE?"standalone ":"applet ")+VERSION;
+      s += "%0A" + "JVM: "+javaVersion+" / "+javaVendor;
+      s += "%0A" + "OS: "+osName+"/"+osArch+"/"+osVersion;
+      s += "%0A" + "Language: "+configuration.getLanguage();
+      s += "%0A%0A" + "Bug description: ";
 
-       glu.showDocument("Http", s.replaceAll(" ", "%20"), true);
+      glu.showDocument("Http", s.replaceAll(" ", "%20"), true);
    }
 
    // Pour afficher les nouveautes
    private void newsReport() {
-       glu.showDocument("Http", "http://aladin.u-strasbg.fr/java/NewInV8.png", true);
+      glu.showDocument("Http", "http://aladin.u-strasbg.fr/java/NewInV9.png", true);
    }
 
    // Pour affiche la page d'info sur les plugins
    private void pluginsReport() {
-       plugins.showFrame();
+      plugins.showFrame();
    }
 
    // Pour affiche la page d'info sur les VOTools
    private void VOReport() {
-       FrameVOTool.display(this);
+      FrameVOTool.display(this);
    }
 
    // Juste pour eviter que la classe Printer.class ne soit chargee
@@ -2832,95 +2945,95 @@ public class Aladin extends JApplet
 	 c.newInstance(new Object[] { this });
       } catch( Exception e ) { System.out.println(e); }
    }
-   */
+    */
    protected void printer() { new Printer(this); }
 
    // test des menus qui vire un éventuel préfixe "BETA:", "PROTO:" ou "OUTREACH:"
    protected boolean isMenu(String s,String t) {
       if( s==null || t==null ) return false;
       return s.equals(t)
-     || (t.startsWith(NOAPPLETPREFIX) && s.equals(t.substring(NOAPPLETPREFIX.length()) ))
-     || (t.startsWith(BETAPREFIX) && s.equals(t.substring(BETAPREFIX.length()) ))
-     || (t.startsWith(PROTOPREFIX) && s.equals(t.substring(PROTOPREFIX.length()) ))
-     || (t.startsWith(OUTREACHPREFIX) && s.equals(t.substring(OUTREACHPREFIX.length()) ))
+            || (t.startsWith(NOAPPLETPREFIX) && s.equals(t.substring(NOAPPLETPREFIX.length()) ))
+            || (t.startsWith(BETAPREFIX) && s.equals(t.substring(BETAPREFIX.length()) ))
+            || (t.startsWith(PROTOPREFIX) && s.equals(t.substring(PROTOPREFIX.length()) ))
+            || (t.startsWith(OUTREACHPREFIX) && s.equals(t.substring(OUTREACHPREFIX.length()) ))
 
-      ;
+            ;
    }
 
    public void actionPerformed(ActionEvent evt) {
-	   JMenuItem ji = (JMenuItem)evt.getSource();
-	   // lancement d'un tutorial 'Show me how to ...' ?
-	   if( ji.getActionCommand().equals(TUTO) ) {
-		   launchTuto(ji.getText());
-		   return;
-	   }
+      JMenuItem ji = (JMenuItem)evt.getSource();
+      // lancement d'un tutorial 'Show me how to ...' ?
+      if( ji.getActionCommand().equals(TUTO) ) {
+         launchTuto(ji.getText());
+         return;
+      }
 
-//	   if( ji== hpxCtrl ) { view.newView(); view.repaintAll(); }
-//
-//       if( Aladin.BETA && hpxCtrl!=null ) {
-//          for( int  i=0; i<healpixCtrl.length; i++ ) {
-//             if( ji==healpixCtrl[i] ) { view.repaintAll(); return; }
-//          }
-//       }
+      //	   if( ji== hpxCtrl ) { view.newView(); view.repaintAll(); }
+      //
+      //       if( Aladin.BETA && hpxCtrl!=null ) {
+      //          for( int  i=0; i<healpixCtrl.length; i++ ) {
+      //             if( ji==healpixCtrl[i] ) { view.repaintAll(); return; }
+      //          }
+      //       }
 
-       Object src = evt.getSource();
+      Object src = evt.getSource();
 
-       // envoi de plans à une appli SAMP/PLASTIC
-       if( src instanceof JMenuItem && ((JMenuItem)src).getActionCommand().equals(BROADCASTTABLE) ) {
-           String o = ((JMenuItem)src).getText();
-           // broadcast à toutes les applis
-           if( o.equals(calque.select.MALLAPPS) ) {
-              broadcastSelectedTables(null);
-           }
-           else {
-              broadcastSelectedTables(new String[]{o.toString()});
-           }
-        } else if( src instanceof JMenuItem
-              && ((JMenuItem)src).getActionCommand().equals(BROADCASTIMAGE) ) {
-            String o = ((JMenuItem)src).getText();
-            // broadcast à toutes les applis
-           if( o.equals(calque.select.MALLAPPS) ) {
-              broadcastSelectedImages(null);
-           }
-           // envoi à une appli particulière
-           else {
-              broadcastSelectedImages(new String[]{o.toString()});
-           }
+      // envoi de plans à une appli SAMP/PLASTIC
+      if( src instanceof JMenuItem && ((JMenuItem)src).getActionCommand().equals(BROADCASTTABLE) ) {
+         String o = ((JMenuItem)src).getText();
+         // broadcast à toutes les applis
+         if( o.equals(calque.select.MALLAPPS) ) {
+            broadcastSelectedTables(null);
+         }
+         else {
+            broadcastSelectedTables(new String[]{o.toString()});
+         }
+      } else if( src instanceof JMenuItem
+            && ((JMenuItem)src).getActionCommand().equals(BROADCASTIMAGE) ) {
+         String o = ((JMenuItem)src).getText();
+         // broadcast à toutes les applis
+         if( o.equals(calque.select.MALLAPPS) ) {
+            broadcastSelectedImages(null);
+         }
+         // envoi à une appli particulière
+         else {
+            broadcastSelectedImages(new String[]{o.toString()});
+         }
 
-        }
+      }
 
-	   String s = ji.getActionCommand();
-	   execute(s);
+      String s = ji.getActionCommand();
+      execute(s);
    }
 
    /** Reactions aux differents boutons du menu */
-//    public boolean action(Event e, Object o) {
-//      String s;
-//
-//      // Rendre à César ce qui est à César
-//      if( !NOGUI && e.target==calque.zoom.cZoom ) {
-//         calque.zoom.submit();
-//         return true;
-//      }
-//      if( !(o instanceof String) ) return true;
-//      // lancement tutoriaux
-//
-//      s=(String)o;
-//
-//      return execute(s);
-//    }
+   //    public boolean action(Event e, Object o) {
+   //      String s;
+   //
+   //      // Rendre à César ce qui est à César
+   //      if( !NOGUI && e.target==calque.zoom.cZoom ) {
+   //         calque.zoom.submit();
+   //         return true;
+   //      }
+   //      if( !(o instanceof String) ) return true;
+   //      // lancement tutoriaux
+   //
+   //      s=(String)o;
+   //
+   //      return execute(s);
+   //    }
 
-    /** Reactions aux differents boutons du menu */
-    protected boolean execute(String s) {
+   /** Reactions aux differents boutons du menu */
+   protected boolean execute(String s) {
 
-       // En mode Outreach, le save ne fait qu'une sauvegarde PNG
-       if( OUTREACH && isMenu(s,MSAVE) ) s="PNG";
+      // En mode Outreach, le save ne fait qu'une sauvegarde PNG
+      if( OUTREACH && isMenu(s,MSAVE) ) s="PNG";
 
-       if( s.indexOf("NSIDE")>=0 ) { lastOrder=-2; aladin.calque.repaintAll(); }
+      if( s.indexOf("NSIDE")>=0 ) { lastOrder=-2; aladin.calque.repaintAll(); }
 
-       // Interface d'interrogation des serveurs
-       else if( isMenu(s,OPENFILE) || isMenu(s,OPENLOAD) || isMenu(s,OPENURL) || isMenu(s,LOADVO)
-             || isMenu(s,LOADFOV) || isMenu(s,ALADIN_IMG_SERVER) ) {
+      // Interface d'interrogation des serveurs
+      else if( isMenu(s,OPENFILE) || isMenu(s,OPENLOAD) || isMenu(s,OPENURL) || isMenu(s,LOADVO)
+            || isMenu(s,LOADFOV) || isMenu(s,ALADIN_IMG_SERVER) ) {
          if( dialog==null ) {
             Aladin.warning(chaine.getString("NOTYET"));
             return true;
@@ -2928,15 +3041,15 @@ public class Aladin extends JApplet
          if( firstLoad ) {
             // initialisation focus
             dialog.server[dialog.current].setInitialFocus();
-         	firstLoad = false;
+            firstLoad = false;
          }
 
          if( isMenu(s,OPENLOAD) ) dialog.setVisible(true);
          else {
             Server server = /* isMenu(s,OPENFILE) || */isMenu(s,OPENURL)? dialog.localServer
-               : isMenu(s,LOADVO) ? dialog.discoveryServer
-               : isMenu(s,ALADIN_IMG_SERVER) ? dialog.aladinServer
-               : dialog.fovServer ;
+                  : isMenu(s,LOADVO) ? dialog.discoveryServer
+                        : isMenu(s,ALADIN_IMG_SERVER) ? dialog.aladinServer
+                              : dialog.fovServer ;
 
             if( isMenu(s,OPENFILE) ) ((ServerFile)dialog.localServer).browseFile();
             else dialog.show(server);
@@ -2980,20 +3093,23 @@ public class Aladin extends JApplet
       } else if( isMenu(s,TARGET)) { target();
       } else if( isMenu(s,OVERLAY)){ overlay();
       } else if( isMenu(s,RAINBOW)){ rainbow();
-      } else if( isMenu(s,GRID))   { grid();
-      } else if( isMenu(s,HPXGRID)){ hpxGrid();
-//      } else if( isMenu(s,HISTORY)){ history();
+      } else if( isMenu(s,CONST))   { constellation();
+      } else if( isMenu(s,NOGRID)) { grid(0);
+      } else if( isMenu(s,GRID))   { grid(1);
+      } else if( isMenu(s,HPXGRID)){ grid(2);
+//      } else if( isMenu(s,HPXGRID)){ hpxGrid();
+      //      } else if( isMenu(s,HISTORY)){ history();
       } else if( isMenu(s,ZOOMP))  { calque.zoom.setZoom("+");
       } else if( isMenu(s,ZOOMM))  { calque.zoom.setZoom("-");
       } else if( isMenu(s,ZOOMPT)) { zoom();
       } else if( isMenu(s,COPIER)) { copier();
       } else if( isMenu(s,COLLER)) { coller();
-//      } else if( isMenu(s,PREVPOS)) { view.undo(false);
-//      } else if( isMenu(s,NEXTPOS)) { view.redo(false);
+      //      } else if( isMenu(s,PREVPOS)) { view.undo(false);
+      //      } else if( isMenu(s,NEXTPOS)) { view.redo(false);
       } else if( isMenu(s,SYNC))   { switchMatch(false);
       } else if( isMenu(s,SYNCPROJ))   { switchMatch(true);
-      } else if( isMenu(s,PANEL1) || isMenu(s,PANEL1) || isMenu(s,PANEL2C) || isMenu(s,PANEL2L) 
-              || isMenu(s,PANEL4) || isMenu(s,PANEL9) || isMenu(s,PANEL16))   { panel(s);
+      } else if( isMenu(s,PANEL1) || isMenu(s,PANEL1) || isMenu(s,PANEL2C) || isMenu(s,PANEL2L)
+            || isMenu(s,PANEL4) || isMenu(s,PANEL9) || isMenu(s,PANEL16))   { panel(s);
       } else if( isMenu(s,PAN))    { pan();
       } else if( isMenu(s,RSAMP))  { rsamp();
       } else if( isMenu(s,RGB))    { RGB();
@@ -3013,8 +3129,8 @@ public class Aladin extends JApplet
       } else if( isMenu(s,SELECTALL)){ selectAll();
       } else if( isMenu(s,UNSELECT)) { unSelect();
       } else if( isMenu(s,TABLEINFO))  { tableInfo(null);
-      } else if( isMenu(s,CLONE1))  { cloneObj(true);
-      } else if( isMenu(s,CLONE2))  { cloneObj(false);
+      } else if( isMenu(s,CLONE1))  { cloneObj(false);
+      } else if( isMenu(s,CLONE2))  { cloneObj(true);
       } else if( isMenu(s,PLOTCAT))  { createPlotCat();
       } else if( isMenu(s,CONCAT1)){ concat(true);
       } else if( isMenu(s,CONCAT2)){ concat(false);
@@ -3041,12 +3157,12 @@ public class Aladin extends JApplet
       } else if( isMenu(s,SIMBAD) ){ simbadPointer();
       } else if( isMenu(s,VIZIERSED) ){ vizierSED();
       } else if( isMenu(s,AUTODIST) )   { autodist();
-//      } else if( isMenu(s,TIP) )   { tip();
+      //      } else if( isMenu(s,TIP) )   { tip();
       } else if( isMenu(s,SESAME) ){ sesame();
       } else if( isMenu(s,COOTOOL) ){ cooTool();
       } else if( isMenu(s,PIXELTOOL) ){ pixelTool();
       } else if( isMenu(s,CALCULATOR) ){ calculator();
-//      } else if( isMenu(s,CEA_TOOLS) ){ showCEATools();
+      //      } else if( isMenu(s,CEA_TOOLS) ){ showCEATools();
       } else if( isMenu(s,MACRO) ) { macro();
       } else if( isMenu(s,PREF) )  { preferences();
       } else if( isMenu(s,NEW) )   { windows();
@@ -3054,6 +3170,7 @@ public class Aladin extends JApplet
       } else if( isMenu(s,MCLOSE) ){ quit(0);
       } else if( isMenu(s,ARITHM) ){ updateArithm();
       } else if( isMenu(s,MOCGENIMG) ){ updateMocGenImg();
+      } else if( isMenu(s,MOCPOL) ){ createMocRegion();
       } else if( isMenu(s,MOCGENIMGS) ){ updateMocGenImgs();
       } else if( isMenu(s,MOCGENCAT) ){ updateMocGenCat();
       } else if( isMenu(s,MOCM) )  { updateMocOp();
@@ -3075,9 +3192,9 @@ public class Aladin extends JApplet
       } else if( isMenu(s,RIGHTLEFT) )  { flip(1);
       } else if( isMenu(s,REGISTER) ) { getMessagingMgr().register(false, true);
       } else if( isMenu(s,UNREGISTER) ) {
-          if (getMessagingMgr().unregister()) {
-              this.dontReconnectAutomatically = true;
-          }
+         if (getMessagingMgr().unregister()) {
+            this.dontReconnectAutomatically = true;
+         }
       } else if( isMenu(s,STARTINTERNALHUB) ) { getMessagingMgr().startInternalHub();
       } else if( isMenu(s,STOPINTERNALHUB) ) { getMessagingMgr().stopInternalHub(false);
       } else if( isMenu(s,BROADCAST) ) { broadcastSelectedPlanes(null);
@@ -3088,12 +3205,12 @@ public class Aladin extends JApplet
             Aladin.warning(chaine.getString("PRINTING"));
             return true;
          }
-		 quit(0);
+         quit(0);
 
-      // Peut être une convolution prédéfinie
-//      } else if( conv(s) ) { return true;
+         // Peut être une convolution prédéfinie
+         //      } else if( conv(s) ) { return true;
 
-      // Peut être un save
+         // Peut être un save
       } else if( save(s) ) { return true;
 
       // Peut être un fond de ciel
@@ -3120,716 +3237,874 @@ public class Aladin extends JApplet
          }
       }
       return true;
-    }
-
-    /** Propose d'installer Aladin en standalone */
-    void install() {
-       if( !confirmation(chaine.getString("INSTALLSA")) ) return;
-       glu.showDocument("AladinJava.SA","");
-
-    }
-
-    /** Affichage des propriétés du premier planImage sélectionné dans
-     * le cas où l'utilisateur peut changer sa transparence */
-    void transparency() {
-       PlanImage pi = calque.getFirstSelectedPlanImage();
-       if( pi==null ) return;
-       Properties.createProperties(pi);
-    }
-
-    /** Positionne toutes les transparences des images de la pile à 100%, respectivement à 0% */
-    void transpon() {
-       float val=0f;
-       if( miTranspon.isSelected() ) val=1f;
-       calque.setOpacityLevelImage(val);
-       calque.repaintAll();
-    }
-
-    /** Exécution de l'inversion verticale ou horizontale du plan de base */
-    protected void flip(int methode) {
-       try { flip(calque.getFirstSelectedSimpleImage(),methode); }
-       catch( Exception e) { e.printStackTrace(); }
-    }
-
-    /** Exécution de l'inversion verticale ou horizontale */
-    protected void flip(PlanImage p,int methode) throws Exception {
-       aladin.console.printCommand("flipflop "+(methode==0 ? "V" : "H"));
-       aladin.view.flip(p,methode);
-    }
-
-    /** Affichage du header fits de l'image courante */
-    protected void header() {
-       header(calque.getFirstSelectedPlan());
-    }
-
-    /** Affichage du header fits du plan passé en paramètre */
-    protected void header(Plan plan) {
-       if( plan==null ) return;
-       if( plan instanceof PlanImage ) ((PlanImage)plan).headerFits.seeHeaderFits();
-       else if( plan instanceof PlanFolder ) ((PlanFolder)plan).headerFits.seeHeaderFits();
-       else ((PlanCatalog)plan).headerFits.seeHeaderFits();
-    }
-
-//    /** Exécute une convolution sur le plan de base */
-//    protected boolean conv(String kernel) {
-//       if( Kernel.findKernel(kernel)<0 ) return false;
-//       command.execLater("conv "+kernel);
-//       return true;
-//    }
-
-    
-    /** Exécute une normalisation sur le plan de base */
-    protected void norm() {
-       command.execLater("norm");
-    }
-
-    /** Exécute une opération arithmétique sur les deux plans images sélectionnés */
-//    protected void arithmetic(String op) {
-//       Vector v = calque.getSelectedPlanes();
-//       PlanImage p1,p2;
-//       try {
-//          p1 = (PlanImage)v.elementAt(0);
-//          p2 = (PlanImage)v.elementAt(1);
-//          command.exec(Tok.quote(p1.getLabel())+" "+op+" "+Tok.quote(p2.getLabel()));
-//       } catch( Exception e ) { e.printStackTrace(); }
-//    }
-
-    /** Création d'un nouveau folder dans la pile */
-    protected void fold() {
-       int n=calque.newFolder(null,0,false);
-       Plan p = calque.getPlan(n);
-       if( p!=null ) console.printCommand("md "+p.getLabel());
-    }
-
-    /** Insertion des plans sélectionnés dans un nouveau folder de la pile */
-    protected void inFold() {
-       calque.select.insertFolder();
-    }
-
-//    /** Affichage du metadata tree général */
-//    protected void history() {
-//       treeView.toFront();
-//       treeView.show();
-//    }
-
-    /** Affiche les informations sur les colonnes du PlanCatalog
-     * passé en paramètre, ou si null, tous les plans catalogues sélectionnés */
-    protected void tableInfo(Plan p) {
-       if( p!=null )  new FrameInfoTable(aladin,p);
-       else {
-          Vector v = calque.getSelectedPlanes();
-          Enumeration e = v.elements();
-          FrameInfoTable f,of=null;
-          while( e.hasMoreElements() ) {
-             p = (Plan)e.nextElement();
-             if( !p.isCatalog() ) continue;
-             if( !p.flagOk ) continue;
-             f = new FrameInfoTable(aladin,p);
-             if( of!=null ) f.setLocation(of.getLocation().x+60,of.getLocation().y+40);
-             of=f;
-          }
-       }
-    }
-
-    /** Activation du CLONE des objects depuis la JBar */
-    protected void cloneObj(boolean uniqTable) {
-       calque.newPlanCatalogBySelectedObjet(uniqTable);
-    }
-    
-    /** Création d'un graphe de nuage de points sur le plan Catalog sélectionné */
-    protected void createPlotCat() {
-       PlanCatalog p = calque.getFirstSelectedPlanCatalog();
-       if( p==null ) return;
-       if( !view.getCurrentView().isFree() && !view.isMultiView() ) view.setModeView(ViewControl.MVIEW2L);
-       int nview = aladin.view.getLastNumView(p);
-       view.setPlanRef(nview, p);
-       view.viewSimple[nview].addPlotTable(p, 0, 1,true);
-    }
-
-    /** Activation du CONCAT des objects depuis la JBar */
-    protected void concat(boolean uniqTable) {
-       calque.newPlanCatalogByCatalogs(null,uniqTable);
-    }
-
-    /** Activation du COPY depuis la JBar */
-    protected void copy() {
-       PlanImage pi = calque.getFirstSelectedSimpleImage();
-       command.execLater("copy "+Tok.quote(pi.getLabel()));
-    }
-
-    /** Activation du DUMP depuis la JBar */
-    protected void crop() {
-       toolBox.setMode(ToolBox.CROP, Tool.DOWN);
-    }
-
-    /** Création d'un fichier map HEALpix à partir d'un PlanImage et affichage de cette map */
-    protected void createHpx() {
-       final PlanImage pi = calque.getFirstSelectedSimpleImage();
-       pi.flagProcessing=true;
-
-       calque.select.repaint();
-       String name = pi.label.replace(' ','-').replace('/','-').replace('\\','-');
-       int i = name.lastIndexOf('.');
-       if( i>0 ) name = name.substring(0,i);
-       final String filename = name+".hpx";
-       info("Aladin is creating an HEALPix file map from the image plane \""+pi.label+"\"\n" +
-             "=> \""+aladin.getFullFileName(filename)+"\"...\n" +
-       "After this step, it will reload it automatically in a new plane.");
-
-       (new Thread("createHpx"){
-          @Override
-        public void run() {
-             try {
-                save.saveImage(filename,pi,1);
-                pi.flagProcessing=false;
-                calque.repaint();
-                calque.newPlan(filename,filename,"Aladin HEALPix generation");
-             } catch( Exception e ) { e.printStackTrace(); }
-          }
-       }).start();
-    }
-
-    /* Reset des données */
-    protected void reset() {
-       view.unStickAll();
-       view.setModeView(ViewControl.MVIEW1);
-       calque.FreeAll();
-       mesure.setReduced(true);
-       gc();
-       localisation.reset();
-//       pixel.reset();
-       dialog.setGrab(); // Desactivation du GrabIt ?
-       command.reset();
-       dialog.setDefaultTarget("");
-       dialog.setDefaultTaille(ServerDialog.DEFAULTTAILLE);
-       calque.repaintAll();
-    }
-
-    /** Active le widget Search */
-    protected void search() {
-       mesure.setReduced(false);
-       search.focus();
-    }
-
-    /** Pour sélectionner tous les objets des plans sélectionnés */
-    protected void select() {
-       calque.selectAllObjectInPlans();
-    }
-
-    /** Pour sélectionner toutes les sources marquées */
-    protected void selecttag() {
-       calque.selectAllObject(2);
-    }
-
-    /** Pour marquer toutes les sources sélectionnées */
-    protected void tagselect() {
-       aladin.mesure.tag();
-    }
-
-    /** Détague toutes les sources marquées */
-    protected void untag() {
-       calque.untag();
-    }
-
-    /** Pour sélectionner tous les objets */
-    protected void selectAll() {
-       calque.selectAllObject(0);
-    }
-
-    /** Pour désélectionner tous les objets */
-    protected void unSelect() {
-       view.deSelect();
-       calque.repaintAll();
-    }
-
-    /** POur afficher les propriétés des plans sélectionnés */
-    protected void prop() {
-       calque.select.propertiesOfSelectedPlanes();
-    }
-    
-    
-
-    /** Pour un ADDCOL */
-
-    protected void addCol() {
-       Plan p=calque.getFirstSelectedPlan();
-       if( p!=null && p.isSimpleCatalog() ) addCol(p);
-    }
-
-    protected void addCol(Plan p) {
-       trace(1,"Starting Add Column tool...");
-       if( frameCalc==null ) frameCalc = new FrameColumnCalculator(this);
-       frameCalc.update(p);
-       frameCalc.setVisible(true);
-       frameCalc.toFront();
-    }
-
-     /** Pour un XMATCH */
-     protected void xmatch() {
-        trace(1,"Xmatching in progress...");
-        if( frameCDSXMatch==null ) {
-           trace(1,"Creating the XMatch window");
-           frameCDSXMatch = new FrameCDSXMatch(this);
-        }
-        frameCDSXMatch.update();
-     }
-
-    /** Création d'un nouveau filtre et affichage des propriétés
-     * correspondantes */
-    protected void filter() {
-       Plan p = view.calque.newPlanFilter();
-       if( p!=null ) Properties.createProperties(p);
-       calque.repaintAll();
-    }
-
-    /**
-     * Création d'un filtre pour débutant via la JBar
-     * PF 24/8/2007
-     * @param label nom du filtre
-     * @return false si le filtre est inconnu
-     */
-    protected boolean applyBeginnerFilter(String label) {
-       int idx = Util.indexInArrayOf(label, FilterProperties.BEGINNER_FILTER);
-       if( idx<0 ) return false;
-
-       // lorsque le label est null, le nom du filtre est dans la definition
-       PlanFilter pf = (PlanFilter)calque.newPlanFilter("Filter", FilterProperties.BEGINNER_FILTERDEF[idx]);
-       if( pf!=null ) {
-          pf.setActivated(true);
-          pf.updateState();
-
-          // affichage dans la console de la commande script équivalente
-          aladin.console.printCommand("filter "+pf.label+" {\n"+pf.script+"\n}");
-       }
-       return true;
-    }
-
-    /** Création d'un filtre prédéfini
-     * @param s Nom du filtre
-     * @return false si le filtre n'existe pas
-     */
-    protected boolean filterB(String s) {
-       if( applyBeginnerFilter(s) ) {
-          calque.select.repaint();
-          return true;
-       }
-       return false;
-    }
-
-    /** Positionnement du nombre de vues via la JBar */
-    protected void panel(String s) {
-       try {
-          int n = Integer.parseInt(s.substring(0,s.indexOf(' ')));
-          if( s.indexOf("hor")>=0 ) n++;
-          view.setModeView(n);
-       } catch( Exception e ) {}
-    }
-
-    /** Positionnement du mode du réticule via la JBar */
-    protected void reticle(int mode) {
-       calque.setReticle(mode);
-       console.printCommand("reticle "+(!calque.hasReticle() ? "off" : calque.reticleMode==1?"on" : "large" ));
-       calque.repaintAll();
-    }
-
-    /** Activation ou désactivation du réticule via la Jbar */
-    protected void target() {
-       calque.setOverlayFlag("target", miTarget.isSelected() );
-//       console.setCommand("target "+(calque.hasTarget()?"on":"off"));
-       console.printCommand("setconf overlays="+( calque.hasTarget()?"+":"-" )+"target");
-       calque.repaintAll();
-    }
-
-    /** Activation ou désactivation des infos d'overlays colormap via la Jbar */
-    protected void rainbow() {
-       view.showRainbow(miRainbow.isSelected());
-       view.repaintAll();
-    }
-
-    /** Activation ou désactivation des infos d'overlays via la Jbar */
-    protected void overlay() {
-       calque.setOverlay(miOverlay.isSelected());
-       console.printCommand("overlay "+(calque.flagOverlay?"on":"off"));
-       calque.repaintAll();
-    }
-
-    /** Activation ou désactivation de la grille via la Jbar */
-    protected void grid() {
-       calque.setGrid(miGrid.isSelected(),true);
-       calque.repaintAll();
-    }
-    
-    /** Permute l'activation/désactivation de la grille HEALPix */
-    public void switchHpxGrid() {
-       miHpxGrid.setSelected( !miHpxGrid.isSelected() );
-       hpxGrid();
-    }
-
-    /** Activation ou désactivation de la grille HEALPix via la Jbar */
-    public void hpxGrid() { hpxGrid(miHpxGrid.isSelected()); }
-    public void hpxGrid(boolean flag) {
-       calque.setOverlayFlag("hpxgrid", flag );
-       view.newView();
-       view.repaintAll();
-    }
-
-    /** Activation ou désactivation de la synchronisation des vues
-     * @param byProjection : true si synchronisation par projection, sinon par zoom
-     */
-    protected void switchMatch(boolean byProjection) {
-       int syncMode = sync.getMode();
-       boolean syncOk = syncMode==2 && byProjection ||
-                        syncMode==3 && !byProjection ? true :
-                              view.switchSelectCompatibleViews();
-       match( !syncOk ? 0 : byProjection ? 3 : 2);
-    }
-
-    /** Cycle sur les modes match (aucun, simple match, match + orientation)
-     */
-    protected void cycleMatch() {
-       int syncMode = sync.getMode();
-       view.switchSelectCompatibleViews();
-//       int mode = syncMode==3 ? 0 : syncMode==1 ? 2 : 3;
-       int mode = syncMode==3 ? 0 :  3;
-       if( (mode==2 || mode==3) && !view.isSelectCompatibleViews() ) view.selectCompatibleViews();
-       else if( mode==0 || mode==1 && view.isSelectCompatibleViews() ) view.unselectViewsPartial();
-       match(mode);
-    }
-
-    /** Positionnement du match
-     * @param mode 0 ou 1 arrêt, 2 par zoom, 3 par zoom et rotation (projection)
-     */
-    protected void match(int mode) {
-       if( mode==2 || mode==3 ) {
-          sync.megaSync=mode==3;
-//          view.setZoomRaDecForSelectedViews(aladin.calque.zoom.getValue(),null);
-          view.setZoomRaDecForSelectedViews(0,null);
-          log("match",mode==3?"scale+angle":"scale");
-       } else {
-          view.repaintAll();
-          sync.megaSync=false;
-       }
-       sync.repaint();
-    }
-
-    /** Activation ou désactivation du zoom pointé via la Jbar */
-    protected void zoom() {
-       if( miZoomPt.isSelected() ) {
-          toolBox.tool[ToolBox.SELECT].mode=Tool.UP;
-          toolBox.tool[ToolBox.ZOOM].mode=Tool.DOWN;
-       } else {
-          toolBox.tool[ToolBox.SELECT].mode=Tool.DOWN;
-          toolBox.tool[ToolBox.ZOOM].mode=Tool.UP;
-       }
-       toolBox.repaint();
-    }
-
-    /** Activation ou désactivation du panning via la Jbar */
-    protected void pan() { pan(miPan.isSelected()); }
-    protected void pan(boolean mode) {
-       if( mode ) {
-          toolBox.tool[ToolBox.SELECT].mode=Tool.UP;
-          toolBox.tool[ToolBox.PAN].mode=Tool.DOWN;
-       } else {
-          toolBox.tool[ToolBox.SELECT].mode=Tool.DOWN;
-          toolBox.tool[ToolBox.PAN].mode=Tool.UP;
-       }
-       toolBox.repaint();
-       view.setDefaultCursor();
-    }
-    
-    protected void newPlanTool() {
-       Plan p = calque.createPlanTool(null);
-       console.printCommand("draw newtool("+Tok.quote(p.label)+")");
-    }
-
-    /** Activation d'un des outils graphiques via la Jbar */
-    protected void graphic(int n) {
-       toolBox.setGraphicButton(n);
-       calque.selectPlanTool();
-       toolBox.repaint();
    }
 
-    /** Activation ou désactivation du GREY via la Jbar */
-    protected void grey() {
-       aladin.console.printCommand("grey");
-       view.calque.newPlanImage((PlanImageRGB)(view.getCurrentView().pref));
-    }
+   /** Propose d'installer Aladin en standalone */
+   void install() {
+      if( !confirmation(chaine.getString("INSTALLSA")) ) return;
+      glu.showDocument("AladinJava.SA","");
 
-    /** Activation ou désactivation du MGLASS via la Jbar */
-    protected void glass() {
-       if( miGlass.isSelected() ) toolBox.tool[ToolBox.WEN].mode=Tool.DOWN;
-       else toolBox.tool[ToolBox.WEN].mode=Tool.UP;
+   }
 
-       aladin.calque.zoom.zoomView.setPixelTable(miGlassTable.isSelected());
+   /** Affichage des propriétés du premier planImage sélectionné dans
+    * le cas où l'utilisateur peut changer sa transparence */
+   void transparency() {
+      PlanImage pi = calque.getFirstSelectedPlanImage();
+      if( pi==null ) return;
+      Properties.createProperties(pi);
+   }
 
-       calque.repaintAll();
-    }
+   /** Positionne toutes les transparences des images de la pile à 100%, respectivement à 0% */
+   void transpon() {
+      float val=0f;
+      if( miTranspon.isSelected() ) val=1f;
+      calque.setOpacityLevelImage(val);
+      calque.repaintAll();
+   }
 
-    /** Activation ou désactivation du MGLASS via la Jbar */
-    protected void glassTable() {
-       if( miGlassTable.isSelected()) toolBox.tool[ToolBox.WEN].mode=Tool.DOWN;
-       else if( !miGlass.isSelected() )toolBox.tool[ToolBox.WEN].mode=Tool.UP;
+   /** Exécution de l'inversion verticale ou horizontale du plan de base */
+   protected void flip(int methode) {
+      try { flip(calque.getFirstSelectedSimpleImage(),methode); }
+      catch( Exception e) { e.printStackTrace(); }
+   }
 
-       aladin.calque.zoom.zoomView.setPixelTable(miGlassTable.isSelected());
+   /** Exécution de l'inversion verticale ou horizontale */
+   protected void flip(PlanImage p,int methode) throws Exception {
+      aladin.console.printCommand("flipflop "+(methode==0 ? "V" : "H"));
+      aladin.view.flip(p,methode);
+   }
 
-       calque.repaintAll();
-    }
+   /** Affichage du header fits de l'image courante */
+   protected void header() {
+      header(calque.getFirstSelectedPlan());
+   }
 
-    /** Suppression soit des objets, soit des vues sélectionnées,
-     * soit des plans suivant le dernier clic */
-    protected void delete() {
-       if( view.isDelSelObjet() ) view.delSelObjet();
-       else if( view.isViewSelected() ) view.freeSelected();
-       else calque.FreeSet(false);
-    }
+   /** Affichage du header fits du plan passé en paramètre */
+   protected void header(Plan plan) {
+      if( plan==null ) return;
+      if( plan instanceof PlanBG )  ((PlanBG)plan).seeHipsProp();
+      else if( plan instanceof PlanImage ) ((PlanImage)plan).headerFits.seeHeaderFits();
+      else if( plan instanceof PlanFolder ) ((PlanFolder)plan).headerFits.seeHeaderFits();
+      else ((PlanCatalog)plan).headerFits.seeHeaderFits();
+   }
 
-    /** Création de la fenêtre pour paramètrer un rééchantillonnage */
-    protected void rsamp() {
-       new FrameResample(this);
-    }
-
-    /** Ouverture de la fenêtre des pixels avec maj du bouton pixel associé */
-    protected void pixel() {
-       toolBox.tool[ToolBox.HIST].mode=Tool.DOWN;
-       toolBox.repaint();
-       updatePixel();
-    }
-
-    /** Mise à jour de la fenêtre des pixels en fonction de la position du bouton associé */
-    public void updatePixel() {
-       if( frameCM==null ) {
-          trace(1,"Creating the colormap window");
-          frameCM = new FrameColorMap(this);
-       }
-       boolean visible = toolBox.tool[ToolBox.HIST].mode==Tool.DOWN;
-       frameCM.setVisible(visible);
-       if( visible ) frameCM.majCM();
-    }
-
-    /** Ouverture de la fenêtre des RGB avec maj du bouton associé */
-    protected void RGB() {
-       toolBox.tool[ToolBox.RGB].mode=Tool.DOWN;
-       toolBox.repaint();
-       updateRGB();
-    }
-
-    /** Mise à jour de la fenêtre pour la construction d'une RGB */
-    protected void updateRGB() {
-       if( frameRGB==null ) {
-          trace(1,"Creating the RGB window");
-          frameRGB = new FrameRGB(aladin);
-       }
-       frameRGB.maj();
-    }
-
-    /** Mise à jour de la fenêtre pour les operations arithmetiques */
-    protected void updateArithm() {
-       if( frameArithm==null ) {
-          trace(1,"Creating the Arithmetic window");
-          frameArithm = new FrameArithmetic(aladin);
-       }
-       frameArithm.maj();
-    }
-    
-    /** Mise à jour de la fenêtre pour les operations des MOCs */
-    protected void updateMocFiltering() {
-       if( frameMocFiltering==null ) {
-          trace(1,"Creating the MocOp window");
-          frameMocFiltering = new FrameMocFiltering(aladin);
-       }
-       frameMocFiltering.maj();
-    }
-    
-    /** Chargemetn du MOC correspondant au plan HiPS courant  */
-    protected void loadMocHips() {
-       Plan p = calque.getFirstSelectedPlan();
-       if( p==null || p instanceof PlanMoc || !(p instanceof PlanBG) || !((PlanBG)p).hasMoc() ) p=calque.getPlanBase();
-       if( p==null || p instanceof PlanMoc || !(p instanceof PlanBG) || !((PlanBG)p).hasMoc() ) return;
-       ((PlanBG)p).loadMoc();
-    }
-    
-    private boolean loadMocFirst=true;
-    
-    /** Mise à jour de la fenêtre pour les operations des MOCs */
-    protected void loadMoc() {
-       dialog.show("VizieR");
-       if( loadMocFirst ) SwingUtilities.invokeLater(new Runnable() {
-          public void run() {
-             info(dialog,chaine.getString("MMOCLOADHELP"));
-          }
-       });   
-       loadMocFirst=false;
-    }
-
-    /** Mise à jour de la fenêtre pour les operations des MOCs */
-    protected void updateMocOp() {
-       if( frameMocOperation==null ) {
-          trace(1,"Creating the MocOp window");
-          frameMocOperation = new FrameMocOperation(aladin);
-       }
-       frameMocOperation.maj();
-    }
-    
-    /** Mise à jour de la fenêtre pour la génération d'un MOC à partir d'un autre MOC de meilleure résolution */
-    protected void updateMocToOrder() {
-       if( frameMocGenRes==null ) {
-          trace(1,"Creating the MocGenRes window");
-          frameMocGenRes = new FrameMocGenRes(aladin);
-       }
-       frameMocGenRes.maj();
-    }
-
-    /** Mise à jour de la fenêtre pour la génération d'un MOC */
-    protected void updateMocGenCat() {
-       if( frameMocGenCat==null ) {
-          trace(1,"Creating the MocGenCat window");
-          frameMocGenCat = new FrameMocGenCat(aladin);
-       }
-       frameMocGenCat.maj();
-    }
-
-    /** Mise à jour de la fenêtre pour la génération d'un MOC à partir d'une collection d'images */
-    protected void updateMocGenImgs() {
-       if( frameMocGenImgs==null ) {
-          trace(1,"Creating the MocGenImgs window");
-          frameMocGenImgs = new FrameMocGenImgs(aladin);
-       }
-       frameMocGenImgs.maj();
-    }
-
-    /** Mise à jour de la fenêtre pour la génération d'un MOC */
-    protected void updateMocGenImg() {
-       if( frameMocGenImg==null ) {
-          trace(1,"Creating the MocGenImg window");
-          frameMocGenImg = new FrameMocGenImg(aladin);
-       }
-       frameMocGenImg.maj();
-    }
-
-    /** Mise à jour de la fenêtre pour les operations de convolutions */
-    protected void updateConvolution() {
-       if( frameConvolution==null ) {
-          trace(1,"Creating the Convolution window");
-          frameConvolution = new FrameConvolution(aladin);
-       }
-       frameConvolution.maj();
-    }
-
-    /** Mise à jour de la fenêtre pour les operations arithmetiques sur plans Healpix*/
-    protected void updateHealpixArithm() {
-       if( frameHealpixArithm==null ) {
-          trace(1,"Creating the Arithmetic window");
-          frameHealpixArithm = new FrameHealpixArithmetic(aladin);
-       }
-       frameHealpixArithm.maj();
-    }
-    
-    /** Mise à jour de la fenêtre pour les operations arithmetiques */
-    protected void updateBitpix() {
-       if( frameBitpix==null ) {
-          trace(1,"Creating the Bitpix window");
-          frameBitpix = new FrameBitpix(aladin);
-       }
-       frameBitpix.maj();
-    }
-
-    /** Ouverture de la fenêtre des blinks avec maj du bouton associé */
-    protected void blink(int mode) {
-       toolBox.tool[ToolBox.BLINK].mode=Tool.DOWN;
-       toolBox.repaint();
-       updateBlink(mode);
-    }
-
-    /** Mise à jour de la fenêtre pour la construction
-     * d'un BLINK (mode=0), ou d'une MOSAIC (mode=1) */
-    protected void updateBlink(int mode) {
-       if( frameBlink==null ) {
-          trace(1,"Creating the Blink window");
-          frameBlink = new FrameBlink(aladin);
-       }
-       frameBlink.maj();
-       frameBlink.setMode(mode);
-    }
-
-    /** Ouverture de la fenêtre des Contours avec maj du bouton pixel associé */
-    protected void contour() {
-       toolBox.tool[ToolBox.CONTOUR].mode=Tool.DOWN;
-       toolBox.repaint();
-       updateContour();
-    }
-
-    /** Mise à jour de la fenêtre des Contours en fonction de la position du bouton associé */
-    protected void updateContour() {
-       if( frameContour==null ) {
-          trace(1,"Creating the Contour window");
-          frameContour = new FrameContour(this);
-       }
-       frameContour.majContour();
-    }
-
-    /**
-     * Affiche la fenêtre de gestion des "macros"
-     * (mode script évolué, portant sur une liste de paramètres)
-     */
-    protected void macro() {
-        FrameMacro fm = getFrameMacro();
-        fm.setVisible(true);
-        fm.toFront();
-    }
-
-    protected synchronized FrameMacro getFrameMacro() {
-        // lazy initialization
-        if( frameMacro==null ) {
-            frameMacro = new FrameMacro(this);
-            // log usage of macro
-            log("Macro", "");
-        }
-
-        return frameMacro;
-    }
-
-    /** Creation d'une nouvelle instance d'Aladin */
-    protected void windows() {
-       if( isApplet() ) return;
-       main(new String[]{});
-       //       launch();
-    }
-
-    /**
-     * Affiche la fenetre pour créer un allsky
-     */
-    protected void buildAllsky() {
-       FrameAllskyTool.display(this);
-    }
-
-    /**
-     * Affiche la fenetre pour créer un FoV
-     */
-    protected void buildFoV() {
-       glu.showDocument("FovEditor","");
-    }
+   //    /** Exécute une convolution sur le plan de base */
+   //    protected boolean conv(String kernel) {
+   //       if( Kernel.findKernel(kernel)<0 ) return false;
+   //       command.execLater("conv "+kernel);
+   //       return true;
+   //    }
 
 
-    /** Terminaison propre d'Aladin */
-    protected void quit(int code) {
+   /** Exécute une normalisation sur le plan de base */
+   protected void norm() {
+      command.execLater("norm");
+   }
 
-       // Deselection des objets en cours dans le cas ou une application
-       // type VOPlot est utilisee en parallele
+   /** Exécute une opération arithmétique sur les deux plans images sélectionnés */
+   //    protected void arithmetic(String op) {
+   //       Vector v = calque.getSelectedPlanes();
+   //       PlanImage p1,p2;
+   //       try {
+   //          p1 = (PlanImage)v.elementAt(0);
+   //          p2 = (PlanImage)v.elementAt(1);
+   //          command.exec(Tok.quote(p1.getLabel())+" "+op+" "+Tok.quote(p2.getLabel()));
+   //       } catch( Exception e ) { e.printStackTrace(); }
+   //    }
 
-       if( hasExtApp() ) try { resetCallbackVOApp(); } catch( Exception e) {}
+   /** Création d'un nouveau folder dans la pile */
+   protected void fold() {
+      int n=calque.newFolder(null,0,false);
+      Plan p = calque.getPlan(n);
+      if( p!=null ) console.printCommand("md "+p.getLabel());
+   }
 
-       if( aladinSession==0 ) {
-          trace(4,"Aladin.quit in progress... " );
-          trace(3,"User configuration backup...");
-          // Sauvegarde config utilisateur
-//          console.printInfo("Aladin stopped");
-          saveConfig();
-          
-          // Arrêt d'un éventuel calcul de allsky
-          try {
-             Context context = frameAllsky!=null && frameAllsky.context!=null ? frameAllsky.context
-                   : command.hipsgen!=null && command.hipsgen.context!=null ? command.hipsgen.context : null;
+   /** Insertion des plans sélectionnés dans un nouveau folder de la pile */
+   protected void inFold() {
+      calque.select.insertFolder();
+   }
+
+   //    /** Affichage du metadata tree général */
+   //    protected void history() {
+   //       treeView.toFront();
+   //       treeView.show();
+   //    }
+
+   /** Affiche les informations sur les colonnes du PlanCatalog
+    * passé en paramètre, ou si null, tous les plans catalogues sélectionnés */
+   protected void tableInfo(Plan p) {
+      if( p!=null )  new FrameInfoTable(aladin,p);
+      else {
+         Vector v = calque.getSelectedPlanes();
+         Enumeration e = v.elements();
+         FrameInfoTable f,of=null;
+         while( e.hasMoreElements() ) {
+            p = (Plan)e.nextElement();
+            if( !p.isCatalog() ) continue;
+            if( !p.flagOk ) continue;
+            f = new FrameInfoTable(aladin,p);
+            if( of!=null ) f.setLocation(of.getLocation().x+60,of.getLocation().y+40);
+            of=f;
+         }
+      }
+   }
+
+   /** Activation du CLONE des objects depuis la JBar */
+   protected void cloneObj(boolean uniqTable) {
+      calque.newPlanCatalogBySelectedObjet(uniqTable);
+   }
+
+   /** Création d'un graphe de nuage de points sur le plan Catalog sélectionné */
+   protected void createPlotCat() {
+      PlanCatalog p = calque.getFirstSelectedPlanCatalog();
+      if( p==null ) return;
+      if( !view.getCurrentView().isFree() && !view.isMultiView() ) view.setModeView(ViewControl.MVIEW2L);
+      int nview = aladin.view.getLastNumView(p);
+      view.setPlanRef(nview, p);
+      view.viewSimple[nview].addPlotTable(p, 0, 1,true);
+   }
+
+   /** Activation du CONCAT des objects depuis la JBar */
+   protected void concat(boolean uniqTable) {
+      calque.newPlanCatalogByCatalogs(null,uniqTable);
+   }
+
+   /** Activation du COPY depuis la JBar */
+   protected void copy() {
+      PlanImage pi = calque.getFirstSelectedSimpleImage();
+      command.execLater("copy "+Tok.quote(pi.getLabel()));
+   }
+
+   /** Activation du DUMP depuis la JBar */
+   protected void crop() {
+      toolBox.setMode(ToolBox.CROP, Tool.DOWN);
+   }
+
+   /** Création d'un fichier map HEALpix à partir d'un PlanImage et affichage de cette map */
+   protected void createHpx() {
+      final PlanImage pi = calque.getFirstSelectedSimpleImage();
+      pi.flagProcessing=true;
+
+      calque.select.repaint();
+      String name = pi.label.replace(' ','-').replace('/','-').replace('\\','-');
+      int i = name.lastIndexOf('.');
+      if( i>0 ) name = name.substring(0,i);
+      final String filename = name+".hpx";
+      info("Aladin is creating an HEALPix file map from the image plane \""+pi.label+"\"\n" +
+            "=> \""+aladin.getFullFileName(filename)+"\"...\n" +
+            "After this step, it will reload it automatically in a new plane.");
+
+      (new Thread("createHpx"){
+         @Override
+         public void run() {
+            try {
+               save.saveImage(filename,pi,1);
+               pi.flagProcessing=false;
+               calque.repaint();
+               calque.newPlan(filename,filename,"Aladin HEALPix generation");
+            } catch( Exception e ) { e.printStackTrace(); }
+         }
+      }).start();
+   }
+
+   /* Reset des données */
+   protected void reset() {
+      view.unStickAll();
+      view.setModeView(ViewControl.MVIEW1);
+      calque.FreeAll();
+      mesure.setReduced(true);
+      gc();
+      localisation.reset();
+      //       pixel.reset();
+      dialog.setGrab(); // Desactivation du GrabIt ?
+      command.reset();
+      dialog.setDefaultTarget("");
+      dialog.setDefaultTaille(ServerDialog.DEFAULTTAILLE);
+      calque.repaintAll();
+   }
+
+   /** Active le widget Search */
+   protected void search() {
+      mesure.setReduced(false);
+      search.focus();
+   }
+
+   /** Pour sélectionner tous les objets des plans sélectionnés */
+   protected void select() {
+      calque.selectAllObjectInPlans();
+   }
+
+   /** Pour sélectionner toutes les sources marquées */
+   protected void selecttag() {
+      calque.selectAllObject(2);
+   }
+
+   /** Pour marquer toutes les sources sélectionnées */
+   protected void tagselect() {
+      aladin.mesure.tag();
+   }
+
+   /** Détague toutes les sources marquées */
+   protected void untag() {
+      calque.untag();
+   }
+
+   /** Pour sélectionner tous les objets */
+   protected void selectAll() {
+      calque.selectAllObject(0);
+   }
+
+   /** Pour désélectionner tous les objets */
+   protected void unSelect() {
+      view.deSelect();
+      calque.repaintAll();
+   }
+
+   /** POur afficher les propriétés des plans sélectionnés */
+   protected void prop() {
+      calque.select.propertiesOfSelectedPlanes();
+   }
+
+
+
+   /** Pour un ADDCOL */
+
+   protected void addCol() {
+      Plan p=calque.getFirstSelectedPlan();
+      if( p!=null && p.isSimpleCatalog() ) addCol(p);
+   }
+
+   protected void addCol(Plan p) {
+      trace(1,"Starting Add Column tool...");
+      if( frameCalc==null ) frameCalc = new FrameColumnCalculator(this);
+      frameCalc.update(p);
+      frameCalc.setVisible(true);
+      frameCalc.toFront();
+   }
+
+   /** Pour un XMATCH */
+   protected void xmatch() {
+      trace(1,"Xmatching in progress...");
+      if( frameCDSXMatch==null ) {
+         trace(1,"Creating the XMatch window");
+         frameCDSXMatch = new FrameCDSXMatch(this);
+      }
+      frameCDSXMatch.update();
+   }
+
+   /** Création d'un nouveau filtre et affichage des propriétés
+    * correspondantes */
+   protected void filter() {
+      Plan p = view.calque.newPlanFilter();
+      if( p!=null ) Properties.createProperties(p);
+      calque.repaintAll();
+   }
+
+   /**
+    * Création d'un filtre pour débutant via la JBar
+    * PF 24/8/2007
+    * @param label nom du filtre
+    * @return false si le filtre est inconnu
+    */
+   protected boolean applyBeginnerFilter(String label) {
+      int idx = Util.indexInArrayOf(label, FilterProperties.BEGINNER_FILTER);
+      if( idx<0 ) return false;
+
+      // lorsque le label est null, le nom du filtre est dans la definition
+      PlanFilter pf = (PlanFilter)calque.newPlanFilter("Filter", FilterProperties.BEGINNER_FILTERDEF[idx]);
+      if( pf!=null ) {
+         pf.setActivated(true);
+         pf.updateState();
+
+         // affichage dans la console de la commande script équivalente
+         aladin.console.printCommand("filter "+pf.label+" {\n"+pf.script+"\n}");
+      }
+      return true;
+   }
+
+   /** Création d'un filtre prédéfini
+    * @param s Nom du filtre
+    * @return false si le filtre n'existe pas
+    */
+   protected boolean filterB(String s) {
+      if( applyBeginnerFilter(s) ) {
+         calque.select.repaint();
+         return true;
+      }
+      return false;
+   }
+
+   /** Positionnement du nombre de vues via la JBar */
+   protected void panel(String s) {
+      try {
+         int n = Integer.parseInt(s.substring(0,s.indexOf(' ')));
+         if( s.indexOf("hor")>=0 ) n++;
+         view.setModeView(n);
+      } catch( Exception e ) {}
+   }
+
+   /** Positionnement du mode du réticule via la JBar */
+   protected void reticle(int mode) {
+      calque.setReticle(mode);
+      console.printCommand("reticle "+(!calque.hasReticle() ? "off" : calque.reticleMode==1?"on" : "large" ));
+      calque.repaintAll();
+   }
+
+   /** Activation ou désactivation du réticule via la Jbar */
+   protected void target() {
+      calque.setOverlayFlag("target", miTarget.isSelected() );
+      //       console.setCommand("target "+(calque.hasTarget()?"on":"off"));
+      console.printCommand("setconf overlays="+( calque.hasTarget()?"+":"-" )+"target");
+      calque.repaintAll();
+   }
+
+   /** Activation ou désactivation des infos d'overlays colormap via la Jbar */
+   protected void rainbow() {
+      view.showRainbow(miRainbow.isSelected());
+      view.repaintAll();
+   }
+
+   /** Activation ou désactivation des infos d'overlays via la Jbar */
+   protected void overlay() {
+      calque.setOverlay(miOverlay.isSelected());
+      console.printCommand("overlay "+(calque.flagOverlay?"on":"off"));
+      calque.repaintAll();
+   }
+
+   /** Activation ou désactivation des constellations */
+   protected void constellation() {
+      boolean flag = miConst.isSelected();
+      calque.setOverlayFlag("const", flag);
+      console.printCommand("setconf overlay="+(flag?"+":"-")+"const");
+      view.repaintAll();
+   }
+
+   /** Activation ou désactivation de la grille via la Jbar */
+   protected void grid(int mode) {
+      calque.setGrid(mode);
+      view.repaintAll();
+   }
+
+   /** Permute l'activation/désactivation de la grille HEALPix */
+   public void switchHpxGrid() {
+      miHpxGrid.setSelected( !miHpxGrid.isSelected() );
+      hpxGrid();
+   }
+
+   /** Activation ou désactivation de la grille HEALPix via la Jbar */
+   public void hpxGrid() { hpxGrid(miHpxGrid.isSelected()); }
+   public void hpxGrid(boolean flag) {
+      calque.setOverlayFlag("hpxgrid", flag );
+      view.newView();
+      view.repaintAll();
+   }
+
+   /** Activation ou désactivation de la synchronisation des vues
+    * @param byProjection : true si synchronisation par projection, sinon par zoom
+    */
+   protected void switchMatch(boolean byProjection) {
+      int syncMode = match.getMode();
+      boolean syncOk = syncMode==2 && byProjection ||
+            syncMode==3 && !byProjection ? true :
+               view.switchSelectCompatibleViews();
+      match( !syncOk ? 0 : byProjection ? 3 : 2);
+   }
+
+   /** Cycle sur les modes match (aucun, simple match, match + orientation)
+    */
+   protected void cycleMatch() {
+      int syncMode = match.getMode();
+      int mode = syncMode==3 ? 0 :  3;
+
+      // Pour conserver la même position approximative après un retour à la normal
+      if( mode==0 ) view.setZoomRaDecForSelectedViews(view.getCurrentView().getZoom(),null);
+
+      view.switchSelectCompatibleViews();
+      //       int mode = syncMode==3 ? 0 : syncMode==1 ? 2 : 3;
+
+      if( (mode==2 || mode==3) && !view.isSelectCompatibleViews() ) view.selectCompatibleViews();
+      else if( mode==0 || mode==1 && view.isSelectCompatibleViews() ) {
+         if( mode==0 )  view.unselectViewsPartial();
+      }
+      match(mode);
+   }
+
+   /** Positionnement du match
+    * @param mode 0 ou 1 arrêt, 2 par zoom, 3 par zoom et rotation (projection)
+    */
+   protected void match(int mode) {
+      if( mode==2 || mode==3 ) {
+         match.megaMatch=mode==3;
+         //          view.setZoomRaDecForSelectedViews(aladin.calque.zoom.getValue(),null);
+         view.setZoomRaDecForSelectedViews(0,null,null,true,true);
+         log("match",mode==3?"scale+angle":"scale");
+      } else {
+         view.repaintAll();
+         match.megaMatch=false;
+      }
+      match.repaint();
+   }
+
+   /** Activation ou désactivation du zoom pointé via la Jbar */
+   protected void zoom() {
+      if( miZoomPt.isSelected() ) {
+         toolBox.tool[ToolBox.SELECT].mode=Tool.UP;
+         toolBox.tool[ToolBox.ZOOM].mode=Tool.DOWN;
+      } else {
+         toolBox.tool[ToolBox.SELECT].mode=Tool.DOWN;
+         toolBox.tool[ToolBox.ZOOM].mode=Tool.UP;
+      }
+      toolBox.repaint();
+   }
+
+   /** Activation ou désactivation du panning via la Jbar */
+   protected void pan() { pan(miPan.isSelected()); }
+   protected void pan(boolean mode) {
+      if( mode ) {
+         toolBox.tool[ToolBox.SELECT].mode=Tool.UP;
+         toolBox.tool[ToolBox.PAN].mode=Tool.DOWN;
+      } else {
+         toolBox.tool[ToolBox.SELECT].mode=Tool.DOWN;
+         toolBox.tool[ToolBox.PAN].mode=Tool.UP;
+      }
+      toolBox.repaint();
+      view.setDefaultCursor();
+   }
+
+   protected void newPlanTool() {
+      Plan p = calque.createPlanTool(null);
+      console.printCommand("draw newtool("+Tok.quote(p.label)+")");
+   }
+
+   /** Activation d'un des outils graphiques via la Jbar */
+   protected void graphic(int n) {
+      toolBox.setGraphicButton(n);
+      calque.selectPlanTool();
+      toolBox.repaint();
+   }
+
+   /** Activation ou désactivation du GREY via la Jbar */
+   protected void grey() {
+      aladin.console.printCommand("grey");
+      view.calque.newPlanImage((PlanImageRGB)(view.getCurrentView().pref));
+   }
+
+   /** Activation ou désactivation du MGLASS via la Jbar */
+   protected void glass() {
+      if( miGlass.isSelected() ) toolBox.tool[ToolBox.WEN].mode=Tool.DOWN;
+      else toolBox.tool[ToolBox.WEN].mode=Tool.UP;
+
+      aladin.calque.zoom.zoomView.setPixelTable(miGlassTable.isSelected());
+
+      calque.repaintAll();
+   }
+
+   /** Activation ou désactivation du MGLASS via la Jbar */
+   protected void glassTable() {
+      if( miGlassTable.isSelected()) toolBox.tool[ToolBox.WEN].mode=Tool.DOWN;
+      else if( !miGlass.isSelected() )toolBox.tool[ToolBox.WEN].mode=Tool.UP;
+
+      aladin.calque.zoom.zoomView.setPixelTable(miGlassTable.isSelected());
+
+      calque.repaintAll();
+   }
+
+   /** Suppression soit des objets, soit des vues sélectionnées,
+    * soit des plans suivant le dernier clic */
+   protected void delete() {
+      if( view.isDelSelObjet() ) view.delSelObjet();
+      else if( view.isViewSelected() ) view.freeSelected();
+      else calque.FreeSet(false);
+   }
+
+   /** Création de la fenêtre pour paramètrer un rééchantillonnage */
+   protected void rsamp() {
+      new FrameResample(this);
+   }
+
+   /** Ouverture de la fenêtre des pixels avec maj du bouton pixel associé */
+   protected void pixel() {
+      toolBox.tool[ToolBox.HIST].mode=Tool.DOWN;
+      toolBox.repaint();
+      updatePixel();
+   }
+
+   /** Mise à jour de la fenêtre des pixels en fonction de la position du bouton associé */
+   public void updatePixel() {
+      if( frameCM==null ) {
+         trace(1,"Creating the colormap window");
+         frameCM = new FrameColorMap(this);
+      }
+      boolean visible = toolBox.tool[ToolBox.HIST].mode==Tool.DOWN;
+      frameCM.setVisible(visible);
+      if( visible ) frameCM.majCM();
+   }
+
+   /** Ouverture de la fenêtre des RGB avec maj du bouton associé */
+   protected void RGB() {
+      toolBox.tool[ToolBox.RGB].mode=Tool.DOWN;
+      toolBox.repaint();
+      updateRGB();
+   }
+
+   /** Mise à jour de la fenêtre pour la construction d'une RGB */
+   protected void updateRGB() {
+      if( frameRGB==null ) {
+         trace(1,"Creating the RGB window");
+         frameRGB = new FrameRGB(aladin);
+      }
+      frameRGB.maj();
+   }
+
+   /** Mise à jour de la fenêtre pour les operations arithmetiques */
+   protected void updateArithm() {
+      if( frameArithm==null ) {
+         trace(1,"Creating the Arithmetic window");
+         frameArithm = new FrameArithmetic(aladin);
+      }
+      frameArithm.maj();
+   }
+
+   /** Mise à jour de la fenêtre pour les operations des MOCs */
+   protected void updateMocFiltering() {
+      if( frameMocFiltering==null ) {
+         trace(1,"Creating the MocOp window");
+         frameMocFiltering = new FrameMocFiltering(aladin);
+      }
+      frameMocFiltering.maj();
+   }
+
+   /** Chargemetn du MOC correspondant au plan HiPS courant  */
+   protected void loadMocHips() {
+      Plan p = calque.getFirstSelectedPlan();
+      if( p==null || p instanceof PlanMoc || !(p instanceof PlanBG) || !((PlanBG)p).hasMoc() ) p=calque.getPlanBase();
+      if( p==null || p instanceof PlanMoc || !(p instanceof PlanBG) || !((PlanBG)p).hasMoc() ) return;
+      ((PlanBG)p).loadMoc();
+   }
+
+   private boolean loadMocFirst=true;
+
+   /** Mise à jour de la fenêtre pour les operations des MOCs */
+   protected void loadMoc() {
+      dialog.show("VizieR");
+      if( loadMocFirst ) SwingUtilities.invokeLater(new Runnable() {
+         public void run() {
+            info(dialog,chaine.getString("MMOCLOADHELP"));
+         }
+      });
+      loadMocFirst=false;
+   }
+
+   /** Mise à jour de la fenêtre pour les operations des MOCs */
+   protected void updateMocOp() {
+      if( frameMocOperation==null ) {
+         trace(1,"Creating the MocOp window");
+         frameMocOperation = new FrameMocOperation(aladin);
+      }
+      frameMocOperation.maj();
+   }
+
+   /** Mise à jour de la fenêtre pour la génération d'un MOC à partir d'un autre MOC de meilleure résolution */
+   protected void updateMocToOrder() {
+      if( frameMocGenRes==null ) {
+         trace(1,"Creating the MocGenRes window");
+         frameMocGenRes = new FrameMocGenRes(aladin);
+      }
+      frameMocGenRes.maj();
+   }
+
+   /** Mise à jour de la fenêtre pour la génération d'un MOC */
+   protected void updateMocGenCat() {
+      if( frameMocGenCat==null ) {
+         trace(1,"Creating the MocGenCat window");
+         frameMocGenCat = new FrameMocGenCat(aladin);
+      }
+      frameMocGenCat.maj();
+   }
+
+   /** Mise à jour de la fenêtre pour la génération d'un MOC à partir d'une collection d'images */
+   protected void updateMocGenImgs() {
+      if( frameMocGenImgs==null ) {
+         trace(1,"Creating the MocGenImgs window");
+         frameMocGenImgs = new FrameMocGenImgs(aladin);
+      }
+      frameMocGenImgs.maj();
+   }
+   
+   
+   /**
+    * Détermination de l'ordre pour avoir 75 cellules dans la distance
+    * @param size taille à couvrir (en degrés)
+    * @return order HEALPix approprié
+    */
+   private int getAppropriateOrder(double size) {
+      int order = 4;
+      if( size==0 ) order=HealpixMoc.MAXORDER;
+      else {
+         double pixRes = size/75;
+         double degrad = Math.toDegrees(1.0);
+         double skyArea = 4.*Math.PI*degrad*degrad;
+         double res = Math.sqrt(skyArea/(12*16*16));
+         while( order<HealpixMoc.MAXORDER && res>pixRes) { res/=2; order++; }
+      }
+      return order;
+   }
+   
+   /**Creation d'un MOC à partir de tous les polygones sélectionnés */
+   protected int createMocRegion() { return createMocRegion(-1); }
+   protected int createMocRegion(int order) {
+      HealpixMoc moc = new HealpixMoc();
+      HashSet<Obj> set = new HashSet<Obj>();
+      for( Obj o : view.vselobj ) {
+         
+         // Ajout des cercles (Phot ou cercle)
+         if( o instanceof Repere || o instanceof Cercle) {
+            try {
+               double ra = o.getRa();
+               double de = o.getDec();
+               double radius =o.getRadius();
+               if( radius==0 ) continue;
+
+               HealpixMoc m = createMocRegionCircle( ra,de,radius,order );
+               if( m==null || m.getSize()==0 ) continue;
+               moc.add(m);
+            } catch( Exception e) { if( levelTrace>=3 ) e.printStackTrace(); }
+         }
+         
+         
+         // Ajout des polygones
+         if( !(o instanceof Ligne) ) continue;
+         o = ((Ligne)o).getLastBout();
+         if( ((Ligne)o).bout!=3 ) continue;
+         if( set.contains(o) ) continue;
+         set.add(o);
+         try {
+            HealpixMoc m = createMocRegionPol( (Ligne)o,order );
+            if( m==null || m.getSize()==0 ) continue;
+            moc.add(m);
+         } catch( Exception e) { if( levelTrace>=3 ) e.printStackTrace(); }
+
+      }
+      
+      if( moc.getSize()==0 ) {
+         warning("MOC creation error !\n",1);
+         return -1;
+      }
+      
+
+      return calque.newPlanMOC(moc,"Moc reg");
+
+   }
+      
+   /** Création d'un MOC à partir d'un cercle (ra,dec,radius) */
+   protected HealpixMoc createMocRegionCircle(double ra, double de, double radius, int order) throws Exception {
+      HealpixMoc m = new HealpixMoc();
+      if( order==-1 ) order=getAppropriateOrder(radius);
+      
+      long i=0;
+      m.setCheckConsistencyFlag(false);
+      for( long pix : CDSHealpix.query_disc( CDSHealpix.pow2(order), ra, de, Math.toRadians(radius)) ) {
+         m.add(order,pix);
+         i++;
+         if( i%10000L==0 ) m.checkAndFix();
+      }
+      m.setCheckConsistencyFlag(true);
+      
+      return m;
+   }
+
+
+   /**Creation d'un MOC à partir du polygone sélectionné pour un de ses sommets
+    * Tente de faire les deux sens d'orientation du polygone et ne garde que celui qui
+    * fournit une surface inférieure à la moitié du ciel */
+   protected HealpixMoc createMocRegionPol(Ligne o, int order) throws Exception {
+      HealpixMoc moc=null;
+
+      double maxSize=0;
+      Coord c1=null;
+      boolean first=true;
+
+      for( int sens=0; sens<2; sens++ ) {
+         ArrayList<Vec3> cooList = new ArrayList<Vec3>();
+         if( sens==1 ) trace(3,"createMocRegion("+o+") trying reverse polygon order...");
+         try {
+            Ligne a = sens==0 ? o.getFirstBout() : o.getLastBout();
+            while( a!=null ) {
+
+               // Mémorisation de la plus grande diagonale
+               if( first ) { c1 = new Coord(a.raj,a.dej); first=false; }
+               else {
+                  double size = Coord.getDist(c1, new Coord(a.raj,a.dej));
+                  if( size>maxSize ) maxSize=size;
+               }
+
+               double theta = Math.PI/2 - Math.toRadians( a.dej );
+               double phi = Math.toRadians( a.raj );
+               cooList.add(new Vec3(new Pointing(theta,phi)));
+
+               // Prochain sommet ?
+               a = sens==0 ? a.finligne : a.debligne;
+            }
+
+
+            if( sens==0 ) {
+               // L'ordre est déterminé automatiquement par la largeur du polygone
+               if( order==-1 ) order=getAppropriateOrder(maxSize);
+               trace(2,"MocRegion generation:  maxRadius="+maxSize+"deg => order="+order);
+               if( order<10 ) order=10;
+               else if( order>29 ) order=29;
+            }
+
+            Moc m=MocQuery.queryGeneralPolygonInclusive(cooList,order,order+4>29?29:order+4);
+            moc = new HealpixMoc();
+            moc.rangeSet = m.getRangeSet();
+            moc.toHealpixMoc();
+
+            // moins de la moitié du ciel => ca doit être bon
+            if( moc.getCoverage()<0.5 ) break;
+
+            // On va essayer dans l'autre sens avant d'estimer que ça ne fonctionne pas
+         } catch( Throwable e ) {
+            if( sens==1 && e instanceof Exception ) throw (Exception)e;
+         }
+      }
+
+
+      return moc;
+   }
+
+   /** Mise à jour de la fenêtre pour la génération d'un MOC */
+   protected void updateMocGenImg() {
+      if( frameMocGenImg==null ) {
+         trace(1,"Creating the MocGenImg window");
+         frameMocGenImg = new FrameMocGenImg(aladin);
+      }
+      frameMocGenImg.maj();
+   }
+
+   /** Mise à jour de la fenêtre pour les operations de convolutions */
+   protected void updateConvolution() {
+      if( frameConvolution==null ) {
+         trace(1,"Creating the Convolution window");
+         frameConvolution = new FrameConvolution(aladin);
+      }
+      frameConvolution.maj();
+   }
+
+   /** Mise à jour de la fenêtre pour les operations arithmetiques sur plans Healpix*/
+   protected void updateHealpixArithm() {
+      if( frameHealpixArithm==null ) {
+         trace(1,"Creating the Arithmetic window");
+         frameHealpixArithm = new FrameHealpixArithmetic(aladin);
+      }
+      frameHealpixArithm.maj();
+   }
+
+   /** Mise à jour de la fenêtre pour les operations arithmetiques */
+   protected void updateBitpix() {
+      if( frameBitpix==null ) {
+         trace(1,"Creating the Bitpix window");
+         frameBitpix = new FrameBitpix(aladin);
+      }
+      frameBitpix.maj();
+   }
+
+   /** Ouverture de la fenêtre des blinks avec maj du bouton associé */
+   protected void blink(int mode) {
+      toolBox.tool[ToolBox.BLINK].mode=Tool.DOWN;
+      toolBox.repaint();
+      updateBlink(mode);
+   }
+
+   /** Mise à jour de la fenêtre pour la construction
+    * d'un BLINK (mode=0), ou d'une MOSAIC (mode=1) */
+   protected void updateBlink(int mode) {
+      if( frameBlink==null ) {
+         trace(1,"Creating the Blink window");
+         frameBlink = new FrameBlink(aladin);
+      }
+      frameBlink.maj();
+      frameBlink.setMode(mode);
+   }
+
+   /** Ouverture de la fenêtre des Contours avec maj du bouton pixel associé */
+   protected void contour() {
+      toolBox.tool[ToolBox.CONTOUR].mode=Tool.DOWN;
+      toolBox.repaint();
+      updateContour();
+   }
+
+   /** Mise à jour de la fenêtre des Contours en fonction de la position du bouton associé */
+   protected void updateContour() {
+      if( frameContour==null ) {
+         trace(1,"Creating the Contour window");
+         frameContour = new FrameContour(this);
+      }
+      frameContour.majContour();
+   }
+
+   /**
+    * Affiche la fenêtre de gestion des "macros"
+    * (mode script évolué, portant sur une liste de paramètres)
+    */
+   protected void macro() {
+      FrameMacro fm = getFrameMacro();
+      fm.setVisible(true);
+      fm.toFront();
+   }
+
+   protected synchronized FrameMacro getFrameMacro() {
+      // lazy initialization
+      if( frameMacro==null ) {
+         frameMacro = new FrameMacro(this);
+         // log usage of macro
+         log("Macro", "");
+      }
+
+      return frameMacro;
+   }
+
+   /** Creation d'une nouvelle instance d'Aladin */
+   protected void windows() {
+      if( isApplet() ) return;
+      main(new String[]{});
+      //       launch();
+   }
+
+   /**
+    * Affiche la fenetre pour créer un allsky
+    */
+   protected void buildAllsky() {
+      FrameAllskyTool.display(this);
+   }
+
+   /**
+    * Affiche la fenetre pour créer un FoV
+    */
+   protected void buildFoV() {
+      glu.showDocument("FovEditor","");
+   }
+
+
+   /** Terminaison propre d'Aladin */
+   protected void quit(int code) {
+
+      // Deselection des objets en cours dans le cas ou une application
+      // type VOPlot est utilisee en parallele
+
+      if( hasExtApp() ) try { resetCallbackVOApp(); } catch( Exception e) {}
+
+      if( aladinSession==0 ) {
+         trace(4,"Aladin.quit in progress... " );
+         trace(3,"User configuration backup...");
+         // Sauvegarde config utilisateur
+         //          console.printInfo("Aladin stopped");
+         saveConfig();
+
+         // Arrêt d'un éventuel calcul de allsky
+         try {
+            Context context = frameAllsky!=null && frameAllsky.context!=null ? frameAllsky.context
+                  : command.hipsgen!=null && command.hipsgen.context!=null ? command.hipsgen.context : null;
             if( context!=null && context.isTaskRunning() ) {
                context.taskAbort();
                long t = System.currentTimeMillis();
@@ -3837,135 +4112,134 @@ public class Aladin extends JApplet
             }
          } catch( Exception e1 ) { }
 
-          // Suppression d'un cache éventuel
-          trace(3,"Cache cleaning...");
-          stopCacheUpdater();
-          removeCache();
-          
-          // Nettoyage de la pile
-          try { calque.FreeAll(); } catch( Exception e ) {}
-       }
+         // Suppression d'un cache éventuel
+         trace(3,"Cache cleaning...");
+         stopCacheUpdater();
+         removeCache();
 
-       // appel des méthodes cleanup() des plugins
-       if( plugins!=null ) {
-          trace(3,"Plugin cleaning...");
-          try { plugins.cleanup(); } catch( Exception e ) {}
-       }
+         // Nettoyage de la pile
+         try { calque.FreeAll(); } catch( Exception e ) {}
+      }
 
-       if( aladinSession>0 || flagLaunch ) { // Si Aladin demarre par launch() cacher la fenetre
-//          System.out.println("Aladin.action: flagLaunch true => dispose");
-          trace(3,"Slave session => not true exit() ...");
-          reset();		// Nécessaire pour ne pas avoir de ressurections intempestives
-          command.stop();
-//          f.dispose();
-          f.setVisible(false);        // Pour une sombre histoire de bug MAC
+      // appel des méthodes cleanup() des plugins
+      if( plugins!=null ) {
+         trace(3,"Plugin cleaning...");
+         try { plugins.cleanup(); } catch( Exception e ) {}
+      }
 
-       } else {         // Sinon terminer l'application
+      if( aladinSession>0 || flagLaunch ) { // Si Aladin demarre par launch() cacher la fenetre
+         //          System.out.println("Aladin.action: flagLaunch true => dispose");
+         trace(3,"Slave session => not true exit() ...");
+         reset();		// Nécessaire pour ne pas avoir de ressurections intempestives
+         command.stop();
+         f.setVisible(false);        // Pour une sombre histoire de bug MAC
 
-          if( isPrinting() || isSaving() || isLogging() ) {
-          if( isPrinting() || isSaving() ) trace(3,"Print or Save in progress => waiting...");
-             f.setVisible(false);
-             long t=System.currentTimeMillis();
-             while( isPrinting() || isSaving() || isLogging() ) {
-                Util.pause(500);
-                if( System.currentTimeMillis()-t>5*60000 ) break; // Au-delà de 5 minutes on quitte
-             }
-          }
-          trace(3,"See you !");
-          System.exit(code);
-       }
+      } else {         // Sinon terminer l'application
 
-    }
+         if( isPrinting() || isSaving() || isLogging() ) {
+            if( isPrinting() || isSaving() ) trace(3,"Print or Save in progress => waiting...");
+            f.setVisible(false);
+            long t=System.currentTimeMillis();
+            while( isPrinting() || isSaving() || isLogging() ) {
+               Util.pause(500);
+               if( System.currentTimeMillis()-t>5*60000 ) break; // Au-delà de 5 minutes on quitte
+            }
+         }
+         trace(3,"See you !");
+         System.exit(code);
+      }
 
-    /** JE NE SAIS PAS QUI A RAJOUTE CELA ??? LE CFH ?? */
-    public void shut() { Thread.currentThread().stop(); }
+   }
 
-    /** Ouverture de la fenêtre des préférences utilisateur */
-    protected void preferences() {
-    	configuration.show();
-    }
+   /** JE NE SAIS PAS QUI A RAJOUTE CELA ??? LE CFH ?? */
+   public void shut() { Thread.currentThread().stop(); }
 
-
-    /** retourne l'instance de FrameInfo actuellement utilisée
-     * En crée une si nécessaire */
-    protected synchronized FrameInfo getFrameInfo() {
-    	// lazy initialization
-    	if( frameInfo==null ) frameInfo = new FrameInfo(this);
-
-    	return frameInfo;
-    }
-
-//    /** Lancement de VOPlot avec les objets selectionnes ou tous les objets
-//     *  si aucun
-//     */
-//    protected void voplot() {
-//        if( calque.isFree() ) return;
-// trace(1,"Starting VOPlot...");
-////       new Thread(){
-////          public void run() {
-//             try {
-//
-//                MyByteArrayStream s = writeObjectInVOTable();
-//
-//                extApp = launchVOPlot();
-//                InputStream in = s.getInputStream();
-//                extApp.loadVOTable(aladin,in);
-//                addVOAppObserver(extApp);
-//                glu.log("VOPlot","starting");
-//             }catch( IOException ioe ) {
-//                if( levelTrace>=3 ) ioe.printStackTrace();
-//                warning(chaine.getString("VOPLOTERR1"), 1);
-//             }
-//             catch( Exception es ) {
-//                if( levelTrace>=3 ) es.printStackTrace();
-//                warning(chaine.getString("VOPLOTERR")+"\n"+es);
-//                glu.log("VOPlot","Too+old+JVM+for+VOPlot");
-//             }
-////          }
-////       }.start();
-//    }
-
-    protected void sesame() {
-       localisation.focus(Localisation.YOUROBJ);
-    }
-    
-    protected void calculator() {
-       localisation.focus(chaine.getString("YOUREXPR"),"= ");
-    }
-    
-    
-    protected FrameCooToolbox frameCooTool=null;
-    protected void cooTool() {
-       if( frameCooTool==null ) frameCooTool=new FrameCooToolbox(this);
-       else frameCooTool.setVisible(true);
-    }
-
-    protected FramePixelToolbox framePixelTool=null;
-    protected void pixelTool() {
-       if( framePixelTool==null ) framePixelTool=new FramePixelToolbox(this);
-       else framePixelTool.setVisible(true);
-    }
-
-    /** Lancement ou arrêt du mode Simbad Pointer */
-    protected void simbadPointer() {
-       calque.setSimbad(!calque.flagSimbad);
-    }
-
-    /** Lancement ou arrêt du mode VizieR SED Pointer */
-    protected void vizierSED() {
-       calque.setVizierSED(!calque.flagVizierSED);
-    }
-    
-  /** Activation ou désactivation de l'outil de mesure automatique des distance */
-  protected void autodist() {
-     calque.setAutoDist(!calque.flagAutoDist);
-  }
+   /** Ouverture de la fenêtre des préférences utilisateur */
+   protected void preferences() {
+      configuration.show();
+   }
 
 
-//    /** Activation ou désactivation des tooltips sur les objets */
-//    protected void tip() {
-//       calque.flagTip=!calque.flagTip;
-//    }
+   /** retourne l'instance de FrameInfo actuellement utilisée
+    * En crée une si nécessaire */
+   protected synchronized FrameInfo getFrameInfo() {
+      // lazy initialization
+      if( frameInfo==null ) frameInfo = new FrameInfo(this);
+
+      return frameInfo;
+   }
+
+   //    /** Lancement de VOPlot avec les objets selectionnes ou tous les objets
+   //     *  si aucun
+   //     */
+   //    protected void voplot() {
+   //        if( calque.isFree() ) return;
+   // trace(1,"Starting VOPlot...");
+   ////       new Thread(){
+   ////          public void run() {
+   //             try {
+   //
+   //                MyByteArrayStream s = writeObjectInVOTable();
+   //
+   //                extApp = launchVOPlot();
+   //                InputStream in = s.getInputStream();
+   //                extApp.loadVOTable(aladin,in);
+   //                addVOAppObserver(extApp);
+   //                glu.log("VOPlot","starting");
+   //             }catch( IOException ioe ) {
+   //                if( levelTrace>=3 ) ioe.printStackTrace();
+   //                warning(chaine.getString("VOPLOTERR1"), 1);
+   //             }
+   //             catch( Exception es ) {
+   //                if( levelTrace>=3 ) es.printStackTrace();
+   //                warning(chaine.getString("VOPLOTERR")+"\n"+es);
+   //                glu.log("VOPlot","Too+old+JVM+for+VOPlot");
+   //             }
+   ////          }
+   ////       }.start();
+   //    }
+
+   protected void sesame() {
+      localisation.focus(Localisation.YOUROBJ);
+   }
+
+   protected void calculator() {
+      localisation.focus(chaine.getString("YOUREXPR"),"= ");
+   }
+
+
+   protected FrameCooToolbox frameCooTool=null;
+   protected void cooTool() {
+      if( frameCooTool==null ) frameCooTool=new FrameCooToolbox(this);
+      else frameCooTool.setVisible(true);
+   }
+
+   protected FramePixelToolbox framePixelTool=null;
+   protected void pixelTool() {
+      if( framePixelTool==null ) framePixelTool=new FramePixelToolbox(this);
+      else framePixelTool.setVisible(true);
+   }
+
+   /** Lancement ou arrêt du mode Simbad Pointer */
+   protected void simbadPointer() {
+      calque.setSimbad(!calque.flagSimbad);
+   }
+
+   /** Lancement ou arrêt du mode VizieR SED Pointer */
+   protected void vizierSED() {
+      calque.setVizierSED(!calque.flagVizierSED);
+   }
+
+   /** Activation ou désactivation de l'outil de mesure automatique des distance */
+   protected void autodist() {
+      calque.setAutoDist(!calque.flagAutoDist);
+   }
+
+
+   //    /** Activation ou désactivation des tooltips sur les objets */
+   //    protected void tip() {
+   //       calque.flagTip=!calque.flagTip;
+   //    }
 
    /** Démarrage d'une extraction de vignettes ROI */
    protected void roi() { view.createROI(); }
@@ -3979,24 +4253,24 @@ public class Aladin extends JApplet
 
    /** lance un tutorial */
    private void launchTuto(String s) {
-       if( (!calque.isFree() || view.isMultiView())
-          && !confirmation(chaine.getString("DEMO")+":\n- \""+s+
-                        "\" -\n"+chaine.getString("DEMO1")) ) return;
+      if( (!calque.isFree() || view.isMultiView())
+            && !confirmation(chaine.getString("DEMO")+":\n- \""+s+
+                  "\" -\n"+chaine.getString("DEMO1")) ) return;
 
-       // en applet signé, on force l'affichage de l'applet dans sa propre frame
-       if( isCertifiedApplet() && !flagDetach ) detach();
+      // en applet signé, on force l'affichage de l'applet dans sa propre frame
+      if( isCertifiedApplet() && !flagDetach ) detach();
 
-       // la chaine se présente sous la forme 'Tutorial.Show-me-how-to' dans Aladin.string
-       String tutoStr = chaine.getString("Tutorial."+s.replaceAll(" ", "-"));
-       if( tutoStr!=null ) {
-           reset();
-           log("Tutorial",s);
-           command.readFromStream(new ByteArrayInputStream(tutoStr.getBytes()));
-           if( command.infoTxt!=null )
-               command.infoTxt.setText("");
+      // la chaine se présente sous la forme 'Tutorial.Show-me-how-to' dans Aladin.string
+      String tutoStr = chaine.getString("Tutorial."+s.replaceAll(" ", "-"));
+      if( tutoStr!=null ) {
+         reset();
+         log("Tutorial",s);
+         command.readFromStream(new ByteArrayInputStream(tutoStr.getBytes()));
+         if( command.infoTxt!=null )
+            command.infoTxt.setText("");
 
-           command.curTuto = s;
-       }
+         command.curTuto = s;
+      }
    }
 
    /** Lancement d'une recalibration sur une image*/
@@ -4073,14 +4347,14 @@ public class Aladin extends JApplet
    }
 
    protected void broadcastSelectedTables(String[] recipients) {
-   	broadcastSelectedPlanes(1, recipients);
+      broadcastSelectedPlanes(1, recipients);
    }
 
    protected void broadcastSelectedImages(String[] recipients) {
-   	broadcastSelectedPlanes(2, recipients);
+      broadcastSelectedPlanes(2, recipients);
    }
 
-    // Juste pour eviter que la classe com.jvt.applets.PlotVOApplet ne soit chargee
+   // Juste pour eviter que la classe com.jvt.applets.PlotVOApplet ne soit chargee
    // dans la version applet, notamment pour Explorer 5 qui veut charger une tonne
    // de classes inutiles juste pour faire plaisir au SecurityChecker
    private ExtApp launchVOPlot() throws Exception {
@@ -4093,13 +4367,13 @@ public class Aladin extends JApplet
    }
 
    @Override
-public void setLocation(int x, int y) {
+   public void setLocation(int x, int y) {
       System.out.println("Aladin setLocation(x="+x+" y="+y+")");
       super.setLocation(x,y);
    }
 
    @Override
-public void setLocation(Point p) {
+   public void setLocation(Point p) {
       System.out.println("Aladin setLocation(p="+p.x+","+p.y+")");
       super.setLocation(p);
    }
@@ -4111,7 +4385,7 @@ public void setLocation(Point p) {
       l.setForeground(DARKBLUE);
       return l;
    }
-   
+
    /** retourne true s'il y a un réseau disponible */
    static public boolean hasNetwork() { return NETWORK; }
 
@@ -4132,14 +4406,14 @@ public void setLocation(Point p) {
 
    /** Retourne true si Aladin est en mode fullscreen (ou preview) */
    final public boolean isFullScreen() { return fullScreen!=null; }
-   
+
    /** Retourne true si Aladin est en mode PROTO */
    public boolean isProto() { return PROTO; }
-   
+
    /** Retourne true si Aladin est en mode OUTREACH */
    public boolean isOutreach() { return OUTREACH; }
 
-   
+
    /** Dès que je saurai le faire */
    protected boolean hasClipBoard() {
       Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -4152,7 +4426,7 @@ public void setLocation(Point p) {
             tr = clipboard.getContents(null);
          } catch( Exception e1 ) { }
       }
-      
+
       if( tr==null ) return false;
       DataFlavor [] df =tr.getTransferDataFlavors();
       for( DataFlavor df1 : df ) {
@@ -4161,12 +4435,12 @@ public void setLocation(Point p) {
       }
       return false;
    }
-   
+
    protected void copier() {
       ViewSimple v = view.getCurrentView();
       v.copier();
    }
-   
+
    protected void coller() {
       Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
       try {
@@ -4181,10 +4455,10 @@ public void setLocation(Point p) {
          }
       }
    }
-   
+
    public synchronized void paste(Transferable tr) {
       try {
-         
+
          if( tr.isDataFlavorSupported(DataFlavor.javaFileListFlavor) ) {
             java.util.List fileList = (java.util.List) tr.getTransferData(DataFlavor.javaFileListFlavor);
             Iterator iterator = fileList.iterator();
@@ -4217,7 +4491,7 @@ public void setLocation(Point p) {
       Transferable selection = new StringSelection(text);
       copyToClipBoard(selection);
    }
-   
+
    /** Copie du texte dans le clipboard de la machine
     *  (sous Unix/Linux, à la fois dans le clipboard système et dans le clipboard de sélection)
     * @param L'image à mettre dans le presse-papiers
@@ -4246,22 +4520,22 @@ public void setLocation(Point p) {
       //      }
    }
 
-   class TransferableImage implements Transferable { 
-      private Image image; 
-      public TransferableImage(Image uneImage){ 
-         image = uneImage;    
-      }    
-      public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException, IOException{ 
-         if(!isDataFlavorSupported(flavor)){throw new UnsupportedFlavorException(flavor);} 
-         return image;    
-      } 
-      public DataFlavor[] getTransferDataFlavors(){ 
-         return new DataFlavor[]{DataFlavor.imageFlavor}; 
-      } 
-      public boolean isDataFlavorSupported(DataFlavor flavor){ 
-         return DataFlavor.imageFlavor.equals(flavor);    
-      } 
-   } 
+   class TransferableImage implements Transferable {
+      private Image image;
+      public TransferableImage(Image uneImage){
+         image = uneImage;
+      }
+      public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException, IOException{
+         if(!isDataFlavorSupported(flavor)){throw new UnsupportedFlavorException(flavor);}
+         return image;
+      }
+      public DataFlavor[] getTransferDataFlavors(){
+         return new DataFlavor[]{DataFlavor.imageFlavor};
+      }
+      public boolean isDataFlavorSupported(DataFlavor flavor){
+         return DataFlavor.imageFlavor.equals(flavor);
+      }
+   }
 
    /** implémentation de l'interface ClipboardOwner */
    public void lostOwnership(Clipboard clipboard, Transferable contents) {}
@@ -4271,7 +4545,7 @@ public void setLocation(Point p) {
     */
    protected void helpOff() { setHelp(false); help.resetStack(); }
 
-/** Passage en mode Help ou retour a la normale
+   /** Passage en mode Help ou retour a la normale
     * @param vrai : true  -> passage en mode help
     *               false -> retour a la normal
     */
@@ -4282,7 +4556,7 @@ public void setLocation(Point p) {
       if( vrai ) {
          log("Help","interactive");
          localisation.setMode(MyBox.AFFICHAGE);
-//         pixel.setMode(MyBox.AFFICHAGE);
+         //         pixel.setMode(MyBox.AFFICHAGE);
          makeCursor(this,HANDCURSOR);
       } else {
          makeCursor(this,DEFAULTCURSOR);
@@ -4315,7 +4589,7 @@ public void setLocation(Point p) {
    static final int JOINDRECURSOR = 10;
    static final int TAGCURSOR = 11;
 
-  /** Retourne le Frame parent */
+   /** Retourne le Frame parent */
    protected Frame getFrame(Component c) {
       while( c!=null && !(c instanceof Frame) ) c=c.getParent();
       return (Frame)c;
@@ -4343,7 +4617,7 @@ public void setLocation(Point p) {
     *  @param f objet à positionner
     *  @return la localisation
     */
-  static protected Point computeLocation(Frame f) {
+   static protected Point computeLocation(Frame f) {
       Point p = computeLocation1(f);
       int offset = getMainWindowOffset();
       p.translate(offset, 0);
@@ -4351,7 +4625,6 @@ public void setLocation(Point p) {
    }
    static private Point computeLocation1(Frame f) {
       Dimension d;
-      if( f instanceof FrameColorMap )       return new Point(180,aladin.getY());
       if( f instanceof FrameRGBBlink ) return new Point(500,500);
       if( f instanceof Properties )    return new Point(20,10);
       if( f instanceof ServerDialog )  return new Point(0,SCREENSIZE.height-f.getSize().height-MARGEB-100);
@@ -4367,13 +4640,27 @@ public void setLocation(Point p) {
       if( f instanceof Console )       return new Point(0,SCREENSIZE.height-f.getSize().height-MARGEB);
       if( f instanceof Configuration ) return new Point(20,10);
       if( f instanceof FrameInfoTable )return new Point(0,50);
+      if( f instanceof FramePixelToolbox && aladin.frameCM!=null && aladin.frameCM.isVisible() ) {
+         Point p = aladin.frameCM.getLocation();
+         p.y += aladin.frameCM.getHeight();
+         return p;
+      }
+      if( f instanceof FrameColorMap && aladin.f!=null ) {
+         Point p = aladin.f.getLocation();
+         p.x+=aladin.f.getWidth();
+         if( p.x+459>SCREENSIZE.width ) {
+            p.x-=aladin.f.getWidth()+459;
+            if( p.x<0 ) p.x=0;
+         }
+         return p;
+      }
 
       // Pour aladin lui-même
-//      d = f.getSize();
-//      int id = aladin.getInstanceId();
-//      int x = 500+id*20;
-//      if( x+d.width>SCREENSIZE.width ) x=SCREENSIZE.width-d.width;
-//      int y = (SCREENSIZE.height-MARGEB)/2-d.height/2-100+id*55;
+      //      d = f.getSize();
+      //      int id = aladin.getInstanceId();
+      //      int x = 500+id*20;
+      //      if( x+d.width>SCREENSIZE.width ) x=SCREENSIZE.width-d.width;
+      //      int y = (SCREENSIZE.height-MARGEB)/2-d.height/2-100+id*55;
 
       d = f.getSize();
       int x = 500;
@@ -4399,43 +4686,43 @@ public void setLocation(Point p) {
    static private Cursor turnCursor=null,planCursor=null,joindreCursor=null,tagCursor=null;
 
    static private int TURNCURSORDEF[][]={
-    {0,0,0,0,0,0,0,0,0,0},
-    {2,2,2,2,2,2,2,2,0,0},
-	{2,1,1,1,1,1,1,2,0,0},
-	{2,2,2,2,1,1,1,2,0,0},
-	{0,0,2,1,1,1,1,2,0,0},
-	{0,2,1,1,1,2,1,2,0,0},
-	{0,2,1,1,2,2,1,2,0,0},
-	{2,1,1,2,0,2,1,2,0,0},
-	{2,1,1,2,0,0,2,2,0,0},
-	{2,1,1,2,0,0,0,0,0,0},
-	{2,1,1,2,0,0,0,0,0,0},
-	{2,1,1,2,0,0,0,0,0,0},
-	{0,2,1,1,2,0,0,0,0,0},
-	{0,2,1,1,1,2,0,0,0,0},
-	{0,0,2,1,1,1,2,2,2,2},
-	{0,0,0,2,1,1,1,1,1,1},
-	{0,0,0,0,2,1,1,1,1,1},
-	{0,0,0,0,0,2,2,1,1,1},
-	{0,0,0,0,0,0,0,2,2,2},
+      {0,0,0,0,0,0,0,0,0,0},
+      {2,2,2,2,2,2,2,2,0,0},
+      {2,1,1,1,1,1,1,2,0,0},
+      {2,2,2,2,1,1,1,2,0,0},
+      {0,0,2,1,1,1,1,2,0,0},
+      {0,2,1,1,1,2,1,2,0,0},
+      {0,2,1,1,2,2,1,2,0,0},
+      {2,1,1,2,0,2,1,2,0,0},
+      {2,1,1,2,0,0,2,2,0,0},
+      {2,1,1,2,0,0,0,0,0,0},
+      {2,1,1,2,0,0,0,0,0,0},
+      {2,1,1,2,0,0,0,0,0,0},
+      {0,2,1,1,2,0,0,0,0,0},
+      {0,2,1,1,1,2,0,0,0,0},
+      {0,0,2,1,1,1,2,2,2,2},
+      {0,0,0,2,1,1,1,1,1,1},
+      {0,0,0,0,2,1,1,1,1,1},
+      {0,0,0,0,0,2,2,1,1,1},
+      {0,0,0,0,0,0,0,2,2,2},
    };
 
    static private int PLANCURSORDEF[][]={
-    {0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,2},
-    {0,0,0,0,0,2,1,1,1,1,1,1,1,1,1,1},
-    {0,0,0,0,0,2,1,2,2,2,2,2,2,2,2,2},
-    {0,0,0,0,2,1,2,2,2,2,2,2,2,2,2,2},
-    {0,0,0,0,2,1,2,2,2,2,2,2,2,2,2,2},
-    {0,0,0,2,1,2,2,2,2,2,2,2,2,2,2,2},
-    {0,0,0,2,1,2,2,2,2,2,2,2,2,2,2,2},
-    {0,0,2,1,2,2,2,2,2,2,2,2,2,2,2,2},
-    {0,0,2,1,2,2,2,2,2,2,2,2,2,2,2,2},
-    {0,2,1,2,2,2,2,2,2,2,2,2,2,2,2,2},
-    {0,2,1,2,2,2,2,2,2,2,2,2,2,2,2,2},
-    {2,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2},
-    {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2},
+      {0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,2},
+      {0,0,0,0,0,2,1,1,1,1,1,1,1,1,1,1},
+      {0,0,0,0,0,2,1,2,2,2,2,2,2,2,2,2},
+      {0,0,0,0,2,1,2,2,2,2,2,2,2,2,2,2},
+      {0,0,0,0,2,1,2,2,2,2,2,2,2,2,2,2},
+      {0,0,0,2,1,2,2,2,2,2,2,2,2,2,2,2},
+      {0,0,0,2,1,2,2,2,2,2,2,2,2,2,2,2},
+      {0,0,2,1,2,2,2,2,2,2,2,2,2,2,2,2},
+      {0,0,2,1,2,2,2,2,2,2,2,2,2,2,2,2},
+      {0,2,1,2,2,2,2,2,2,2,2,2,2,2,2,2},
+      {0,2,1,2,2,2,2,2,2,2,2,2,2,2,2,2},
+      {2,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2},
+      {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+      {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+      {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2},
    };
 
    static private int JOINDRECURSORDEF[][]={
@@ -4454,7 +4741,7 @@ public void setLocation(Point p) {
       {0,0,0,0,0,0,0,0,0,2,1,0,2,1,0,0},
       {0,0,0,0,0,0,0,0,0,0,0,0,2,1,0,0},
       {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     };
+   };
 
    static private int TAGCURSORDEF[][]={
       {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -4472,30 +4759,30 @@ public void setLocation(Point p) {
       {0,0,0,0,0,0,0,0,1,2,0,0,0,0,0,1,2,0,0,0,0,0,0,1,2,0,0,0,0,0,0,0},
       {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
       {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-     };
+   };
 
 
-//   static private Cursor createCustomCursor(Image im,Point p,String s) {
-//      try {
-//         Toolkit tk = Toolkit.getDefaultToolkit();
-//         Class t = tk.getClass();
-//         Method m = t.getDeclaredMethod("createCustomCursor",new Class[]{ Image.class, Point.class, String.class });
-//         Object c = m.invoke(tk,new Object[]{im,p,s});
-//         return (Cursor)c;
-//
-//      } catch( Exception e) { e.printStackTrace(); return Cursor.getDefaultCursor(); }
-//   }
+   //   static private Cursor createCustomCursor(Image im,Point p,String s) {
+   //      try {
+   //         Toolkit tk = Toolkit.getDefaultToolkit();
+   //         Class t = tk.getClass();
+   //         Method m = t.getDeclaredMethod("createCustomCursor",new Class[]{ Image.class, Point.class, String.class });
+   //         Object c = m.invoke(tk,new Object[]{im,p,s});
+   //         return (Cursor)c;
+   //
+   //      } catch( Exception e) { e.printStackTrace(); return Cursor.getDefaultCursor(); }
+   //   }
 
-//   static private Dimension getBestCursorSize(int w,int h) {
-//      try {
-//         Toolkit tk = Toolkit.getDefaultToolkit();
-//         Class t = tk.getClass();
-//         Method m = t.getDeclaredMethod("getBestCursorSize",new Class[]{ Integer.TYPE, Integer.TYPE });
-//         Object res = m.invoke(tk,new Object[]{new Integer(w),new Integer(h)});
-//         return (Dimension)res;
-//
-//      } catch( Exception e) { e.printStackTrace(); return new Dimension(32,32); }
-//  }
+   //   static private Dimension getBestCursorSize(int w,int h) {
+   //      try {
+   //         Toolkit tk = Toolkit.getDefaultToolkit();
+   //         Class t = tk.getClass();
+   //         Method m = t.getDeclaredMethod("getBestCursorSize",new Class[]{ Integer.TYPE, Integer.TYPE });
+   //         Object res = m.invoke(tk,new Object[]{new Integer(w),new Integer(h)});
+   //         return (Dimension)res;
+   //
+   //      } catch( Exception e) { e.printStackTrace(); return new Dimension(32,32); }
+   //  }
 
    /** Génération d'un curseur pour la rotation des Apertures */
    static private Cursor getTurnCursor() {
@@ -4527,14 +4814,14 @@ public void setLocation(Point p) {
       try {
 
 
-//         int h = (int)Math.sqrt(cursor.length*2);
+         //         int h = (int)Math.sqrt(cursor.length*2);
          int h = cursor.length;
          int w = cursor[0].length;
          boolean fold = w<30;
          int width = fold ? w*2 : w;
          Dimension d= Toolkit.getDefaultToolkit().getBestCursorSize(width,h);
-//N'ETAIT PAS UTILISABLE POUR COMPATIBILITE JVM 1.1.4 Windows
-//        Dimension d= getBestCursorSize(h,h);
+         //N'ETAIT PAS UTILISABLE POUR COMPATIBILITE JVM 1.1.4 Windows
+         //        Dimension d= getBestCursorSize(h,h);
 
          if( d.width<width  ) d.width=width;
          if( d.height<h ) d.height=h;
@@ -4554,8 +4841,8 @@ public void setLocation(Point p) {
          // On crée le curseur
          Image im = Toolkit.getDefaultToolkit().createImage(new MemoryImageSource(d.width,d.height,tc,0,d.width));
          myCursor = Toolkit.getDefaultToolkit().createCustomCursor(im,new Point(width/2-1,h/2-1),"Turn");
-// N'ETAIT PAS UTILISABLE POUR COMPATIBILITE JVM 1.1.4 Windows
-//         turnCursor = createCustomCursor(im,new Point(h/2,2),"Turn");
+         // N'ETAIT PAS UTILISABLE POUR COMPATIBILITE JVM 1.1.4 Windows
+         //         turnCursor = createCustomCursor(im,new Point(h/2,2),"Turn");
       } catch( Exception e ) {
          myCursor = Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);
       } catch( Error e ) {
@@ -4567,8 +4854,8 @@ public void setLocation(Point p) {
    static protected boolean lockCursor=false;
    synchronized static protected void lockCursor(boolean flag) { lockCursor=flag; }
 
-  /** Positionnement du curseur en fonction du type de machine
-   *  java afin d'eviter une erreur de verif de la securite */
+   /** Positionnement du curseur en fonction du type de machine
+    *  java afin d'eviter une erreur de verif de la securite */
    protected static boolean makeCursor(Component c,int type) {
 
       if( lockCursor ) return false;
@@ -4586,12 +4873,12 @@ public void setLocation(Point p) {
                                        type==STRECHCURSOR?Cursor.E_RESIZE_CURSOR:
                                           type==TEXTCURSOR?Cursor.TEXT_CURSOR:
                                              Cursor.DEFAULT_CURSOR
-                  );
-      if( c.getCursor()!=cursor ) c.setCursor(cursor);
-      return true;
+                        );
+               if( c.getCursor()!=cursor ) c.setCursor(cursor);
+               return true;
    }
 
-  /** Ajout dans un Layout en fonction du type de machine Java */
+   /** Ajout dans un Layout en fonction du type de machine Java */
    protected static void makeAdd(Container ct,Component c,String s) {
       if( ct instanceof JFrame ) ct = ((JFrame)ct).getContentPane();
       else if( ct instanceof JApplet ) ct = ((JApplet)ct).getContentPane();
@@ -4599,11 +4886,11 @@ public void setLocation(Point p) {
    }
 
 
-  /** Activation/Desactivation des boutons du menu principal */
+   /** Activation/Desactivation des boutons du menu principal */
    protected void setButtonMode() {
       try {
          Plan pc = calque.getFirstSelectedPlan();
-//         PlanImage pimg = calque.getFirstSelectedSimpleImage();
+         //         PlanImage pimg = calque.getFirstSelectedSimpleImage();
          PlanImage pimg = calque.getFirstSelectedImage();
          Plan base = calque.getPlanBase();
          boolean hasImage = base!=null;
@@ -4615,17 +4902,18 @@ public void setLocation(Point p) {
          int nbPlanTranspImg = calque.getNbPlanTranspImg();
          int nbPlanImgWithoutBG = calque.getNbPlanImg(false);
          boolean hasSelectedObj = view.hasSelectedObj();
+         boolean hasMocPol = view.hasMocPolSelected();
          boolean hasSelectedSrc = view.hasSelectedSource();
          boolean hasTagSrc = calque.hasTaggedSrc();
          boolean hasSelectedPlane = pc!=null;
          int m = view.getModeView();
          boolean hasSelectedCat = (pc!=null && pc.isCatalog());
          ViewSimple v = view.getCurrentView();
-//         boolean isBG = v!=null && v.pref!=null && v.pref instanceof PlanBG;
+         //         boolean isBG = v!=null && v.pref!=null && v.pref instanceof PlanBG;
          boolean isBG = pimg!=null && pimg instanceof PlanBG;
          boolean isCube = hasImage && (base.type==Plan.IMAGECUBE || base.type==Plan.IMAGECUBERGB);
-//         boolean hasPixels = v!=null && v.pref!=null && v.pref.hasAvailablePixels() && v.pref.type!=Plan.IMAGEHUGE
-//         && !isBG;
+         //         boolean hasPixels = v!=null && v.pref!=null && v.pref.hasAvailablePixels() && v.pref.type!=Plan.IMAGEHUGE
+         //         && !isBG;
          boolean hasPixels = pimg!=null && pimg.hasAvailablePixels() && pimg.type!=Plan.IMAGEHUGE && !isBG;
          boolean hasProj = pimg!=null && Projection.isOk(pimg.projd);
          boolean isFree = calque.isFree();
@@ -4633,7 +4921,7 @@ public void setLocation(Point p) {
          boolean mode = nbPlans>0;
          boolean mode1 = nbPlans>1 || nbPlans==1 && !isBG;
 
-//         if( console!=null ) console.clone.setEnabled(hasSelectedSrc);
+         //         if( console!=null ) console.clone.setEnabled(hasSelectedSrc);
          if( miROI!=null ) miROI.setEnabled( hasImage && (nbPlanCat>0 || nbPlanObj>0) );
          if( miCalImg!=null ) miCalImg.setEnabled( hasImage && !isBG );
          if( miCalCat!=null ) miCalCat.setEnabled( hasSelectedCat );
@@ -4664,14 +4952,18 @@ public void setLocation(Point p) {
          if( miRGB!=null ) miRGB.setEnabled(nbPlanImgWithoutBG>1);
          if( miMosaic!=null ) miMosaic.setEnabled(nbPlanImgWithoutBG>1);
          if( miBlink!=null ) miBlink.setEnabled(nbPlanImgWithoutBG>1);
-         if( miGrid!=null ) miGrid.setSelected( calque.hasGrid() );
-         if( miHpxGrid!=null ) miHpxGrid.setSelected(calque.hasHpxGrid() );
+         
+         if( !calque.hasGrid() ) { if( miNoGrid!=null ) miNoGrid.setSelected( true ); }
+         else if( calque.gridMode==1 || miHpxGrid==null ) miGrid.setSelected( true );
+         else { if( miHpxGrid!=null ) miHpxGrid.setSelected( true ); }
+         
          if( miOverlay!=null ) miOverlay.setSelected(calque.flagOverlay);
+         if( miConst!=null ) miConst.setSelected(calque.hasConst());
          if( miRainbow!=null ) {
             miRainbow.setEnabled( view.rainbowAvailable());
             miRainbow.setSelected(view.hasRainbow());
          }
-//         if( miTip!=null ) miTip.setSelected(calque.flagTip);
+         //         if( miTip!=null ) miTip.setSelected(calque.flagTip);
          if( miMore!=null ) miMore.setEnabled(!view.allImageWithView());
          if( miOne!=null ) miOne.setEnabled(view.isMultiView() || view.getNbUsedView()>1 );
          if( miNext!=null ) miNext.setEnabled(nbPlanImg>1);
@@ -4691,7 +4983,7 @@ public void setLocation(Point p) {
          if( miPScreen!=null ) {
             miPScreen.setEnabled( !isApplet() || flagDetach );
          }
-//         if( miPScreen!=null )  miPScreen.setEnabled( !isApplet() );
+         //         if( miPScreen!=null )  miPScreen.setEnabled( !isApplet() );
          if( miReticle!=null ) {
             if( !calque.hasReticle() ) miNoReticle.setSelected(true);
             else if( calque.reticleMode==1 ) miReticle.setSelected(true);
@@ -4702,8 +4994,8 @@ public void setLocation(Point p) {
          if( miAutoDist!=null ) miAutoDist.setSelected(calque.flagAutoDist);
          if( miVizierSED!=null ) miVizierSED.setSelected(calque.flagVizierSED);
          if( miZoomPt!=null ) miZoomPt.setSelected(toolBox.tool[ToolBox.ZOOM].mode==Tool.DOWN);
-//         if( miPrevPos!=null ) miPrevPos.setEnabled(view.canActivePrevUndo());
-//         if( miNextPos!=null ) miNextPos.setEnabled(view.canActiveNextUndo());
+         //         if( miPrevPos!=null ) miPrevPos.setEnabled(view.canActivePrevUndo());
+         //         if( miNextPos!=null ) miNextPos.setEnabled(view.canActiveNextUndo());
          if( miZoomPt!=null ) miZoomPt.setSelected(toolBox.tool[ToolBox.ZOOM].mode==Tool.DOWN);
          if( miPan!=null ) miPan.setSelected(toolBox.tool[ToolBox.PAN].mode==Tool.DOWN);
          if( miGlass!=null ) miGlass.setSelected(toolBox.tool[ToolBox.WEN].mode==Tool.DOWN);
@@ -4719,7 +5011,7 @@ public void setLocation(Point p) {
          if( miGrey!=null ) miGrey.setEnabled(v!=null && v.pref!=null && v.pref.type==Plan.IMAGERGB);
          if( search!=null ) search.setEnabled(nbPlanCat>0);
          if( mesure!=null ) mesure.search.setEnabled(nbPlanCat>0);
-//         if( pixel!=null ) pixel.setEnabled(nbPlanImg>0);
+         //         if( pixel!=null ) pixel.setEnabled(nbPlanImg>0);
          if( miFilter!=null ) miFilter.setEnabled(nbPlanCat>0);
          if( miFilterB!=null ) miFilterB.setEnabled(nbPlanCat>0);
          if( miSearch!=null ) miSearch.setEnabled(nbPlanCat>0);
@@ -4743,9 +5035,10 @@ public void setLocation(Point p) {
          if( miPlotcat!=null )  miPlotcat.setEnabled(hasSelectedCat);
          if( miConcat!=null )  miConcat.setEnabled(nbPlanCat>1);
          if( miTagSelect!=null ) miTagSelect.setEnabled(hasSelectedSrc);
-//         if( miHistory!=null ) miHistory.setEnabled(treeView!=null);        // IL FAUDRAIT UN TEST isFree()
+         //         if( miHistory!=null ) miHistory.setEnabled(treeView!=null);        // IL FAUDRAIT UN TEST isFree()
          if( miArithm!=null ) miArithm.setEnabled(nbPlanImg>0 && !isBG && !isCube);
-         if( miMocHips!=null ) miMocHips.setEnabled( pi instanceof PlanBG && ((PlanBG)pi).hasMoc() 
+         if( miMocPol!=null ) miMocPol.setEnabled(hasMocPol);
+         if( miMocHips!=null ) miMocHips.setEnabled( pi instanceof PlanBG && ((PlanBG)pi).hasMoc()
                || base instanceof PlanBG && ((PlanBG)base).hasMoc() );
          if( miMocGenImg!=null ) miMocGenImg.setEnabled( nbPlanImg>0 );
          if( miMocGenCat!=null ) miMocGenCat.setEnabled( nbPlanCat>0 );
@@ -4762,7 +5055,7 @@ public void setLocation(Point p) {
          if( miCreateHpx!=null ) miCreateHpx.setEnabled( hasProj );
          if( miHpxDump!=null ) miHpxDump.setEnabled(v!=null && v.pref!=null && isBG );
          if( miFlip!=null ) miFlip.setEnabled(hasImage && !isCube && !isBG);
-         int syncMode=sync.getMode();
+         int syncMode=match.getMode();
          if( miSync!=null ) {
             miSync.setEnabled(syncMode!=0);
             miSync.setSelected(syncMode==2);
@@ -4774,15 +5067,15 @@ public void setLocation(Point p) {
 
          if( miCrop!=null ) {
             miCrop.setEnabled(v!=null && v.pref!=null && (v.pref.isPixel() || isBG )
-               && (v.pref.type!=Plan.IMAGEHUGE || ((PlanImageHuge)v.pref).fromSubImage(v.zoom, getWidth(), getHeight())));
+                  && (v.pref.type!=Plan.IMAGEHUGE || ((PlanImageHuge)v.pref).fromSubImage(v.zoom, getWidth(), getHeight())));
          }
 
          Plan p = calque.getFirstSelectedPlan();
          if( miHead!=null ) miHead.setEnabled(p!=null && p.hasFitsHeader());
 
          if( ExportYourWork!=null ) ExportYourWork.setEnabled(mode && hasNoResctriction());
-//         if( avant!=null ) avant.setEnabled(view.canActivePrevUndo());
-//         if( apres!=null ) apres.setEnabled(view.canActiveNextUndo());
+         //         if( avant!=null ) avant.setEnabled(view.canActivePrevUndo());
+         //         if( apres!=null ) apres.setEnabled(view.canActiveNextUndo());
 
       } catch( Exception e ) { e.printStackTrace(); }
 
@@ -4794,7 +5087,7 @@ public void setLocation(Point p) {
             sendEventObserver();
          }
       }
-  }
+   }
 
    String ostatus=null;
 
@@ -4803,13 +5096,13 @@ public void setLocation(Point p) {
    }
 
 
- /** Determination du repertoire d'installation d'Aladin.
-   * La methode consiste a balayer les valeurs de la variable
-   * java.class.path en recherchant dans chacun de ces repertoires
-   * la presence du fichier ALAGLU
-   *
-   * Met a jour la variable static HOME
-   */
+   /** Determination du repertoire d'installation d'Aladin.
+    * La methode consiste a balayer les valeurs de la variable
+    * java.class.path en recherchant dans chacun de ces repertoires
+    * la presence du fichier ALAGLU
+    *
+    * Met a jour la variable static HOME
+    */
    protected static void setAladinHome() {
       String PS = System.getProperty("path.separator");
 
@@ -4835,10 +5128,10 @@ public void setLocation(Point p) {
       }
    }
 
-  /** Lancement d'Aladin par une autre application java.
-   * Il s'agit d'appeler la methode main() et de retourner
-   * l'instance de l'objet Aladin
-   */
+   /** Lancement d'Aladin par une autre application java.
+    * Il s'agit d'appeler la methode main() et de retourner
+    * l'instance de l'objet Aladin
+    */
    public static Aladin launch() { return launch(null,null); }
    public static Aladin launch(String s) { return launch(s,null); }
    public static Aladin launch(Applet applet) { return launch(null,applet); }
@@ -4869,64 +5162,63 @@ public void setLocation(Point p) {
 
    // hide Aladin window - pour controle de Aladin par une autre app java
    @Override
-public void hide() {
-     if( flagLaunch && extApplet==null ) f.dispose();
-     else super.hide();
+   public void hide() {
+      if( flagLaunch && extApplet==null ) f.dispose();
+      else super.hide();
    }
 
    // show Aladin window - pour controle de Aladin par une autre app java
    @Override
-public void show() {
+   public void show() {
       if( flagLaunch && extApplet==null ) { f.pack(); f.show(); }
-     else super.show();
+      else super.show();
    }
 
 
    static private final String USAGE =
-      "Usage: Aladin [options...] [filenames...]\n"+
-      "       Aladin -chart=\"[server[,server...]\" object\n"+
-      "       Aladin -hipsgen ...\n"+
-      "       Aladin -mocgen ...\n"+
-      "       Aladin -help\n"+
-      "       Aladin -version\n"+
-      "\n"+
-      "   Options:\n"+
-      "       -local: without Internet test access\n"+
-      "       -screen=\"full|preview\": starts Aladin in full screen\n" +
-      "               or in a simple preview window\n"+
-      "       -glufile=\"pathname|url[;...]\": local/remote GLU dictionaries describing\n"+
-      "               additionnal data servers compatible with Aladin \n"+
-      "       -stringfile=\"pathname[;...]\": string files for additionnal\n" +
-      "               supported languages\n"+
-      "       -scriptfile=\"pathname|url[;...]\": script by local files or url \n"+
-      "       -script=\"cmd1;cmd2...\": script commands passed by parameter\n"+
-      "       -nogui: no graphical interface (for script mode only) " +
-      "               => noplugin, nobanner, nobookmarks, nohub\n"+
-      "       -nobanner: no Aladin banner\n"+
-      "       -noreleasetest: no Aladin new release test\n"+
-      "       -[no]hub: no usage of the internal PLASTIC hub\n"+
-      "       -[no]plugin: with/without plugin support\n"+
-      "       -[no]bookmarks: with/without bookmarks support\n"+
-      "       -[no]outreach: with/without outreach mode\n"+
-      "       -[no]beta: with/without new features in beta test\n"+
-      "       -[no]proto: with/without prototype features for demonstrations and tests\n"+
-      "       -trace: trace mode for debugging purpose\n"+
-      "       -debug: debug mode (very verbose)\n"+
-      "\n"+
-      "       -chart=: build a png field chart directly on stdout\n"+
-      "       -hipsgen: build HEALPix progressive sky by script (see -hipsgen -h for help)\n"+
-      "       -mocgen: build MOC by script (see -mocgen -h for help)\n"+
-      "       -help: display this help\n"+
-      "       -version: display the Aladin release number\n"+
-      "\n"+
-      "   The files specified in the command line can be :\n"+
-      "       - images: FITS (gzipped,RICE,MEF,...), HEALPix maps, JPEG,GIF,PNG\n"+
-      "       - tables: FITS, XML/VOTable, CSV, TSV, S-extractor, IPAC-TBL, Skycat or ASCII tables\n"+
-      "       - graphics: Aladin or IDL or DS9 regions, MOCs\n"+
-      "       - directories: all-sky HEALPix folders\n"+
-      "       - Aladin backup : \".aj\" extension\n"+
-      "       - Aladin scripts : \".ajs\" extension\n"+
-      "";
+         "Usage: Aladin [options...] [filenames...]\n"+
+               "       Aladin -hipsgen ...\n"+
+               "       Aladin -mocgen ...\n"+
+               "       Aladin -help\n"+
+               "       Aladin -version\n"+
+               "\n"+
+               "   Options:\n"+
+               "       -help: display this help\n"+
+               "       -version: display the Aladin release number\n"+
+               "       -local: without Internet test access\n"+
+               "       -screen=\"full|cinema|preview\": starts Aladin in full screen\n" +
+               "               cinema mode or in a simple preview window\n"+
+//               "       -glufile=\"pathname|url[;...]\": local/remote GLU dictionaries describing\n"+
+//               "               additionnal data servers compatible with Aladin \n"+
+//               "       -stringfile=\"pathname[;...]\": string files for additionnal\n" +
+//               "               supported languages\n"+
+//               "       -scriptfile=\"pathname|url[;...]\": script by local files or url \n"+
+               "       -script=\"cmd1;cmd2...\": script commands passed by parameter\n"+
+               "       -nogui: no graphical interface (for script mode only)\n" +
+               "               => noplugin, nobanner, nobookmarks, nohub\n"+
+               "       -nobanner: no Aladin banner\n"+
+               "       -noreleasetest: no Aladin new release test\n"+
+               "       -[no]hub: no usage of the internal PLASTIC hub\n"+
+               "       -[no]plugin: with/without plugin support\n"+
+               "       -[no]bookmarks: with/without bookmarks support\n"+
+               "       -[no]outreach: with/without outreach mode\n"+
+               "       -[no]beta: with/without new features in beta test\n"+
+               "       -[no]proto: with/without prototype features for demonstrations and tests\n"+
+               "       -trace: trace mode for debugging purpose\n"+
+               "       -debug: debug mode (very verbose)\n"+
+//               "       -chart=: build a png field chart directly on stdout\n"+
+                "\n"+
+               "       -hipsgen: build HiPS by script (see -hipsgen -h for help)\n"+
+               "       -mocgen: build MOC by script (see -mocgen -h for help)\n"+
+               "\n"+
+               "   The files specified in the command line can be :\n"+
+               "       - images: FITS (gzipped,RICE,MEF,...), HEALPix maps, JPEG,GIF,PNG\n"+
+               "       - tables: FITS, XML/VOTable, CSV, TSV, S-extractor, IPAC-TBL, Skycat or ASCII tables\n"+
+               "       - graphics: Aladin or IDL or DS9 regions, MOCs\n"+
+               "       - directories: HiPS\n"+
+               "       - Aladin backup : \".aj\" extension\n"+
+               "       - Aladin scripts : \".ajs\" extension\n"+
+               "";
 
    static private void usage() {
       System.out.println(USAGE);
@@ -4965,22 +5257,22 @@ public void show() {
       a.offsetLocation();
       a.f.setVisible(true);
       a.mesure.setReduced(true);
-//      trace(2,"Aladin window size: "+a.getWidth()+"x"+a.getHeight());
+      //      trace(2,"Aladin window size: "+a.getWidth()+"x"+a.getHeight());
    }
 
    /**
     * Positionne des flags et des propriétés spécifiques au Mac
     */
    static private void setMacProperties() {
-		// propriété spécifique à Mac OS permettant de faire apparaitre les éléments de menu tout en haut (selon le L'n'F Mac)
-		// (cf.	http://devworld.apple.com/documentation/Java/Conceptual/Java14Development/04-JavaUIToolkits/JavaUIToolkits.html#//apple_ref/doc/uid/TP40001901-209837)
-		macPlateform = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
-		// we set the property only if it has not been set yet (by -Dprop=value at startup for instance)
-		// for an applet, we keep the menu the standard way
-		if( macPlateform && System.getProperty("apple.laf.useScreenMenuBar")==null && !isApplet() ) {
-			System.setProperty("apple.laf.useScreenMenuBar", "true");
-		}
-	}
+      // propriété spécifique à Mac OS permettant de faire apparaitre les éléments de menu tout en haut (selon le L'n'F Mac)
+      // (cf.	http://devworld.apple.com/documentation/Java/Conceptual/Java14Development/04-JavaUIToolkits/JavaUIToolkits.html#//apple_ref/doc/uid/TP40001901-209837)
+      macPlateform = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
+      // we set the property only if it has not been set yet (by -Dprop=value at startup for instance)
+      // for an applet, we keep the menu the standard way
+      if( macPlateform && System.getProperty("apple.laf.useScreenMenuBar")==null && !isApplet() ) {
+         System.setProperty("apple.laf.useScreenMenuBar", "true");
+      }
+   }
 
    // Les commandes a exécuter après la création d'Aladin (voir creanObj.run())
    private StringBuffer launchScript=null;
@@ -5001,12 +5293,12 @@ public void show() {
    /** Retourne true s'il faut quitter Aladin après le script de démarrage */
    protected boolean quitAfterLaunchScript() { return quitAfterLaunchScript; }
 
- /**
-	 * Demarrage en mode standalone. Se contente de construire une Frame et d'y
-	 * mettre l'objet Aladin dedans, puis de lancer aladin.init()
-	 *
-	 * See Aladin
-	 */
+   /**
+    * Demarrage en mode standalone. Se contente de construire une Frame et d'y
+    * mettre l'objet Aladin dedans, puis de lancer aladin.init()
+    *
+    * See Aladin
+    */
    public static void main(String[] args) {
       String chart=null;		// en cas de demande de carte de champ
       int lastArg;		// Prochain indice des arguments a loader
@@ -5018,20 +5310,20 @@ public void show() {
       lastArg=0;
       for( int i=0; i<args.length; i++ ) {
          if( args[i].equals("-h") || args[i].equals("-help") ) { usage(); System.exit(0); }
-         
-         else if( args[i].equalsIgnoreCase("-pixfoot") || args[i].equalsIgnoreCase("-mocgen"))      { 
+
+         else if( args[i].equalsIgnoreCase("-pixfoot") || args[i].equalsIgnoreCase("-mocgen"))      {
             System.arraycopy(args, i+1, args, 0, args.length-i-1);
             MocGen.main(args);
-            System.exit(0); 
+            System.exit(0);
          }
-         else if( args[i].equalsIgnoreCase("-hipsgen") || args[i].equalsIgnoreCase("-skygen"))      { 
+         else if( args[i].equalsIgnoreCase("-hipsgen") || args[i].equalsIgnoreCase("-skygen"))      {
             String [] args1 = new String[args.length-i-1];
             System.arraycopy(args, i+1, args1, 0, args.length-i-1);
             HipsGen generator = new HipsGen();
             generator.execute(args);
-            System.exit(0); 
+            System.exit(0);
          }
-         
+
          else if( args[i].equals("-version") )     { version(); System.exit(0); }
          else if( args[i].equals("-test") )        { boolean rep=test(); System.exit(rep ? 0 : 1); }
          else if( args[i].equals("-trace") )       { levelTrace=3; lastArg=i+1; }
@@ -5055,9 +5347,10 @@ public void show() {
          else if( args[i].equals("-noantialiasing") )  { ALIASING=-1; lastArg=i+1; }
          else if( args[i].equals("-plastic") )     { USE_PLASTIC_REQUESTED=true; lastArg=i+1; }
          else if( args[i].equals("-noplastic")
-                  || args[i].equals("-nosamp") )   { PLASTIC_SUPPORT=false; lastArg=i+1; }
+               || args[i].equals("-nosamp") )   { PLASTIC_SUPPORT=false; lastArg=i+1; }
          else if( args[i].equals("-noconsole") )   { CONSOLE=false; lastArg=i+1; }
          else if( args[i].equals("-noreleasetest") )   { TESTRELEASE=false; lastArg=i+1; }
+         else if( args[i].equals("-nonetworktest") )   { TESTNETWORK=false; lastArg=i+1; }
          else if( args[i].equals("-nohub") )       { NOHUB=true; lastArg=i+1; }
          else if( args[i].equals("-hub") )         { NOHUB=false; lastArg=i+1; }
          else if( args[i].equals("-noplugin") )    { NOPLUGIN=true; lastArg=i+1; }
@@ -5083,7 +5376,7 @@ public void show() {
          else if( args[i].charAt(0)=='-' ) { System.err.println("Aladin option unknown ["+args[i]+"]"); lastArg=i+1; }
       }
 
-//      if( chart!=null ) NOGUI=true;
+      //      if( chart!=null ) NOGUI=true;
 
       // TODO : à supprimer
       USE_ACR = PROTO;
@@ -5104,8 +5397,8 @@ public void show() {
 
       // Chargement d'un fichier XML, FITS ou AJ
       while( lastArg<args.length ) {
-        String s=args[lastArg++];
-        aladin.addLaunchScript("load "+s);
+         String s=args[lastArg++];
+         aladin.addLaunchScript("load "+s);
       }
 
       // Y a-t-il une url qui pointe vers un script ? voire plusieurs ?
@@ -5131,21 +5424,25 @@ public void show() {
 
       // Methode rapide, mais susceptible de ne pas marcher dans
       // des versions postérieures de JVM
-//      while( img.getWidth(this)<0 ) Util.pause(10);
+      //      while( img.getWidth(this)<0 ) Util.pause(10);
    }
+   
+   private boolean messReady=false;   // pour ne l'afficher qu'une fois
 
-  /** Verifie que l'objet dialog a bien ete cree, sinon se met en attente */
+   /** Verifie que l'objet dialog a bien ete cree, sinon se met en attente */
    protected void waitDialog() {
       if( dialogOk() ) return;
 
-//      long tps = System.currentTimeMillis() - startTime;
-//      aladin.trace(3, "Aladin is ready (in "+(tps/1000.)+"s)");
+      //      long tps = System.currentTimeMillis() - startTime;
+      //      aladin.trace(3, "Aladin is ready (in "+(tps/1000.)+"s)");
       while( !dialogOk() ) {
-//         trace(3,"Waiting dialog...");
+         //         trace(3,"Waiting dialog...");
          Util.pause(100);
       }
+      if( messReady ) return;
       long tps = System.currentTimeMillis() - startTime;
       aladin.trace(3, "Aladin is fully ready (in "+(tps/1000.)+"s)");
+      messReady=true;
    }
 
    /** Retourne true si le dialog est prêt */
@@ -5153,18 +5450,18 @@ public void show() {
       return dialog!=null && calque!=null /* && calque.getPlans()!=null*/ ;
    }
 
-  /** Chargement d'un fichier passé en paramètre */
+   /** Chargement d'un fichier passé en paramètre */
    protected void load(String f,String label) {
       waitDialog();
       f=getFullFileName(f);
       calque.newPlan(f, label, null);
-//      dialog.server[ServerDialog.LOCAL].creatPlane(null,null,"\""+f+"\"",label,null);
+      //      dialog.server[ServerDialog.LOCAL].creatPlane(null,null,"\""+f+"\"",label,null);
    }
 
-  /** Retourne le target courant pour les FoV
-   * @param planeLabel le nom du plan
-   * @return Les coordonnees J2000 sexa du target
-   */
+   /** Retourne le target courant pour les FoV
+    * @param planeLabel le nom du plan
+    * @return Les coordonnees J2000 sexa du target
+    */
    public String getTarget(String planeLabel) {
       int i;
       for( i=0; i<calque.plan.length; i++ ) {
@@ -5175,16 +5472,16 @@ public void show() {
          }
       }
       return null;
-      
-//      int i;
-//      for( i=0; i<calque.plan.length; i++ ) {
-//         if( calque.plan[i].flagOk && calque.plan[i].label.equals(planeLabel) ) {
-//            if( calque.plan[i] instanceof PlanField )
-//               return ((PlanField)calque.plan[i]).getProjCenter();
-//            break;
-//         }
-//      }
-//      return null;
+
+      //      int i;
+      //      for( i=0; i<calque.plan.length; i++ ) {
+      //         if( calque.plan[i].flagOk && calque.plan[i].label.equals(planeLabel) ) {
+      //            if( calque.plan[i] instanceof PlanField )
+      //               return ((PlanField)calque.plan[i]).getProjCenter();
+      //            break;
+      //         }
+      //      }
+      //      return null;
    }
 
    protected Vector VOObsPos = null;	// Liste des VOObserver de la position courante
@@ -5194,13 +5491,13 @@ public void show() {
 
    /** Pour interface VOObserver */
    protected void sendObserver() {
-       // 1. Transmission de la position courante
-       // transmission via SAMP
-       boolean flagPlastic = Aladin.PLASTIC_SUPPORT;
-       if (Aladin.PLASTIC_SUPPORT && view.repere!=null) {
-           this.getMessagingMgr().pointAtCoords(view.repere.raj,view.repere.dej);
-       }
-       // transmission via interface VOApp
+      // 1. Transmission de la position courante
+      // transmission via SAMP
+      boolean flagPlastic = Aladin.PLASTIC_SUPPORT;
+      if (Aladin.PLASTIC_SUPPORT && view.repere!=null) {
+         this.getMessagingMgr().pointAtCoords(view.repere.raj,view.repere.dej);
+      }
+      // transmission via interface VOApp
       if( VOObsPos!=null && view.repere!=null ) {
          Enumeration e = VOObsPos.elements();
          while( e.hasMoreElements() ) {
@@ -5209,7 +5506,7 @@ public void show() {
          }
       }
 
-       // 2. Transmission de la valeur du pixel
+      // 2. Transmission de la valeur du pixel
       if( VOObsPix!=null && view.repere!=null ) {
          double pixelValue = view.getPixelValue();
 
@@ -5222,30 +5519,30 @@ public void show() {
 
    }
 
-//   /** Pour interface APTObserver */
-//   protected void sendSelectionObserver() {
-//
-//      if( VOObsMes==null ) return;
-//
-//      // Recherche des coordonnées des coins du rectangle de sélection
-//      ViewSimple v = view.getCurrentView();
-//      if( v==null ) return;
-//      Plan plan = v.pref;
-//      Projection proj = v.getProj();
-//      if( plan==null || !Projection.isOk(proj) ) return;
-//      Rectangle r = v.rselect;
-//      Coord a1 = new Coord(), a2 = new Coord();
-//
-//      for( int i=0; i<2; i++ ) {
-//         PointD p;
-//         Coord coo;
-//         if( i==0 ) { p= v.getPosition((double)r.x,(double)r.y); coo=a1; }
-//         else { p= v.getPosition((double)(r.x+r.width),(double)(r.y+r.height)); coo=a2; }
-//         coo.x = p.x; coo.y = p.y;
-//         proj.getCoord(coo);
-//         if( Double.isNaN(coo.al) ) return;
-//      }
-//   }
+   //   /** Pour interface APTObserver */
+   //   protected void sendSelectionObserver() {
+   //
+   //      if( VOObsMes==null ) return;
+   //
+   //      // Recherche des coordonnées des coins du rectangle de sélection
+   //      ViewSimple v = view.getCurrentView();
+   //      if( v==null ) return;
+   //      Plan plan = v.pref;
+   //      Projection proj = v.getProj();
+   //      if( plan==null || !Projection.isOk(proj) ) return;
+   //      Rectangle r = v.rselect;
+   //      Coord a1 = new Coord(), a2 = new Coord();
+   //
+   //      for( int i=0; i<2; i++ ) {
+   //         PointD p;
+   //         Coord coo;
+   //         if( i==0 ) { p= v.getPosition((double)r.x,(double)r.y); coo=a1; }
+   //         else { p= v.getPosition((double)(r.x+r.width),(double)(r.y+r.height)); coo=a2; }
+   //         coo.x = p.x; coo.y = p.y;
+   //         proj.getCoord(coo);
+   //         if( Double.isNaN(coo.al) ) return;
+   //      }
+   //   }
 
    /** To register an observer of VO events.
     * see position() and pixel() associated callback methods
@@ -5302,16 +5599,16 @@ public void show() {
    }
 
 
-  /** Synchrone script command execution
-   * @param cmd script command
-   * @return null if the command is accepted, error message otherwise
-   */
+   /** Synchrone script command execution
+    * @param cmd script command
+    * @return null if the command is accepted, error message otherwise
+    */
    public String execCommand(String cmd) {
       waitDialog();
       try { return command.execScript(cmd); }
       catch( Exception e ) {
          aladin.warning("Error: "+e,1);
-//         System.out.println("Error: "+e);
+         //         System.out.println("Error: "+e);
          return("Error: "+e);
       }
    }
@@ -5339,42 +5636,42 @@ public void show() {
    protected synchronized AppMessagingInterface getMessagingMgr() {
       // lazy initialization
       if( appMessagingMgr==null ) {
-          // choice at user request ?
-          if( USE_SAMP_REQUESTED ) {
-              appMessagingMgr = new SAMPManager(this);
-          }
-          else if( USE_PLASTIC_REQUESTED ) {
-              appMessagingMgr = new PlasticManager(this);
-          }
-          // TODO : test if hub is responding !!
-          // else look for an existing conf file
-          else if( SAMPManager.getLockFile().exists() ) {
-              appMessagingMgr = new SAMPManager(this);
-          }
-          else if( PlasticManager.getLockFile().exists() ) {
-              appMessagingMgr = new PlasticManager(this);
-          }
-          // else take default
-          else if( DEFAULT_MESSAGING_MGR.equals(PlasticManager.class) ) {
-              appMessagingMgr = new PlasticManager(this);
-          }
-          else {
-              appMessagingMgr = new SAMPManager(this);
-          }
-          messagingMgrCreated = true;
+         // choice at user request ?
+         if( USE_SAMP_REQUESTED ) {
+            appMessagingMgr = new SAMPManager(this);
+         }
+         else if( USE_PLASTIC_REQUESTED ) {
+            appMessagingMgr = new PlasticManager(this);
+         }
+         // TODO : test if hub is responding !!
+         // else look for an existing conf file
+         else if( SAMPManager.getLockFile().exists() ) {
+            appMessagingMgr = new SAMPManager(this);
+         }
+         else if( PlasticManager.getLockFile().exists() ) {
+            appMessagingMgr = new PlasticManager(this);
+         }
+         // else take default
+         else if( DEFAULT_MESSAGING_MGR.equals(PlasticManager.class) ) {
+            appMessagingMgr = new PlasticManager(this);
+         }
+         else {
+            appMessagingMgr = new SAMPManager(this);
+         }
+         messagingMgrCreated = true;
 
-          // add shutdown hook
-          // to properly unregister from SAMP/Plastic
-          // and shutdown internal hub
-          Runtime.getRuntime().addShutdownHook(new Thread("AladinSAMPPlasticUnregister") {
-              @Override
+         // add shutdown hook
+         // to properly unregister from SAMP/Plastic
+         // and shutdown internal hub
+         Runtime.getRuntime().addShutdownHook(new Thread("AladinSAMPPlasticUnregister") {
+            @Override
             public void run() {
-                  Aladin.trace(1, "In shutdown hook");
-                  if( Aladin.PLASTIC_SUPPORT && messagingMgrCreated ) {
-                      try { getMessagingMgr().unregister(true, true); } catch( Exception e ) {}
-      }
-              }
-          });
+               Aladin.trace(1, "In shutdown hook");
+               if( Aladin.PLASTIC_SUPPORT && messagingMgrCreated ) {
+                  try { getMessagingMgr().unregister(true, true); } catch( Exception e ) {}
+               }
+            }
+         });
       }
 
       return appMessagingMgr;
@@ -5437,22 +5734,22 @@ public void show() {
       try {
          int n = calque.newPlan(in,label,null);
          if( n==-1 ) throw new Exception("Data format not recognized");
-         
-//         MyInputStream myIn = new MyInputStream(in);
-//         int type = myIn.getType();
-//         myIn = myIn.startRead();
-//         Aladin.trace(3,(label==null?"Stream":label)+" => detect: "+myIn.decodeType(type));
-//
-//         if( (type & MyInputStream.FITS)!=0) {
-//            n=calque.newPlanImage(myIn,label);
-//
-//         } else if( (type & (MyInputStream.FOV_ONLY))!=0 ) {
-//            n=processFovVOTable(myIn,label,true);
-//
-//         } else if( (type & (MyInputStream.ASTRORES|MyInputStream.VOTABLE|MyInputStream.CSV))!=0 ) {
-//            n=calque.newPlanCatalog(myIn,label);
-//
-//         } else throw new Exception("Data format not recognized");
+
+         //         MyInputStream myIn = new MyInputStream(in);
+         //         int type = myIn.getType();
+         //         myIn = myIn.startRead();
+         //         Aladin.trace(3,(label==null?"Stream":label)+" => detect: "+myIn.decodeType(type));
+         //
+         //         if( (type & MyInputStream.FITS)!=0) {
+         //            n=calque.newPlanImage(myIn,label);
+         //
+         //         } else if( (type & (MyInputStream.FOV_ONLY))!=0 ) {
+         //            n=processFovVOTable(myIn,label,true);
+         //
+         //         } else if( (type & (MyInputStream.ASTRORES|MyInputStream.VOTABLE|MyInputStream.CSV))!=0 ) {
+         //            n=calque.newPlanCatalog(myIn,label);
+         //
+         //         } else throw new Exception("Data format not recognized");
 
          // magic code pour les FoV sans position (ie ne créant pas de nouveau plan)
          if( n==-2 ) return null;
@@ -5466,21 +5763,21 @@ public void show() {
 
       } catch( Exception e ) { System.out.println("VOApp error!"); e.printStackTrace(); return null; }
 
-//      try {
-//         int n = calque.newPlan(in,label,null);
-//         if( n==-1 ) throw new Exception("Data format not recognized");
-//
-//         // magic code pour les FoV sans position (ie ne créant pas de nouveau plan)
-//         if( n==-2 ) return null;
-//
-//         if( voApp!=null ) {
-//
-//            if( calque.plan[n].type==Plan.APERTURE ) ((PlanField)calque.plan[n]).addObserver((VOApp)voApp);
-//            else addVOAppObserver(voApp);
-//         }
-//         return calque.plan[n].label;
-//
-//      } catch( Exception e ) { System.out.println("VOApp error!"); e.printStackTrace(); return null; }
+      //      try {
+      //         int n = calque.newPlan(in,label,null);
+      //         if( n==-1 ) throw new Exception("Data format not recognized");
+      //
+      //         // magic code pour les FoV sans position (ie ne créant pas de nouveau plan)
+      //         if( n==-2 ) return null;
+      //
+      //         if( voApp!=null ) {
+      //
+      //            if( calque.plan[n].type==Plan.APERTURE ) ((PlanField)calque.plan[n]).addObserver((VOApp)voApp);
+      //            else addVOAppObserver(voApp);
+      //         }
+      //         return calque.plan[n].label;
+      //
+      //      } catch( Exception e ) { System.out.println("VOApp error!"); e.printStackTrace(); return null; }
    }
 
    private Vector VOAppObserver = null;
@@ -5497,19 +5794,19 @@ public void show() {
       return VOAppObserver!=null && VOAppObserver.size()>0;
    }
 
-  /** To transmit a VOTable to Aladin from another application
-   * @param application reference to the external application (for callbacks)
-   * @param in the stream containing VOTable structure. For callbacks, this
-   * VOTable has to have an additionnal column in a first position giving
-   * an unique identifier for the external application. This column should have
-   * the following FIELD description :
-   * <FIELD name="_OID" UCD="ID_NUMBER" type="hidden">
-   */
+   /** To transmit a VOTable to Aladin from another application
+    * @param application reference to the external application (for callbacks)
+    * @param in the stream containing VOTable structure. For callbacks, this
+    * VOTable has to have an additionnal column in a first position giving
+    * an unique identifier for the external application. This column should have
+    * the following FIELD description :
+    * <FIELD name="_OID" UCD="ID_NUMBER" type="hidden">
+    */
    public void loadVOTable(ExtApp extApp, InputStream in) {
       putDataset(extApp,in,null);
-//      this.extApp = extApp;
-//      try {calque.newPlanCatalog(new MyInputStream(in),null); }
-//      catch( Exception e ) { System.out.println("Ext App error!"); e.printStackTrace(); }
+      //      this.extApp = extApp;
+      //      try {calque.newPlanCatalog(new MyInputStream(in),null); }
+      //      catch( Exception e ) { System.out.println("Ext App error!"); e.printStackTrace(); }
    }
 
    /**
@@ -5522,7 +5819,7 @@ public void show() {
       if( o.length==0 ) { ooid=null; view.hideSource(); }
       else {
          ooid=o[0].getOID();
-trace(3,"showVOTableObject("+o[0].id+"), "+ooid);
+         trace(3,"showVOTableObject("+o[0].id+"), "+ooid);
          view.showSource(o[0]);
       }
    }
@@ -5534,15 +5831,15 @@ trace(3,"showVOTableObject("+o[0].id+"), "+ooid);
     */
    public void selectVOTableObject(String oid[]) {
       olistOid = oid;   // Evite des appels en aller/retour
-if( levelTrace>=3 ) {
-   StringBuffer s=null;
-   for( int i=0; i<oid.length; i++ ) {
-      if( s==null ) s=new StringBuffer(250);
-      else s.append(",");
-      s.append(oid[i]);
-   }
-   trace(3,"selectVOTableObject("+s+")");
-}
+      if( levelTrace>=3 ) {
+         StringBuffer s=null;
+         for( int i=0; i<oid.length; i++ ) {
+            if( s==null ) s=new StringBuffer(250);
+            else s.append(",");
+            s.append(oid[i]);
+         }
+         trace(3,"selectVOTableObject("+s+")");
+      }
       view.selectSourcesByOID(oid);
    }
 
@@ -5571,12 +5868,12 @@ if( levelTrace>=3 ) {
          if( i==nbOid ) return;   // inutile, ca vient d'etre fait
       }
       String l[] = new String[nbOid];
-if( levelTrace>=3 ) System.out.print("callbackSelectVOApp(");
+      if( levelTrace>=3 ) System.out.print("callbackSelectVOApp(");
       for( i=0; i<nbOid; i++ ) {
          l[i]=listOid[i];
-if( levelTrace>=3 ) System.out.print((i>0?",":"")+l[i]);
+         if( levelTrace>=3 ) System.out.print((i>0?",":"")+l[i]);
       }
-if( levelTrace>=3 ) System.out.println(")");
+      if( levelTrace>=3 ) System.out.println(")");
       olistOid = l;
 
       if( VOAppObserver!=null ) {
@@ -5608,7 +5905,7 @@ if( levelTrace>=3 ) System.out.println(")");
    }
 
    /** Dernier objet (Source) transmis à un observer */
-//   private Objet oVOApp=null;
+   //   private Objet oVOApp=null;
 
 
    static protected void info(String s) { info(Aladin.aladin.f,s); }
@@ -5624,14 +5921,20 @@ if( levelTrace>=3 ) System.out.println(")");
       if( s==null ) return;
       if( methode==1 ) aladin.command.printConsole("!!! "+s);
       if( NOGUI ) return;
-      if( aladin.isFullScreen() && c==aladin.f ) c=aladin.fullScreen;
+      if( aladin.isFullScreen() ) {
+         if( aladin.fullScreen.getMode()==FrameFullScreen.CINEMA ) return;
+         if( c==aladin.f ) c=aladin.fullScreen;
+      }
       Message.showWarning(c,s);
    }
 
    static public boolean confirmation(String s) { return confirmation(Aladin.aladin.f,s); }
    static public boolean confirmation(Component c,String s) {
       if( NOGUI ) return false;
-      if( aladin.isFullScreen() && c==aladin.f ) c=aladin.fullScreen;
+      if( aladin.isFullScreen() ) {
+         if( aladin.fullScreen.getMode()==FrameFullScreen.CINEMA ) return false;
+         if( c==aladin.f ) c=aladin.fullScreen;
+      }
       boolean n=(Message.showConfirme(c,s)==Message.OUI);
       return n;
    }
@@ -5639,7 +5942,10 @@ if( levelTrace>=3 ) System.out.println(")");
    static protected boolean question(String s,Panel myPanel) { return question(Aladin.aladin.f,s,myPanel); }
    static protected boolean question(Component c,String s,Panel myPanel) {
       if( NOGUI ) return false;
-      if( aladin.isFullScreen() && c==aladin.f ) c=aladin.fullScreen;
+      if( aladin.isFullScreen() ) {
+         if( aladin.fullScreen.getMode()==FrameFullScreen.CINEMA ) return false;
+         if( c==aladin.f ) c=aladin.fullScreen;
+      }
       boolean n=(Message.showQuestion(c,s,myPanel)==Message.OUI);
       return n;
    }
@@ -5691,8 +5997,8 @@ if( levelTrace>=3 ) System.out.println(")");
     * @param writeCoo true si on ecrit les colonnes _RAJ2000 et _DEJ2000
     */
    private void writeVOTableStartTable(OutputStream s,Source o,boolean writeOID,
-                                       String linkSuffix,boolean addXY)
-                                       throws IOException {
+         String linkSuffix,boolean addXY)
+               throws IOException {
       int indent=4;
       Legende leg = o.leg;
 
@@ -5702,7 +6008,7 @@ if( levelTrace>=3 ) System.out.println(")");
       writeIndent(s,indent);
       writeBytes(s, "<TABLE name=\""+XMLParser.XMLEncode(tableName)+"\">\n");
       indent+=3;
-      
+
       // Les définitions par des groupes
       if( leg.hasGroup() ) {
          writeBytes(s, leg.getGroup() );
@@ -5710,11 +6016,11 @@ if( levelTrace>=3 ) System.out.println(")");
 
       // Champs X et Y
       if( addXY ) {
-          writeIndent(s,indent);
-          writeBytes(s, "<FIELD name=\"X\" ID=\"X\" datatype=\"double\" />\n");
+         writeIndent(s,indent);
+         writeBytes(s, "<FIELD name=\"X\" ID=\"X\" datatype=\"double\" />\n");
 
-          writeIndent(s,indent);
-          writeBytes(s, "<FIELD name=\"Y\" ID=\"Y\" datatype=\"double\" />\n");
+         writeIndent(s,indent);
+         writeBytes(s, "<FIELD name=\"Y\" ID=\"Y\" datatype=\"double\" />\n");
       }
 
       // Le champ pour le OID
@@ -5750,28 +6056,31 @@ if( levelTrace>=3 ) System.out.println(")");
          // Y a-t-il des tags dans le FIELD ?
          boolean flagLink = (linkSuffix!=null && f.gref!=null && f.gref.indexOf("url_spectrum")>=0);
          boolean flagDescription = (f.description!=null);
-         if( flagLink || flagDescription ) writeBytes(s, ">\n");
+         boolean flagNull = (f.nullValue!=null);
+         if( flagLink || flagDescription || flagNull ) writeBytes(s, ">\n");
          else writeBytes(s, "/>\n");
 
-     	 // bidouille pour conserver lien sur tables après x-match
-     	 // ce sera plus simple quand on utilisera du VOTable pour stocker les catalogues
-     	 if( flagLink ) {
-     		int begin, end;
-     		begin = f.gref.indexOf("{");
-     		end = f.gref.indexOf("}");
-     		String newVal = f.gref.substring(begin+1, end)+linkSuffix;
+         if( flagLink ) {
+            int begin, end;
+            begin = f.gref.indexOf("{");
+            end = f.gref.indexOf("}");
+            String newVal = f.gref.substring(begin+1, end)+linkSuffix;
             writeIndent(s,indent+2);
-     		writeBytes(s, "<LINK content-type=\"spectrumavo/fits\" title=\"Spectrum\" gref=\"Http ${"+newVal+"}\"/>\n");
-     	 }
-     	 if( flagDescription ) {
+            writeBytes(s, "<LINK content-type=\"spectrumavo/fits\" title=\"Spectrum\" gref=\"Http ${"+newVal+"}\"/>\n");
+         }
+         if( flagDescription ) {
             writeIndent(s,indent+2);
-     	    writeBytes(s, "<DESCRIPTION>"+XMLParser.XMLEncode(f.description)+"</DESCRIPTION>\n");
-     	 }
+            writeBytes(s, "<DESCRIPTION>"+XMLParser.XMLEncode(f.description)+"</DESCRIPTION>\n");
+         }
+         if( flagNull ) {
+            writeIndent(s,indent+2);
+            writeBytes(s, "<VALUES null=\""+XMLParser.XMLEncode(f.nullValue)+"\"/>\n");
+         }
 
-     	 if( flagLink || flagDescription ) {
+         if( flagLink || flagDescription || flagNull ) {
             writeIndent(s,indent);
             writeBytes(s, "</FIELD>\n");
-     	 }
+         }
       }
 
       writeIndent(s,indent);
@@ -5787,7 +6096,7 @@ if( levelTrace>=3 ) System.out.println(")");
     * @param o L'objet a traiter
     */
    private void writeVOTableData(OutputStream s,Source o,boolean writeOID,boolean addXY)
-                                 throws IOException {
+         throws IOException {
       StringTokenizer st = new StringTokenizer(o.info,"\t");
       st.nextElement();		// On saute le triangle
 
@@ -5795,18 +6104,18 @@ if( levelTrace>=3 ) System.out.println(")");
       PointD pAddXY=null;
       if( addXY ) {
 
-          pAddXY = o.getViewCoordDouble(view.getCurrentView(),o.getL(),o.getL());
-          // si hors champ, on ignore carrément la source !
-          if( pAddXY==null ) {
-              return;
-          }
+         pAddXY = o.getViewCoordDouble(view.getCurrentView(),o.getL(),o.getL());
+         // si hors champ, on ignore carrément la source !
+         if( pAddXY==null ) {
+            return;
+         }
       }
 
       writeIndent(s,9);writeBytes(s, "<TR>");
 
       if( addXY ) {
-          writeBytes(s, "<TD>"+pAddXY.x+"</TD>");
-          writeBytes(s, "<TD>"+pAddXY.y+"</TD>");
+         writeBytes(s, "<TD>"+pAddXY.x+"</TD>");
+         writeBytes(s, "<TD>"+pAddXY.y+"</TD>");
       }
 
       // Sauvegarde de l'OID, (si necessaire, generation d'un oid)
@@ -5820,11 +6129,11 @@ if( levelTrace>=3 ) System.out.println(")");
          Words w = new Words(st.nextToken());
          if( !o.leg.isVisible(i) ) continue;
          if( i%5==0 && i>0 ) { writeBytes(s, "\n"); writeIndent(s,11); }
-	     writeBytes(s, "<TD>"+xmlEncode(getValue(w.getText()))+"</TD>");
+         writeBytes(s, "<TD>"+xmlEncode(getValue(w.getText()))+"</TD>");
       }
       writeBytes(s, "</TR>\n");
    }
-   
+
    /**
     * Generation du VOTable des objets du plan p.
     * Dans le cas ou il n'y a aucun objet (selectionne) dans le plan, la ressource
@@ -5834,15 +6143,15 @@ if( levelTrace>=3 ) System.out.println(")");
     * @param writeOID true si on ecrit la colonne OID
     */
    private void writeSourceInVOTable(OutputStream s1, Source o,
-                                boolean writeOID, String linkSuffix, boolean addXY)
-                                  throws IOException {
+         boolean writeOID, String linkSuffix, boolean addXY)
+               throws IOException {
       Legende leg=null;
 
       // debut de la ressource (le plan)
       writeBytes(s1,
-         "  <RESOURCE name=\""+XMLParser.XMLEncode(o.plan.label)+"\">\n"+
-         "    <DESCRIPTION>"+XMLParser.XMLEncode(o.plan.label)+" object selection from Aladin</DESCRIPTION>\n"
-      );
+            "  <RESOURCE name=\""+XMLParser.XMLEncode(o.plan.label)+"\">\n"+
+                  "    <DESCRIPTION>"+XMLParser.XMLEncode(o.plan.label)+" object selection from Aladin</DESCRIPTION>\n"
+            );
 
       if( addXY ) view.getCurrentView().paintComponent(null);
 
@@ -5867,15 +6176,15 @@ if( levelTrace>=3 ) System.out.println(")");
     * @param writeOID true si on ecrit la colonne OID
     */
    private void writePlanInVOTable(OutputStream s1, Plan p,boolean onlySelected,
-								boolean writeOID, String linkSuffix, boolean addXY)
-                                  throws IOException {
+         boolean writeOID, String linkSuffix, boolean addXY)
+               throws IOException {
       Legende leg=null;
 
       // debut de la ressource (le plan)
       writeBytes(s1,
-         "  <RESOURCE name=\""+XMLParser.XMLEncode(p.label)+"\">\n"+
-         "    <DESCRIPTION>"+XMLParser.XMLEncode(p.label)+" object selection from Aladin</DESCRIPTION>\n"
-      );
+            "  <RESOURCE name=\""+XMLParser.XMLEncode(p.label)+"\">\n"+
+                  "    <DESCRIPTION>"+XMLParser.XMLEncode(p.label)+" object selection from Aladin</DESCRIPTION>\n"
+            );
 
 
       if( addXY ) view.getCurrentView().paintComponent(null);
@@ -5889,13 +6198,13 @@ if( levelTrace>=3 ) System.out.println(")");
 
          // Ne traite que les objets selectionnes par l'utilisateur le cas echeant
          if( onlySelected && !((Position)o).isSelected() ) continue;
-         
+
          leg = writeOneSourceInVOTable(s1,o,leg,writeOID,linkSuffix,addXY);
       }
 
       if( leg==null ) {
-          writeBytes(s1, "   </RESOURCE>\n");
-          return;	// Il n'y avait aucun objet dans cette ressource
+         writeBytes(s1, "   </RESOURCE>\n");
+         return;	// Il n'y avait aucun objet dans cette ressource
       }
 
       // Fin de la derniere table et fin de la ressource
@@ -5913,9 +6222,9 @@ if( levelTrace>=3 ) System.out.println(")");
     * @return la légende de la source courante
     */
    private Legende writeOneSourceInVOTable(OutputStream s1, Source o, Legende oleg,
-                                boolean writeOID, String linkSuffix, boolean addXY)
-                                  throws IOException {
-      
+         boolean writeOID, String linkSuffix, boolean addXY)
+               throws IOException {
+
       // Nouvelle table dans le plan courant
       if( o.leg!=oleg ) {
          if( oleg!=null ) writeBytes(s1, "      </TABLEDATA></DATA></TABLE>\n");    // fin de la table precedente
@@ -5925,7 +6234,7 @@ if( levelTrace>=3 ) System.out.println(")");
 
       // Ecriture des donnees pour l'objet courant
       writeVOTableData(s1,o,writeOID,addXY);
-      
+
       return oleg;
    }
 
@@ -5941,12 +6250,12 @@ if( levelTrace>=3 ) System.out.println(")");
     */
    private MyByteArrayStream writeObjectInVOTable(Plan[] plans, OutputStream os,
          boolean writeOID, boolean xmatch, boolean addXY)
-   throws IOException {
+               throws IOException {
       return writeObjectInVOTable(plans,null,os,writeOID,xmatch,addXY);
    }
    protected MyByteArrayStream writeObjectInVOTable(Plan[] plans, Source src, OutputStream os,
-            boolean writeOID, boolean xmatch, boolean addXY)
-      throws IOException {
+         boolean writeOID, boolean xmatch, boolean addXY)
+               throws IOException {
       MyByteArrayStream bas = null;
       OutputStream out;
 
@@ -5955,29 +6264,29 @@ if( levelTrace>=3 ) System.out.println(")");
 
       writeBytes(out,
             "<?xml version=\"1.0\"?>\n"+
-            "<VOTABLE xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" version=\"1.1\""+
-            " xmlns=\"http://www.ivoa.net/xml/VOTable/v1.1\""+
-            " xsi:schemaLocation=\"http://www.ivoa.net/xml/VOTable/v1.1 http://www.ivoa.net/xml/VOTable/v1.1\">\n"+
-            "  <DESCRIPTION>VOTable generated by Aladin</DESCRIPTION>\n"+
-            // TODO : vérifier si c'est encore conforme en VOTable 1.1
-            "  <DEFINITIONS>\n"+
-            "    <COOSYS ID=\"J2000\" equinox=\"2000.\" epoch=\"2000\" system=\"eq_FK5\"/>\n"+
-            "  </DEFINITIONS>\n"
-      );
+                  "<VOTABLE xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" version=\"1.1\""+
+                  " xmlns=\"http://www.ivoa.net/xml/VOTable/v1.1\""+
+                  " xsi:schemaLocation=\"http://www.ivoa.net/xml/VOTable/v1.1 http://www.ivoa.net/xml/VOTable/v1.1\">\n"+
+                  "  <DESCRIPTION>VOTable generated by Aladin</DESCRIPTION>\n"+
+                  // TODO : vérifier si c'est encore conforme en VOTable 1.1
+                  "  <DEFINITIONS>\n"+
+                  "    <COOSYS ID=\"J2000\" equinox=\"2000.\" epoch=\"2000\" system=\"eq_FK5\"/>\n"+
+                  "  </DEFINITIONS>\n"
+            );
 
-      
+
       // plans non null : generation de VOTable pour les plans mentionnés
       if( plans!=null ) {
          for( int i=0; i<plans.length; i++ ) {
             String linkSuffix = xmatch?"_tab"+(i+1):null;
             writePlanInVOTable(out, plans[i], false, writeOID, linkSuffix, addXY);
          }
-         
-      // Génération d'un VOTable juste pour cette source
+
+         // Génération d'un VOTable juste pour cette source
       } else if( src!=null ) {
          writeSourceInVOTable(out,src,writeOID,null,addXY);
-         
-      // sinon on génère le VOTable pour tous les objets selectionnes
+
+         // sinon on génère le VOTable pour tous les objets selectionnes
       } else {
          for( int i=calque.plan.length-1; i>=0; i-- ) {
             Plan p = calque.plan[i];
@@ -6007,20 +6316,20 @@ if( levelTrace>=3 ) System.out.println(")");
       return writeObjectInVOTable(null, null, true, false, false);
    }
 
-	/**
-	 * Generation de VOTable pour les objets du PlanCatalog pc
-	 * (utilisé pour sauvegarde d'un plan en VOTable)
-	 * @param pc le plan catalogue pour lequel on veut un VOTable
-	 * @return ByteArrayStream
-	 * @throws IOException
-	 */
-	protected MyByteArrayStream writePlaneInVOTable(Plan pc, OutputStream out, boolean addXY) throws IOException {
-       return writeObjectInVOTable(new Plan[] {pc}, out, false, false, addXY);
-	}
+   /**
+    * Generation de VOTable pour les objets du PlanCatalog pc
+    * (utilisé pour sauvegarde d'un plan en VOTable)
+    * @param pc le plan catalogue pour lequel on veut un VOTable
+    * @return ByteArrayStream
+    * @throws IOException
+    */
+   protected MyByteArrayStream writePlaneInVOTable(Plan pc, OutputStream out, boolean addXY) throws IOException {
+      return writeObjectInVOTable(new Plan[] {pc}, out, false, false, addXY);
+   }
 
-	protected MyByteArrayStream writePlanesInVOTable(Plan[] pc, OutputStream out, boolean writeOID, boolean xmatch) throws IOException {
-       return writeObjectInVOTable(pc, out, writeOID, xmatch, false);
-	}
+   protected MyByteArrayStream writePlanesInVOTable(Plan[] pc, OutputStream out, boolean writeOID, boolean xmatch) throws IOException {
+      return writeObjectInVOTable(pc, out, writeOID, xmatch, false);
+   }
 
 
    protected static void writeBytes(OutputStream out, String s) throws IOException {
@@ -6071,16 +6380,16 @@ if( levelTrace>=3 ) System.out.println(")");
       // Pas encore dans le cache, on la charge
       MyInputStream is=null;
       try {
-      	 if( name.startsWith("http://") ) {
-      	 	if( !NETWORK ) return null;
-      	 	is = glu.getMyInputStream(name,false);
-      	 } else is = new MyInputStream(Aladin.class.getResourceAsStream("/"+name));
+         if( name.startsWith("http://") ) {
+            if( !NETWORK ) return null;
+            is = glu.getMyInputStream(name,false);
+         } else is = new MyInputStream(Aladin.class.getResourceAsStream("/"+name));
          byte buf[] = is.readFully();
          if( buf.length==0 ) return null;  // Image introuvable
          Image img = Toolkit.getDefaultToolkit().createImage(buf);
          imageCache.put(name,img);
          return img;
-      } 
+      }
       catch( Exception e ) { if( levelTrace>=3 ) e.printStackTrace(); }
       finally{ if( is!=null ) try { is.close(); } catch( Exception e) {} }
 
@@ -6090,62 +6399,62 @@ if( levelTrace>=3 ) System.out.println(")");
       return null;
    }
 
-//  /** Appel a la generation par le serveur de l'applet ou "aladin.u-strasbg.fr"
-//   * d'une page HTML permettant l'acces aux images originales de la pile
-//   * Utilise le format HTTP suivant :
-//   * frame=save&An=label&Dn=origine&Rn=format(FITS|HFITS|GFITS|MRCOMP)&Un=url
-//   * ou n est un numero distinct pour chaque plan
-//   *
-//   * Dans le cas ou le plan vient du serveur d'images Aladin en JPEG,
-//   * l'url du plan est modifiee pour que ce soit du FITS.
-//   *
-//   * RQ: IL PEUT Y AVOIR UN RISQUE DE DEBORDEMENT DE LA METHODE GET HTTP
-//   * MAIS JE NE VOIS PAS COMMENT FAIRE CELA EN METHODE POST...QUI VIVRA VERRA
-//   */
-//   protected void saveHTML() {
-//      StringBuffer pf=null;
-//      int j=0;
-//
-//      synchronized( calque.pile ) {
-//         for( int i=calque.plan.length-1; i>=0; i-- ) {
-//            Plan p = calque.plan[i];
-//         if( p.type!=Plan.IMAGE || !p.flagOk || p.error!=null ) continue;
-//         if( p.u==null ) continue;
-//
-//         try {
-//
-//            if( pf==null ) pf=new StringBuffer();
-//            else pf.append("&");
-//
-//            String u = p.getUrl();
-//            String format= PlanImage.getFormat(((PlanImage)p).fmt);
-//
-//            // Cas particulier d'aladin en JPEG
-//            if( ((PlanImage)p).isAladinJpeg() ) format="FITS";
-//
-//            pf.append("A"+j+"="+URLEncoder.encode(p.label)+
-//                  "&D"+j+"="+URLEncoder.encode(p.copyright)+
-//                  "&U"+j+"="+URLEncoder.encode(u)+
-//                  "&R"+j+"="+URLEncoder.encode(format)
-//            );
-//            j++;
-//         } catch( Exception e) {}
-//      }
-//      }
-//
-//      if( pf==null ) {
-//         Aladin.warning(chaine.getString("NOIMGSTK"));
-//         return;
-//      }
-//
-//      String s=Aladin.STANDALONE?"http://aladin.u-strasbg.fr/java":CGIPATH;
-//      String u = s+"/nph-aladin.pl?frame=save&"+pf;
-//      trace(2,u);
-//      glu.showDocument("Http",u,true);
-//
-//   }
-   
-/*
+   //  /** Appel a la generation par le serveur de l'applet ou "aladin.u-strasbg.fr"
+   //   * d'une page HTML permettant l'acces aux images originales de la pile
+   //   * Utilise le format HTTP suivant :
+   //   * frame=save&An=label&Dn=origine&Rn=format(FITS|HFITS|GFITS|MRCOMP)&Un=url
+   //   * ou n est un numero distinct pour chaque plan
+   //   *
+   //   * Dans le cas ou le plan vient du serveur d'images Aladin en JPEG,
+   //   * l'url du plan est modifiee pour que ce soit du FITS.
+   //   *
+   //   * RQ: IL PEUT Y AVOIR UN RISQUE DE DEBORDEMENT DE LA METHODE GET HTTP
+   //   * MAIS JE NE VOIS PAS COMMENT FAIRE CELA EN METHODE POST...QUI VIVRA VERRA
+   //   */
+   //   protected void saveHTML() {
+   //      StringBuffer pf=null;
+   //      int j=0;
+   //
+   //      synchronized( calque.pile ) {
+   //         for( int i=calque.plan.length-1; i>=0; i-- ) {
+   //            Plan p = calque.plan[i];
+   //         if( p.type!=Plan.IMAGE || !p.flagOk || p.error!=null ) continue;
+   //         if( p.u==null ) continue;
+   //
+   //         try {
+   //
+   //            if( pf==null ) pf=new StringBuffer();
+   //            else pf.append("&");
+   //
+   //            String u = p.getUrl();
+   //            String format= PlanImage.getFormat(((PlanImage)p).fmt);
+   //
+   //            // Cas particulier d'aladin en JPEG
+   //            if( ((PlanImage)p).isAladinJpeg() ) format="FITS";
+   //
+   //            pf.append("A"+j+"="+URLEncoder.encode(p.label)+
+   //                  "&D"+j+"="+URLEncoder.encode(p.copyright)+
+   //                  "&U"+j+"="+URLEncoder.encode(u)+
+   //                  "&R"+j+"="+URLEncoder.encode(format)
+   //            );
+   //            j++;
+   //         } catch( Exception e) {}
+   //      }
+   //      }
+   //
+   //      if( pf==null ) {
+   //         Aladin.warning(chaine.getString("NOIMGSTK"));
+   //         return;
+   //      }
+   //
+   //      String s=Aladin.STANDALONE?"http://aladin.u-strasbg.fr/java":CGIPATH;
+   //      String u = s+"/nph-aladin.pl?frame=save&"+pf;
+   //      trace(2,u);
+   //      glu.showDocument("Http",u,true);
+   //
+   //   }
+
+   /*
     void debug() {
       int i;
 
@@ -6174,9 +6483,9 @@ if( levelTrace>=3 ) System.out.println(")");
       j.compress(view.img,"essai.jpg");
       System.out.println( mesure.getGML());
    }
-*/
+    */
 
-  /** Imprime la vue courante
+   /** Imprime la vue courante
    void print() {
       PrintJob pj = Toolkit.getDefaultToolkit().getPrintJob(f,"Aladin",null);
       if( pj!=null ) {
@@ -6189,71 +6498,71 @@ if( levelTrace>=3 ) System.out.println(")");
          pj.end();
       }
    }
-*/
+    */
 
    /** thomas : je ne sais pas bien où mettre cette méthode
     * Traitement d'un document VOTable décrivant un Field of View (MyInputStream.FOV_ONLY)
     * @param in
     */
    public int processFovVOTable(MyInputStream in, String label, boolean createNewPlane) {
-   	Aladin.trace(2, "Processing FOV_ONLY document !!");
- 	FootprintParser fp = new FootprintParser(in,null);
- 	Hashtable<String, FootprintBean> hash = fp.getFooprintHash();
- 	Enumeration<String> enumFov = hash.keys();
- 	String key = null;
- 	FootprintBean fpBean = null;
- 	PlanField pf = null;
- 	while(enumFov.hasMoreElements()) {
- 		key = enumFov.nextElement();
- 		fpBean = hash.get(key);
- 		if ( ! fpBean.isDisplayInFovList() ) {
- 		    continue;
- 		}
- 		((ServerFoV)dialog.server[ServerDialog.FIELD]).registerNewFovTemplate(key,pf=new PlanField(this,fpBean, key));
- 		pf.make(0.,0.,0.);
- 	}
+      Aladin.trace(2, "Processing FOV_ONLY document !!");
+      FootprintParser fp = new FootprintParser(in,null);
+      Hashtable<String, FootprintBean> hash = fp.getFooprintHash();
+      Enumeration<String> enumFov = hash.keys();
+      String key = null;
+      FootprintBean fpBean = null;
+      PlanField pf = null;
+      while(enumFov.hasMoreElements()) {
+         key = enumFov.nextElement();
+         fpBean = hash.get(key);
+         if ( ! fpBean.isDisplayInFovList() ) {
+            continue;
+         }
+         ((ServerFoV)dialog.server[ServerDialog.FIELD]).registerNewFovTemplate(key,pf=new PlanField(this,fpBean, key));
+         pf.make(0.,0.,0.);
+      }
 
- 	if( createNewPlane && fpBean.coordsAreSet() ) {
+      if( createNewPlane && fpBean.coordsAreSet() ) {
 
-		try {
-		    // PF Jan 09
-			if( fpBean.rotAreSet() ) {
-			   pf.make(fpBean.getRa(), fpBean.getDe(), fpBean.getRaRot(), fpBean.getDeRot(),fpBean.getPosAngle());
-			} else {
-			   pf.make(fpBean.getRa(), fpBean.getDe(), fpBean.getPosAngle());
-			}
-		}
-		catch( Exception e) {}
+         try {
+            // PF Jan 09
+            if( fpBean.rotAreSet() ) {
+               pf.make(fpBean.getRa(), fpBean.getDe(), fpBean.getRaRot(), fpBean.getDeRot(),fpBean.getPosAngle());
+            } else {
+               pf.make(fpBean.getRa(), fpBean.getDe(), fpBean.getPosAngle());
+            }
+         }
+         catch( Exception e) {}
 
-		pf.setRollable(fpBean.isRollable());
-		pf.setMovable(fpBean.isMovable());
+         pf.setRollable(fpBean.isRollable());
+         pf.setMovable(fpBean.isMovable());
 
-		if( label==null ) label = key;
- 		return calque.newPlanField(pf, label);
+         if( label==null ) label = key;
+         return calque.newPlanField(pf, label);
 
- 	}
+      }
 
- 	return -1;
+      return -1;
 
    }
 
    public int processFovVOTable(MyInputStream in) {
-   	return processFovVOTable(in, null, false);
+      return processFovVOTable(in, null, false);
    }
 
    public void mouseExited(MouseEvent e) {
       localisation.setMode(MyBox.SAISIE);
-//      pixel.setMode(MyBox.SAISIE);
+      //      pixel.setMode(MyBox.SAISIE);
    }
 
    @Override
-public boolean handleEvent(Event e) {
+   public boolean handleEvent(Event e) {
       // pour sortir du mode Robot
       if( e.id==Event.KEY_PRESS && e.key==java.awt.event.KeyEvent.VK_ESCAPE && command.robotMode ) {
          stopRobot(f);
          return true;
       }
-//      if( flagLoad ) return true;
+      //      if( flagLoad ) return true;
       return super.handleEvent(e);
    }
 
@@ -6264,11 +6573,11 @@ public boolean handleEvent(Event e) {
 
       if( MyRobot.ae!=null ) t.suspend();
       boolean stop = (Message.showConfirme(c, chaine.getString("STOPDEMO")))
-                     == Message.OUI;
+            == Message.OUI;
       if( !stop ) {
-          if( t!=null ) t.resume();
-          ActionExecutor.interruptAction = false;
-          return;
+         if( t!=null ) t.resume();
+         ActionExecutor.interruptAction = false;
+         return;
       }
 
       if( t!=null ) t.stop();
@@ -6280,32 +6589,40 @@ public boolean handleEvent(Event e) {
       command.execLater("robot off");
 
       command.curTuto = null;
-
    }
 
 
    /** Libère toute la mémoire inutile */
    protected void gc() {
       if( gc ) {
+         trace(4,"Aladin.gc()...");
+//         try { throw new Exception("gc"); } catch( Exception e ) { e.printStackTrace(); }
          System.runFinalization();
          System.gc();
-         Util.pause(100);
+         Util.pause(30);
       }
       setMemory();
+   }
+   
+   protected void gcIfRequired() {
+      double mem=getMem();
+      if( mem>100) return;
+//      System.out.println("Memory="+mem+"MB");
+      gc();
    }
 
    /** Génération d'un log via le glu */
    public void log(String id,String param) {
       glu.log(id,param);
    }
-   
-   
-   
-   /** Positionnement de l'antialiasing */ 
+
+
+
+   /** Positionnement de l'antialiasing */
    public void setAliasing(Graphics g) { setAliasing(g,ALIASING); }
    public void setAliasing(Graphics g,int aliasing) {
       if( aliasing==0 || !(g instanceof Graphics2D) ) return;
-      
+
       if( aliasing==1 ) {
          ((Graphics2D)g).setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -6333,30 +6650,30 @@ public boolean handleEvent(Event e) {
     * Cette méthode est appelée par le timer défini au niveau de CreatObj.run()
     */
    protected void setPlastic(final boolean launchHubIfNeeded) {
-       final AppMessagingInterface pMgr = getMessagingMgr();
-       // if not connected, try to register with a hub
-       if( ! pMgr.isRegistered() && ! dontReconnectAutomatically
-       		&& plasticPrefs.getBooleanValue(PlasticPreferences.PREF_AUTOCONNECT ) ) {
-           appMessagingMgr.trace("Trying to autoconnect to "+pMgr.getProtocolName()+" hub");
+      final AppMessagingInterface pMgr = getMessagingMgr();
+      // if not connected, try to register with a hub
+      if( ! pMgr.isRegistered() && ! dontReconnectAutomatically
+            && plasticPrefs.getBooleanValue(PlasticPreferences.PREF_AUTOCONNECT ) ) {
+         appMessagingMgr.trace("Trying to autoconnect to "+pMgr.getProtocolName()+" hub");
 
-           new Thread("AladinPlasticRegister") {
-               @Override
+         new Thread("AladinPlasticRegister") {
+            @Override
             public void run() {
-                   try { pMgr.register(true, launchHubIfNeeded); }
-                   catch( Exception e ) {
-                      if( levelTrace>=3 ) e.printStackTrace();
-                   }
+               try { pMgr.register(true, launchHubIfNeeded); }
+               catch( Exception e ) {
+                  if( levelTrace>=3 ) e.printStackTrace();
                }
-           }.start();
+            }
+         }.start();
 
-       }
-       // TODO : test whether the hub is responsive
-       else {
-           boolean alive = appMessagingMgr.ping();
-           appMessagingMgr.trace("Testing if "+appMessagingMgr.getProtocolName()+" hub is still alive: "+alive);
-       }
+      }
+      // TODO : test whether the hub is responsive
+      else {
+         boolean alive = appMessagingMgr.ping();
+         appMessagingMgr.trace("Testing if "+appMessagingMgr.getProtocolName()+" hub is still alive: "+alive);
+      }
 
-       pMgr.updateState();
+      pMgr.updateState();
    }
 
    private int lastMem=0;
@@ -6373,8 +6690,10 @@ public boolean handleEvent(Event e) {
       if( firstMem==0 ) {
          MB=chaine.getString("MB");
          System.runFinalization();
+         //         System.out.println("C'est parti pour gc...");
          System.gc();
-         Util.pause(100);
+         Util.pause(30);
+         //         System.out.println("C'est termine...");
       }
       if( MB==null ) MB="Mb";
       int nbPlan = calque.getNbUsedPlans();
@@ -6382,45 +6701,44 @@ public boolean handleEvent(Event e) {
       int nbSel = view.vselobj.size();
       long nbSrc = calque.getNbSrc();
       double fps = calque.getFps();
-// XXX A VOIR XXX      long cache = calque.isBkgdActive() ? (int)(calque.planBG.getCacheSize()/(1024*1024)) : 0;
       long cache=0;
       cache += (int)(sizeCache/(1024*1024));
       int mem = (int)( (Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory())/(1024*1024));
       if( firstMem==0 ) firstMem=mem;
       mem-=firstMem;
       String s= nbSel+" sel / "+nbSrc+" src    "
-                    + (nbView>view.getModeView()?nbView+" views   ":"")
-                    +(fps>0?(int)Math.round(fps)+"fps / ":"")+mem+MB;
+            + (nbView>view.getModeView()?nbView+" views   ":"")
+            +(fps>0?(int)Math.round(fps)+"fps / ":"")+mem+MB;
       memStatus.setText(s);
       if( infoPanel!=null ) infoPanel.doLayout();
       Util.toolTip(memStatus,"<HTML><CENTER>"
-                           +nbSrc+" source"+(nbSrc>1?"s":"")+", "
-                           +nbPlan+" plan"+(nbPlan>1?"s":"")+", "
-                           +nbView+" view"+(nbView>1?"s":"")+"<BR>"
-                           +"Mem: "+mem+MB+" / "+MAXMEM+MB+"<BR>"
-                           +(cache<1?"" : "Disk cache: "+cache+MB+"<BR>")
-                           +(fps>0?"Fps: "+Util.round(fps,1)+"<BR>":"")
-                           +"Paint: "+ViewSimple.timeForPaint+"ms</CENTER></HTML>");
+            +nbSrc+" source"+(nbSrc>1?"s":"")+", "
+            +nbPlan+" plan"+(nbPlan>1?"s":"")+", "
+            +nbView+" view"+(nbView>1?"s":"")+"<BR>"
+            +"Mem: "+mem+MB+" / "+MAXMEM+MB+"<BR>"
+            +(cache<1?"" : "Disk cache: "+cache+MB+"<BR>")
+            +(fps>0?"Fps: "+Util.round(fps,1)+"<BR>":"")
+            +"Paint: "+ViewSimple.timeForPaint+"ms</CENTER></HTML>");
       lastMem=mem;
       lastNbSrc=nbSrc;
-      
+
       // Warnings pour les limites de mémoire
       int memory = (int)(MAXMEM-lastMem);
       if( memory<50 ) {
          trace(4,"Aladin.setMemory(): low memory ("+memory+" MB)");
          if( freeSomeRam()>0 ) return;
          urlStatus.setText("Warning: Aladin is running in low memory configuration ("+memory+"MB)");
-//         if( memory<20 ) {
-//            if( !lowMem ) {
-//               warning("Low memory (only "+memory+"MB available) !!\nRemove some stack planes as soon as possible !");
-//               lowMem=true;
-//            }
-//         } else lowMem=false;
+         //         if( memory<20 ) {
+         //            if( !lowMem ) {
+         //               warning("Low memory (only "+memory+"MB available) !!\nRemove some stack planes as soon as possible !");
+         //               lowMem=true;
+         //            }
+         //         } else lowMem=false;
       }
    }
-   
+
    public long freeSomeRam() { return freeSomeRam(-1,null); }
-   
+
    /** Demande de libération de la mémoire non indispensable. Si -1, demande du max
     * @param askMem Nombre d'octets demandés, -1 si max
     * @param saufPlan plan a ne pas libérer, null si aucun spécifié
@@ -6432,23 +6750,23 @@ public boolean handleEvent(Event e) {
       for( int i=0; i<p.length; i++ ) {
          if( p[i]==saufPlan ) continue;     // On ne libère pas ce plan
          if( p[i] instanceof PlanImageBlink ) {
-            mem+= ((PlanImageBlink)p[i]).freeRam(askMem==-1 ? -1 : askMem-mem); 
+            mem+= ((PlanImageBlink)p[i]).freeRam(askMem==-1 ? -1 : askMem-mem);
          }
          if( askMem!=-1 && mem>=askMem ) break;
       }
       if( mem>0 ) gc();
       return mem;
    }
-   
+
    private boolean lowMem=false;
-   
+
    /** Retourne le nombre de mégaoctets disponibles en RAM */
    protected double getMem() {
       double mem = (Runtime.getRuntime().maxMemory()-
             (Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory()))/(1024*1024.);
       return mem;
    }
-   
+
    /** Retourne true si on a de la marge en RAM */
    protected boolean enoughMemory() { return MAXMEM-lastMem>256; }
 
@@ -6459,36 +6777,38 @@ public boolean handleEvent(Event e) {
       int nbSel = view.vselobj.size();
       String s= nbSel+" sel / "+lastNbSrc+" src    "+lastMem+MB;
       memStatus.setText(s);
-  }
+   }
 
    /** Changement du niveau de trace */
    public void setTraceLevel(int n) {
       levelTrace=n;
-//      if( n>0 ) pixel.addDebugItem();   // ajout de la possibilité Pixel FITS value
+      //      if( n>0 ) pixel.addDebugItem();   // ajout de la possibilité Pixel FITS value
       if( n==0 ) command.println("Trace off");
       else command.println("Trace on (level "+n+")");
+      view.newView();
+      view.repaintAll();
 
    }
 
-  /** Affichage des message de debugging. Si n est >= au niveau courant
-   * le message sera affiche sur la sortie standard
-   * @param n Le niveau de debogage
-   * @param s Le message a afficher
-   */
+   /** Affichage des message de debugging. Si n est >= au niveau courant
+    * le message sera affiche sur la sortie standard
+    * @param n Le niveau de debogage
+    * @param s Le message a afficher
+    */
    static final public void trace(int n,String s) {
       if( n>levelTrace ) return;
       s =     n==1 ? ".    "+s+"..."
             : n==2 ? "--   "+s
-            : n==3 ? "***  "+s
-            :        ">>>> "+s;
+                  : n==3 ? "***  "+s
+                        :        ">>>> "+s;
       System.out.println(s);
-//      if( n>2 && aladin!=null && aladin.console!=null ) aladin.console.setInPad(s+"\n");
+      //      if( n>2 && aladin!=null && aladin.console!=null ) aladin.console.setInPad(s+"\n");
    }
 
    static final public boolean isFootprintPlane(Plan p) {
       return p.type==Plan.FOV || p.type==Plan.APERTURE;
-//      if( p instanceof PlanFov || p instanceof PlanField ) return true;
-//	   return false;
+      //      if( p instanceof PlanFov || p instanceof PlanField ) return true;
+      //	   return false;
    }
 
    /**
@@ -6500,20 +6820,20 @@ public boolean handleEvent(Event e) {
    public AladinData createAladinData(String name) throws AladinException {
       return createAladinImage(name);
    }
-//   public AladinData createAladinData(String name) throws AladinException {
-//      try {
-//         name = calque.newPlanPlugImg(name);
-//         AladinData ag = getAladinData(name);
-//         double pix[][] = new double[500][500];
-//         ag.setPixels(pix);
-//         ag.plan.error = PlanImage.NOREDUCTION;
-//         ag.plan.planReady(true);
-//         return ag;
-//      } catch( Exception e ) {
-//         e.printStackTrace();
-//         throw new AladinException(AladinData.ERR009);
-//      }
-//   }
+   //   public AladinData createAladinData(String name) throws AladinException {
+   //      try {
+   //         name = calque.newPlanPlugImg(name);
+   //         AladinData ag = getAladinData(name);
+   //         double pix[][] = new double[500][500];
+   //         ag.setPixels(pix);
+   //         ag.plan.error = PlanImage.NOREDUCTION;
+   //         ag.plan.planReady(true);
+   //         return ag;
+   //      } catch( Exception e ) {
+   //         e.printStackTrace();
+   //         throw new AladinException(AladinData.ERR009);
+   //      }
+   //   }
 
    /**
     * Create a new Aladin Catalog plane by plugin.
@@ -6524,18 +6844,18 @@ public boolean handleEvent(Event e) {
    public AladinData createAladinCatalog(String name) throws AladinException {
       return new AladinData(this,2,name);
    }
-//   public AladinData createAladinCatalog(String name) throws AladinException {
-//      try {
-//         name = calque.newPlanPlugCat(name);
-//         AladinData ag = getAladinData(name);
-////         ag.plan.planReady(true);
-//         return ag;
-//      } catch( Exception e ) {
-//         e.printStackTrace();
-//         throw new AladinException(AladinData.ERR009);
-//      }
-//   }
-   
+   //   public AladinData createAladinCatalog(String name) throws AladinException {
+   //      try {
+   //         name = calque.newPlanPlugCat(name);
+   //         AladinData ag = getAladinData(name);
+   ////         ag.plan.planReady(true);
+   //         return ag;
+   //      } catch( Exception e ) {
+   //         e.printStackTrace();
+   //         throw new AladinException(AladinData.ERR009);
+   //      }
+   //   }
+
    /** Return the Aladin plugin directory */
    public String getPluginDir() {
       return plugins.getPlugPath();
@@ -6567,11 +6887,11 @@ public boolean handleEvent(Event e) {
    public AladinData getAladinData() throws AladinException {
       return getAladinData(null);
    }
-//   public AladinData getAladinData() throws AladinException {
-//      try {
-//         return getAladinData(calque.getFirstSelectedPlan().label);
-//      } catch( Exception e ) { throw new AladinException(AladinData.ERR000); }
-//   }
+   //   public AladinData getAladinData() throws AladinException {
+   //      try {
+   //         return getAladinData(calque.getFirstSelectedPlan().label);
+   //      } catch( Exception e ) { throw new AladinException(AladinData.ERR000); }
+   //   }
 
    /** Provide a AladinData object allowing to manipulate an Aladin plane
     * @param planeID plane ID (label or number (1 is the bottom of the stack)
@@ -6590,329 +6910,329 @@ public boolean handleEvent(Event e) {
       return calque.getStackLabels();
    }
 
-//	faire log IDL + log macro
-//	faire FAQ IDL + FAQ macro
+   //	faire log IDL + log macro
+   //	faire FAQ IDL + FAQ macro
 
-	/************** Méthodes liées à l'interaction IDL/Aladin ****************/
+   /************** Méthodes liées à l'interaction IDL/Aladin ****************/
 
-	// true si on n'a pas encore logué l'usage via IDL
-	private boolean mustLogIDL = true;
+   // true si on n'a pas encore logué l'usage via IDL
+   private boolean mustLogIDL = true;
 
    protected String osName;
    protected String osArch;
    protected String osVersion;
    protected String javaVendor;
 
-	/**
-	 * logue l'usage d'IDL
-	 *
-	 */
-	synchronized private void logIDL(String s) {
-		if( mustLogIDL ) {
-			mustLogIDL = false;
-			log("IDLcall", s);
-		}
-	}
+   /**
+    * logue l'usage d'IDL
+    *
+    */
+   synchronized private void logIDL(String s) {
+      if( mustLogIDL ) {
+         mustLogIDL = false;
+         log("IDLcall", s);
+      }
+   }
 
-	/** transmet la position courante du réticule
-	 * méthode ad-hoc créée pour l'interaction avec IDL
-	 *
-	 * @return la position sous forme d'un tableau de double (1er elt : RAJ J2000, 2e elt : DE J2000)
-	 */
-	public double[] getReticlePos() {
-		logIDL("getReticlePos");
+   /** transmet la position courante du réticule
+    * méthode ad-hoc créée pour l'interaction avec IDL
+    *
+    * @return la position sous forme d'un tableau de double (1er elt : RAJ J2000, 2e elt : DE J2000)
+    */
+   public double[] getReticlePos() {
+      logIDL("getReticlePos");
 
-		if( view.repere==null ) return null;
+      if( view.repere==null ) return null;
 
-		return new double[] {view.repere.raj, view.repere.dej};
-	}
+      return new double[] {view.repere.raj, view.repere.dej};
+   }
 
-	/** transmet la valeur du pixel pour la position courante du réticule
-	 * méthode ad-hoc créée pour l'interaction avec IDL
-	 *
-	 * @return la valeur du pixel sous la forme d'un double
-	 */
-	public double getPixelValAtReticlePos() {
-		logIDL("getPixelValAtReticlePos");
+   /** transmet la valeur du pixel pour la position courante du réticule
+    * méthode ad-hoc créée pour l'interaction avec IDL
+    *
+    * @return la valeur du pixel sous la forme d'un double
+    */
+   public double getPixelValAtReticlePos() {
+      logIDL("getPixelValAtReticlePos");
 
-		if( view.repere==null ) return Double.NaN;
+      if( view.repere==null ) return Double.NaN;
 
-		return view.getPixelValue();
-	}
-
-
-	/** sélection de source selon
-	 * (utilisé par IDL via IDL Java Bridge)
-	 *
-	 * @param planeName label du plan
-	 * @param indexes numéros d'ordre des sources
-	 */
-	public void selectSourcesByRowNumber(String planeName, int[] indexes) {
-		logIDL("selectSourcesByRowNumber");
-
-		Plan plan = command.getFirstPlan(planeName);
-
-		if( plan==null ) {
-			System.out.println("Could not find plane with name "+planeName);
-			return;
-		}
-
-		view.selectSourcesByRowNumber((PlanCatalog)plan, indexes);
-	}
+      return view.getPixelValue();
+   }
 
 
-	/** Récupère le contenu d'un plan catalogue dans des vecteurs
-	 * (utilisé par IDL via IDL Java Bridge)
-	 *
-	 * @param planeName
-	 * @param colNames
-	 * @return
-	 */
-	public String[][] getTableVectors(String planeName, String[] colNames, String[] colDataTypes) {
-		logIDL("getTableVectors");
+   /** sélection de source selon
+    * (utilisé par IDL via IDL Java Bridge)
+    *
+    * @param planeName label du plan
+    * @param indexes numéros d'ordre des sources
+    */
+   public void selectSourcesByRowNumber(String planeName, int[] indexes) {
+      logIDL("selectSourcesByRowNumber");
 
-		Plan plan = command.getFirstPlan(planeName);
-		if( plan==null ) {
-			System.out.println("Could not find plane with name "+planeName);
-			return null;
-		}
-		else if( !plan.isCatalog() ) {
-			System.out.println("Plane "+planeName+" is not a catalogue plane !");
-			return null;
-		}
+      Plan plan = command.getFirstPlan(planeName);
 
-		int[] colIdx = new int[colNames.length];
-		for( int i=0; i<colIdx.length; i++ ) colIdx[i] = -1;
-		Legende leg = plan.getFirstLegende();
-		for (int i = 0; i < colNames.length; i++) {
+      if( plan==null ) {
+         System.out.println("Could not find plane with name "+planeName);
+         return;
+      }
 
-			// au cas où on n'a pas donné de noms de colonnes
-			if( colNames[i]==null || colNames[i].length()==0 ) {
-				colIdx[i] = i;
-				continue;
-			}
-
-			for( int j=0; j<leg.field.length; j++ ) {
-				if( colNames[i].equals(leg.field[j].name ) ) {
-					colIdx[i] = j;
-					break;
-				}
-			}
-
-			// exit if we can't find one of the column
-			if( colIdx[i]==-1 ) {
-				System.out.println("Could not find column "+colNames[i]);
-				return null;
-			}
-		}
-
-		Source s;
-//		String[] values;
-		String[][] data = new String[plan.getCounts()][colIdx.length];
-		Iterator<Obj> it = plan.iterator();
-		// boucle sur les objets du plan
-		for( int i=0; it.hasNext(); i++ ) {
-	         Obj o = it.next();
-	         if( !(o instanceof Source) ) continue;
-	         s = (Source)o;
-//			values = Util.split(s.info, "\t");
-
-			// boucle sur les colonnes à récupérer
-			for( int j=0; j<colIdx.length; j++ ) {
-//				System.out.println(s.getValue(colIdx[j]));
-				data[i][j] = s.getValue(colIdx[j]);
-			}
-		}
-
-		for( int i=0; i<colDataTypes.length; i++ ) {
-			String dataType = leg.field[i].datatype;
-			if( dataType==null ) dataType = "char";
-			colDataTypes[i] = Field.typeFits2VOTable(dataType);
-		}
-		return data;
-	}
-
-	/** Charge une image à partir de son path
-	 *
-	 * @param file path vers l'image
-	 * @param planeName nom du plan créé
-	 */
-	public void loadImageFromFile(String file, String planeName) {
-		logIDL("loadImageFromFile");
-
-		try {
-   	  		putFITS(new FileInputStream(new File(file)), planeName);
-		}
-		catch(Exception e) {
-			e.printStackTrace();
-
-		}
-	}
-
-	/** Crée un nouveau plan catalogue à partir d'un tableau de vecteurs
-	 * (utilisé par IDL via IDL Java Bridge)
-	 *
-	 * @param vectors
-	 * @param vecNames
-	 * @param planeName
-	 */
-	public void loadTableFromVectors(String[][] vectors, String[] vecNames, String planeName) {
-		logIDL("loadTableFromVectors");
-
-		Vector vField = new Vector();
-		// on donne des noms par défaut si nécessaire
-		if( vecNames==null ) {
-			vecNames = new String[vectors.length];
-			for( int k=0; k<vecNames.length; k++ ) vecNames[k] = "col"+k;
-		}
-
-		// TODO : à virer, plus nécessaire
-		vecNames[0] = "ra";
-		vecNames[1] = "dec";
-
-		Field f;
-		for( int i=0; i<vecNames.length; i++ ) {
-			f = new Field(vecNames[i]);
-			if( i==0 ) f.coo = Field.RA;
-			else if( i==1 ) f.coo = Field.DE;
-//			if( i==0 || i==1 ) f.coo = true;
-			vField.addElement(f);
-		}
-		Legende leg = new Legende(vField);
-
-		int nbSources = vectors[0].length;
-		int nbCol = vectors.length;
+      view.selectSourcesByRowNumber((PlanCatalog)plan, indexes);
+   }
 
 
-		// TODO : remplacer ceci par un passage direct des tableaux ?
-		MyInputStream mis=null;
-		MyByteArrayStream stream=null;
-		try {
-			stream = new MyByteArrayStream();
-			for( int i=0; i<nbCol; i++ ) {
-				stream.write(vecNames[i].getBytes());
-				if( i!=nbCol-1 ) stream.write("\t".getBytes());
-			}
+   /** Récupère le contenu d'un plan catalogue dans des vecteurs
+    * (utilisé par IDL via IDL Java Bridge)
+    *
+    * @param planeName
+    * @param colNames
+    * @return
+    */
+   public String[][] getTableVectors(String planeName, String[] colNames, String[] colDataTypes) {
+      logIDL("getTableVectors");
 
-			stream.write("\n".getBytes());
+      Plan plan = command.getFirstPlan(planeName);
+      if( plan==null ) {
+         System.out.println("Could not find plane with name "+planeName);
+         return null;
+      }
+      else if( !plan.isCatalog() ) {
+         System.out.println("Plane "+planeName+" is not a catalogue plane !");
+         return null;
+      }
 
-			for( int i=0; i<nbCol; i++ ) {
-				stream.write("----------".getBytes());
-				if( i!=nbCol-1 ) stream.write("\t".getBytes());
-			}
+      int[] colIdx = new int[colNames.length];
+      for( int i=0; i<colIdx.length; i++ ) colIdx[i] = -1;
+      Legende leg = plan.getFirstLegende();
+      for (int i = 0; i < colNames.length; i++) {
 
-			for( int j=0; j<nbSources; j++ ) {
-				stream.write("\n".getBytes());
+         // au cas où on n'a pas donné de noms de colonnes
+         if( colNames[i]==null || colNames[i].length()==0 ) {
+            colIdx[i] = i;
+            continue;
+         }
 
-				for( int i=0; i<nbCol; i++ ) {
-					stream.write(vectors[i][j].getBytes());
-					if( i!=nbCol-1 ) stream.write("\t".getBytes());
-				}
-			}
+         for( int j=0; j<leg.field.length; j++ ) {
+            if( colNames[i].equals(leg.field[j].name ) ) {
+               colIdx[i] = j;
+               break;
+            }
+         }
 
-			mis = new MyInputStream(stream.getInputStream());
-			mis.startRead();
-			calque.createPlanCatalog(mis, planeName);
-		}
-		catch(Exception e) { e.printStackTrace();return; }
-		finally {
-           if( stream!=null ) try { stream.close(); } catch( Exception e1 ) {} 
-		}
+         // exit if we can't find one of the column
+         if( colIdx[i]==-1 ) {
+            System.out.println("Could not find column "+colNames[i]);
+            return null;
+         }
+      }
 
-		
-//		int indice = calque.newPlanCatalog(mis, planeName);
-//		PlanCatalog plan = (PlanCatalog)calque.plan[indice];
-	}
-	/******************* fin des méthodes liées à IDL ************************/
+      Source s;
+      //		String[] values;
+      String[][] data = new String[plan.getCounts()][colIdx.length];
+      Iterator<Obj> it = plan.iterator();
+      // boucle sur les objets du plan
+      for( int i=0; it.hasNext(); i++ ) {
+         Obj o = it.next();
+         if( !(o instanceof Source) ) continue;
+         s = (Source)o;
+         //			values = Util.split(s.info, "\t");
+
+         // boucle sur les colonnes à récupérer
+         for( int j=0; j<colIdx.length; j++ ) {
+            //				System.out.println(s.getValue(colIdx[j]));
+            data[i][j] = s.getValue(colIdx[j]);
+         }
+      }
+
+      for( int i=0; i<colDataTypes.length; i++ ) {
+         String dataType = leg.field[i].datatype;
+         if( dataType==null ) dataType = "char";
+         colDataTypes[i] = Field.typeFits2VOTable(dataType);
+      }
+      return data;
+   }
+
+   /** Charge une image à partir de son path
+    *
+    * @param file path vers l'image
+    * @param planeName nom du plan créé
+    */
+   public void loadImageFromFile(String file, String planeName) {
+      logIDL("loadImageFromFile");
+
+      try {
+         putFITS(new FileInputStream(new File(file)), planeName);
+      }
+      catch(Exception e) {
+         e.printStackTrace();
+
+      }
+   }
+
+   /** Crée un nouveau plan catalogue à partir d'un tableau de vecteurs
+    * (utilisé par IDL via IDL Java Bridge)
+    *
+    * @param vectors
+    * @param vecNames
+    * @param planeName
+    */
+   public void loadTableFromVectors(String[][] vectors, String[] vecNames, String planeName) {
+      logIDL("loadTableFromVectors");
+
+      Vector vField = new Vector();
+      // on donne des noms par défaut si nécessaire
+      if( vecNames==null ) {
+         vecNames = new String[vectors.length];
+         for( int k=0; k<vecNames.length; k++ ) vecNames[k] = "col"+k;
+      }
+
+      // TODO : à virer, plus nécessaire
+      vecNames[0] = "ra";
+      vecNames[1] = "dec";
+
+      Field f;
+      for( int i=0; i<vecNames.length; i++ ) {
+         f = new Field(vecNames[i]);
+         if( i==0 ) f.coo = Field.RA;
+         else if( i==1 ) f.coo = Field.DE;
+         //			if( i==0 || i==1 ) f.coo = true;
+         vField.addElement(f);
+      }
+      Legende leg = new Legende(vField);
+
+      int nbSources = vectors[0].length;
+      int nbCol = vectors.length;
 
 
-    /** Création d'un fichier temporaire dans le répertoire "cache" d'Aladin
+      // TODO : remplacer ceci par un passage direct des tableaux ?
+      MyInputStream mis=null;
+      MyByteArrayStream stream=null;
+      try {
+         stream = new MyByteArrayStream();
+         for( int i=0; i<nbCol; i++ ) {
+            stream.write(vecNames[i].getBytes());
+            if( i!=nbCol-1 ) stream.write("\t".getBytes());
+         }
+
+         stream.write("\n".getBytes());
+
+         for( int i=0; i<nbCol; i++ ) {
+            stream.write("----------".getBytes());
+            if( i!=nbCol-1 ) stream.write("\t".getBytes());
+         }
+
+         for( int j=0; j<nbSources; j++ ) {
+            stream.write("\n".getBytes());
+
+            for( int i=0; i<nbCol; i++ ) {
+               stream.write(vectors[i][j].getBytes());
+               if( i!=nbCol-1 ) stream.write("\t".getBytes());
+            }
+         }
+
+         mis = new MyInputStream(stream.getInputStream());
+         mis.startRead();
+         calque.createPlanCatalog(mis, planeName);
+      }
+      catch(Exception e) { e.printStackTrace();return; }
+      finally {
+         if( stream!=null ) try { stream.close(); } catch( Exception e1 ) {}
+      }
+
+
+      //		int indice = calque.newPlanCatalog(mis, planeName);
+      //		PlanCatalog plan = (PlanCatalog)calque.plan[indice];
+   }
+   /******************* fin des méthodes liées à IDL ************************/
+
+
+   /** Création d'un fichier temporaire dans le répertoire "cache" d'Aladin
     *
     * @param prefix
     * @param suffix
     * @return
     */
    public File createTempFile(String prefix, String suffix) {
-       if( !createCache() ) {
-           Aladin.trace(3, "Couldn't create cache directory");
-           return null;
-       }
+      if( !createCache() ) {
+         Aladin.trace(3, "Couldn't create cache directory");
+         return null;
+      }
 
-       File tmpFile;
-       try {
-           // should give a unique file name
-           tmpFile = new File(new File(Aladin.CACHEDIR), prefix+System.currentTimeMillis()+suffix);
-       }
-       catch(Exception e) {
-           Aladin.trace(3, "Error while creating temp file : "+e.getMessage());
-           return null;
-       }
+      File tmpFile;
+      try {
+         // should give a unique file name
+         tmpFile = new File(new File(Aladin.CACHEDIR), prefix+System.currentTimeMillis()+suffix);
+      }
+      catch(Exception e) {
+         Aladin.trace(3, "Error while creating temp file : "+e.getMessage());
+         return null;
+      }
 
-       return tmpFile;
+      return tmpFile;
    }
 
-     public void snapShot(OutputStream o) { snapShot(o,500,500); }
-     public void snapShot(OutputStream o,int width,int height) {
-          try {
-             command.sync();
-             ViewSimple v = view.getCurrentView();
-             Image img = v.getImage(width,height);
-             save.ImageWriter(img,"png",-1,true,o);
-          } catch( Exception e ) { e.printStackTrace(); }
-}
+   public void snapShot(OutputStream o) { snapShot(o,500,500); }
+   public void snapShot(OutputStream o,int width,int height) {
+      try {
+         command.sync();
+         ViewSimple v = view.getCurrentView();
+         Image img = v.getImage(width,height);
+         save.ImageWriter(img,"png",-1,true,o);
+      } catch( Exception e ) { e.printStackTrace(); }
+   }
 
-     public String getNearestUrl(int x, int y) {
-        try {
-           command.sync();
-           ViewSimple v = view.getCurrentView();
-           PointD p = v.getPosition((double)x,(double)y);
-           Vector h = calque.getObjWith(v,p.x,p.y);
-           Source s = (Source)h.elementAt(0);
-           return s.getFirstLink();
-        } catch( Exception e ) { e.printStackTrace(); }
-        return "-";
-     }
+   public String getNearestUrl(int x, int y) {
+      try {
+         command.sync();
+         ViewSimple v = view.getCurrentView();
+         PointD p = v.getPosition((double)x,(double)y);
+         Vector h = calque.getObjWith(v,p.x,p.y);
+         Source s = (Source)h.elementAt(0);
+         return s.getFirstLink();
+      } catch( Exception e ) { e.printStackTrace(); }
+      return "-";
+   }
 
-     public String setRepere(int x, int y ) {
-        ViewSimple v = view.getCurrentView();
-        PointD p = v.getPosition((double)x,(double)y);
-        Coord coo = new Coord();
-        coo.x=p.x; coo.y=p.y;
-        v.getProj().getCoord(coo);
-        view.setRepere(coo);
-        return coo.getSexa();
-     }
+   public String setRepere(int x, int y ) {
+      ViewSimple v = view.getCurrentView();
+      PointD p = v.getPosition((double)x,(double)y);
+      Coord coo = new Coord();
+      coo.x=p.x; coo.y=p.y;
+      v.getProj().getCoord(coo);
+      view.setRepere(coo);
+      return coo.getSexa();
+   }
 
-     public String getRepere() {
-        return view.repere.getSexa();
-     }
+   public String getRepere() {
+      return view.repere.getSexa();
+   }
 
-     public void mouseClicked(MouseEvent e) { }
-     public void mouseEntered(MouseEvent e) { }
-     public void mousePressed(MouseEvent e) {}
-     public void mouseReleased(MouseEvent e) { }
-     public void mouseDragged(MouseEvent e) { }
-     
-     
-     static public boolean test() {
-        System.out.println("Aladin code test running...");
-        Aladin aladin = Aladin.aladin;
-        if( aladin==null ) {
-           NOGUI=true;
-           aladin = new Aladin();
-           startInFrame(aladin);
-        }
-        boolean rep=true;
+   public void mouseClicked(MouseEvent e) { }
+   public void mouseEntered(MouseEvent e) { }
+   public void mousePressed(MouseEvent e) {}
+   public void mouseReleased(MouseEvent e) { }
+   public void mouseDragged(MouseEvent e) { }
 
-        rep &= PlanCatalog.test(aladin);
-        rep &= Calib.test();
 
-        System.out.println( rep ? "Tout est bon dans l'cochon !" : "Aladin code test FAILED !");
-        return rep;
-     }
+   static public boolean test() {
+      System.out.println("Aladin code test running...");
+      Aladin aladin = Aladin.aladin;
+      if( aladin==null ) {
+         NOGUI=true;
+         aladin = new Aladin();
+         startInFrame(aladin);
+      }
+      boolean rep=true;
 
-	public void creatLocalPlane(String filepath, String name) {
-		calque.newPlan(filepath,name,null);
-	}
-	
+      rep &= PlanCatalog.test(aladin);
+      rep &= Calib.test();
+
+      System.out.println( rep ? "Tout est bon dans l'cochon !" : "Aladin code test FAILED !");
+      return rep;
+   }
+
+   public void creatLocalPlane(String filepath, String name) {
+      calque.newPlan(filepath,name,null);
+   }
+
 }

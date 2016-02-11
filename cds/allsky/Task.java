@@ -81,6 +81,8 @@ public class Task extends Thread {
        progressBar = new ThreadProgressBar(context);
        progressBar.start();
        
+
+       
 //       System.out.println("Check actions:");
 //       for( Action a : actions ) { System.out.println(" ==> "+a); }
 
@@ -88,6 +90,7 @@ public class Task extends Thread {
           context.setTaskRunning(true);
           for( Action a : actions ) {
              if( context.isTaskAborting() ) break;
+             context.running(a+"");
              builder = Builder.createBuilder(context,a);
              builder.validateContext();
              if( builder.isAlreadyDone() ) {
@@ -102,9 +105,10 @@ public class Task extends Thread {
                    builder.showStatistics();
                 }
              } catch( Exception e ) {
-                if( Aladin.levelTrace>=3 ) e.printStackTrace();
                 context.taskAbort();
-                context.warning(e.getMessage());
+                /* String s = e.getMessage();
+                if( s!=null && s.length()>0 ) context.warning(e.getMessage());
+                else */ e.printStackTrace();
              } 
              context.endAction();
           }
@@ -112,7 +116,8 @@ public class Task extends Thread {
        }
        catch( Exception e) { 
           if( Aladin.levelTrace>=3 ) e.printStackTrace();
-          context.warning(e.getMessage());
+          context.error(e.getMessage());
+          context.taskAbort();
        }
        finally{ context.setTaskRunning(false); if( progressBar!=null ) progressBar.end(); }
     }

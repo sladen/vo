@@ -44,6 +44,7 @@ import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
+
 import cds.aladin.Aladin;
 import cds.aladin.Localisation;
 import cds.tools.Util;
@@ -399,6 +400,7 @@ public class TabDesc extends JPanel implements ActionListener {
          boolean allskyExist = context.isExistingAllskyDir();
          boolean indexExist  = context.isExistingIndexDir();
          boolean isRunning   = context.isTaskRunning();
+         boolean isMap       = context.isMap();
          
          resetTiles.setEnabled(allskyExist && !isRunning);
          resetIndex.setEnabled(indexExist && !isRunning);
@@ -409,21 +411,21 @@ public class TabDesc extends JPanel implements ActionListener {
          overwriteRadio.setEnabled(flag);
          coaddRadio.setEnabled(flag);
          
-         boolean ready = dirExist && outputField.getText().trim().length()>0;
-         seeImg.setEnabled(context.getImgEtalon()!=null);
+         boolean ready = (dirExist || isMap) && outputField.getText().trim().length()>0;
+         seeImg.setEnabled(context.getImgEtalon()!=null && !isMap);
          next.setEnabled(ready);
          reset.setEnabled( getInputField().trim().length()>0 );
          blankCheckbox.setEnabled(ready && !isRunning && !color);
          blankTextField.setEnabled(ready && !isRunning && !color);
-         hduCheckbox.setEnabled(ready && !isRunning && !color);
-         hduTextField.setEnabled(ready && !isRunning && !color);
-         borderCheckbox.setEnabled(ready && !isRunning);
-         borderTextField.setEnabled(ready && !isRunning);
-         skyvalCheckbox.setEnabled(ready && !isRunning && !color);
-         skyvalTextField.setEnabled(ready && !isRunning && !color);
-         specifCheckbox.setEnabled(ready && !isRunning);
-         specifTextField.setEnabled(ready && !isRunning);
-         if( frameCheckbox!=null ) frameCheckbox.setEnabled(ready && !isRunning);
+         hduCheckbox.setEnabled(ready && !isRunning && !color && !isMap);
+         hduTextField.setEnabled(ready && !isRunning && !color && !isMap);
+         borderCheckbox.setEnabled(ready && !isRunning && !isMap);
+         borderTextField.setEnabled(ready && !isRunning && !isMap);
+         skyvalCheckbox.setEnabled(ready && !isRunning && !color && !isMap);
+         skyvalTextField.setEnabled(ready && !isRunning && !color && !isMap);
+         specifCheckbox.setEnabled(ready && !isRunning && !isMap);
+         specifTextField.setEnabled(ready && !isRunning && !isMap);
+         if( frameCheckbox!=null ) frameCheckbox.setEnabled(ready && !isRunning && !isMap);
          inputField.setEnabled(!isRunning);
          outputField.setEnabled(!isRunning);
          labelField.setEnabled(!isRunning);
@@ -450,25 +452,32 @@ public class TabDesc extends JPanel implements ActionListener {
    
    private void dirBrowser(JTextField dir) {
       String currentDirectoryPath = dir.getText().trim();
-      if( currentDirectoryPath.length()==0 ) currentDirectoryPath=defaultDirectory;
-      if ( !(new File(currentDirectoryPath).exists()) )
-    	  currentDirectoryPath = defaultDirectory;
-      String s = Util.dirBrowser(this, currentDirectoryPath);
-      if( s==null ) return;
-      dir.setText(s);
+      String path = Util.dirBrowser(null, "",currentDirectoryPath,dir);
+      if( path==null ) return;
       mainPanel.actionPerformed(new ActionEvent(dir, -1, "dirBrowser Action"));
    }
+   
+//   private void dirBrowser(JTextField dir) {
+//      String currentDirectoryPath = dir.getText().trim();
+//      if( currentDirectoryPath.length()==0 ) currentDirectoryPath=defaultDirectory;
+//      if ( !(new File(currentDirectoryPath).exists()) )
+//    	  currentDirectoryPath = defaultDirectory;
+//      String s = Util.dirBrowser(this, currentDirectoryPath);
+//      if( s==null ) return;
+//      dir.setText(s);
+//      mainPanel.actionPerformed(new ActionEvent(dir, -1, "dirBrowser Action"));
+//   }
 
    public String getInputField() { return inputField.getText(); }
 
    public String getOutputField() { return outputField.getText(); }
    public void setOutputField(String output) { outputField.setText(output); }
 
-   public CoAddMode getCoaddModeField() {
-      return resetTiles.isSelected() ? CoAddMode.REPLACETILE : 
-         keepRadio.isSelected() ? CoAddMode.KEEP : keepCellRadio.isSelected() ? CoAddMode.KEEPTILE
-         :overwriteRadio.isSelected() ? CoAddMode.OVERWRITE 
-         : coaddRadio.isSelected() ? CoAddMode.AVERAGE : CoAddMode.REPLACETILE;
+   public Mode getCoaddModeField() {
+      return resetTiles.isSelected() ? Mode.REPLACETILE : 
+         keepRadio.isSelected() ? Mode.KEEP : keepCellRadio.isSelected() ? Mode.KEEPTILE
+         :overwriteRadio.isSelected() ? Mode.OVERWRITE 
+         : coaddRadio.isSelected() ? Mode.AVERAGE : Mode.REPLACETILE;
 
 //      return resetTiles.isSelected() || !resetTiles.isEnabled()? CoAddMode.REPLACETILE : 
 //         keepRadio.isSelected() ? CoAddMode.KEEP : keepCellRadio.isSelected() ? CoAddMode.KEEPTILE
@@ -497,7 +506,7 @@ public class TabDesc extends JPanel implements ActionListener {
     */
    private void initTxt() {
       String txt = inputField.getText();
-      if( !(new File(txt)).isDirectory() ) return;
+//      if( !(new File(txt)).isDirectory() ) return;
       int i = txt.lastIndexOf(Util.FS);
       if (i == -1) return;
 
@@ -569,12 +578,12 @@ public class TabDesc extends JPanel implements ActionListener {
    }
 
    private void initOutputField() {
-      Constante.SURVEY = getLabelField() + Constante.ALLSKY;
+      Constante.SURVEY = getLabelField() + Constante.HIPS;
       String path = inputField.getText();
       // enlève les multiples FS à la fin
       while (path.endsWith(Util.FS)) path = path.substring(0, path.lastIndexOf(Util.FS));
 
-      outputField.setText(path + Constante.ALLSKY + Util.FS);
+      outputField.setText(path + Constante.HIPS + Util.FS);
    }
 
    public boolean isResetTiles() {

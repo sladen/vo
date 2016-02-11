@@ -21,16 +21,30 @@
 
 package cds.aladin;
 
-import cds.astro.*;
+import healpix.essentials.FastMath;
+
+
+
+import java.awt.Dimension;
+import java.io.DataInputStream;
+import java.util.Random;
+import java.util.StringTokenizer;
+import java.util.Vector;
+
+import cds.astro.Astrocoo;
+import cds.astro.Astroframe;
+import cds.astro.Ecliptic;
+import cds.astro.FK4;
+import cds.astro.FK5;
+import cds.astro.Galactic;
+import cds.astro.ICRS;
+import cds.astro.Supergal;
 import cds.fits.HeaderFits;
 import cds.tools.Util;
-import cds.tools.pixtools.CDSHealpix ;
+import cds.tools.pixtools.CDSHealpix;
 
-import healpix.newcore.FastMath;
+//import healpix.newcore.FastMath;
 
-import java.awt.*;
-import java.io.*;
-import java.util.*;
 
 /**
  * Gestion d'une calibration aladin
@@ -46,10 +60,10 @@ public final class Calib  implements Cloneable {
    public long getMem() { return 22*4+448*8; }
 
    int    aladin ;
-   double [] xyapoly = new double[10];
-   double [] xydpoly = new double[10];
-   double [] adypoly = new double[10];
-   double [] adxpoly = new double[10];
+   double [] xyapoly = new double[12];
+   double [] xydpoly = new double[12];
+   double [] adypoly = new double[12];
+   double [] adxpoly = new double[12];
    double [][] sip_a   = new double[10][10];
    int         order_a ;
    double [][] sip_b   = new double[10][10];
@@ -127,10 +141,13 @@ public final class Calib  implements Cloneable {
    static public final int SOL = 10;
    static public final int MOL = 11;
    static public final int SIP = 12 ;
+   static public final int FIE = 13 ;
+   static public final int TPV = 14 ;
+   static public final int SINSIP = 15 ;
 
    // Signature dans les mots clés FITS des différentes projections (l'indice dans le tableau doit correspondre
    // aux constantes statics ci-dessus
-   static final String[] projType = {"", "SIN", "TAN", "ARC", "AIT", "ZEA", "STG", "CAR", "NCP", "ZPN", "SOL", /*"SOL",*/ "MOL","TAN-SIP" };
+   static final String[] projType = {"", "SIN", "TAN", "ARC", "AIT", "ZEA", "STG", "CAR", "NCP", "ZPN", "SOL", /*"SOL",*/ "MOL","TAN-SIP","FIE" , "TPV", "SIN-SIP" };
 
    /** Retourne l'indice de la signature de la projection (code 3 lettres), -1 si non trouvé */
    static int getProjType(String s) { return Util.indexInArrayOf(s, projType); }
@@ -146,7 +163,9 @@ public final class Calib  implements Cloneable {
 
          // En attendant de supporter TANSIP
          if( s.indexOf(array[i])>=0 ) {
-            Aladin.aladin.command.printConsole("!!! Unknown projection ["+s1+"] : assume "+projType[i]);
+            String err = "!!! Unknown projection ["+s1+"] : assume "+projType[i];
+            if( Aladin.aladin!=null && Aladin.aladin.command!=null ) Aladin.aladin.command.printConsole(err);
+            else Aladin.aladin.trace(3, err);
             return i;
          }
       }
@@ -154,7 +173,9 @@ public final class Calib  implements Cloneable {
       // En attendant de supporter TNX
       if( s.indexOf("TNX")>=0 || s.indexOf("COE")>=0 ) {
          i=TAN;
-         Aladin.aladin.command.printConsole("!!! Unknown projection ["+s1+"] : assume "+projType[i]);
+         String err = "!!! Unknown projection ["+s1+"] : assume "+projType[i];
+         if( Aladin.aladin!=null && Aladin.aladin.command!=null ) Aladin.aladin.command.printConsole(err);
+         else Aladin.aladin.trace(3, err);
          return i;
       }
       return -1;
@@ -192,10 +213,10 @@ public final class Calib  implements Cloneable {
    static public Calib copy(Calib c) {
       Calib a = new Calib();
       a.aladin = c.aladin;
-      a.xyapoly = new double[10]; System.arraycopy(c.xyapoly,0,a.xyapoly,0,10);
-      a.xydpoly = new double[10]; System.arraycopy(c.xydpoly,0,a.xydpoly,0,10);
-      a.adypoly = new double[10]; System.arraycopy(c.adypoly,0,a.adypoly,0,10);
-      a.adxpoly = new double[10]; System.arraycopy(c.adxpoly,0,a.adxpoly,0,10);
+      a.xyapoly = new double[12]; System.arraycopy(c.xyapoly,0,a.xyapoly,0,10);
+      a.xydpoly = new double[12]; System.arraycopy(c.xydpoly,0,a.xydpoly,0,10);
+      a.adypoly = new double[12]; System.arraycopy(c.adypoly,0,a.adypoly,0,10);
+      a.adxpoly = new double[12]; System.arraycopy(c.adxpoly,0,a.adxpoly,0,10);
       a.epoch = c.epoch;
       a.flagepoc = c.flagepoc;
       a.equinox = c.equinox;
@@ -266,7 +287,9 @@ public final class Calib  implements Cloneable {
    public Calib flipRL() {
       Calib b = new Calib() ;
       try {b = (Calib)this.clone();}
-      catch (Exception e) {System.out.println("error");}
+      catch (Exception e) {//System.out.println("error");
+    	  
+      }
       if (aladin == 1)
       {
          b.Xorg = b.Xorg + xnpix*b.incX ;
@@ -766,7 +789,7 @@ public final class Calib  implements Cloneable {
       }
 
       // coeffs du polynome x y  --> alpha delta
-      for ( int i=0; i<10 ; i++)
+      for ( int i=0; i<12 ; i++)
       {
          s = dataflux.readLine();
          //               System.out.println(s);
@@ -872,12 +895,18 @@ public final class Calib  implements Cloneable {
       // Requis nombre de pixels en X et Y
       xnpix = hf.getIntFromHeader("NAXIS1  ");
       ynpix = hf.getIntFromHeader("NAXIS2  ");
-      //                   if(flagadd == 1) WCSKeys.addElement("NAXIS1  ") ;                  
+      //                   if(flagadd == 1) WCSKeys.addElement("NAXIS1  ") ; 
+      String plate = hf.getStringFromHeader("PLATE") ; 
+      if (plate != null) aladin = 3 ; 
+      else   aladin = 0 ;
+    //  System.out.println("aladin "+aladin);
+      
       try {
          alpha = hf.getDoubleFromHeader("PLTRAS  ");
          Dss( hf) ;
          return ;
       }
+      
       catch (Exception e0) {
          // Requis: pixel central      
          Xcen = hf.getDoubleFromHeader("CRPIX1  ");
@@ -929,8 +958,14 @@ public final class Calib  implements Cloneable {
 
             //if(flagadd == 1) WCSKeys.addElement("CD2_2    ") ;
             // Dans ce cas on recalcule les increments par pixel
-            incA = Math.sqrt(CD[0][0]*CD[0][0]+CD[0][1]*CD[0][1])*(CD[0][0]/Math.abs(CD[0][0])) ;
-            incD = Math.sqrt(CD[1][0]*CD[1][0]+CD[1][1]*CD[1][1])*(CD[1][1]/Math.abs(CD[1] [1])) ;
+
+// MODIF PIERRE POUR EVITER LA DIVISION PAR ZERO
+//                  incA = Math.sqrt(CD[0][0]*CD[0][0]+CD[0][1]*CD[0][1])*(CD[0][0]/Math.abs(CD[0][0])) ;
+//                  incD = Math.sqrt(CD[1][0]*CD[1][0]+CD[1][1]*CD[1][1])*(CD[1][1]/Math.abs(CD[1] [1])) ;
+            int sgnA = CD[0][0]<0 ? -1 : 1;
+            int sgnD = CD[1][1]<0 ? -1 : 1;
+            incA = Math.sqrt(CD[0][0]*CD[0][0]+CD[0][1]*CD[0][1])*sgnA ;
+            incD = Math.sqrt(CD[1][0]*CD[1][0]+CD[1][1]*CD[1][1])*sgnD ;
             // Et la rotation
             //                   if (CD[1][1] < 0)
             //                    rota = 180. + Math.acos(CD[0][0]/incA)*(180./Math.PI) ;
@@ -1105,6 +1140,14 @@ public final class Calib  implements Cloneable {
 
          //   System.out.println("DEC");
       }
+      try {
+         String  Syst = hf.getStringFromHeader("RADECSYS") ;
+         //if(flagadd == 1) WCSKeys.addElement("RADECSYS") ;
+         if (Syst.indexOf("ICRS")>=0) system = ICRS;
+         if (Syst.indexOf("FK5")>=0) system = FK5 ;
+         if (Syst.indexOf("FK4")>=0) system = FK4 ;
+         //        System.out.println("system "+system);
+      } catch(Exception e10) {}
       if (type1.startsWith("ELON"))
       {
          //                       System.out.println("ELON");
@@ -1133,77 +1176,147 @@ public final class Calib  implements Cloneable {
       }  
       if ((equinox == 1950.0)&&( system != GALACTIC) &&  ( system != ECLIPTIC) && ( system != SUPERGALACTIC)
             && (system != XYLINEAR)) system = FK4 ;
+      // System.out.println("Avant les PV") ;
       try {
-         String  Syst = hf.getStringFromHeader("RADECSYS") ;
-         //if(flagadd == 1) WCSKeys.addElement("RADECSYS") ;
-         if (Syst.indexOf("ICRS")>=0) system = ICRS;
-         if (Syst.indexOf("FK5")>=0) system = FK5 ;
-         if (Syst.indexOf("FK4")>=0) system = FK4 ;
-         //        System.out.println("system "+system);
-      } catch(Exception e10) {}
-      try {
-         adxpoly[0] = hf.getDoubleFromHeader("PV2_0   ");	 
+         adxpoly[0] = hf.getDoubleFromHeader("PV2_0   ");
+         xydpoly[0] = adxpoly[0] ;
+         
       } catch(Exception e11) {}
       try {
-         adxpoly[1] = hf.getDoubleFromHeader("PV2_1   ");  
+         adxpoly[1] = hf.getDoubleFromHeader("PV2_1   "); 
+         xydpoly[1] = adxpoly[1] ;
       } catch(Exception e11) {}
       try {
          adxpoly[2] = hf.getDoubleFromHeader("PV2_2   "); 
+         xydpoly[2] = adxpoly[2] ;
       } catch(Exception e11) {}
       try {
          adxpoly[3] = hf.getDoubleFromHeader("PV2_3   ");
+         xydpoly[3] = adxpoly[3] ;
       } catch(Exception e11) {}
       try {
          adxpoly[4] = hf.getDoubleFromHeader("PV2_4   "); 
+         xydpoly[4] = adxpoly[4] ;
       } catch(Exception e11) {}
       try {
          adxpoly[5] = hf.getDoubleFromHeader("PV2_5   ");
+         xydpoly[5] = adxpoly[5] ;
       } catch(Exception e11) {}
       try {
          adxpoly[6] = hf.getDoubleFromHeader("PV2_6   ");	
+         xydpoly[6] = adxpoly[6] ;
       } catch(Exception e11) {}
       try {
          adxpoly[7] = hf.getDoubleFromHeader("PV2_7   ");  
+         xydpoly[7] = adxpoly[7] ;
       } catch(Exception e11) {}
       try {
          adxpoly[8] = hf.getDoubleFromHeader("PV2_8   "); 
+         xydpoly[8] = adxpoly[8] ;
       } catch(Exception e11) {}
       try {
          adxpoly[9] = hf.getDoubleFromHeader("PV2_9   ");
+         xydpoly[9] = adxpoly[9] ;
          //                  System.out.println("adx: "+adxpoly[1]+" "+adxpoly[3]);
       } catch(Exception e11) {}
       try {
-         xyapoly[0] = hf.getDoubleFromHeader("PV1_0   ");   
+          adxpoly[10] = hf.getDoubleFromHeader("PV2_10   ");
+          xydpoly[10] = adxpoly[10] ;
+          //                  System.out.println("adx: "+adxpoly[1]+" "+adxpoly[3]);
+       } catch(Exception e11) {}
+    //  System.out.println("Milieu des PV") ;
+      try {
+         xyapoly[0] = hf.getDoubleFromHeader("PV1_0   ");  
+      } catch(Exception e11) {}
+      try {
          xydpoly[0] = hf.getDoubleFromHeader("PV2_0   ");   
+      } catch(Exception e11) {}
+      try {
          xyapoly[1] = hf.getDoubleFromHeader("PV1_1   "); 
+      } catch(Exception e11) {}
+      try {
          xydpoly[1] = hf.getDoubleFromHeader("PV2_1   ");   
+      } catch(Exception e11) {}
+      try {
          xyapoly[2] = hf.getDoubleFromHeader("PV1_2   ");   
+      } catch(Exception e11) {}
+      try {
          xydpoly[2] = hf.getDoubleFromHeader("PV2_2   "); 
+      } catch(Exception e11) {}
+      try {
          xyapoly[3] = hf.getDoubleFromHeader("PV1_3   ");   
+      } catch(Exception e11) {}
+      try {
          xydpoly[3] = hf.getDoubleFromHeader("PV2_3   ");   
+      } catch(Exception e11) {}
+      try {
          xyapoly[4] = hf.getDoubleFromHeader("PV1_4   ");   
+      } catch(Exception e11) {}
+      try {
          xydpoly[4] = hf.getDoubleFromHeader("PV2_4   ");   
+      } catch(Exception e11) {}
+      try {
          xyapoly[5] = hf.getDoubleFromHeader("PV1_5   ");   
+      } catch(Exception e11) {}
+      try {
          xydpoly[5] = hf.getDoubleFromHeader("PV2_5   ");   
+      } catch(Exception e11) {}
+      try {
          xyapoly[6] = hf.getDoubleFromHeader("PV1_6   ");   
+      } catch(Exception e11) {}
+      try {
          xydpoly[6] = hf.getDoubleFromHeader("PV2_6   ");   
+      } catch(Exception e11) {}
+      try {
          xyapoly[7] = hf.getDoubleFromHeader("PV1_7   ");   
+      } catch(Exception e11) {}
+      try {
          xydpoly[7] = hf.getDoubleFromHeader("PV2_7   ");   
+      } catch(Exception e11) {}
+      try {
          xyapoly[8] = hf.getDoubleFromHeader("PV1_8   ");   
+      } catch(Exception e11) {}
+      try {
          xydpoly[8] = hf.getDoubleFromHeader("PV2_8   ");   
+      } catch(Exception e11) {}
+      try {
          xyapoly[9] = hf.getDoubleFromHeader("PV1_9   ");   
-         xydpoly[9] = hf.getDoubleFromHeader("PV2_9   ");   
+      } catch(Exception e11) {}
+      try {
+         xydpoly[9] = hf.getDoubleFromHeader("PV2_9   ");  
+      } catch(Exception e11) {}
+      try {
+         xyapoly[10] = hf.getDoubleFromHeader("PV1_10   "); 
+      } catch(Exception e11) {}
+      try {
+         xydpoly[10] = hf.getDoubleFromHeader("PV2_10   ");  
       } catch(Exception e12) {}
-      //            System.out.println(adxpoly[1]+" "+adxpoly[3]+" "+xydpoly[1]+" "+xydpoly[3]);
+      try {
+          xyapoly[11] = hf.getDoubleFromHeader("PV1_11   ");  
+       } catch(Exception e13) {}
+      try {
+          xydpoly[11] = hf.getDoubleFromHeader("PV2_11   ");  
+       } catch(Exception e13) {}
+      
+    
+    //              System.out.println(adxpoly[1]+" "+adxpoly[3]+" "+xydpoly[1]+" "+xydpoly[3]);
+     //            System.out.println(adxpoly[5]+" "+adxpoly[7]+" "+xydpoly[5]+" "+xydpoly[7]);
       // else System.out.println("RA");
 
       // PF - sept 2010 - C'est plus generique comme cela
       // PF - mai 2013 - on vérifie les deux axes (pour rotation cube)
       try { proj = getSubProjType(type2.substring(5)); } 
       catch( Exception e ) { proj=-1; }
+    
       if( proj!=-1 ) {
          try { proj = getSubProjType(type1.substring(5)); } 
          catch( Exception e ) { proj=-1; }
+      }
+      
+      // Petit patch pour EGRET et autres vieilles missions
+      if( proj==-1 && hf.getStringFromHeader("GRIDTYPE")!=null ) {
+         proj=CAR; 
+         System.err.println("No projection specified in CTYPE, GRIDTYPE present => assuming CAR"); 
       }
       //                   proj = 0 ;
       //                   System.out.println("type1 "+type1+" type2"+type2);
@@ -1234,7 +1347,10 @@ public final class Calib  implements Cloneable {
       //                   if (type1.indexOf("solar")>=0) proj = 10;
       //                   if (proj == 0) {
       //#endif /* PIERRE */
-      if (proj == SIP) {
+      
+      if ((proj == SIP)||(proj == SINSIP)) {
+    	//  if (proj == SIP) {	  
+    	  System.out.println("proj "+proj) ;
          try {
             order_a = hf.getIntFromHeader("A_ORDER") ;
             order_b= hf.getIntFromHeader("B_ORDER") ;
@@ -1246,11 +1362,12 @@ public final class Calib  implements Cloneable {
                   for (int j = 0 ; j < order-powx + 1 ; j++)
                      try {
                         sip_a[powx][j] = hf.getDoubleFromHeader("A_"+(new Integer(powx).toString())+"_"+(new Integer(j).toString())+"  ");
-                        System.out.println("sip_a "+powx+" "+j+" "+sip_a[powx][j]) ;
+                       // System.out.println("sip_a "+powx+" "+j+" "+sip_a[powx][j]) ;
                      }
                   catch (Exception ee) { sip_a[powx][j] = 0.0 ;}
                }
             }	
+            
             for (int order = 2;  order < order_b+1 ; order++)
             {
                for (int powx =0 ; powx < order+1 ; powx++ )
@@ -1263,7 +1380,7 @@ public final class Calib  implements Cloneable {
                   catch (Exception ee) { sip_b[powx][j] = 0.0 ;}
                }
             }	
-
+            
             //	  a[0][2] = hf.getDoubleFromHeader("A_"+(new Integer(0).toString())+"_2  "); 
 
             // 	  a[1][1] = hf.getDoubleFromHeader("A_1_1  ");
@@ -1314,7 +1431,8 @@ public final class Calib  implements Cloneable {
             //	  bp[0][3] = hf.getDoubleFromHeader("BP_0_3 ");
             //	   }
          }
-         catch (Exception e13 ){ proj = -1  ;}   
+         catch (Exception e13 ){ proj = -1  ;} 
+        
          try {
             //   System.out.println("ici") ;
             order_ap = hf.getIntFromHeader("AP_ORDER") ;
@@ -1352,6 +1470,7 @@ public final class Calib  implements Cloneable {
          }
          catch (Exception e14 ) { }
       }
+       
       if (type1.indexOf("COE")>= 0 && type2.indexOf("COE")>= 0) proj = TAN ;
       if (proj == -1) {
          System.err.println(
@@ -1379,224 +1498,225 @@ public final class Calib  implements Cloneable {
       //                    System.out.println("ID "+ID[0][0]+" "+ID[0][1]+" "+ID[1][0]+" "+ID[1][1]);
 
 
-
+ //      System.out.println("COCO "+xyapoly[0]+" "+xydpoly[0]);
+ //      System.out.println("COCO "+xyapoly[5]+" "+xydpoly[5]);
 
       
    }
 
-public Calib (long nside,  long npix, int frame, int width) {
-try {
-double [][] bord = CDSHealpix.borders(nside, npix, 2) ; 
-double [] center = CDSHealpix.pix2ang_nest(nside, npix) ;
-double [] centerRadec = CDSHealpix.polarToRadec(center);
-alphai = centerRadec[0] ;
-deltai = centerRadec[1] ;
-System.out.println("alpha delta "+alphai+" "+deltai);
-//   double X1 = 0.5*(bord[0][0]+bord[1][0] );
-//   double Y1 = 0.5*(bord[0][1]+bord[1][1] );   
-//  double X2 = 0.5*(bord[3][0]+bord[2][0] );
-//   double Y2 = 0.5*(bord[3][1]+bord[2][1] );   
-//double X3 = 0.5*(bord[0][0]+bord[3][0] );
-//    double Y3 = 0.5*(bord[0][1]+bord[3][1] );   
-//   double X4 = 0.5*(bord[1][0]+bord[2][0] );
-//   double Y4 = 0.5*(bord[1][1]+bord[2][1] );   
-double cdelz1, sdelz1 ;
-double X1= bord[0][0] ;
-double Y1= bord[0][1] ;
-double X2= bord[1][0] ;
-double Y2= bord[1][1] ;
-double X3= bord[2][0] ;
-double Y3= bord[2][1] ;
-double X4= bord[3][0] ;
-double Y4= bord[3][1] ;
-double X5= bord[4][0] ;
-double Y5= bord[4][1] ;
-double X6= bord[5][0] ;
-double Y6= bord[5][1] ;
-double X7= bord[6][0] ;
-double Y7= bord[6][1] ;
-double X8= bord[7][0] ;
-double Y8= bord[7][1] ;
+   public Calib (long nside,  long npix, int frame, int width) {
+      try {
+         double [][] bord = CDSHealpix.borders(nside, npix, 2) ;
+         double [] center = CDSHealpix.pix2ang_nest(nside, npix) ;
+         double [] centerRadec = CDSHealpix.polarToRadec(center);
+         alphai = centerRadec[0] ;
+         deltai = centerRadec[1] ;
+         // System.out.println("alpha delta "+alphai+" "+deltai);
+         //   double X1 = 0.5*(bord[0][0]+bord[1][0] );
+         //   double Y1 = 0.5*(bord[0][1]+bord[1][1] );
+         //  double X2 = 0.5*(bord[3][0]+bord[2][0] );
+         //   double Y2 = 0.5*(bord[3][1]+bord[2][1] );
+         //double X3 = 0.5*(bord[0][0]+bord[3][0] );
+         //    double Y3 = 0.5*(bord[0][1]+bord[3][1] );
+         //   double X4 = 0.5*(bord[1][0]+bord[2][0] );
+         //   double Y4 = 0.5*(bord[1][1]+bord[2][1] );
+         double cdelz1, sdelz1 ;
+         double X1= bord[0][0] ;
+         double Y1= bord[0][1] ;
+         double X2= bord[1][0] ;
+         double Y2= bord[1][1] ;
+         double X3= bord[2][0] ;
+         double Y3= bord[2][1] ;
+         double X4= bord[3][0] ;
+         double Y4= bord[3][1] ;
+         double X5= bord[4][0] ;
+         double Y5= bord[4][1] ;
+         double X6= bord[5][0] ;
+         double Y6= bord[5][1] ;
+         double X7= bord[6][0] ;
+         double Y7= bord[6][1] ;
+         double X8= bord[7][0] ;
+         double Y8= bord[7][1] ;
 
-System.out.println("X Y "+X1+" "+Y1);
-System.out.println("X Y "+X2+" "+Y2);
-System.out.println("X Y "+X3+" "+Y3);
-System.out.println("X Y "+X4+" "+Y4);
-System.out.println("X Y "+X5+" "+Y5);
-System.out.println("X Y "+X6+" "+Y6);
-System.out.println("X Y "+X7+" "+Y7);
-System.out.println("X Y "+X8+" "+Y8);
-cdelz = FastMath.cos((deltai/180.)*Math.PI);
-sdelz = FastMath.sin((deltai/180.)*Math.PI);
-cdelz1 = cdelz ;
-sdelz1 = sdelz ;
+         //System.out.println("X Y "+X1+" "+Y1);
+         //System.out.println("X Y "+X2+" "+Y2);
+         //System.out.println("X Y "+X3+" "+Y3);
+         //System.out.println("X Y "+X4+" "+Y4);
+         //System.out.println("X Y "+X5+" "+Y5);
+         //System.out.println("X Y "+X6+" "+Y6);
+         //System.out.println("X Y "+X7+" "+Y7);
+         //System.out.println("X Y "+X8+" "+Y8);
+         cdelz = FastMath.cos((deltai/180.)*Math.PI);
+         sdelz = FastMath.sin((deltai/180.)*Math.PI);
+         cdelz1 = cdelz ;
+         sdelz1 = sdelz ;
 
-// CD[0][0] = -(x_y_1.al*cdelz1+x_y_1.del)*2/xnpix;
-// CD[0][1] = -(x_y_1.al*cdelz1-x_y_1.del)*2/ynpix;
-double xst1, yst1,deno;
-double xst2, yst2, xst3, yst3, xst4, yst4 ;
-double xst5, yst5, xst6, yst6, xst7, yst7, xst8, yst8 ;
-deno = FastMath.sin(Y1*Math.PI/180.)*sdelz1
+         // CD[0][0] = -(x_y_1.al*cdelz1+x_y_1.del)*2/xnpix;
+         // CD[0][1] = -(x_y_1.al*cdelz1-x_y_1.del)*2/ynpix;
+         double xst1, yst1,deno;
+         double xst2, yst2, xst3, yst3, xst4, yst4 ;
+         double xst5, yst5, xst6, yst6, xst7, yst7, xst8, yst8 ;
+         deno = FastMath.sin(Y1*Math.PI/180.)*sdelz1
   +FastMath.cos(Y1*Math.PI/180.)*cdelz1
   *FastMath.cos((X1-alphai)*Math.PI/180.) ;
-xst1 = FastMath.cos(Y1*Math.PI/180.)
+         xst1 = FastMath.cos(Y1*Math.PI/180.)
  *FastMath.sin((X1-alphai)*Math.PI/180.)
  / deno ;
-yst1 = ( FastMath.sin(Y1*Math.PI/180.)*cdelz1
+         yst1 = ( FastMath.sin(Y1*Math.PI/180.)*cdelz1
  -FastMath.cos(Y1*Math.PI/180.)*sdelz1
  *FastMath.cos((X1-alphai)*Math.PI/180.))
  / deno; 
-System.out.println("detail "+FastMath.sin(Y1*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y1*Math.PI/180.)*sdelz1*FastMath.cos((X1-alphai)*Math.PI/180.)
-    / deno) ;
-System.out.println("detail "+FastMath.sin(Y1*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y1*Math.PI/180.)*sdelz1 ) ;
-//   CD[0][0] = - xst1 / 256 ;
-//   CD[1][0] =  yst1 / 256 ;
+         //System.out.println("detail "+FastMath.sin(Y1*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y1*Math.PI/180.)*sdelz1*FastMath.cos((X1-alphai)*Math.PI/180.)
+         //    / deno) ;
+         //System.out.println("detail "+FastMath.sin(Y1*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y1*Math.PI/180.)*sdelz1 ) ;
+         //   CD[0][0] = - xst1 / 256 ;
+         //   CD[1][0] =  yst1 / 256 ;
 
-System.out.println("CD "+CD[0][0]+" "+CD[1][0]);
-System.out.println("xst yst"+xst1+" "+yst1) ;
-deno = FastMath.sin(Y2*Math.PI/180.)*sdelz1
-+FastMath.cos(Y2*Math.PI/180.)*cdelz1
-*FastMath.cos((X2-alphai)*Math.PI/180.) ;
-xst2 = FastMath.cos(Y2*Math.PI/180.)
-*FastMath.sin((X2-alphai)*Math.PI/180.)
-/ deno ;
-yst2 = (FastMath.sin(Y2*Math.PI/180.)*cdelz1
--FastMath.cos(Y2*Math.PI/180.)*sdelz1
-*FastMath.cos((X2-alphai)*Math.PI/180.))
-/ deno;
+         //System.out.println("CD "+CD[0][0]+" "+CD[1][0]);
+         //System.out.println("xst yst"+xst1+" "+yst1) ;
+         deno = FastMath.sin(Y2*Math.PI/180.)*sdelz1
+               +FastMath.cos(Y2*Math.PI/180.)*cdelz1
+               *FastMath.cos((X2-alphai)*Math.PI/180.) ;
+         xst2 = FastMath.cos(Y2*Math.PI/180.)
+               *FastMath.sin((X2-alphai)*Math.PI/180.)
+               / deno ;
+         yst2 = (FastMath.sin(Y2*Math.PI/180.)*cdelz1
+               -FastMath.cos(Y2*Math.PI/180.)*sdelz1
+               *FastMath.cos((X2-alphai)*Math.PI/180.))
+               / deno;
 
-System.out.println("detail "+FastMath.sin(Y2*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y2*Math.PI/180.)*sdelz1*FastMath.cos((X2-alphai)*Math.PI/180.)
-/ deno) ;
-System.out.println("detail "+FastMath.sin(Y2*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y2*Math.PI/180.)*sdelz1) ;
-//CD[0][0] =  CD[0][0] + xst2 / 256 ;
-//CD[1][0] =  CD[1][0] - yst2 / 256 ;
-//CD[0][0] /= 2 ;
-//CD[1][0] /= 2 ;
-System.out.println("CD "+CD[0][0]+" "+CD[1][0]);
-System.out.println("xst yst"+xst2+" "+yst2) ;
+         //System.out.println("detail "+FastMath.sin(Y2*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y2*Math.PI/180.)*sdelz1*FastMath.cos((X2-alphai)*Math.PI/180.)
+         /// deno) ;
+         //System.out.println("detail "+FastMath.sin(Y2*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y2*Math.PI/180.)*sdelz1) ;
+         //CD[0][0] =  CD[0][0] + xst2 / 256 ;
+         //CD[1][0] =  CD[1][0] - yst2 / 256 ;
+         //CD[0][0] /= 2 ;
+         //CD[1][0] /= 2 ;
+         //System.out.println("CD "+CD[0][0]+" "+CD[1][0]);
+         //System.out.println("xst yst"+xst2+" "+yst2) ;
 
-deno = FastMath.sin(Y3*Math.PI/180.)*sdelz1
-+FastMath.cos(Y3*Math.PI/180.)*cdelz1
-*FastMath.cos((X3-alphai)*Math.PI/180.) ;
-xst3 = (FastMath.cos(Y3*Math.PI/180.)
-*FastMath.sin((X3-alphai)*Math.PI/180.))
-/ deno ;
-yst3 = FastMath.sin(Y3*Math.PI/180.)*cdelz1
--FastMath.cos(Y3*Math.PI/180.)*sdelz1
-*FastMath.cos((X3-alphai)*Math.PI/180.)
-/ deno;
-System.out.println("detail "+FastMath.sin(Y3*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y3*Math.PI/180.)*sdelz1*FastMath.cos((X3-alphai)*Math.PI/180.)
-/ deno) ;
-System.out.println("detail "+FastMath.sin(Y3*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y3*Math.PI/180.)*sdelz1 ) ;
-//CD[0][1] =   xst3 / 256 ;
-//CD[1][1] =   yst3 / 256 ;
-System.out.println("CD "+CD[0][1]+" "+CD[1][1]);
-System.out.println("xst yst"+xst3+" "+yst3) ;
-deno = FastMath.sin(Y4*Math.PI/180.)*sdelz1
-+FastMath.cos(Y4*Math.PI/180.)*cdelz1
-*FastMath.cos((X4-alphai)*Math.PI/180.) ;
-xst4 = FastMath.cos(Y4*Math.PI/180.)
-*FastMath.sin((X4-alphai)*Math.PI/180.)
-/ deno ;
-yst4 = (FastMath.sin(Y4*Math.PI/180.)*cdelz1
--FastMath.cos(Y4*Math.PI/180.)*sdelz1
-*FastMath.cos((X4-alphai)*Math.PI/180.))
-/ deno;
-System.out.println("detail "+FastMath.sin(Y4*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y4*Math.PI/180.)*sdelz1*FastMath.cos((X4-alphai)*Math.PI/180.)
-/ deno) ;
-System.out.println("detail "+FastMath.sin(Y4*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y4*Math.PI/180.)*sdelz1 ) ;
-//CD[0][1] = CD[0][1] - xst4 / 256 ;
-//CD[1][1] =  CD[1][1] - yst4 / 256 ;
-deno = FastMath.sin(Y5*Math.PI/180.)*sdelz1
-+FastMath.cos(Y5*Math.PI/180.)*cdelz1
-*FastMath.cos((X5-alphai)*Math.PI/180.) ;
-xst5 = FastMath.cos(Y5*Math.PI/180.)
-*FastMath.sin((X5-alphai)*Math.PI/180.)
-/ deno ;
-yst5 = (FastMath.sin(Y5*Math.PI/180.)*cdelz1
--FastMath.cos(Y5*Math.PI/180.)*sdelz1
-*FastMath.cos((X5-alphai)*Math.PI/180.))
-/ deno;
-System.out.println("detail "+FastMath.sin(Y5*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y5*Math.PI/180.)*sdelz1*FastMath.cos((X5-alphai)*Math.PI/180.)
-/ deno) ;
-System.out.println("detail "+FastMath.sin(Y5*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y5*Math.PI/180.)*sdelz1 ) ;
-deno = FastMath.sin(Y6*Math.PI/180.)*sdelz1
-+FastMath.cos(Y6*Math.PI/180.)*cdelz1
-*FastMath.cos((X6-alphai)*Math.PI/180.) ;
-xst6 = FastMath.cos(Y6*Math.PI/180.)
-*FastMath.sin((X6-alphai)*Math.PI/180.)
-/ deno ;
-yst6 = (FastMath.sin(Y6*Math.PI/180.)*cdelz1
--FastMath.cos(Y6*Math.PI/180.)*sdelz1
-*FastMath.cos((X6-alphai)*Math.PI/180.))
-/ deno;
-System.out.println("detail "+FastMath.sin(Y6*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y6*Math.PI/180.)*sdelz1*FastMath.cos((X6-alphai)*Math.PI/180.)
-/ deno) ;
-System.out.println("detail "+FastMath.sin(Y6*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y6*Math.PI/180.)*sdelz1 ) ;
-deno = FastMath.sin(Y7*Math.PI/180.)*sdelz1
-+FastMath.cos(Y7*Math.PI/180.)*cdelz1
-*FastMath.cos((X7-alphai)*Math.PI/180.) ;
-xst7 = FastMath.cos(Y7*Math.PI/180.)
-*FastMath.sin((X7-alphai)*Math.PI/180.)
-/ deno ;
-yst7 = (FastMath.sin(Y7*Math.PI/180.)*cdelz1
--FastMath.cos(Y7*Math.PI/180.)*sdelz1
-*FastMath.cos((X7-alphai)*Math.PI/180.))
-/ deno;
-System.out.println("detail "+FastMath.sin(Y7*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y7*Math.PI/180.)*sdelz1*FastMath.cos((X7-alphai)*Math.PI/180.)
-/ deno) ;
-System.out.println("detail "+FastMath.sin(Y7*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y7*Math.PI/180.)*sdelz1 ) ;
-deno = FastMath.sin(Y8*Math.PI/180.)*sdelz1
-+FastMath.cos(Y8*Math.PI/180.)*cdelz1
-*FastMath.cos((X8-alphai)*Math.PI/180.) ;
-xst8 = FastMath.cos(Y8*Math.PI/180.)
-*FastMath.sin((X8-alphai)*Math.PI/180.)
-/ deno ;
-yst8 = (FastMath.sin(Y8*Math.PI/180.)*cdelz1
--FastMath.cos(Y8*Math.PI/180.)*sdelz1
-*FastMath.cos((X8-alphai)*Math.PI/180.))
-/ deno;
-System.out.println("detail "+FastMath.sin(Y8*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y8*Math.PI/180.)*sdelz1*FastMath.cos((X8-alphai)*Math.PI/180.)
-/ deno) ;
-System.out.println("detail "+FastMath.sin(Y8*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y8*Math.PI/180.)*sdelz1 ) ;
-CD[0][0]= rad_to_deg * (-xst1 -xst2 -xst3 + xst5 + xst6 +xst7 )/6/256 ;
-CD[0][1]= rad_to_deg * (xst1 -xst3 -xst4 -xst5 + xst7 +xst8 )/6/256 ;
-CD[1][0]= -rad_to_deg * (-yst1 -yst2 -yst3 +yst5 +yst6 +yst7)/6/256;
-CD[1][1]= rad_to_deg * (yst1 -yst3 -yst4 -yst5 +yst7 +yst8 )/6/256;
-System.out.println("CD "+CD[0][0]+" "+CD[0][1]+" "+CD[1][0]+" "+CD[1][1]);
-System.out.println("xst "+xst1+" "+xst2+" "+xst3+" "+xst4+" "+xst5+" "+xst6+" "+xst7+" "+xst8);
-System.out.println("yst "+yst1+" "+yst2+" "+yst3+" "+yst4+" "+yst5+" "+yst6+" "+yst7+" "+yst8);
-xnpix = 512 ;
-ynpix = 512 ;
-Xcen = 255 ;
-Ycen = 255 ;
-proj = TAN ;
-equinox = 2000.0 ;
-Coord ccc = new Coord() ;
-ccc.x =  0 ;
-ccc.y = 0 ;
-GetCoord( ccc);
+         deno = FastMath.sin(Y3*Math.PI/180.)*sdelz1
+               +FastMath.cos(Y3*Math.PI/180.)*cdelz1
+               *FastMath.cos((X3-alphai)*Math.PI/180.) ;
+         xst3 = (FastMath.cos(Y3*Math.PI/180.)
+               *FastMath.sin((X3-alphai)*Math.PI/180.))
+               / deno ;
+         yst3 = FastMath.sin(Y3*Math.PI/180.)*cdelz1
+               -FastMath.cos(Y3*Math.PI/180.)*sdelz1
+               *FastMath.cos((X3-alphai)*Math.PI/180.)
+               / deno;
+         //System.out.println("detail "+FastMath.sin(Y3*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y3*Math.PI/180.)*sdelz1*FastMath.cos((X3-alphai)*Math.PI/180.)
+         // / deno) ;
+         //System.out.println("detail "+FastMath.sin(Y3*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y3*Math.PI/180.)*sdelz1 ) ;
+         //CD[0][1] =   xst3 / 256 ;
+         //CD[1][1] =   yst3 / 256 ;
+         //System.out.println("CD "+CD[0][1]+" "+CD[1][1]);
+         //System.out.println("xst yst"+xst3+" "+yst3) ;
+         deno = FastMath.sin(Y4*Math.PI/180.)*sdelz1
+               +FastMath.cos(Y4*Math.PI/180.)*cdelz1
+               *FastMath.cos((X4-alphai)*Math.PI/180.) ;
+         xst4 = FastMath.cos(Y4*Math.PI/180.)
+               *FastMath.sin((X4-alphai)*Math.PI/180.)
+               / deno ;
+         yst4 = (FastMath.sin(Y4*Math.PI/180.)*cdelz1
+               -FastMath.cos(Y4*Math.PI/180.)*sdelz1
+               *FastMath.cos((X4-alphai)*Math.PI/180.))
+               / deno;
+         // System.out.println("detail "+FastMath.sin(Y4*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y4*Math.PI/180.)*sdelz1*FastMath.cos((X4-alphai)*Math.PI/180.)
+         // / deno) ;
+         // System.out.println("detail "+FastMath.sin(Y4*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y4*Math.PI/180.)*sdelz1 ) ;
+         //CD[0][1] = CD[0][1] - xst4 / 256 ;
+         //CD[1][1] =  CD[1][1] - yst4 / 256 ;
+         deno = FastMath.sin(Y5*Math.PI/180.)*sdelz1
+               +FastMath.cos(Y5*Math.PI/180.)*cdelz1
+               *FastMath.cos((X5-alphai)*Math.PI/180.) ;
+         xst5 = FastMath.cos(Y5*Math.PI/180.)
+               *FastMath.sin((X5-alphai)*Math.PI/180.)
+               / deno ;
+         yst5 = (FastMath.sin(Y5*Math.PI/180.)*cdelz1
+               -FastMath.cos(Y5*Math.PI/180.)*sdelz1
+               *FastMath.cos((X5-alphai)*Math.PI/180.))
+               / deno;
+         //System.out.println("detail "+FastMath.sin(Y5*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y5*Math.PI/180.)*sdelz1*FastMath.cos((X5-alphai)*Math.PI/180.)
+         // / deno) ;
+         // System.out.println("detail "+FastMath.sin(Y5*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y5*Math.PI/180.)*sdelz1 ) ;
+         deno = FastMath.sin(Y6*Math.PI/180.)*sdelz1
+               +FastMath.cos(Y6*Math.PI/180.)*cdelz1
+               *FastMath.cos((X6-alphai)*Math.PI/180.) ;
+         xst6 = FastMath.cos(Y6*Math.PI/180.)
+               *FastMath.sin((X6-alphai)*Math.PI/180.)
+               / deno ;
+         yst6 = (FastMath.sin(Y6*Math.PI/180.)*cdelz1
+               -FastMath.cos(Y6*Math.PI/180.)*sdelz1
+               *FastMath.cos((X6-alphai)*Math.PI/180.))
+               / deno;
+         // System.out.println("detail "+FastMath.sin(Y6*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y6*Math.PI/180.)*sdelz1*FastMath.cos((X6-alphai)*Math.PI/180.)
+         // / deno) ;
+         // System.out.println("detail "+FastMath.sin(Y6*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y6*Math.PI/180.)*sdelz1 ) ;
+         deno = FastMath.sin(Y7*Math.PI/180.)*sdelz1
+               +FastMath.cos(Y7*Math.PI/180.)*cdelz1
+               *FastMath.cos((X7-alphai)*Math.PI/180.) ;
+         xst7 = FastMath.cos(Y7*Math.PI/180.)
+               *FastMath.sin((X7-alphai)*Math.PI/180.)
+               / deno ;
+         yst7 = (FastMath.sin(Y7*Math.PI/180.)*cdelz1
+               -FastMath.cos(Y7*Math.PI/180.)*sdelz1
+               *FastMath.cos((X7-alphai)*Math.PI/180.))
+               / deno;
+         // System.out.println("detail "+FastMath.sin(Y7*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y7*Math.PI/180.)*sdelz1*FastMath.cos((X7-alphai)*Math.PI/180.)
+         // / deno) ;
+         // System.out.println("detail "+FastMath.sin(Y7*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y7*Math.PI/180.)*sdelz1 ) ;
+         deno = FastMath.sin(Y8*Math.PI/180.)*sdelz1
+               +FastMath.cos(Y8*Math.PI/180.)*cdelz1
+               *FastMath.cos((X8-alphai)*Math.PI/180.) ;
+         xst8 = FastMath.cos(Y8*Math.PI/180.)
+               *FastMath.sin((X8-alphai)*Math.PI/180.)
+               / deno ;
+         yst8 = (FastMath.sin(Y8*Math.PI/180.)*cdelz1
+               -FastMath.cos(Y8*Math.PI/180.)*sdelz1
+               *FastMath.cos((X8-alphai)*Math.PI/180.))
+               / deno;
+         // System.out.println("detail "+FastMath.sin(Y8*Math.PI/180.)*cdelz1/deno+" "+FastMath.cos(Y8*Math.PI/180.)*sdelz1*FastMath.cos((X8-alphai)*Math.PI/180.)
+         // / deno) ;
+         // System.out.println("detail "+FastMath.sin(Y8*Math.PI/180.)*cdelz1+" "+FastMath.cos(Y8*Math.PI/180.)*sdelz1 ) ;
+         CD[0][0]= rad_to_deg * (-xst1 -xst2 -xst3 + xst5 + xst6 +xst7 )/6/256 ;
+         CD[0][1]= rad_to_deg * (xst1 -xst3 -xst4 -xst5 + xst7 +xst8 )/6/256 ;
+         CD[1][0]= -rad_to_deg * (-yst1 -yst2 -yst3 +yst5 +yst6 +yst7)/6/256;
+         CD[1][1]= rad_to_deg * (yst1 -yst3 -yst4 -yst5 +yst7 +yst8 )/6/256;
+         // System.out.println("CD "+CD[0][0]+" "+CD[0][1]+" "+CD[1][0]+" "+CD[1][1]);
+         // System.out.println("xst "+xst1+" "+xst2+" "+xst3+" "+xst4+" "+xst5+" "+xst6+" "+xst7+" "+xst8);
+         // System.out.println("yst "+yst1+" "+yst2+" "+yst3+" "+yst4+" "+yst5+" "+yst6+" "+yst7+" "+yst8);
+         xnpix = 512 ;
+         ynpix = 512 ;
+         Xcen = 255 ;
+         Ycen = 255 ;
+         proj = TAN ;
+         equinox = 2000.0 ;
+         Coord ccc = new Coord() ;
+         ccc.x =  0 ;
+         ccc.y = 0 ;
+         GetCoord( ccc);
 
-System.out.println("ccc "+ccc.al+" "+ccc.del);
+         // System.out.println("ccc "+ccc.al+" "+ccc.del);
 
-ccc.x = 0 ;
-ccc.y = 256 ;
-GetCoord( ccc);
+         ccc.x = 0 ;
+         ccc.y = 256 ;
+         GetCoord( ccc);
 
-System.out.println("ccc "+ccc.al+" "+ccc.del);
+         // System.out.println("ccc "+ccc.al+" "+ccc.del);
 
-ccc.x = 0;
-ccc.y = 128 ;
-GetCoord( ccc);
-
-
+         ccc.x = 0;
+         ccc.y = 128 ;
+         GetCoord( ccc);
 
 
-System.out.println("ccc "+ccc.al+" "+ccc.del);
 
-ccc.x = 512 ;
-ccc.y = 512  ;
-GetCoord( ccc );
+
+         // System.out.println("ccc "+ccc.al+" "+ccc.del);
+
+         ccc.x = 512 ;
+         ccc.y = 512  ;
+         GetCoord( ccc );
 
    //System.out.println("ccc "+ccc.al+" "+ccc.del);
    //System.out.println("xst yst"+xst8+" "+yst8) ;
@@ -1629,12 +1749,12 @@ GetCoord( ccc );
    //    	System.out.println("bord 6 "+bord1[6][0]+" "+bord1[6][1]);
    //    	System.out.println("bord 7 "+bord1[7][0]+" "+bord1[7][1]);
 
-   System.out.println("center "+centerRadec[0]+" "+centerRadec[1]); 
-}
-catch (Exception e17) {}
-}
+  // System.out.println("center "+centerRadec[0]+" "+centerRadec[1]); 
+      }
+      catch (Exception e17) {}
+   }
 
-protected void Dss (HeaderFits hf) throws Exception {
+   protected void Dss (HeaderFits hf) throws Exception {
    int sign = 1;
    double det ;
 
@@ -1815,10 +1935,10 @@ protected void Dss (HeaderFits hf) throws Exception {
    aladin = 2 ;
 
 
-}
+   }
 
 
-protected void GetXYstand(Coord c) throws Exception {
+   protected void GetXYstand(Coord c) throws Exception {
    double x_obj =1.;
    double y_obj =1.;
    double x_objr ;
@@ -1982,6 +2102,11 @@ protected void GetXYstand(Coord c) throws Exception {
          case SIN : // SIN proj
             x_stand = x_tet_phi ;
             y_stand = y_tet_phi ;
+            if ((xydpoly[1] != 0 ) && (xydpoly[2] != 0 ))
+            {
+         	   x_stand += xydpoly[1]*(1-(sin_del*cdelz - cos_del*sdelz*cos_dalpha)) ;
+         	   y_stand += xydpoly[2]*(1-(sin_del*cdelz - cos_del*sdelz*cos_dalpha)) ;
+            }
             break ;
          case TAN: // TAN proj
             double den  = sin_del * sdelz + cos_del * cdelz ;
@@ -2067,10 +2192,10 @@ protected void GetXYstand(Coord c) throws Exception {
    c.xstand = x_stand ;
    c.ystand = y_stand ;
 
-}
+   }
 
 
-public void GetCoord(Coord c) throws Exception {
+   public void GetCoord(Coord c) throws Exception {
    double x_obj =1.;
    double y_obj =1.;
    double x_objr ;
@@ -2146,10 +2271,11 @@ public void GetCoord(Coord c) throws Exception {
 
       x_obj = c.x - Xcen /* PF +1 */;
       y_obj = ynpix - Ycen -c.y;
-      if ((proj == TAN) && (xyapoly[1] != 0)&&(xyapoly[1] != 1) && (aladin ==0)
+      if ((proj == TAN) && (xyapoly[1] != 0)&&(xyapoly[1] != 1) && (aladin ==3)
             && (xydpoly[2]*CD[1][1] <0 ))
          y_obj = c.y - Ycen ;
-      if (proj == SIP)
+     if ((proj == SIP)||(proj == SINSIP))
+    //	  if (proj == SIP) 
       {
          double xint = x_obj;
          double yint = y_obj;
@@ -2157,14 +2283,14 @@ public void GetCoord(Coord c) throws Exception {
          {
             for (int powx =0 ; powx < order+1 ; powx++ )
             {
-               x_obj = x_obj + sip_a[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+                  x_obj = x_obj + sip_a[powx][order-powx]*Math.pow(xint,(powx))*Math.pow(yint,order-powx);
             }
          }
          for (int order = 2;  order < order_b+1 ; order++)
          {
             for (int powx =0 ; powx < order+1 ; powx++ )
             {
-               y_obj = y_obj + sip_b[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+                  y_obj = y_obj + sip_b[powx][order-powx]*Math.pow(xint,(powx))*Math.pow(yint,order-powx);
             }
          }
          //x_obj = xint + 
@@ -2210,6 +2336,7 @@ public void GetCoord(Coord c) throws Exception {
       switch(proj)
       {
          case SIN: // projection en SINUS
+         case SINSIP: 	 
             //                        c.del = (180./Math.PI)
             //                               *(Math.asin(y_objr*FastMath.cos(deltai*Math.PI/180.)
             //                               +FastMath.sin(deltai*Math.PI/180.)
@@ -2231,7 +2358,51 @@ public void GetCoord(Coord c) throws Exception {
             //                        if( sign*y_objr -cdelz > 0)
             if ( cdelz*Math.sqrt(1-y_objr*y_objr - x_objr*x_objr)
                   - y_objr*sdelz < 0) c.al += 180. ;
-            break ;
+           
+            	 if ((xydpoly[1] != 0 ) && (xydpoly[2] != 0 ))
+                 {
+                   double xi = xydpoly[1] ;
+                   double eta = xydpoly[2] ;
+              	   double a = xi*xi + eta*eta +1 ;
+              	   double b = (x_objr-xi)*xi + eta*(y_objr-eta);
+              	   double C = (x_objr-xi)*(x_objr-xi) + (y_objr-eta)*(y_objr-eta) - 1 ;
+              	 //  System.out.println("x y "+x_obj+" "+y_obj) ;
+              	  // System.out.println("xy_objr "+x_objr+" "+y_objr);
+              	 //  System.out.println ("a b c "+a+" "+b+" "+C) ;
+              	   double arg = (-b + Math.sqrt (b*b-a*C))/a ; 
+              	 //  System.out.println(" racine "+ (b*b-a*C));
+              	 //  System.out.println("arg "+arg);
+              	    tet = Math.asin(arg) ;
+              	    double phi = Math.atan2(x_objr - xi*(1-arg), -(y_objr - eta*(1-arg))) ;         
+              	 //   System.out.println("tet phi "+tet+" "+phi);
+              	 //   System.out.println("x-stand "+ (Math.cos(tet)*Math.sin(phi)+xi*(1-Math.sin(tet))));
+              	  //  System.out.println("y-stand "+ (Math.cos(tet)*Math.cos(phi)-eta*(1-Math.sin(tet))));
+              	  c.del = - rad_to_deg*
+                  Math.asin(-sdelz*FastMath.sin(tet)+
+                        cdelz*FastMath.cos(tet)*FastMath.cos(phi));
+
+            
+            double arg11 = (FastMath.sin(tet)*cdelz
+                  - FastMath.cos(tet)*sdelz*FastMath.cos(phi));
+            double argg ;
+          
+            argg = -(FastMath.cos(tet)*FastMath.sin(phi));
+           
+           // System.out.println("deltai alphai"+deltai+" "+alphai+" "+rad_to_deg*Math.atan2(argg,arg11)) ;
+            if (Math.abs(deltai) != 90.)
+             
+               c.al = alphai - rad_to_deg*Math.atan2(argg,arg11) ;
+            else if (deltai == 90.)c.al = rad_to_deg*(phi+Math.PI) ;
+            else c.al = rad_to_deg*(-phi);
+           // System.out.println("0000 C.aldel"+c.del+" "+c.al+"\n");
+            if((c.del*c.del > 90.*90.)&&(Math.abs(deltai) > 65.))
+            {
+               c.al = 180. - c.al ;
+               c.del = 2*deltai - c.del ;
+            }
+                           //    System.out.println(" C.aldel"+c.del+" "+c.al+"\n");
+                 }
+            break ; 
          case NCP:
 
             X = x_objr / (cdelz - y_objr*sdelz);
@@ -2251,16 +2422,56 @@ public void GetCoord(Coord c) throws Exception {
             }
 
             break ;
+         case TPV:   
          case TAN:  // projection en TAN
          case SIP:	   
-            //      System.out.println("xyobjr "+x_objr+" " +yy);
-            // 	   System.out.println("avant aladin "+aladin) ;
-            if ((xyapoly[1] != 0)&&(xyapoly[1] != 1) && (aladin == 0))
+           //    System.out.println("xyobjr "+x_objr+" " +yy);
+                        
+       
+               if ((xyapoly[1] != 0)&&(xyapoly[1] != 1) && (aladin == 0))
             {
+            	 
                x_objr *= rad_to_deg ;
                yy     *= rad_to_deg ;
-
+               double r = Math.sqrt(x_objr*x_objr+yy*yy) ;
+            /* Changes for SCAMP */
+     
+         // System.out.println("9 "+xyapoly[9]+ " "+ xydpoly[9]);
+           // System.out.println("10 "+xyapoly[10]+ " "+ xydpoly[10]);
                posx =  xyapoly[0] +
+               xyapoly[1]*x_objr+
+               xyapoly[2]*yy +
+               xyapoly[3]*Math.sqrt(x_objr*x_objr+yy*yy) +
+               xyapoly[4]*x_objr*x_objr +
+               xyapoly[5]*yy*x_objr +
+               xyapoly[6]*yy*yy +
+               xyapoly[7]*x_objr*x_objr*x_objr +
+               xyapoly[8]*yy*x_objr*x_objr +
+               xyapoly[9]*yy*yy*x_objr +
+               xyapoly[10]*yy*yy*yy +
+               xyapoly[11]*r*r*r ;
+
+         posy =  xydpoly[0] +
+               xydpoly[1]*yy +
+               xydpoly[2]*x_objr +
+               xydpoly[3]*Math.sqrt(x_objr*x_objr+yy*yy) +
+               xydpoly[4]*yy*yy +
+               xydpoly[5]*yy*x_objr +
+               xydpoly[6]*x_objr*x_objr  +
+               xydpoly[7]*yy*yy*yy +
+               xydpoly[8]*yy*yy*x_objr +
+               xydpoly[9]*yy*x_objr*x_objr  +
+               xydpoly[10]*x_objr*x_objr*x_objr +
+               xydpoly[11]*r*r*r ;
+         x_objr =  posx * deg_to_rad ;
+         yy = posy * deg_to_rad ;
+            }
+               if ((xyapoly[1] != 0)&&(xyapoly[1] != 1) && (aladin == 3))
+               {
+            		 
+                   x_objr *= rad_to_deg ;
+                   yy     *= rad_to_deg ;
+                posx =  xyapoly[0] +
                      xyapoly[2]*yy +
                      xyapoly[1]*x_objr +
                      xyapoly[5]*yy*yy +
@@ -2280,15 +2491,15 @@ public void GetCoord(Coord c) throws Exception {
                      xydpoly[9]*yy*yy*yy +
                      xydpoly[6]*x_objr*x_objr*x_objr +
                      xydpoly[8]*yy*yy*x_objr +
-                     xydpoly[7]*yy*x_objr*x_objr ;
-               //  x_objr = posx * deg_to_rad ;
-               //  yy = posy * deg_to_rad ;
-               x_objr = posx ;
-               yy = posy ;
-               //   System.out.println("pos "+posx+" " +posy);
+                     xydpoly[7]*yy*x_objr*x_objr ; 
+                 x_objr =  posx  ;
+                 yy =  posy  ;
+               // x_objr = posx ;
+               // yy = posy ;
+             //   System.out.println("pos "+posx+" " +posy);
             }
-
-            //System.out.println("cdel"+cdelz+" "+sdelz);
+ 
+           // System.out.println("cdel"+cdelz+" "+sdelz);
             //                       double deno = FastMath.cos(deltai*Math.PI/180.)
             double deno = cdelz
                   //                                     -yy*FastMath.sin(deltai*Math.PI/180.);
@@ -2321,6 +2532,7 @@ public void GetCoord(Coord c) throws Exception {
             double rteta = Math.sqrt(x_objr*x_objr+y_objr*y_objr);
             if (proj == ZPN) 
             {
+              // System.out.println("ZPN");
                tet = 0 ;
                int niter = 20 ;
                double dtet ;
@@ -2435,17 +2647,17 @@ public void GetCoord(Coord c) throws Exception {
 
             break;
 
-//            double x =  x_objr;
-//            double y =  y_objr;
-//            double rSq = x * x / 8  + y * y / 2;
-//            if( rSq > 1 ) throw new Exception("No coordinates");
-//            double theta = Math.asin(y / Math.sqrt(2));
-//            double psi = theta * 2;
-//            double delta = Math.asin((psi + FastMath.sin(psi)) / Math.PI);
-//            double alpha = (Math.PI/(2*Math.sqrt(2))) * (x / FastMath.cos(theta));
-//            c.al = alphai + alpha * rad_to_deg;
-//            c.del = /* deltai + */delta * rad_to_deg;
-//            break;
+               //            double x =  x_objr;
+               //            double y =  y_objr;
+               //            double rSq = x * x / 8  + y * y / 2;
+               //            if( rSq > 1 ) throw new Exception("No coordinates");
+               //            double theta = Math.asin(y / Math.sqrt(2));
+               //            double psi = theta * 2;
+               //            double delta = Math.asin((psi + FastMath.sin(psi)) / Math.PI);
+               //            double alpha = (Math.PI/(2*Math.sqrt(2))) * (x / FastMath.cos(theta));
+               //            c.al = alphai + alpha * rad_to_deg;
+               //            c.del = /* deltai + */delta * rad_to_deg;
+               //            break;
             
          case ZEA:  // projection ZEA
             double rtet =
@@ -2510,6 +2722,21 @@ public void GetCoord(Coord c) throws Exception {
             //                          x_objr*(1+sintet) /deno) ;
             c.al = alphai + rad_to_deg * Math.atan2(x_objr*(1+sintet),deno) ;
             break ;
+         case FIE:
+        	 tet = Math.sqrt(x_objr*x_objr+y_objr*y_objr);
+        	 phi= Math.atan2(y_objr,x_objr) ;
+        	 c.del = rad_to_deg*
+             Math.asin(sdelz*FastMath.cos(tet)-
+                   cdelz*FastMath.sin(tet)*FastMath.cos(phi));
+        	 double arg11 = (FastMath.cos(tet)*cdelz
+                     - FastMath.sin(tet)*sdelz*FastMath.cos(phi));
+             double argg ;
+               argg = -(FastMath.sin(tet)*FastMath.sin(phi));
+               //      if (Math.abs(deltai) != 90.)
+               c.al = alphai + rad_to_deg*Math.atan2(argg,arg11) ;
+             break ;
+        	 
+        	 
          case CAR: // CARTESIEN
             //  	   System.out.println("x_objr "+x_objr+" "+y_objr) ;
             c.al = alphai +x_objr*rad_to_deg ;
@@ -2609,9 +2836,9 @@ public void GetCoord(Coord c) throws Exception {
       if(c.al <   0.) c.al += 360.;
       //   System.out.println("coord "+c.al+" " +c.del);
    }
-}
+   }
 
-protected boolean TheSame(Calib cal) {
+   protected boolean TheSame(Calib cal) {
 
    if (aladin == 1) return false ;
    if (xnpix != cal.xnpix) return false ;
@@ -2627,9 +2854,9 @@ protected boolean TheSame(Calib cal) {
    if (equinox != cal.equinox) return false ;
    if (proj != cal.proj) return false ;
    return true ;
-}
-public void GetXY(Coord c) throws Exception { GetXY(c,true); }
-public void GetXY(Coord c,boolean withTest) throws Exception {
+   }
+   public void GetXY(Coord c) throws Exception { GetXY(c,true); }
+   public void GetXY(Coord c,boolean withTest) throws Exception {
    double x_obj =1.;
    double y_obj =1.;
    double x_tet_phi;
@@ -2643,7 +2870,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
 
    //   System.out.println("GetXY aladin"+aladin+" "+c.al+" "+c.del+" "+system);
 
-   //   System.out.println("GetXY aladin"+aladin+" "+c.al+" "+c.del+" "+system);
+     // System.out.println("GetXY aladin"+aladin+" "+c.al+" "+c.del+" "+system);
 
    if(aladin == 1)
    {
@@ -2714,7 +2941,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
       al = c.al ;
       del = c.del ;
       // System.out.println(c.al+" "+c.del);
-      if( system!=ICRS ) {
+      if( system!=ICRS && system!=XYLINEAR ) {
          Astroframe af = system==FK4           ? AF_FK4 :
                          system==FK5           ? AF_FK5 :
                          system==GALACTIC      ? AF_GAL :
@@ -2752,12 +2979,13 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
 
       double phi ;
       double tet ;
-//      int goodness = 1;
+         //      int goodness = 1;
 
       if( withTest ) {
          switch(proj)
-         {
+         {  case TPV:
             case SIN:
+            case SINSIP:  	
             case NCP : // NCP
             case TAN: // TAN proj
             case SIP:	
@@ -2773,23 +3001,38 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                break ;
          }
       }
-//      if (goodness == 1)
-//      {
+         //      if (goodness == 1)
+         //      {
          switch(proj)
          { 
-//            case TAN: // TAN proj
-//               double den  = sin_del * sdelz + cos_del * cdelz *cos_dalpha;
-//               x_stand =  (x_tet_phi / den) * rad_to_deg ;
-//               y_stand =  (y_tet_phi / den) * rad_to_deg;
-//               break;
+
+          //  case TAN: // TAN proj
+          //     double den  = sin_del * sdelz + cos_del * cdelz *cos_dalpha;
+          //     x_stand =  (x_tet_phi / den) * rad_to_deg ;
+          //     y_stand =  (y_tet_phi / den) * rad_to_deg;
+          //     break;
              case SIN : // SIN proj
+             case SINSIP: 	 
                //                        x_stand   = 180./Math.PI*x_tet_phi ;
                //                        y_stand   = 180./Math.PI*y_tet_phi ;
                x_stand   = rad_to_deg*x_tet_phi ;
                y_stand   = rad_to_deg*y_tet_phi ;
-               //           System.out.println("xystand"+x_stand+" "+y_stand);
+                 //      System.out.println("x_tet_phi"+x_tet_phi+" "+y_tet_phi);
                //           if((al - alphai)>+180.) x_stand = -x_stand ;
                //           if((al - alphai)<-180.) x_stand = -x_stand ;
+             //  if (xyapoly[1] != 0 ) System.out.println("xyapoly 1 "+ xyapoly[1]);
+            //   if (xyapoly[2] != 0 ) System.out.println("xyapoly 2 "+ xyapoly[2]);
+             //  if (xydpoly[1] != 0 ) System.out.println("xydpoly 1 "+ xydpoly[1]);
+            //   if (xydpoly[2] != 0 ) System.out.println("xydpoly 2 "+ xydpoly[2]);
+             //  if (adxpoly[1] != 0 ) System.out.println("adxpoly 1"+ adxpoly[1]);
+            //   if (adypoly[1] != 0 ) System.out.println("adypoly 1"+ adypoly[1]);
+           //    if (adxpoly[2] != 0 ) System.out.println("adxpoly 2"+ adxpoly[2]);
+            //   if (adypoly[2] != 0 ) System.out.println("adypoly 2"+ adypoly[2]);
+               if ((xydpoly[1] != 0 ) && (xydpoly[2] != 0 ))
+               {
+            	   x_stand += rad_to_deg*xydpoly[1]*(1-(sin_del*sdelz + cos_del*cdelz*cos_dalpha)) ;
+            	   y_stand += rad_to_deg*xydpoly[2]*(1-(sin_del*sdelz + cos_del*cdelz*cos_dalpha)) ;
+               }
                break ;
             case NCP : // NCP
                x_stand   = rad_to_deg*x_tet_phi ;
@@ -2802,7 +3045,8 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                   else {x_stand = 0.0 ; y_stand = 0.0 ;}
                break ;
           case TAN:
-          case SIP: 	
+          case SIP: 
+          case TPV:	  
                //                         double den     = FastMath.sin(del*Math.PI/180.)
                //                                  *FastMath.sin(deltai*Math.PI/180.) +
                //                                   FastMath.cos(del*Math.PI/180.)
@@ -2816,8 +3060,130 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                //                        y_stand *= 180./Math.PI ;
                //            System.out.println("xystand"+x_stand+" "+y_stand);
                //                        System.out.println("proj 2\n");
-               if ( aladin==0 && xyapoly[1]!=0 && xyapoly[1]!=1 )
+               
+               if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&(aladin == 0))
                {
+            	   x_stand *= rad_to_deg ;
+            	   y_stand *= rad_to_deg ;
+                  //  double X = xyapoly[0]  * deg_to_rad ;
+                  //  double Y = xydpoly[0] * deg_to_rad ;
+                  double X = xyapoly[0];
+                  double Y = xydpoly[0];
+                  double dx ;
+                  double dy ;
+                  double xx=0 ;
+                  double yy=0 ;
+                  int niter = 20 ;
+                  int iter = 0 ;
+                  double m1,m2,m3,m4;
+                  
+                  while (iter < niter)
+                  {
+                       /* Changes for SCAMP */
+                     iter++ ;
+                     double r ;
+                     
+                     if ((xx == 0.0 )&(yy == 0.0)) r= 1;
+                     else r = Math.sqrt(xx*xx+yy*yy) ;                     
+                     m1 = xyapoly[1]+
+                        xyapoly[3]*xx/r +
+                           2*xyapoly[4]*xx +
+                           xyapoly[5]*yy  +
+                           3*xyapoly[7]*xx*xx +
+                           xyapoly[9]*yy*yy +
+                           2*xyapoly[8]*yy*xx +
+                         3*xyapoly[11]*xx*Math.sqrt(xx*xx+yy*yy) ;
+                     //  m1  *= deg_to_rad ;
+                     //System.out.println("m1 "+iter+" "+ xyapoly[3]*xx/r+ " " +2*xyapoly[4]*xx )  ;
+                     m2  = xydpoly[2]+
+                         xydpoly[3]*xx/r +
+                           2*xydpoly[6]*xx +
+                           xydpoly[5]*yy  +
+                          3*xydpoly[10]*xx*xx +
+                           xydpoly[8]*yy*yy +
+                           2*xydpoly[9]*yy*xx +
+                           3*xydpoly[11]*xx* Math.sqrt(xx*xx+yy*yy) ;
+                     // System.out.println("m2 "+iter+" "+ xydpoly[3]*xx/r + " " +2*xydpoly[6]*xx )  ;
+                     // m2  *= deg_to_rad ;
+
+                     m3  = xyapoly[2] +
+                      xyapoly[3]*yy/r +
+                           2*xyapoly[6]*yy +
+                           xyapoly[5]*xx +
+                           3*xyapoly[10]*yy*yy +
+                           2*xyapoly[9]*yy*xx +
+                           xyapoly[8]*xx*xx +
+                           3*xyapoly[11]*yy*Math.sqrt(xx*xx+yy*yy) ;
+                     // m3  *= deg_to_rad ;
+                     // System.out.println("m3 "+iter+" "+ xyapoly[3]*yy/r+ " " +2*xyapoly[6]*yy )  ;
+                     m4  = xydpoly[1] +
+                     xydpoly[3]*yy/r +
+                           2*xydpoly[4]*yy +
+                           xydpoly[5]*xx  +
+                           3*xydpoly[7]*yy*yy +
+                           2*xydpoly[8]*yy*xx +
+                           xydpoly[9]*xx*xx +
+                           3*xydpoly[11]*yy* Math.sqrt(xx*xx+yy*yy) ;
+                     // System.out.println("m4 "+iter+" "+ xydpoly[3]*yy/r+ " " +2*xyapoly[4]*yy )  ;      
+                     //  m4  *= deg_to_rad ;
+                     double det = m1 * m4 - m2 * m3 ;
+                     double tmp = m4 / det ;
+                     m2 /= -det ;
+                     m3 /= -det ;
+                     m4 = m1 /det ;
+                     m1 = tmp ;
+
+                     //                               System.out.println("matrice "+m1+" "+m2+" "+m3+" "+m4) ;
+                     dx = m1 * (x_stand - X) + m3 * (y_stand - Y) ;
+                     dy = m2 * (x_stand - X) + m4 * (y_stand - Y) ;
+
+                     xx += dx ;
+                     yy += dy ;
+                     r = Math.sqrt(xx*xx+yy*yy) ;
+
+                     //                  System.out.println("iterations dXY"+iter+" "+(x_stand - X)+" "+(y_stand-Y));
+                     //                  System.out.println("iterations XY"+iter+" "+X+" "+Y);
+                     X =  xyapoly[0] +
+                           xyapoly[2]*yy +
+                           xyapoly[1]*xx +
+                           xyapoly[3]*Math.sqrt(xx*xx+yy*yy) +
+                           xyapoly[6]*yy*yy +
+                           xyapoly[4]*xx*xx +
+                           xyapoly[5]*yy*xx  +
+                            xyapoly[10]*yy*yy*yy +
+                           xyapoly[7]*xx*xx*xx +
+                           xyapoly[9]*yy*yy*xx +
+                           xyapoly[8]*yy*xx*xx +
+                           xyapoly[11]*r*r*r ;
+                     //   X  *= deg_to_rad ;
+                     Y  =  xydpoly[0] +
+                           xydpoly[1]*yy +
+                           xydpoly[2]*xx +
+                           xydpoly[3]*Math.sqrt(xx*xx+yy*yy) +
+                           xydpoly[4]*yy*yy +
+                           xydpoly[6]*xx*xx +
+                           xydpoly[5]*yy*xx  +
+                           xydpoly[7]*yy*yy*yy +
+                           xydpoly[10]*xx*xx*xx +
+                           xydpoly[8]*yy*yy*xx +
+                           xydpoly[9]*yy*xx*xx +
+                           xydpoly[11]*r*r*r ;
+                           
+                     //   Y *= deg_to_rad ;
+                     //                             System.out.println("iterations "+iter+" "+xx+" "+yy);
+                  }
+                  
+                  x_stand = xx  ;
+                  y_stand = yy ;
+                  /*
+            	  x_stand = xx * rad_to_deg ;
+            	  y_stand = yy * rad_to_deg ;
+            	  */
+            	  
+               }
+               else if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&(aladin == 3))
+               {
+            	   
                   //  double X = xyapoly[0]  * deg_to_rad ;
                   //  double Y = xydpoly[0] * deg_to_rad ;
                   double X = xyapoly[0];
@@ -2832,34 +3198,39 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
 
                   while (iter < niter)
                   {
+                      
                      iter++ ;
                      m1 = xyapoly[1]+
+                    
                            2*xyapoly[3]*xx +
-                           xyapoly[4]*yy +
+                           xyapoly[4]*yy  +
                            3*xyapoly[6]*xx*xx +
                            xyapoly[8]*yy*yy +
                            2*xyapoly[7]*yy*xx ;
                      //  m1  *= deg_to_rad ;
 
                      m2  = xydpoly[1]+
+                    // xydpoly[3]*yy/Math.sqrt(xx*xx+yy*yy) +
                            2*xydpoly[3]*xx +
-                           xydpoly[4]*yy +
-                           3*xydpoly[6]*xx*xx +
+                           xydpoly[4]*yy  +
+                          3*xydpoly[6]*xx*xx +
                            xydpoly[8]*yy*yy +
                            2*xydpoly[7]*yy*xx ;
                      // m2  *= deg_to_rad ;
 
                      m3  = xyapoly[2] +
+                  //   xyapoly[3]*yy/Math.sqrt(xx*xx+yy*yy) +
                            2*xyapoly[5]*yy +
                            xyapoly[4]*xx +
-                           3*xyapoly[9]*yy*yy +
+                          3*xyapoly[9]*yy*yy +
                            2*xyapoly[8]*yy*xx +
                            xyapoly[7]*xx*xx ;
                      // m3  *= deg_to_rad ;
 
                      m4  = xydpoly[2] +
+                //     xydpoly[3]*xx/Math.sqrt(xx*xx+yy*yy) +
                            2*xydpoly[5]*yy +
-                           xydpoly[4]*xx +
+                           xydpoly[4]*xx  +
                            3*xydpoly[9]*yy*yy +
                            2*xydpoly[8]*yy*xx +
                            xydpoly[7]*xx*xx ;
@@ -2883,9 +3254,10 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                      X =  xyapoly[0] +
                            xyapoly[2]*yy +
                            xyapoly[1]*xx +
+                         //  xyapoly[3]*Math.sqrt(xx*xx+yy*yy) +
                            xyapoly[5]*yy*yy +
                            xyapoly[3]*xx*xx +
-                           xyapoly[4]*yy*xx +
+                           xyapoly[4]*yy*xx  +
                            xyapoly[9]*yy*yy*yy +
                            xyapoly[6]*xx*xx*xx +
                            xyapoly[8]*yy*yy*xx +
@@ -2894,9 +3266,10 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                      Y  =  xydpoly[0] +
                            xydpoly[2]*yy +
                            xydpoly[1]*xx +
+                          // xydpoly[3]*Math.sqrt(xx*xx+yy*yy) +
                            xydpoly[5]*yy*yy +
                            xydpoly[3]*xx*xx +
-                           xydpoly[4]*yy*xx +
+                           xydpoly[4]*yy*xx  +
                            xydpoly[9]*yy*yy*yy +
                            xydpoly[6]*xx*xx*xx +
                            xydpoly[8]*yy*yy*xx +
@@ -2904,10 +3277,16 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                      //   Y *= deg_to_rad ;
                      //                             System.out.println("iterations "+iter+" "+xx+" "+yy);
                   }
-                  x_stand = xx ;
+                  
+                  x_stand = xx  ;
                   y_stand = yy ;
+                  /*
+            	  x_stand = xx * rad_to_deg ;
+            	  y_stand = yy * rad_to_deg ;
+            	  */
+            	  
                }
-               else if ( aladin==2 && xyapoly[1]!=0 && xyapoly[1]!= 1 )
+               else if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&(aladin == 2))
                {
                   double X = xyapoly[0];
                   double Y = xydpoly[0];
@@ -2920,7 +3299,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                   int iter = 0 ;
                   double m1,m2,m3,m4;
                   //        System.out.println("XY "+X+" "+Y) ;
-                  // System.out.println("XY "+X*rad_to_deg+" "+Y*rad_to_deg) ;
+                 // System.out.println("XY "+X*rad_to_deg+" "+Y*rad_to_deg) ;
                   while (iter < niter)
                   {
                      iter++ ;
@@ -3088,6 +3467,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                   previous = psi;
                   psi -= (psi + FastMath.sin(psi) - Math.PI * FastMath.sin(tet))
                       / (1 + FastMath.cos(psi));
+                  if (Double.isNaN(psi)) {psi=previous; break; } // Pierre Jan 2015
                   if( Math.abs(psi - previous) > 0.0001 ) break;
                }
                double theta = psi / 2;
@@ -3116,6 +3496,27 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
 //               x_stand = (2*Math.sqrt(2)/Math.PI) * alpha1 * FastMath.cos(theta)*rad_to_deg;
 //               y_stand = Math.sqrt(2) * FastMath.sin(theta)*rad_to_deg;
 //               break;
+               //               double alpha1 =   (al- alphai)*deg_to_rad;
+               //               double delta1 =  (del/*- deltai*/)*deg_to_rad;
+               //
+               //               // Adjust alpha1 to the range +/- PI
+               //               while(alpha1 <= 0) alpha1 += 2*Math.PI;
+               //               while(alpha1 > Math.PI)  alpha1 -= 2*Math.PI;
+               //
+               //               // Don't plot quite up to poles to avoid strange effects
+               //               //                     if(Math.abs(delta1) > Math.toRadians(89.99)) return;
+               //
+               //               double psi = 2 * Math.asin(2 * delta1 / Math.PI);
+               //               double previous = 0;
+               //               for( int i=0; i<200; i++ ) {
+               //                  previous = psi;
+               //                  psi -= (psi + FastMath.sin(psi) - Math.PI * FastMath.sin(delta1)) / (1 + FastMath.cos(psi));
+               //                  if( Math.abs(psi - previous) > 0.0001 ) break;
+               //               }
+               //               double theta = psi / 2;
+               //               x_stand = (2*Math.sqrt(2)/Math.PI) * alpha1 * FastMath.cos(theta)*rad_to_deg;
+               //               y_stand = Math.sqrt(2) * FastMath.sin(theta)*rad_to_deg;
+               //               break;
 
             case ZEA: // ZEA projection
 
@@ -3163,6 +3564,15 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                x_stand *= rad_to_deg ;
                y_stand *= rad_to_deg ;
                break ;
+            case FIE:
+            	phi = Math.atan2(-cos_del *sin_dalpha, (sin_del*cdelz - cos_del*sdelz *cos_dalpha));
+                tet =  Math.asin(sin_del*sdelz + cos_del*cdelz *cos_dalpha);
+                x_stand = tet*Math.cos(phi) ;
+                y_stand = tet*Math.sin(phi) ;
+                x_stand *= rad_to_deg ;
+                y_stand *= rad_to_deg ;
+                break ;
+                
             case CAR: // CARTESIEN
                //                        x_stand = -(al-alphai)*cos_del ;
                //    	    System.out.println("proj 7\n");
@@ -3204,7 +3614,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                //                       System.out.println("proj default\n");
                break ;
          }
-//      }
+         //      }
 
 
 
@@ -3215,17 +3625,19 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
 
       if (aladin != 2)
       {
-         //                	System.out.println("aaaa "+ynpix+" "+Ycen);
+                       
          c.x = (ID[0][0]*x_stand +ID[0][1]*y_stand)+ Xcen;
          c.y =  -(ID[1][0]*x_stand +ID[1][1]* y_stand) + ynpix - Ycen;
-         //              System.out.println("c.y "+c.y);
-         if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&((proj==TAN)||(proj==SIP)) && (aladin == 0) && (xydpoly[2]*ID[1][1] <0 )) 
+               //      System.out.println("on est là c.y "+c.y);
+         if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&((proj==TAN)||(proj==SIP)) && (aladin == 3)  && (xydpoly[2]*ID[1][1] <0 )) 
          {    
-            //                 System.out.println("on est ici") ;
-            c.y =  (ID[1][0]*x_stand +ID[1][1]* y_stand) + Ycen;}
-         //              System.out.println("c.y "+c.y);
-         if (proj == SIP)
-
+                 //           System.out.println("on est ici") ;
+           c.y = (ID[1][0]*x_stand +ID[1][1]* y_stand) +  Ycen  ;
+       //    if (aladin == 3) c.y = (ID[1][0]*x_stand +ID[1][1]* y_stand) + Ycen ; 
+           }
+                    // System.out.println("c.y "+c.y);
+  //       if ((proj == SIP)||(proj == SINSIP))
+            if (proj == SIP )
          {
             //            	  System.out.println("aqui ");
             if ((order_ap == 0)||(order_bp == 0))
@@ -3248,7 +3660,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                   {
                      for (int powx =0 ; powx < order+1 ; powx++ )
                      {
-                        m1 = m1 + powx*sip_a[powx][order-powx]*Math.pow(xx,(double)(powx-1))*Math.pow(yy,(double)(order-powx));
+                           m1 = m1 + powx*sip_a[powx][order-powx]*Math.pow(xx,powx-1)*Math.pow(yy,order-powx);
                      }
                   }
                   m2 = 0 ;
@@ -3256,7 +3668,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                   {
                      for (int powx =0 ; powx < order+1 ; powx++ )
                      {
-                        m2 = m2 + (order-powx)*sip_a[powx][order-powx]*Math.pow(xx,(double)(powx))*Math.pow(yy,(double)(order-powx-1));
+                           m2 = m2 + (order-powx)*sip_a[powx][order-powx]*Math.pow(xx,(powx))*Math.pow(yy,order-powx-1);
                      }
                   } 
                   m3 = 1 ;
@@ -3264,7 +3676,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                   {
                      for (int powx =0 ; powx < order+1 ; powx++ )
                      {
-                        m3 = m3 + powx*sip_b[powx][order-powx]*Math.pow(xx,(double)(powx-1))*Math.pow(yy,(double)(order-powx));
+                           m3 = m3 + powx*sip_b[powx][order-powx]*Math.pow(xx,powx-1)*Math.pow(yy,order-powx);
                      }
                   }
                   m4 = 0 ;
@@ -3272,7 +3684,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                   {
                      for (int powx =0 ; powx < order+1 ; powx++ )
                      {
-                        m4 = m4 + (order-powx)*sip_b[powx][order-powx]*Math.pow(xx,(double)(powx))*Math.pow(yy,(double)(order-powx-1));
+                           m4 = m4 + (order-powx)*sip_b[powx][order-powx]*Math.pow(xx,(powx))*Math.pow(yy,order-powx-1);
                      }
                   }   
                   double det = m1 * m4 - m2 * m3 ;
@@ -3299,7 +3711,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                   {
                      for (int powx =0 ; powx < order+1 ; powx++ )
                      {
-                        px = px + sip_a[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+                           px = px + sip_a[powx][order-powx]*Math.pow(xint,(powx))*Math.pow(yint,order-powx);
                      }
                   }
 
@@ -3307,7 +3719,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                   {
                      for (int powx =0 ; powx < order+1 ; powx++ )
                      {
-                        py = py + sip_b[powx][order-powx]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(order-powx));
+                           py = py + sip_b[powx][order-powx]*Math.pow(xint,(powx))*Math.pow(yint,order-powx);
                      }
                   }
                   X = CD[0][0]*px +CD[0][1]*py ;
@@ -3332,7 +3744,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
 
                         //             				 System.out.println("powx j "+powx+" "+j + " "+ sip_ap[powx][j]) ;
 
-                        c.x = c.x + sip_ap[powx][j]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(j));
+                           c.x = c.x + sip_ap[powx][j]*Math.pow(xint,(powx))*Math.pow(yint,(j));
                         //             			      System.out.println("c.x "+c.x);
                      }
                   }
@@ -3358,7 +3770,7 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
                         //              			 System.out.println("powx j "+powx+" "+j+" "+sip_bp[powx][j])  ;
 
 
-                        c.y = c.y + sip_bp[powx][j]*Math.pow(xint,(double)(powx))*Math.pow(yint,(double)(j));
+                           c.y = c.y + sip_bp[powx][j]*Math.pow(xint,(powx))*Math.pow(yint,(j));
                         //             			     System.out.println("c.y "+c.y);
                      }
 
@@ -3400,13 +3812,13 @@ public void GetXY(Coord c,boolean withTest) throws Exception {
       //System.out.println("c.xy "+xx+" "+yy+" "+(-(ID[1][0]*x_stand +ID[1][1]* (-y_stand)))+" "+(-(ID[1][0]*x_stand +ID[1][1]* y_stand)));
       //            c.yf = - (ID[1][0]*x_stand +ID[1][1]* y_stand) +  Ycen;
    }
-}
+   }
 
 
 
 
 
-public  double [] GetResol() {
+   public  double [] GetResol() {
    double inc[] = new double[2];
    // Pierre - sept 2011 : depuis la dernière mouture de Calib, il peut y avoir des valeurs négatives
    //                    inc[0]= incA ;
@@ -3414,10 +3826,10 @@ public  double [] GetResol() {
    inc[0]= Math.abs(incA) ;
    inc[1]= Math.abs(incD) ;
    return inc;
-}
+   }
 
 
-protected  void GetWCS_i()   throws Exception {
+   protected  void GetWCS_i()   throws Exception {
 
    Coord a_d   = new Coord() ;
    Coord x_y_1 = new Coord() ;
@@ -3429,7 +3841,9 @@ protected  void GetWCS_i()   throws Exception {
    double alpha3,delta3 ;
    double alpha4,delta4 ;
 
-   //                       System.out.println("aladin "+aladin) ;
+   
+ //  System.out.println("aladin "+aladin) ;
+ //  System.out.println(xyapoly[0]+" "+ xydpoly[0]);
    if(aladin == 1)
       // calcul du header WCS si l'image vient d'aladin
    {
@@ -3577,10 +3991,10 @@ protected  void GetWCS_i()   throws Exception {
 
    }
 
-}
+   }
 
 
-protected  void GetWCS(Vector key, Vector value)   throws Exception {
+   protected  void GetWCS(Vector key, Vector value)   throws Exception {
 
    GetWCS_i() ;
    // ce qui suitvest fait dans les deux cas, simple recopie
@@ -3659,8 +4073,124 @@ protected  void GetWCS(Vector key, Vector value)   throws Exception {
    //               value.addElement(new Double(flagPermute?CD[0][1]:CD[1][1]).toString());
    value.addElement(new Double(CD[1][1]).toString());
    //               System.out.println("CD "+CD[0][0] +" "+CD[1][1]);
-}
-protected  void GetWCSP(Vector key, Vector value)   throws Exception {
+      //   System.out.println("xyad "+xyapoly[0]+" "+xydpoly[0]);
+   if (xyapoly[0] != 0.0)
+   {
+	  //   System.out.println("PV");
+   key.addElement("PV1_0");
+   value.addElement(new Double(xyapoly[0]).toString()) ;
+   }
+   if (xydpoly[0] != 0.0)
+   {
+   key.addElement("PV2_0");
+   value.addElement(new Double(xydpoly[0]).toString()) ;
+   }
+   if (xyapoly[1] != 0.0)
+   {
+   key.addElement("PV1_1");
+   value.addElement(new Double(xyapoly[1]).toString()) ;
+   }
+   if (xydpoly[1] != 0.0)
+   {
+   key.addElement("PV2_1");
+   value.addElement(new Double(xydpoly[1]).toString()) ;
+   }
+   if (xyapoly[2] != 0.0)
+   {
+   key.addElement("PV1_2");
+   value.addElement(new Double(xyapoly[2]).toString()) ;
+   }
+   if (xydpoly[2] != 0.0)
+   {
+   key.addElement("PV2_2");
+   value.addElement(new Double(xydpoly[2]).toString()) ;
+   }
+   if (xyapoly[3] != 0.0)
+   {
+         //   System.out.println("PV bis");
+   key.addElement("PV1_3");
+   value.addElement(new Double(xyapoly[3]).toString()) ;
+   }
+   if (xydpoly[3] != 0.0)
+   {
+   key.addElement("PV2_3");
+   value.addElement(new Double(xydpoly[3]).toString()) ;
+   }
+   if (xyapoly[4] != 0.0)
+   {
+  // System.out.println("PV ter");
+   key.addElement("PV1_4");
+   value.addElement(new Double(xyapoly[4]).toString()) ;
+   }
+   if (xydpoly[4] != 0.0)
+   {
+   key.addElement("PV2_4");
+   value.addElement(new Double(xydpoly[4]).toString()) ;
+   }
+   if (xyapoly[5] != 0.0)
+   {
+   key.addElement("PV1_5");
+   value.addElement(new Double(xyapoly[5]).toString()) ;
+   }
+   if (xydpoly[5] != 0.0)
+   {
+   key.addElement("PV2_5");
+   value.addElement(new Double(xydpoly[5]).toString()) ;
+   }
+   if (xyapoly[6] != 0.0)
+   {
+   key.addElement("PV1_6");
+   value.addElement(new Double(xyapoly[6]).toString()) ;
+   }
+   if (xydpoly[6] != 0.0)
+   {
+   key.addElement("PV2_6");
+   value.addElement(new Double(xydpoly[6]).toString()) ;
+   }
+   if (xyapoly[7] != 0.0)
+   {
+   key.addElement("PV1_7");
+   value.addElement(new Double(xyapoly[7]).toString()) ;
+   }
+   if (xydpoly[7] != 0.0)
+   {
+   key.addElement("PV2_7");
+   value.addElement(new Double(xydpoly[7]).toString()) ;
+   }
+   if (xyapoly[8] != 0.0)
+   {
+      key.addElement("PV1_8");
+   value.addElement(new Double(xyapoly[8]).toString()) ;
+   }
+   if (xydpoly[8] != 0.0)
+   {
+   key.addElement("PV2_8");
+   value.addElement(new Double(xydpoly[8]).toString()) ;
+   }
+   if (xyapoly[9] != 0.0)
+   {
+   key.addElement("PV1_9");
+   value.addElement(new Double(xyapoly[9]).toString()) ;
+   }
+   if (xydpoly[9] != 0.0)
+   {
+   key.addElement("PV2_9");
+   value.addElement(new Double(xydpoly[9]).toString()) ;
+ //  System.out.println("PV fin");
+   }  
+   if (xyapoly[10] != 0.0)
+   {
+  // key.addElement("PV1_10");
+   value.addElement(new Double(xyapoly[10]).toString()) ;
+   }
+   if (xydpoly[10] != 0.0)
+   {
+ //  key.addElement("PV2_10");
+   value.addElement(new Double(xydpoly[10]).toString()) ;
+         //   System.out.println("PV fin");
+   }  
+   }
+   protected  void GetWCSP(Vector key, Vector value)   throws Exception {
 
    //GetWCS_i() ;
    // ce qui suitvest fait dans les deux cas, simple recopie
@@ -3796,98 +4326,99 @@ protected  void GetWCSP(Vector key, Vector value)   throws Exception {
    //            value.addElement(new Double(flagPermute?CD[0][1]:CD[1][1]).toString());
    value.addElement(new Double(CD[1][1]).toString());
    //            System.out.println("CD "+CD[0][0] +" "+CD[1][1]);
-}
+   }
 
-protected void SetEquinox(double equin) {
+   protected void SetEquinox(double equin) {
 
    equinox = equin ;
 
-}
-protected double GetEquinox() {
+   }
+   protected double GetEquinox() {
 
    /* Equinox =0 : absence d'equinoxe */
    return equinox ;
 
-}
-protected double GetEpoch() {
+   }
+   protected double GetEpoch() {
 
    /* Epoch =0 : absence d'epoque */
    if (flagepoc != 0) return epoch ;
    else return Double.NaN ;     // PF. nov 07 (Ã¯Â¿Â½ la place de 0.0)
-}
+   }
 
-/*
+   /*
  * Retourne le centre de l'image en coord J2000 et en pixels
  */
-protected Coord getImgCenter() throws Exception {
+   public Coord getImgCenter() throws Exception {
    Coord c = new Coord();
    c.x = xnpix/2.;
    c.y = ynpix/2.;
+  // System.out.println("avant ImgCenter");
    GetCoord(c);
    return c;
-}
+   }
 
-/**
+   /**
  * Retourne le centre de la projection en coord J2000 et en pixels
  */
-public Coord getProjCenter()  {
+   public Coord getProjCenter()  {
    Coord c = new Coord();
    c.x = Xcen;
    //      c.y = ynpix-Ycen;
    c.y = Ycen;
          try { GetCoord(c); } catch( Exception e ) { }
-//   c.al=alphai;
-//   c.del=deltai;
+      //   c.al=alphai;
+      //   c.del=deltai;
    return c;
-}
-/**
+   }
+   /**
  * Retourne la rotation de la projection par rapport au NORD dans
  * le sens ???? (unite : le degre)
  */
-public double getProjRot() {
+   public double getProjRot() {
    return rota;
-}
+   }
 
-/**
+   /**
  * Retourne la largeur du champ en degres
  */
-public double getImgWidth() { return widtha; }
+   public double getImgWidth() { return widtha; }
 
-/**
+   /**
  * Retourne la largeur du champ en degres
  */
-public double getImgHeight() { return widthd; }
+   public double getImgHeight() { return widthd; }
 
-/**
+   /**
  * Retourne true si les RA sont inverses
  */
-public boolean getProjSym() { return incA>0; }
+   public boolean getProjSym() { return incA>0; }
 
-/**
+   /**
  * Retourne Le type de projection (indice du tableau projection)
  */
-protected int getProj() { return proj; }
+   protected int getProj() { return proj; }
 
-/**
+   /**
  * Retourne Le système de coordonnées
  */
-protected int getSystem() { return system; }
+   protected int getSystem() { return system; }
 
-/**
+   /**
  * Retourne La dimension en pixels de l'image
  */
-public Dimension getImgSize() { return new Dimension(xnpix,ynpix); }
+   public Dimension getImgSize() { return new Dimension(xnpix,ynpix); }
 
-/**
+   /**
  * Modifie la calibration astrométrique pour prendre en compte une sous-image
  * @param offx,offy : coin haut gauche (si absent, centré)
  * @param  w,h : taille de la sous-image
  */
-protected void cropping(double w,double h) { cropping((xnpix -w)/2.,(ynpix -h)/2.,w,h); }
-protected void cropping(double offx, double offy, double w,double h ) { 
+   protected void cropping(double w,double h) { cropping((xnpix -w)/2.,(ynpix -h)/2.,w,h); }
+   protected void cropping(double offx, double offy, double w,double h ) {
 
 
-   if( aladin == 0) {
+   if(( aladin == 0)||(aladin == 3)) {
       Xcen -=  offx ;
       // toujours faire attention quand on part du haut. calib, comme FITS et WCS compte
       // du bas et il y a la hauteur à enlever en prime ...
@@ -3902,12 +4433,12 @@ protected void cropping(double offx, double offy, double w,double h ) {
 
    widtha = xnpix * Math.abs(incA) ;
    widthd = ynpix * Math.abs(incD) ;
-}
+   }
 
-// thomas, 19/11/2007
-// TODO : François, peux tu me vérifier cette méthode ?
-/** S'agit-il d'une calib avec rotation dans le sens direct */
-protected boolean sensDirect() {
+   // thomas, 19/11/2007
+   // TODO : François, peux tu me vérifier cette méthode ?
+   /** S'agit-il d'une calib avec rotation dans le sens direct */
+   protected boolean sensDirect() {
    //  System.out.println("CD "+CD[0][0]+" "+CD[1][1]);
    //  System.out.println("xyapoly[2] "+xyapoly[2]+" "+xyapoly[1]);
    //  System.out.println("xydpoly[2] "+xydpoly[1]+" "+xydpoly[2]) ;
@@ -3915,7 +4446,7 @@ protected boolean sensDirect() {
    double xya ;
 
 
-   if (aladin == 0){ xya = xyapoly[1];
+   if ((aladin == 0)||(aladin==3)){ xya = xyapoly[1];
    if ( xya> 0) { 
       return CD[0][0]*CD[1][1]>0.0; }
    if ( xya < 0) {
@@ -3931,11 +4462,11 @@ protected boolean sensDirect() {
    return xya*xyd>0.0 ;
    }
 
-}   
+   }
 
-/** Code modifié par Pierre F. Juillet 2010 - à vérifier par François B. SVP - code original ci-dessous
+   /** Code modifié par Pierre F. Juillet 2010 - à vérifier par François B. SVP - code original ci-dessous
  * Remodifié par Pierre F. en Mars 2011 - toujours à vérifier par François B. SVP */
-protected void cropAndZoom(double deltaX, double deltaY, double w, double h, double zoom) {
+   protected void cropAndZoom(double deltaX, double deltaY, double w, double h, double zoom) {
 
    incX = incX/zoom ;
    incY = incY/zoom ;
@@ -3956,54 +4487,53 @@ protected void cropAndZoom(double deltaX, double deltaY, double w, double h, dou
    incD /=zoom;   // Modif PF mars 2011
 
    cropping(deltaX*zoom,deltaY*zoom,w*zoom,h*zoom) ;
-}
+   }
 
-/** Code original de François B. qui ne peut pas marcher pour zoom<1 (voir ci-dessus) */
-//   protected void cropAndZoom(double deltaX, double deltaY, double w, double h, double zoom) {
-//      incX = incX/zoom ;
-//      incY = incY/zoom ;
-//      Xcen = Xcen*zoom ;
-//      Ycen = Ycen*zoom ;
-//       int zzoom = (int)Math.round(zoom);
-//      xnpix = xnpix * zzoom ;
-//      ynpix = ynpix * zzoom ;
-//      CD[0][0] = CD[0][0]/zoom ;
-//      CD[0][1] = CD[0][1]/zoom ;
-//      CD[1][0] = CD[1][0]/zoom ;
-//      CD[1][1] = CD[1][1]/zoom ;
-//      ID[0][0] = ID[0][0]*zoom ;
-//      ID[0][1] = ID[0][1]*zoom ;
-//      ID[1][0] = ID[1][0]*zoom ;
-//      ID[1][1] = ID[1][1]*zoom ;
-//     cropping(deltaX*zzoom,deltaY*zzoom,w*zzoom,h*zzoom) ;
-//  }
-
-
-static double [][] testCenter = { {0,0}, {15,-1}, {259.9,89.99}, {0.1,-89.99} };
+   /** Code original de François B. qui ne peut pas marcher pour zoom<1 (voir ci-dessus) */
+   //   protected void cropAndZoom(double deltaX, double deltaY, double w, double h, double zoom) {
+   //      incX = incX/zoom ;
+   //      incY = incY/zoom ;
+   //      Xcen = Xcen*zoom ;
+   //      Ycen = Ycen*zoom ;
+   //       int zzoom = (int)Math.round(zoom);
+   //      xnpix = xnpix * zzoom ;
+   //      ynpix = ynpix * zzoom ;
+   //      CD[0][0] = CD[0][0]/zoom ;
+   //      CD[0][1] = CD[0][1]/zoom ;
+   //      CD[1][0] = CD[1][0]/zoom ;
+   //      CD[1][1] = CD[1][1]/zoom ;
+   //      ID[0][0] = ID[0][0]*zoom ;
+   //      ID[0][1] = ID[0][1]*zoom ;
+   //      ID[1][0] = ID[1][0]*zoom ;
+   //      ID[1][1] = ID[1][1]*zoom ;
+   //     cropping(deltaX*zzoom,deltaY*zzoom,w*zzoom,h*zzoom) ;
+   //  }
 
 
-static double EPSILON = 1./(60.*60.*1000.*1000.);   // Milli arcseconde
+   static double [][] testCenter = { {0,0}, {15,-1}, {259.9,89.99}, {0.1,-89.99} };
 
-static boolean equalEpsilon(double a, double b) {
+
+   static double EPSILON = 1./(60.*60.*1000.*1000.);   // Milli arcseconde
+
+   static boolean equalEpsilon(double a, double b) {
    if( Double.isNaN(a) || Double.isNaN(b) ) return false;
    //    if (Math.abs(a-b) >= EPSILON) 
    //   	 { System.out.println("Diff "+(Math.abs(a-b))+" "+EPSILON) ;
    //   	 System.out.println(" "+a+" "+b+" "+EPSILON) ;}
    return Math.abs(a-b)<=EPSILON ;
-}
+   }
 
-//   public static void main(String[] args) {
-//      test();
-//   }
-static public boolean test1() {
+   //      test();
+   //   }
+   static public boolean test1() {
    boolean toutestbon=true;
    Calib C = new Calib(8,424,0,1) ;
    Calib Cp = new Calib(8,0,0,1 ) ;
 
    return toutestbon ;
-}
+   }
 
-static public boolean test() {
+   static public boolean test() {
    boolean toutestbon=true;
    try {
       //         System.out.println("Test des projections ï¿½ la milliarcseconde ("+EPSILON+")\n" +
@@ -4074,7 +4604,7 @@ static public boolean test() {
       }
    } catch( Exception e ) { e.printStackTrace(); toutestbon=false; }
    return toutestbon;
-}
+   }
 
 
 }

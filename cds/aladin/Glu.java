@@ -20,13 +20,22 @@
 
 package cds.aladin;
 
-import java.net.*;
 import java.awt.Dimension;
 import java.awt.Point;
-import java.io.*;
-import java.util.*;
-
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.Hashtable;
+import java.util.StringTokenizer;
+import java.util.Vector;
 
 import cds.tools.UrlLoader;
 import cds.tools.Util;
@@ -70,7 +79,7 @@ public final class Glu implements Runnable {
 
    // Profondeur max de la récursivité des définitions GLU (%I..)
    private static int MAXPROF = 6;
-   
+
    // Timeout pour les tests d'indirection GLU (en ms)
    private static final int CHECKTIMEOUT = 1000;
 
@@ -84,8 +93,8 @@ public final class Glu implements Runnable {
 
    protected static String NPHGLUALADIN = "http://aladin.u-strasbg.fr/java/"
          + NPHGLU;
-//   protected static String NPHGLUALADIN = "vizier.iucaa.ernet.in/"
-//      + NPHGLU;
+   //   protected static String NPHGLUALADIN = "vizier.iucaa.ernet.in/"
+   //      + NPHGLU;
 
    // Browsers testés (pour le cas Unix)
    static private String KONQUEROR = "konqueror";
@@ -104,7 +113,7 @@ public final class Glu implements Runnable {
    static int nWindow = 0; // Numero de la fenetre netscape
 
    static boolean newWindow = false; // true - showDocument dans une nouvelle
-                                     // fenetre
+   // fenetre
 
    /**
     * Tableau associatif contenant le dico GLU additionnel Aladin sous la forme
@@ -113,27 +122,27 @@ public final class Glu implements Runnable {
    protected Hashtable aladinDic = null;
    protected Hashtable<String,GluTest> aladinDicT = null;
    protected Hashtable aladinDicFilters = null;
-   
+
    /** Memorisation des serveurs definis par le dictionnaire GLU */
    protected static Vector vGluServer;
-   
+
    /** Memorisation des applications PLASTICs définies par le dictionnaire GLU */
    protected static Vector vGluApp;
-   
+
    /** Mémorisation des ciels de background définis par le dictionnaire GLU */
-   protected static Vector vGluSky;
-   
+   protected static Vector<TreeNodeAllsky> vGluSky;
+
    /** Mémorisation des items des Tree outreach définis par le dictionnaire GLU */
    protected static Vector vGluCategory;
-   
+
    /** Tri des listes */
    protected void tri() {
       Comparator c = TreeNode.getComparator();
       Collections.sort(vGluSky,c);
       Collections.sort(vGluCategory,c);
-      
+
       c = Server.getComparator();
-//      Collections.sort(vGluApp,c);
+      //      Collections.sort(vGluApp,c);
       Collections.sort(vGluServer,c);
    }
 
@@ -169,73 +178,74 @@ public final class Glu implements Runnable {
                      .getResourceAsStream("/" + Aladin.ALAGLU));
                loadGluDic(dis,false,false);
                dis.close();
-               if( aladin!=null ) testNetwork();
-//               if( !testCurrentAlaSite() && !testAlaSites(true, false) ) {
-//                  Aladin.info(aladin.chaine.getString("NONET"));
-//                  // Aladin.NETWORK=false; JE PREFERE NE PAS CACHER LES
-//                  // RESSOURCES DISTANTESS (POUR DEMO)
-//               } else flagNoGlu=true;
+               testNetwork();
+               //               if( !testCurrentAlaSite() && !testAlaSites(true, false) ) {
+               //                  Aladin.info(aladin.chaine.getString("NONET"));
+               //                  // Aladin.NETWORK=false; JE PREFERE NE PAS CACHER LES
+               //                  // RESSOURCES DISTANTESS (POUR DEMO)
+               //               } else flagNoGlu=true;
             }
          } catch( Exception e ) {
             Aladin.warning("AlaGlu.dic not found !", 1);
          }
-         
+
          // Un Dico GLu pour décrire les applications VOtools ?
          addVOGluFile();
-         
+
          // Des dico GLU locaux ?
          addOtherGluFiles();
       }
 
       // Recuperation des enregistrements GLU des serveurs additionnels
       if( Aladin.NETWORK ) getRemoteGluDic();
-      
+
       // Et on tri le tout selon %Aladin.MenuNumber
       tri();
-      
+
    }
-   
+
    /** Test asynchrone du réseau */
    protected void testNetwork() {
+      if( !aladin.TESTNETWORK ) return;
       (new Thread("Network test") {
-            @Override
-            public void run() {
-               try {
-                  Aladin.trace(3,"Testing network...");
-                  if( !testCurrentAlaSite() && !testAlaSites(true, false) ) {
-                     Aladin.info(aladin.chaine.getString("NONET"));
-                     // Aladin.NETWORK=false; JE PREFERE NE PAS CACHER LES
-                     // RESSOURCES DISTANTESS (POUR DEMO)
-                  } else flagNoGlu=true;
-               } catch( Exception e) {
-                  Aladin.info(aladin.chaine.getString("No full network access !"));
-                  flagNoGlu=true;
-               }
+         @Override
+         public void run() {
+            try {
+               Aladin.trace(3,"Testing network...");
+               if( !testCurrentAlaSite() && !testAlaSites(true, false) ) {
+                  Aladin.info(aladin.chaine.getString("NONET"));
+                  // Aladin.NETWORK=false; JE PREFERE NE PAS CACHER LES
+                  // RESSOURCES DISTANTESS (POUR DEMO)
+               } else flagNoGlu=true;
+            } catch( Exception e) {
+               Aladin.info(aladin.chaine.getString("No full network access !"));
+               flagNoGlu=true;
             }
+         }
       }).start();
    }
-   
+
    /** Rechargement complet du GLU avec reconstructions des menus et
-       * des frames associés (nettoyage préalable du cache)
-       */
-//   void reload() { reload(true); }
+    * des frames associés (nettoyage préalable du cache)
+    */
+   //   void reload() { reload(true); }
    void reload(boolean clearBefore,boolean showLastGlu) {
       if( clearBefore ) {
          aladin.cache.clear();
          aladin.glu  = new Glu(aladin);
       }
       ServerDialog oldDialog = aladin.dialog;
-      
+
       Point p = null;
       Dimension d=null;
       int c = aladin.dialog.current;
       try {
-         p=aladin.dialog.getLocationOnScreen(); 
+         p=aladin.dialog.getLocationOnScreen();
          d = aladin.dialog.getSize();
       } catch( Exception e ) { p=null; }
       VizieRQuery.resetKeywords();
       aladin.gluSkyReload();
-      
+
       aladin.dialog = new ServerDialog(aladin);
       if( showLastGlu ) {
          int c1 = aladin.dialog.getLastGluServerIndice();
@@ -250,7 +260,7 @@ public final class Glu implements Runnable {
       if( oldDialog.isVisible() || showLastGlu ) aladin.dialog.showNow();
       oldDialog.dispose();
    }
-   
+
    /** Ajout d'éventuels dico glu locaux. Parcours la variable Aladin.GLUFILE qui contient
     * la liste des filenames des dico additionnals. Le filename peut être un nom de fichier
     * complet ou un nom de fichier qui doit se trouver dans le CLASSPATH */
@@ -271,7 +281,7 @@ public final class Glu implements Runnable {
             } catch( Exception e ) {
                dis = new DataInputStream(getClass().getResourceAsStream("/"+filename));
             }
-            if( dis==null ) throw new Exception(); 
+            if( dis==null ) throw new Exception();
             if( loadGluDic( dis, false,localFile) ) Aladin.trace(1,"Additionnal "+(localFile?"local":"remote")+" Glu dic loaded ["+filename+"]");
             else throw new Exception();
             dis.close();
@@ -304,7 +314,7 @@ public final class Glu implements Runnable {
          dis = new DataInputStream(in);
          loadGluDic(dis,true,false);
          try { dis.close(); } catch( Exception e) {}
-         
+
       } catch( Exception e ) {
          System.err.println("Remote Glu dictionary not reached");
       }
@@ -325,71 +335,71 @@ public final class Glu implements Runnable {
       res.append('\'');
       return res.toString();
    }
-   
-   
-   // Vieux code que je garde pour mémoire
-//   static String quote(String s) {
-//         static String quote(String s) {
-//      boolean first = true;
-//      StringBuffer res = new StringBuffer("'");
-//      StringTokenizer st = new StringTokenizer(s, "'");
-//      while( st.hasMoreTokens() ) {
-//         if( first ) first = false;
-//         else res.append("\\'");
-//         res.append(st.nextToken());
-//      }
-//      res.append("'");
-//      return res.toString();
-//   }
 
-//  JE GARDE LE CODE POUR MEMOIRE
-//
-//  /** Appel au GLU local (mode standalone).
-//    *  L'appel se fera au moyen d'une commande exec
-//    *
-//    * @param tag le tag GLU a resoudre
-//    * @return l'URL resolue (mais sous forme de String), ou null si probleme
-//    */
-//   final String gluFilter(String tag) {
-//
-//      Process p; // Le process
-//      StringBuffer url=new StringBuffer(""); // Le resultat
-//      int b; // pour lire chaque caractere de la reponse
-//      InputStream in; // flux de la reponse
-//      String[] cmd=new String[4]; // Tableau des arguments du exec
-//
-//      try {
-//         // preparation de la commande
-//         cmd[0]=GLUFILTER;
-//         cmd[1]="-e";
-//         cmd[2]="-r";
-//         cmd[3]=tag;
-//         Aladin.trace(3,"Querying the local GLU: " + cmd[0] + " -e -r '"
-//               + cmd[3] + "' ...");
-//
-//         // Creation du process associe au glufilter
-//         p=Runtime.getRuntime().exec(cmd);
-//         in=p.getInputStream();
-//
-//         // Lecture du resultat, caractere par caractere
-//         while( (b=in.read()) != -1 )
-//            url.append((char) b);
-//
-//      } catch( Exception e ) {
-//         System.err.println("Glufilter error : " + e);
-//         return null;
-//      }
-//
-//      // Detection des erreurs
-//      String u=url.toString();
-//      if( u.startsWith("<*") ) {
-//         Aladin.trace(3,"WARNING: " + u);
-//         return null;
-//      }
-//
-//      return u;
-//   }
-//
+
+   // Vieux code que je garde pour mémoire
+   //   static String quote(String s) {
+   //         static String quote(String s) {
+   //      boolean first = true;
+   //      StringBuffer res = new StringBuffer("'");
+   //      StringTokenizer st = new StringTokenizer(s, "'");
+   //      while( st.hasMoreTokens() ) {
+   //         if( first ) first = false;
+   //         else res.append("\\'");
+   //         res.append(st.nextToken());
+   //      }
+   //      res.append("'");
+   //      return res.toString();
+   //   }
+
+   //  JE GARDE LE CODE POUR MEMOIRE
+   //
+   //  /** Appel au GLU local (mode standalone).
+   //    *  L'appel se fera au moyen d'une commande exec
+   //    *
+   //    * @param tag le tag GLU a resoudre
+   //    * @return l'URL resolue (mais sous forme de String), ou null si probleme
+   //    */
+   //   final String gluFilter(String tag) {
+   //
+   //      Process p; // Le process
+   //      StringBuffer url=new StringBuffer(""); // Le resultat
+   //      int b; // pour lire chaque caractere de la reponse
+   //      InputStream in; // flux de la reponse
+   //      String[] cmd=new String[4]; // Tableau des arguments du exec
+   //
+   //      try {
+   //         // preparation de la commande
+   //         cmd[0]=GLUFILTER;
+   //         cmd[1]="-e";
+   //         cmd[2]="-r";
+   //         cmd[3]=tag;
+   //         Aladin.trace(3,"Querying the local GLU: " + cmd[0] + " -e -r '"
+   //               + cmd[3] + "' ...");
+   //
+   //         // Creation du process associe au glufilter
+   //         p=Runtime.getRuntime().exec(cmd);
+   //         in=p.getInputStream();
+   //
+   //         // Lecture du resultat, caractere par caractere
+   //         while( (b=in.read()) != -1 )
+   //            url.append((char) b);
+   //
+   //      } catch( Exception e ) {
+   //         System.err.println("Glufilter error : " + e);
+   //         return null;
+   //      }
+   //
+   //      // Detection des erreurs
+   //      String u=url.toString();
+   //      if( u.startsWith("<*") ) {
+   //         Aladin.trace(3,"WARNING: " + u);
+   //         return null;
+   //      }
+   //
+   //      return u;
+   //   }
+   //
 
    /*
     * Recherche d'un browser préféré par l'utilisateur ou Test de l'existence
@@ -452,7 +462,7 @@ public final class Glu implements Runnable {
 
    // Pour le lancement du Browser sous Mac OS X
    private static Method openURL = null;
-   
+
    /** Affichage d'une URL - NE MARCHE QU'EN STANDALONE */
    protected void showDocument(String url) {
       if( !Aladin.STANDALONE ) return;
@@ -482,7 +492,7 @@ public final class Glu implements Runnable {
    }
    private  void showDocument(URL url) {
       String window = "";
- 
+
       if( !Aladin.isApplet() ) {
          Process p;
          String[] cmd = new String[3];
@@ -576,16 +586,16 @@ public final class Glu implements Runnable {
                   // Creation du process KONQUEROR
                   p = Runtime.getRuntime().exec(
                         KONQUEROR + " " + url.toString());
-               // Chrome
+                  // Chrome
                } else if (BROWSER.indexOf("chrome")>=0) {
-                   String myCmd = BROWSER+" "+url.toString();
-                   Aladin.trace(2, myCmd);
-                   p = Runtime.getRuntime().exec(myCmd);
-                   p.waitFor();
+                  String myCmd = BROWSER+" "+url.toString();
+                  Aladin.trace(2, myCmd);
+                  p = Runtime.getRuntime().exec(myCmd);
+                  p.waitFor();
 
-                   if( p.exitValue() == 0 ) return;
+                  if( p.exitValue() == 0 ) return;
 
-                   throw new Exception("Can not launch Chrome browser !");
+                  throw new Exception("Can not launch Chrome browser !");
 
                   // Netscape et dérivés. On essaye d'abord l'option -remote
                   // openURL(url),
@@ -680,7 +690,7 @@ public final class Glu implements Runnable {
    static String getValue(String s1, DataInputStream dis) {
       int i;
       StringBuffer res = new StringBuffer(); // Pour construire sur plusieurs
-                                             // lignes
+      // lignes
       String s = new String(s1); // Pour ne pas faire d'effet de bord
       char[] a = s.toCharArray();
 
@@ -748,61 +758,65 @@ public final class Glu implements Runnable {
          ;
       return (i < a.length) ? new String(a, i + 1, a.length - i - 1) : s;
    }
-   
+
    /**
     * Retourne l'indice du ciel GLU dans la liste des ciels GLU connus
     * @param A le tagGlu du ciel à chercher
     * @param flagSubstring true si on prend en compte le cas d'une sous-chaine
     * @param mode 0 - match exact
-    *             1 - substring
-    *             2 - match exact puis substring dernier élément du menu  (ex DssColored ok pour Optical/DSS/DssColored)
+    *             1 - substring sur label
+    *             2 - match exact puis substring sur l'IVORN (ex: Simbad ok pour CDS/Simbad)
+    *                 puis du menu  (ex DssColored ok pour Optical/DSS/DssColored)
     * @return l'indice du ciel dans Glu.vGluSky, sinon -1
     */
    protected int findGluSky(String A) { return findGluSky(A,0); }
    protected int findGluSky(String A,int mode) {
       for( int i = vGluSky.size()-1; i >=0; i-- ) {
-         TreeNodeAllsky gs = (TreeNodeAllsky) vGluSky.elementAt(i);
+         TreeNodeAllsky gs = vGluSky.elementAt(i);
          if( A.equals(gs.id) || A.equals(gs.label) || A.equals(gs.internalId) ) return i;
-         if( mode==1 && Util.indexOfIgnoreCase(gs.label, A)>=0 ) return i;
+         if( mode==1 && Util.indexOfIgnoreCase(gs.label,A)>=0 ) return i;
          if( mode==2 ) {
+            if( gs.internalId!=null && gs.internalId.endsWith(A) ) return i;
+//            if( Util.indexOfIgnoreCase(gs.internalId, A)>=0 ) return i;
+
             int offset = gs.label.lastIndexOf('/');
             if( A.equals(gs.label.substring(offset+1)) ) return i;
          }
       }
-      
+
       if( mode==2 ) {
          for( int i = vGluSky.size()-1; i >=0; i-- ) {
-            TreeNodeAllsky gs = (TreeNodeAllsky) vGluSky.elementAt(i);
+            TreeNodeAllsky gs = vGluSky.elementAt(i);
             int offset = gs.label.lastIndexOf('/');
             if( Util.indexOfIgnoreCase(gs.label.substring(offset+1),A)>=0 ) return i;
          }
       }
       return -1;
    }
-   
-   /** Ajout ou remplacement d'un glusky */
-   public void addGluSky(TreeNodeAllsky gsky) {
-      String A = gsky.id;
-      int i = findGluSky(A);
-      if( i!= -1 ) vGluSky.setElementAt(gsky, i);
-      else vGluSky.addElement(gsky);
-   }
+
+   //   /** Ajout ou remplacement d'un glusky */
+   //   public void addGluSky(TreeNodeAllsky gsky) {
+   //      String A = gsky.id;
+   //      int i = findGluSky(A);
+   //      if( i!= -1 ) vGluSky.setElementAt(gsky, i);
+   //      else vGluSky.addElement(gsky);
+   //   }
 
    /**
-    * Supprime un ciel GLU de la liste des ciels GLU connus
-    * @param actionName le tag Glu du ciel à supprimer
-    * @return true si la suppression a été effectuée, false sinon
-    */
-   protected boolean removeGluSky(String actionName) {
-      int i = findGluSky(actionName);
-      if( i == -1 ) return false;
-      vGluSky.removeElementAt(i);
-      return true;
-   }
-   
+//    * Supprime un ciel GLU de la liste des ciels GLU connus
+//    * @param actionName le tag Glu du ciel à supprimer
+//    * @return true si la suppression a été effectuée, false sinon
+//    */
+   //   protected boolean removeGluSky(String actionName) {
+   //      int i = findGluSky(actionName);
+   //      if( i == -1 ) return false;
+   //      vGluSky.removeElementAt(i);
+   //      return true;
+   //   }
+
    /** Retourne la description du ciel d'indice i */
    protected TreeNodeAllsky getGluSky(int i) {
-      TreeNodeAllsky gSky = (TreeNodeAllsky)vGluSky.elementAt(i);
+      TreeNodeAllsky gSky = vGluSky.elementAt(i);
       return gSky;
    }
 
@@ -814,7 +828,7 @@ public final class Glu implements Runnable {
    private int findGluServer(String actionName) {
       for( int i = vGluServer.size()-1; i >=0; i-- ) {
          ServerGlu gs = (ServerGlu) vGluServer.elementAt(i);
-         if( actionName.equals(gs.actionName) ) return i;
+         if( gs!=null && gs.actionName!=null && actionName.equals(gs.actionName) ) return i;
       }
       return -1;
    }
@@ -830,7 +844,7 @@ public final class Glu implements Runnable {
       vGluServer.removeElementAt(i);
       return true;
    }
-   
+
    /**
     * Retourne l'indice de l'application GLU dans la liste des applications GLU connues
     * @param actionName le tag Glu ou le menu de l'application à chercher
@@ -840,11 +854,11 @@ public final class Glu implements Runnable {
       for( int i = vGluApp.size()-1; i>=0 ; i-- ) {
          GluApp gs = (GluApp) vGluApp.elementAt(i);
          if( actionName.equals(gs.tagGlu) ) return i;
-         if( gs.aladinLabel!=null && actionName.equals(gs.aladinLabel) ) return i; 
+         if( gs.aladinLabel!=null && actionName.equals(gs.aladinLabel) ) return i;
       }
       return -1;
    }
-   
+
    /**
     * Retourne l'application GLU dans la liste des applications GLU connues
     * @param actionName le tag Glu de l'application à chercher
@@ -857,7 +871,7 @@ public final class Glu implements Runnable {
       }
       return null;
    }
-   
+
    /** Retourne la description de l'application d'indice i */
    protected GluApp getGluApp(int i) {
       return (GluApp)vGluApp.elementAt(i);
@@ -874,7 +888,7 @@ public final class Glu implements Runnable {
       vGluApp.removeElementAt(i);
       return true;
    }
-   
+
    /** Mémorise les informations des applications VO dans un petit fichier GLU
     * écrit dans le répertoire cache d'Aladin (.aladin/VOTools) */
    public boolean writeGluAppDic() {
@@ -884,14 +898,14 @@ public final class Glu implements Runnable {
          File f = new File(file);
          f.delete();
          out = new RandomAccessFile(file,"rw");
-         
+
          // Les VOtools (vGluApp)
          Enumeration e = vGluApp.elements();
          while( e.hasMoreElements() ) {
             GluApp vo = (GluApp)e.nextElement();
             out.writeBytes(vo.getGluDic());
          }
-         
+
          // On en profite pour ajouter les GSky (vGluSky)
          e = vGluSky.elements();
          while( e.hasMoreElements() ) {
@@ -902,14 +916,14 @@ public final class Glu implements Runnable {
 
          aladin.trace(3,file+" successfully saved");
          return true;
-      } catch( Exception e ) { 
+      } catch( Exception e ) {
          if( aladin.levelTrace>=3 ) e.printStackTrace();
       } finally {
          if( out!=null ) try { out.close(); } catch( Exception e ) {}
       }
       return false;
    }
-   
+
    /** Lecture des informations des applications VO mémorisées dans un fichier
     * GLU dans le cache d'Aladin */
    private void addVOGluFile() {
@@ -917,7 +931,7 @@ public final class Glu implements Runnable {
          String file = aladin.getVOPath()+Util.FS+"VOTools.dic";
          File f = new File(file);
          DataInputStream dis=new DataInputStream( new FileInputStream(f));
-         if( dis==null ) throw new Exception(); 
+         if( dis==null ) throw new Exception();
          if( loadGluDic( dis, false,true) ) Aladin.trace(1,"VOTools Glu dic loaded ["+file+"]");
          else throw new Exception();
          dis.close();
@@ -925,7 +939,7 @@ public final class Glu implements Runnable {
    }
 
 
-   
+
    /**
     * Mémorisation dans le vecteur vGluApp des applications connues par Aladin
     * via le dictionnaire GLU
@@ -957,7 +971,7 @@ public final class Glu implements Runnable {
 
    /**
     * Génère la liste des menus des applications compatibles Aladin (Plastics)
-    */   
+    */
    protected String[] getAppMenu() {
       String menu[] = new String[ vGluApp.size() ];
       Enumeration e = vGluApp.elements();
@@ -968,10 +982,10 @@ public final class Glu implements Runnable {
       }
       return menu;
    }
-   
+
    /**
     * Génère la liste des menus des ciels décrits par le GLU
-    */   
+    */
    protected String[] getGluSkyMenu() {
       String menu[] = new String[ vGluSky.size() ];
       Enumeration e = vGluSky.elements();
@@ -981,63 +995,65 @@ public final class Glu implements Runnable {
       }
       return menu;
    }
-   
-   
-   /** 
+
+
+   /**
     * Memorisation dans le Vecteur vGluSky des Ciels definis au moyen du
     * dictionnaire GLU propre a Aladin
     */
-   private void memoGluSky(String actionName,String id,String aladinLabel,String aladinMenuNumber,String url,String description,
-         String verboseDescr,String ack,String aladinProfile,String copyright,String copyrightUrl,String aladinTree,String aladinSurvey,String aladinHpxParam) {
-      
+   private void memoGluSky(boolean withLog,String actionName,String id,String aladinLabel,String aladinMenuNumber,String url,String description,
+         String verboseDescr,String ack,String aladinProfile,String copyright,String copyrightUrl,String aladinTree,
+         String aladinSurvey,String aladinHpxParam,String skyFraction) {
+
       // Pour éviter les doublons
       int find = findGluSky(actionName);
-      if( find>=0 ) {
+      if( find>=0 && withLog ) {
          System.err.println("Allsky [" + actionName + ":" + description
                + "] redefined => Aladin will use the last one (remote)");
       }
-      
+
       // Pour incompatibilité avec version <=6.100
-      boolean incompatible=false;
-      if( aladinSurvey!=null || aladinLabel==null || aladinLabel.indexOf('/')>=0 ) {
-         int i;
-         if( aladinLabel!=null && (i=aladinLabel.lastIndexOf('/'))>0 ) {
-            aladinTree=aladinLabel.substring(0,i);
-            aladinLabel=aladinLabel.substring(i+1);
-         }
-         if( aladinSurvey!=null ) {
-            char c = url.charAt(url.length()-1);
-            if( c!='/' && c!='\\' ) url = url+ '/';
-            url = url + aladinSurvey;
-         }
-         if( aladinHpxParam==null ) aladinHpxParam="map";
-         incompatible=true;
-      }
-      
+      //      boolean incompatible=false;
+      //      if( aladinSurvey!=null || aladinLabel==null || aladinLabel.indexOf('/')>=0 ) {
+      //         int i;
+      //         if( aladinLabel!=null && (i=aladinLabel.lastIndexOf('/'))>0 ) {
+      //            aladinTree=aladinLabel.substring(0,i);
+      //            aladinLabel=aladinLabel.substring(i+1);
+      //         }
+      //         if( aladinSurvey!=null ) {
+      //            char c = url.charAt(url.length()-1);
+      //            if( c!='/' && c!='\\' ) url = url+ '/';
+      //            url = url + aladinSurvey;
+      //         }
+      //         if( aladinHpxParam==null ) aladinHpxParam="map";
+      //         incompatible=true;
+      //      }
+
       // Construction du path pour l'arbre (noeud terminal inclus)
-      String path = aladinTree==null ? aladinLabel : aladinTree+"/"+aladinLabel;
-      
+      String s = aladinLabel.replace("/","\\/");
+      String path = aladinTree==null ? s : aladinTree+"/"+s;
+
       TreeNodeAllsky tn =  new TreeNodeAllsky(aladin,actionName,id,aladinMenuNumber,url,aladinLabel,
-            description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,path,aladinHpxParam);
-      
+            description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,path,aladinHpxParam,skyFraction);
+
       if( find<0 ) vGluSky.addElement(tn);
       else vGluSky.setElementAt(tn,find);
-      
-      if( incompatible ) {
-         System.err.println("Uncompatible GLU allsky record ["+actionName+"] => translated\nBut please update it:\n" +
-               getGluSky( findGluSky(actionName) ).getGluDic());
-      }
+
+      //      if( incompatible ) {
+      //         System.err.println("Uncompatible GLU allsky record ["+actionName+"] => translated\nBut please update it:\n" +
+      //               getGluSky( findGluSky(actionName) ).getGluDic());
+      //      }
    }
-   
+
    /** Memorisation des noeuds pour l'arbre d'outreach (cf TreeServer)
     * Si ID déjà existant, on remplace le précédent
     */
-   private void memoTree(String actionName,String description,String aladinTree,String url, 
+   private void memoTree(String actionName,String description,String aladinTree,String url,
          String docUser, String aladinUrlDemo) {
       // POUR LE MOMENT ON NE TRAITE QUE LES TREE AVEC WP5:/ EN PREFIXE
-      if( aladinTree==null || !aladinTree.startsWith("WP5:/") ) return;      
+      if( aladinTree==null || !aladinTree.startsWith("WP5:/") ) return;
       aladinTree=aladinTree.substring(5);
-      
+
       Enumeration e=vGluCategory.elements();
       while( e.hasMoreElements() ) {
          TreeNode n = (TreeNode)e.nextElement();
@@ -1046,7 +1062,7 @@ public final class Glu implements Runnable {
       vGluCategory.addElement(new TreeNodeCategory(aladin,actionName,description,
             aladinTree,url,docUser,aladinUrlDemo));
    }
-    
+
    /**
     * Memorisation dans le Vecteur vGluServer des Serveurs definis au moyen du
     * dictionnaire GLU propre a Aladin
@@ -1072,10 +1088,10 @@ public final class Glu implements Runnable {
     */
    private void memoServer(String actionName, String description, String verboseDescr,
          String aladinMenu, String aladinMenuNumber,String aladinLabel,
-         String aladinLabelPlane, String docUser, Hashtable paramDescription1, 
+         String aladinLabelPlane, String docUser, Hashtable paramDescription1,
          Hashtable paramDataType1, Hashtable paramValue1,
          String resultDataType, String institute, Vector aladinFilter1,
-         String aladinLogo,String dir,String system,StringBuffer record) {
+         String aladinLogo,String dir,String system,StringBuffer record,String aladinProtocol) {
       int i;
 
       // Pour éviter les doublons
@@ -1105,35 +1121,26 @@ public final class Glu implements Runnable {
          for( i = 0; i < n; i++ )
             aladinFilter[i] = (String) e.nextElement();
       }
-      
+
       if( system!=null && system.trim().length()==0 ) system=null;
       if( institute == null ) institute = description;
-
-//    ServerGlu g =  actionName.equals("SkyBoT.IMCCE") ? new ServerSkybot(aladin, actionName, description, verboseDescr, aladinMenu, 
-//    aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue, 
-//    resultDataType, institute, aladinFilter, aladinLogo, record)
-//           : new ServerGlu(aladin, actionName, description, verboseDescr, aladinMenu, 
-//    aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue, 
-//    resultDataType, institute, aladinFilter, aladinLogo, dir, system, record);
-//    vGluServer.addElement(g);
-//    if( !g.isHidden() )  lastGluServer = g;
 
       ServerGlu g=null;
       if( aladin!=null ) {  // test Glu.main()
          if( actionName.equals("SkyBoT.IMCCE") ) {
-            g = new ServerSkybot(aladin, actionName, description, verboseDescr, aladinMenu, 
-                  aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue, 
+            g = new ServerSkybot(aladin, actionName, description, verboseDescr, aladinMenu,
+                  aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue,
                   resultDataType, institute, aladinFilter, aladinLogo, record);
          } else {
-            g = new ServerGlu(aladin, actionName, description, verboseDescr, aladinMenu, 
-                  aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue, 
-                  resultDataType, institute, aladinFilter, aladinLogo, dir, system, record);
+            g = new ServerGlu(aladin, actionName, description, verboseDescr, aladinMenu,
+                  aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue,
+                  resultDataType, institute, aladinFilter, aladinLogo, dir, system, record, aladinProtocol);
          }
          vGluServer.addElement(g);
          if( !g.isHidden() )  lastGluServer = g;
       }
    }
-   
+
    protected ServerGlu lastGluServer=null;
 
    static private String subCR(String s) {
@@ -1172,8 +1179,8 @@ public final class Glu implements Runnable {
    protected boolean loadGluDic(DataInputStream dis,boolean testDomain,boolean localFile) {
       return loadGluDic(dis, 0,testDomain,true,localFile);
    }
-   
-   // Retourne true si cela correspond à un mot clé, éventuellement avec le suffixe de la langue 
+
+   // Retourne true si cela correspond à un mot clé, éventuellement avec le suffixe de la langue
    private boolean isKey(String s,String key) { return isKey(s,key,false); }
    private boolean isKey(String s,String key,boolean testLang) {
       if( testLang ) {
@@ -1188,11 +1195,14 @@ public final class Glu implements Runnable {
    }
 
    protected boolean loadGluDic(DataInputStream dis, int profondeur,boolean testDomain,boolean overwrite,boolean localFile) {
+      return loadGluDic(dis, profondeur, testDomain, overwrite, localFile, true);
+   }
+   protected boolean loadGluDic(DataInputStream dis, int profondeur,boolean testDomain,boolean overwrite,boolean localFile,boolean withLog) {
       String name; // Le nom du champ courant
       String value; // La valeur du champ courant
       //      String A=null; // L'identificateur de l'enr courant
       String actionName = lastA; // L'identificateur de l'enr courant (voir rq ci-dessous
-                        // bug JVM 1.1.8)
+      // bug JVM 1.1.8)
       String id =null; // Identificateur (éventuellement différent de actionName)
       String releaseNumber = null; // Numéro de release de l'application
       String copyright = null;  // Copyright
@@ -1222,15 +1232,17 @@ public final class Glu implements Runnable {
       String aladinLogo = null;// Le nom du logo associé
       String aladinTree = null;// L'arborescence dans le cas d'un Tree Outreach (ex: WP5:/Nebulae/HII)
       String aladinUrlDemo = null;//Url renvoyant un exemple (catalog ou image)
+      String aladinProtocol = null;//Protocole sous-jacent (TAP, CONESEARCH...)
       Vector recI = new Vector(); // Dans le cas d'indirections
       Hashtable paramDescription = null;// Les descriptions des parametres (cle=numero du
-                          // param)
+      // param)
       Hashtable paramDataType = null;// Les types des parametres (cle=numero du param)
       Hashtable paramValue = null;// Les valeurs possibles des parametres (cle=numero du
-                          // param)
+      // param)
       Vector aladinFilter = null; // Les filtres prédéfinis
       String aladinSurvey=null; // Le préfixe du survey dans le cas d'enregistrement de Ciel
       String aladinHpxParam=null;      // Paramètres particuliers dans le cas d'un ciel Healpix
+      String skyFraction=null;
       String aladinBookmarks=null;    // Liste des bookmarks
       StringBuffer record = null;  // Copie de l'enregistrement en cours.
       boolean ignore=false; // true si on doit ignorer l'enregistrement courant (cf overwrite)
@@ -1252,12 +1264,12 @@ public final class Glu implements Runnable {
          // Test d'une profondeur excessive de la récursivité
          if( profondeur > MAXPROF ) throw new Exception(
                "Cyclic GLU definitions");
-         
+
          while( (s = dis.readLine()) != null ) {
             if( s.equals("") || s.charAt(0) == '#' ) continue;
             if( (name = getName(s)) == null ) continue;
             if( (value = getValue(s, dis)) == null ) continue;
-            
+
             // Dans le cas ou l'on ne doit pas écraser une éventuelle définition pré-existante
             if( !overwrite ) {
                if( isKey(name,"A") || isKey(name,"ActionName")) {
@@ -1274,14 +1286,16 @@ public final class Glu implements Runnable {
                }
                if( ignore ) continue;
             }
-            
+
             if( record!=null && !isKey(name,"A") && !isKey(name,"ActionName") ) {
                record.append("%"+Util.fillWithBlank(name, 4)+" "+value+"\n");
             }
-                        
-                 if( isKey(name,"Aladin.Menu",true) )  aladinMenu = subCR(value);
+
+            if( isKey(name,"Aladin.Menu",true) )  aladinMenu = subCR(value);
             else if( isKey(name,"Aladin.Tree",true) )  aladinTree=subCR(value);
             else if( isKey(name,"Aladin.UrlDemo") )    aladinUrlDemo=subCR(value);
+            else if( isKey(name,"Aladin.Protocol") )   aladinProtocol=subCR(value);
+            else if( isKey(name,"SkyFraction") )       skyFraction=subCR(value);
             else if( isKey(name,"ReleaseNumber") )     releaseNumber=subCR(value);
             else if( isKey(name,"Download") )          download=subCR(value);
             else if( isKey(name,"Jar") )               jar=subCR(value);
@@ -1291,9 +1305,9 @@ public final class Glu implements Runnable {
             else if( isKey(name,"JavaParam") )         javaParam=subCR(value);
             else if( isKey(name,"Dir") )               dir=value;
             else if( isKey(name,"Aladin.Activated") )  aladinActivated=subCR(value);
-            else if( isKey(name,"Aladin.Survey") )     aladinSurvey=subCR(value); 
-            else if( isKey(name,"Aladin.HpxParam") )   { aladinHpxParam=subCR(value); flagGluSky=true; } 
-            else if( isKey(name,"Aladin.Bookmarks") )  aladinBookmarks=subCR(value); 
+            else if( isKey(name,"Aladin.Survey") )     aladinSurvey=subCR(value);
+            else if( isKey(name,"Aladin.HpxParam") )   { aladinHpxParam=subCR(value); flagGluSky=true; }
+            else if( isKey(name,"Aladin.Bookmarks") )  aladinBookmarks=subCR(value);
             else if( isKey(name,"System") )            system=subCR(value);
             else if( isKey(name,"M.C",true) || isKey(name,"Copyright",true) )  copyright=subCR(value);
             else if( isKey(name,"Copyright.Url",false)) copyrightUrl=subCR(value);
@@ -1318,30 +1332,30 @@ public final class Glu implements Runnable {
                      aladinDic.put(key, "%I " + seeAction);
                   }
                }
-               
+
                if( hasValidProfile(aladinProfile,aladinTree,flagPlastic) && distribAladin ) {
                   if( aladin!=null && aladinBookmarks!=null ) aladin.bookmarks.memoGluBookmarks(actionName,aladinBookmarks);
-                  else if( flagGluSky ) memoGluSky(actionName,id,aladinLabel,aladinMenuNumber,url,description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,aladinTree,
-                        aladinSurvey,aladinHpxParam);
+                  else if( flagGluSky ) memoGluSky(withLog,actionName,id,aladinLabel,aladinMenuNumber,url,description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,aladinTree,
+                        aladinSurvey,aladinHpxParam,skyFraction);
                   else if( aladinTree!=null ) memoTree(actionName,description,aladinTree,url,docUser,aladinUrlDemo);
                   else if( flagPlastic ) memoApplication(actionName,aladinLabel,aladinMenuNumber,description,verboseDescr,institute,releaseNumber,
-                                                  copyright,docUser,jar,javaParam,download,webstart,applet,dir,aladinActivated,system);
+                        copyright,docUser,jar,javaParam,download,webstart,applet,dir,aladinActivated,system);
                   else if( flagLabel ) memoServer(actionName,description,verboseDescr,aladinMenu,aladinMenuNumber,
-                                                  aladinLabel,aladinLabelPlane,docUser,paramDescription,paramDataType,paramValue,
-                                                  resultDataType,institute,aladinFilter,aladinLogo,dir,localFile?system:null,record);
+                        aladinLabel,aladinLabelPlane,docUser,paramDescription,paramDataType,paramValue,
+                        resultDataType,institute,aladinFilter,aladinLogo,dir,localFile?system:null,record,aladinProtocol);
                }
                distribAladin = !testDomain;
                flagGluSky=flagPlastic=flagLabel = false;
-               aladinUrlDemo=aladinTree=aladinProfile=null;
+               aladinUrlDemo=aladinTree=aladinProfile=aladinProtocol=null;
 
                // On mémorise le filtre pour le serveurs non GLU
                if( !flagLabel ) putAladinFilter(actionName,aladinFilter);
-               
+
                maxIndir = Integer.MAX_VALUE;
                copyright=copyrightUrl=releaseNumber=jar=javaParam=download=webstart=applet=dir=
                      system=aladinActivated=actionName=description=verboseDescr=ack=resultDataType=aladinMenu=
                      aladinMenuNumber=aladinLabel=aladinLabelPlane=docUser=seeAction=url=test=institute=aladinLogo=
-                     aladinSurvey=aladinHpxParam=aladinBookmarks=id=null;
+                     aladinSurvey=aladinHpxParam=aladinBookmarks=id=skyFraction=null;
                paramDescription = new Hashtable();
                paramDataType = new Hashtable();
                paramValue = new Hashtable(10);
@@ -1373,8 +1387,8 @@ public final class Glu implements Runnable {
                StringTokenizer aST = new StringTokenizer(actionName);
                while( aST.hasMoreTokens() )
                   aladinDic.put(aST.nextToken(), url);
-               
-            // On retient la meilleure indirection (voir après le while)
+
+               // On retient la meilleure indirection (voir après le while)
             } else if( name.equals("I") || name.equals("SeeAction") ) {
                int metric = 0;
                int i = 0;
@@ -1401,14 +1415,14 @@ public final class Glu implements Runnable {
                String iTag = value.substring(0, i);
                if( metric < maxIndir ) {
                   maxIndir = metric;
-//                  seeAction = iTag;
+                  //                  seeAction = iTag;
                   seeAction = iTag+ (seeAction==null ? "" : "\t"+seeAction);  // On insère devant
-               } 
+               }
                else seeAction = (seeAction==null ? "" :seeAction+"\t") + iTag;  // On insère derrière
-               
+
                memoAlaSites(actionName, value.substring(0, i));
-            // Le XLabel ne sert qu'à éviter aux versions Aladin <5 de charger des enregistrements GLU qui ne leur sont pas destinées
-            } else if( name.equals("Aladin.Label") || name.equals("Aladin.XLabel")) {   
+               // Le XLabel ne sert qu'à éviter aux versions Aladin <5 de charger des enregistrements GLU qui ne leur sont pas destinées
+            } else if( name.equals("Aladin.Label") || name.equals("Aladin.XLabel")) {
                aladinLabel = subCR(value);
                flagLabel = true;
             } else if( name.equals("Aladin.Name") ) {   // destiné à remplacer Aladin.Label à partir de la versino 5
@@ -1439,7 +1453,7 @@ public final class Glu implements Runnable {
          }
 
          dis.close();
-         
+
          // Le dernier si besoin est
          if( seeAction != null ) {
             recI.addElement(seeAction);
@@ -1450,14 +1464,14 @@ public final class Glu implements Runnable {
          }
          if( hasValidProfile(aladinProfile,aladinTree,flagPlastic) && distribAladin ) {
             if( aladinBookmarks!=null ) aladin.bookmarks.memoGluBookmarks(actionName,aladinBookmarks);
-            else if( flagGluSky ) memoGluSky(actionName,id,aladinLabel,aladinMenuNumber,url,description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,aladinTree,
-                  aladinSurvey,aladinHpxParam);
+            else if( flagGluSky ) memoGluSky(withLog,actionName,id,aladinLabel,aladinMenuNumber,url,description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,aladinTree,
+                  aladinSurvey,aladinHpxParam,skyFraction);
             else if( aladinTree!=null ) memoTree(actionName,description,aladinTree,url,docUser,aladinUrlDemo);
             else if( flagPlastic ) memoApplication(actionName,aladinLabel,aladinMenuNumber,description,verboseDescr,institute,releaseNumber,
-                                            copyright,docUser,jar,javaParam,download,webstart,applet,dir,aladinActivated,system);
+                  copyright,docUser,jar,javaParam,download,webstart,applet,dir,aladinActivated,system);
             else if( flagLabel ) memoServer(actionName,description,verboseDescr,aladinMenu,aladinMenuNumber,
-                                            aladinLabel,aladinLabelPlane,docUser,paramDescription,paramDataType,paramValue,
-                                            resultDataType,institute,aladinFilter,aladinLogo,dir,localFile?system:null,record);
+                  aladinLabel,aladinLabelPlane,docUser,paramDescription,paramDataType,paramValue,
+                  resultDataType,institute,aladinFilter,aladinLogo,dir,localFile?system:null,record,aladinProtocol);
          }
 
          // On mémorise le filtre pour le serveurs non GLU
@@ -1483,21 +1497,21 @@ public final class Glu implements Runnable {
 
       return true;
    }
-   
+
    /** Méthode bas niveau pour modifier/ajouter une URL du dico GLU interne */
    public void put(String actionName,String url) {
       aladinDic.put(actionName,url);
    }
-   
+
    /** Méthode bas niveau pour récupérer une URL du dico GLU interne */
    public String get(String actionName) {
       return (String) aladinDic.get(actionName);
    }
-   
+
    private boolean isComparator(char ch) {
       return ch=='<' || ch=='>';
    }
-   
+
    /** Retourne vrai si le test de version décrit par s correspond avec la version
     * d'Aladin. (ne prend en compte que la première décimale)
     * Ex: >5.0, 4.3, <=4.6
@@ -1511,11 +1525,11 @@ public final class Glu implements Runnable {
          if( s.charAt(i)=='<' ) { test=-2; i++; }
          else if( s.charAt(i)=='>' ) { test=2; i++; }
          else if( s.charAt(i)=='=' ) { test=0; i++; }
-         
+
          if( s.charAt(i)=='=' ) { test/=2; i++; }
-         
+
          double n = Double.parseDouble( s.substring(i) );
-         
+
          switch(test ) {
             case -2: return num<n;
             case -1: return num<=n;
@@ -1523,29 +1537,29 @@ public final class Glu implements Runnable {
             case  1: return num>=n;
             case  2: return num>n;
          }
-         
+
       } catch( Exception e ) {
          System.err.println("GLU Aladin.profile version number error ["+s+"]");
          if( Aladin.levelTrace>=3 ) e.printStackTrace();
       }
       return false;
    }
-   
-//   private boolean hasValidProfile(String profile) {
-//      boolean rep = hasValidProfile1(profile);
-//      if( profile!=null ) System.out.println("Aladin.profile "+profile+" "+(rep? "Ok":"Nok"));
-//      return rep;
-//   }
-   
+
+   //   private boolean hasValidProfile(String profile) {
+   //      boolean rep = hasValidProfile1(profile);
+   //      if( profile!=null ) System.out.println("Aladin.profile "+profile+" "+(rep? "Ok":"Nok"));
+   //      return rep;
+   //   }
+
    /** Détermine si l'enregistrement GLU doit être pris en compte ou non.
     * 1) En mode OUTREACH, le mot "undergraduate" doit être obligatoirement présent
-    * 2) D'autre part, il faut que toutes les contraintes mentionnées soit respectées 
+    * 2) D'autre part, il faut que toutes les contraintes mentionnées soit respectées
     */
    private boolean hasValidProfile(String profile,String tree,boolean flagPlastic) {
       if( Aladin.OUTREACH && !flagPlastic &&
             (profile==null || profile.indexOf(Configuration.UNDERGRADUATE)<0) ) return false;
       if( profile==null ) return true;
-      
+
       boolean rep=true;
       StringTokenizer st = new StringTokenizer(profile);
       while( rep && st.hasMoreTokens() ) {
@@ -1561,12 +1575,12 @@ public final class Glu implements Runnable {
       }
       return rep;
    }
-   
+
    /** mémorise les filtres associés à la marque GLU A */
    private void putAladinFilter(String A,Vector AF) {
       int n;
       if( AF==null || (n=AF.size())==0 ) return;
-      
+
       String filters[] = null;
       filters = new String[n];
       Enumeration e = AF.elements();
@@ -1669,7 +1683,7 @@ public final class Glu implements Runnable {
    // Pour permettre de mémoriser le site GLU désigné lors d'une sélection
    // automatique suite à un défaut du site par défaut
    private boolean flagNoGlu;
-   
+
    /**
     * Positionnement du nouveau site glu par défaut
     * @return null si ok, le site alternatif par défaut
@@ -1779,30 +1793,30 @@ public final class Glu implements Runnable {
    static public final int URL    = 0;
    static public final int ENCODE = 1;
    static public final int NOURL  = 2;
-   
-//   public static void main(String argv[]) {
-//      String url = "http://cdsarc.u-strasbg.fr/viz-bin/nph-Cat/$2?-plus=-+&$1&bidule=$3";
-//      String [] param = { "/un/deux/trois" };
-//      String s = dollarSet(url,param,URL);
-//      System.out.println("url  =["+url+"]");
-//      System.out.println("param=["+param[0]+"]");
-//      System.out.println(  "==> ["+s+"]");
-//   }
-   
-   
-//   public static void main(String argv[]) {
-//      try {
-//         Aladin.STANDALONE=true;
-//         Aladin.levelTrace=4;
-//         Aladin.GLUFILE = "C:/AladinUK.dic";
-//         Glu glu = new Glu(null);
-//         System.out.println("Glu loaded");
-//         boolean res = glu.checkIndirection("VizieRXML++", null);
-//         System.out.println("=> "+glu.getURL("VizieRXML++"));
-//      } catch( Exception e ) {
-//         e.printStackTrace();
-//      }
-//   }
+
+   //   public static void main(String argv[]) {
+   //      String url = "http://cdsarc.u-strasbg.fr/viz-bin/nph-Cat/$2?-plus=-+&$1&bidule=$3";
+   //      String [] param = { "/un/deux/trois" };
+   //      String s = dollarSet(url,param,URL);
+   //      System.out.println("url  =["+url+"]");
+   //      System.out.println("param=["+param[0]+"]");
+   //      System.out.println(  "==> ["+s+"]");
+   //   }
+
+
+   //   public static void main(String argv[]) {
+   //      try {
+   //         Aladin.STANDALONE=true;
+   //         Aladin.levelTrace=4;
+   //         Aladin.GLUFILE = "C:/AladinUK.dic";
+   //         Glu glu = new Glu(null);
+   //         System.out.println("Glu loaded");
+   //         boolean res = glu.checkIndirection("VizieRXML++", null);
+   //         System.out.println("=> "+glu.getURL("VizieRXML++"));
+   //      } catch( Exception e ) {
+   //         e.printStackTrace();
+   //      }
+   //   }
 
    /**
     * Substitution dans un String des $nn par des parametres.
@@ -1822,7 +1836,7 @@ public final class Glu implements Runnable {
       StringBuffer res = new StringBuffer();
       boolean encode = (mode & ENCODE) == ENCODE;
       boolean isurl = (mode & NOURL) == 0;
-      
+
       // Mappage de la chaine s dans un tableau manipulable
       if( s.length() == 0 ) return "";
       a = s.toCharArray();
@@ -1834,7 +1848,7 @@ public final class Glu implements Runnable {
          num = -1;
          do {
             while( i < a.length && a[i] != '$' ) {
-               
+
                // Si nécessaire, on encode les paramètres lorsqu'on a dépassé le "?" de l'URL
                if( isurl && !encode && !afterQuestion && a[i]=='?' ) {
                   afterQuestion=true;
@@ -1853,11 +1867,13 @@ public final class Glu implements Runnable {
             }
             num--; // Les indices $nnn commence en 1
          } while( num < 0 );
-         
 
+
+         // S'agit-il bien d'un champ &toto=$1&, et non  &toto=yyyy$1xxxx&
+         boolean okToRemovePrefix = offsetNum>=2 && a[offsetNum-2]=='=' && (i>=a.length || a[i]=='&');
          // Recherche de la fin du prefixe
          fin = offsetNum - 1; // Par defaut
-         if( isurl && (num >= param.length || param[num].length() == 0) ) {
+         if( isurl && okToRemovePrefix && (num >= param.length || param[num].length() == 0) ) {
             while( fin > 0 && a[fin] != '&' && a[fin] != '?' ) fin--; // on supprime le "&name="
             if( fin==0 ) fin=offsetNum-1; // De fait avant le '?'
             else if( a[fin] == '?' ) fin++; // On laisse le '?'
@@ -1869,7 +1885,7 @@ public final class Glu implements Runnable {
          // Memorisation de la valeur si necessaire
          if( num < param.length ) {
             res.append(param[num]);
-            
+
             // Encodage des paramètres si dans le paramètre que l'on vient de substituer
             // il y a un '?'
             if( isurl && !encode && !afterQuestion ) {
@@ -1893,7 +1909,7 @@ public final class Glu implements Runnable {
       // Suppression d'un eventuel '?' tout seul en bout
       int n = url.length();
       if( isurl && n>0 && url.charAt(n - 1) == '?' ) url = url.substring(0, n- 1);
-      
+
       return url;
 
    }
@@ -1913,13 +1929,13 @@ public final class Glu implements Runnable {
    String gluResolver(String id, String params, boolean encode,int indirectionIndex) {
       String[] param;
       int i;
-      
+
       // J'enlève les éventuelles options GLU en suffixe de l'identificateur
       i = id.lastIndexOf(',');
       if( i>0 ) id = id.substring(0,i);
 
       if( !chut ) Aladin.trace(3, "Querying the inside GLU <&" + id + (encode ? ",n" : "")
-                              + (params.length()>0 ? " " + params : "") + ">...");
+            + (params.length()>0 ? " " + params : "") + ">...");
 
       // Decoupage des parametres
       param = cutParam(params);
@@ -1935,14 +1951,14 @@ public final class Glu implements Runnable {
          loadRemoteGluRecord(id);
          url = (String) aladinDic.get(id);
       }
-      
+
       // Pas d'indirection, ni de récursitivité alors qu'on demande une alternative
       // => ça va pas le faire
       if( !url.startsWith("%I ") && url.indexOf("<&")<0 && indirectionIndex>1 ) return null;
 
       // Dans le cas d'indirections dans le dico GLU inside
       // J'avais remplacé l'URL par "%I tagGLU\ttagGLU...", il faut donc que je
-      // recherche l'URL réelle (avec éventuellement plusieurs sauts). 
+      // recherche l'URL réelle (avec éventuellement plusieurs sauts).
       // l'indice indirectionIndex indique l'indirection désirée, 1 (la première) par défaut
       for( int bond=0; url != null && url.startsWith("%I "); bond++ ) {
          if( bond>16 ) {
@@ -1964,7 +1980,7 @@ public final class Glu implements Runnable {
             }
             iTag = url.substring(deb,end);
          }
-//         Aladin.trace(4,"Glu.gluResolver("+id+",...) GLU indirections => "+url.replace("\t","|")+" => select: "+iTag);
+         //         Aladin.trace(4,"Glu.gluResolver("+id+",...) GLU indirections => "+url.replace("\t","|")+" => select: "+iTag);
          url = (String) aladinDic.get(iTag);
          indId = iTag;
       }
@@ -1980,9 +1996,9 @@ public final class Glu implements Runnable {
 
       return url;
    }
-   
-   
-   /** Teste les indirections possibles d'une marque GLU et replace un des plus rapides en première position dans la liste %I tag\ttag... 
+
+
+   /** Teste les indirections possibles d'une marque GLU et replace un des plus rapides en première position dans la liste %I tag\ttag...
     * @param urlSuffix permet d'ajouter un suffixe (tel que) à l'URL qui va être testé, null si aucun suffixe
     * @return true si quelque chose à changer
     */
@@ -1991,22 +2007,22 @@ public final class Glu implements Runnable {
       indId=null;
       chut=true;
       try {
-         
+
          // Vérifie qu'il y a au-moins une alternative
          URL u = getURL(id,"",false,false,2);
          if( u==null ) return false;
-         
+
          // Test des indirections, une à une
          // et mémorisation de la plus rapide
          long minTime = Long.MAX_VALUE;
          int indice = 0;
 
          for( int n = 0; ; n++ ) {
-            
+
             // Pour initialiser les éventuelles indirections (BEURK)
             u = getURL(id,"",false,false,n+1);
             if( u==null ) break;
-          
+
             // Soit c'est l'indirection qui porte le %T, et sinon peut être la marque générique
             GluTest gt = indId==null ? null : aladinDicT.get(indId);
             if( gt==null ) gt=aladinDicT.get(id);
@@ -2014,46 +2030,47 @@ public final class Glu implements Runnable {
             boolean encode = gt!=null ? gt.optN : false;
             String pattern = gt!=null ? gt.pattern : null;
             boolean regex = gt!=null ? gt.regex : false;
-            
+
             // pour de vrai
             u = getURL(id,pa,encode,false,n+1);
             String url=u+ (urlSuffix!=null ? urlSuffix : "");
 
             UrlLoader in=null;
-//            MyInputStream in=null;
+            //            MyInputStream in=null;
             long tps=-1;
             try {
                long t1 = System.currentTimeMillis();
                in = new UrlLoader( new URL(url), CHECKTIMEOUT,pattern!=null ? 2: 1);
-//               in = Util.openStream(url,false,CHECKTIMEOUT);
-//               if( in==null ) throw new Exception("Util.openStream error");
-               
+               //               in = Util.openStream(url,false,CHECKTIMEOUT);
+               //               if( in==null ) throw new Exception("Util.openStream error");
+
                // Un pattern à tester ?
                if( pattern!=null ) {
-//                  MyInputStream mis = (new MyInputStream(in)).startRead();
-//                  byte buf[] = mis.readFully();
-//                  byte buf[] = in.readFully();
-//                  String data = new String(buf);
+                  //                  MyInputStream mis = (new MyInputStream(in)).startRead();
+                  //                  byte buf[] = mis.readFully();
+                  //                  byte buf[] = in.readFully();
+                  //                  String data = new String(buf);
                   String data = in.getData();
                   boolean trouve;
-//                  System.out.println("data=["+data+"] pattern=["+pattern+"]");
-                  if( !regex ) trouve=Util.matchMask(pattern, data);
+                  //                  System.out.println("data=["+data+"] pattern=["+pattern+"]");
+                  //                  if( !regex ) trouve=Util.matchMask(pattern, data);
+                  if( !regex ) trouve=data.indexOf(pattern)>=0;
                   else trouve=data.matches(pattern);
-                  
+
                   if( !trouve ) throw new Exception("Pattern not found");
                }
 
                long t2 = System.currentTimeMillis();
                tps = t2-t1;
 
-               // on arrondit au 100 ms prêt, et on ajoute un facteur aléatoire pour 
+               // on arrondit au 100 ms prêt, et on ajoute un facteur aléatoire pour
                // répartir entre serveurs en gros équivalents
                tps = (tps/100L) * 100L;
                tps += (long)(Math.random()*100);
             } catch( Exception e ) {
                tps = -1;
-//            } finally {
-//               if( in!=null ) try { in.close(); } catch( Exception e) {}
+               //            } finally {
+               //               if( in!=null ) try { in.close(); } catch( Exception e) {}
             }
             Aladin.trace(4,"Glu.checkIndirection(...): "+id+"/"+(n+1)+" => "+url+" => "+tps+"ms");
             if( tps!=-1 && tps<minTime ) { minTime=tps; indice=n; }
@@ -2072,7 +2089,7 @@ public final class Glu implements Runnable {
    private boolean chut=false; // pour éviter trop de baratin à l'écran lors d'un checkIndirection
    private String lastId=null;   // Dernière entrée utilisée dans le GLU
    private String indId=null;    // Dernière indirection utilisée dans le GLU (%I xxxx)
-   
+
    // Change l'ordre des indirections en mettant en premier celle d'indice "indiceOfTheBest"
    private void setIndirectionOrderOnLastId(int indiceOfTheBest) {
       if( lastId==null ) return;        // Y a un problème, pas d'entrée mémorisée
@@ -2088,14 +2105,14 @@ public final class Glu implements Runnable {
 
       StringBuffer seeActions = new StringBuffer("%I "+tags[indiceOfTheBest]);
       for( int i=0; i<tags.length; i++ ) if( i!=indiceOfTheBest ) seeActions.append("\t"+tags[i]);
-      
+
       // Mémorisation du nouvel ordre
       aladinDic.put(lastId,seeActions+"");
 
       Aladin.trace(4,"Glu.CheckIndirections("+lastId+") => %I "+tags[indiceOfTheBest]+" => "+getURL(lastId,"",false,false,1));
 
    }
-   
+
    /** Insertion des paramètres dans une chaine système */
    String gluSystem(String system, String params) {
       String[] param = cutParam(params);
@@ -2122,7 +2139,7 @@ public final class Glu implements Runnable {
 
       URL url = getURL(u.substring(i + 2, k).trim(),"",false,false,indirectionIndex);
       if( url==null ) return null;
-      
+
       return u.substring(0, i) + url + u.substring(j + 1);
 
    }
@@ -2148,11 +2165,11 @@ public final class Glu implements Runnable {
          System.out.println(e);
       }
    }
-   
+
    /** Retourne un MyInputStream en fonction d'une URI */
    public MyInputStream getMyInputStream(String uri,boolean withLog) throws Exception {
       MyInputStream is;
-      
+
       if( !uri.startsWith("http:") && !uri.startsWith("ftp:") ) {
          is = new MyInputStream(new FileInputStream( aladin.getFullFileName(uri)));
          is=is.startRead();
@@ -2161,13 +2178,12 @@ public final class Glu implements Runnable {
          URL u;
          if( Aladin.STANDALONE ) u = new URL(uri);
          else u = getURL("Http",uri,true,withLog);
-         
-//         is = new MyInputStream( u.openStream());
+
          is = Util.openStream(u);
       }
       return is;
    }
-   
+
    /**
     * Procedure d'obtention de l'URL en fonction d'un tag GLU. Cette fonction
     * resoud un tag GLU quelque soit le mode de fonctionnement en applet ou en
@@ -2200,21 +2216,21 @@ public final class Glu implements Runnable {
       String tag; // Le tag GLU a utilise
       String option; // Les options de ce tag GLU
       String u; // L'URL a construire sous forme de chaine
-      
+
       // Voir checkIndirection()
       lastId = id;
-      
+
       // Reseau ?
       if( !Aladin.NETWORK ) {
-//         try {
-//            if( id.equalsIgnoreCase("http") ) return new URL(params);
-//         } catch( MalformedURLException e ) {}
-//         System.err.println("getURL failed (no network)");
+         //         try {
+         //            if( id.equalsIgnoreCase("http") ) return new URL(params);
+         //         } catch( MalformedURLException e ) {}
+         //         System.err.println("getURL failed (no network)");
          return null;
       }
 
       if( !chut ) Aladin.trace(4, "Glu.getURL(" + id + (params==null || params.length()==0 ? "": " params=" + params)
-                                    + " encode=" + encode + " withLog=" + withLog + " indexIndirection=" + indexIndirection + ")");
+            + " encode=" + encode + " withLog=" + withLog + " indexIndirection=" + indexIndirection + ")");
       // log
       if( withLog ) {
          log(id, params);
@@ -2265,9 +2281,9 @@ public final class Glu implements Runnable {
    // pour connaitre le numero de la dern version
 
    private boolean lock = false;
-   
+
    /** Attend le lock */
-   private void waitLock() { 
+   private void waitLock() {
       while( !getLock() ) {
          Util.pause(100);
          aladin.trace(4,"Glu.waitLock...");
@@ -2297,12 +2313,12 @@ public final class Glu implements Runnable {
    protected void log(String id, String params) {
 
       if( !Aladin.NETWORK || !Aladin.LOG || !aladin.configuration.isLog() ) return;
-      
+
       // les trucs inutiles ou un peu trop indiscrets
       if( id.equals("VizX") ) return;
       if( id.equals("Load") /* || id.equals("Http") */ ) params="";
       if( id.equals("Http") && params!=null && params.indexOf("u-strasbg.fr")<0 ) params="";
-      
+
       try {
          waitLock(); // verrouillage
          param = ALADINLOG + "?id=" + (id==null ? "":URLEncoder.encode(id)) + "&params="
@@ -2325,8 +2341,9 @@ public final class Glu implements Runnable {
       String tmp = param; // Copie des variables critiques
       boolean flagTmp = flagVers; // Copie des variables critiques
       unlock(); // liberation du verrou
-      
+
       try {
+
 
          // Construction de l'URL par defaut
          if( Aladin.APPLETSERVER == null && Aladin.RHOST == null ) {
@@ -2362,33 +2379,33 @@ public final class Glu implements Runnable {
          if( Aladin.levelTrace>=3 ) elog.printStackTrace();
       }
    }
-   
+
    private int logCpt=0;
    private Object lockLog = new Object();
-   
+
    /** Retourne true si on est en train d'envoyer un log */
-   protected boolean isLogging() { 
-      synchronized(lockLog) { 
-         return logCpt>0; 
+   protected boolean isLogging() {
+      synchronized(lockLog) {
+         return logCpt>0;
       }
    }
-   
+
    private void logIncr() { synchronized(lockLog) { logCpt++; } }
    private void logDecr() { synchronized(lockLog) { logCpt--; } }
-   
+
    /** Classe pour mémoriser un test GLU - supporte les deux syntaxes parfile */
    class GluTest {
       String pattern;   // pattern pour vérifier le test, ou null si aucun
       boolean regex;    // true si le pattern est une expression régulière (sans les /.../ délimiteurs)
       String params;    // paramètres ou null si aucun
       boolean optN;     // true si les paramètres sont déjà httpencodés
-      
+
       GluTest(String s,boolean longSyntax) throws Exception {
          if( longSyntax ) set1(s);
          else set0(s);
-//         Aladin.trace(4,"Glu.GluTest => "+this);
+         //         Aladin.trace(4,"Glu.GluTest => "+this);
       }
-      
+
       // Insertion syntaxe courte
       // => pattern:option:param
       private void set0(String s) throws Exception {
@@ -2397,7 +2414,7 @@ public final class Glu implements Runnable {
          if( i==-1 || j==-1 ) throw new Exception("%T syntax error ["+s+"]");
          set(i>0?s.substring(0,i):null,i+1<j?s.substring(i+1,j):null,s.substring(j+1));
       }
-      
+
       // Insertion syntaxe longue
       // => pattern="xxx" option="xxx" param="xxx"
       String PATTERN = "pattern=", OPTION  = "option=", PARAM   = "param=";
@@ -2407,18 +2424,18 @@ public final class Glu implements Runnable {
          if( (i=s.indexOf(PATTERN))>=0 ) pt = new Tok(s.substring(i+PATTERN.length())).nextToken();
          if( (i=s.indexOf(OPTION))>=0 )  op = new Tok(s.substring(i+OPTION.length())).nextToken();
          if( (i=s.indexOf(PARAM))>=0 )   pa = new Tok(s.substring(i+PARAM.length())).nextToken();
-         set(pt,op,pa);         
+         set(pt,op,pa);
       }
-      
+
       private void set(String pt,String op, String pa) {
          if( pt!=null && pt.length()>0 ) {
             regex = pt.length()>2 && pt.charAt(0)=='/';
             pattern = regex ? pt.substring(1,pt.length()-1) : pt;
          }
-         optN = op!=null && op.indexOf('n')>=0; 
+         optN = op!=null && op.indexOf('n')>=0;
          if( pa!=null && pa.length()>0 ) params=pa;
       }
-      
+
       public String toString() {
          StringBuffer s = new StringBuffer();
          if( pattern!=null ) s.append(" pattern=["+pattern+"]");
@@ -2428,6 +2445,6 @@ public final class Glu implements Runnable {
          return s.toString();
       }
    }
-   
+
 
 }

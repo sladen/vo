@@ -20,16 +20,47 @@
 
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.dnd.*;
-import java.awt.event.*;
+import java.awt.AWTEvent;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Event;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Label;
+import java.awt.Point;
+import java.awt.Toolkit;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DragGestureEvent;
+import java.awt.dnd.DragGestureListener;
+import java.awt.dnd.DragSourceDragEvent;
+import java.awt.dnd.DragSourceDropEvent;
+import java.awt.dnd.DragSourceEvent;
+import java.awt.dnd.DragSourceListener;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.dnd.DropTargetEvent;
+import java.awt.dnd.DropTargetListener;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.WindowEvent;
 import java.io.DataInputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.Vector;
 
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JToggleButton;
+import javax.swing.KeyStroke;
 
 import cds.tools.Util;
 
@@ -45,98 +76,98 @@ import cds.tools.Util;
  * @version 0.9 : (??) creation
  */
 public final class ServerDialog extends JFrame
-             implements WidgetFinder, Runnable, ActionListener,
-                        DropTargetListener, DragSourceListener, DragGestureListener {
-	static final int MAXSERVER = 10;
+implements SwingWidgetFinder, Runnable, ActionListener,
+DropTargetListener, DragSourceListener, DragGestureListener {
+   static final int MAXSERVER = 10;
 
-	// Les indices des serveurs
-	static int ALADIN = 0;
-	static int SIMBAD = 0;
-	static int NED = 0;
-	static int VIZIER = 0;
-	static int FIELD = 0;
-	static int LOCAL = 0;
+   // Les indices des serveurs
+   static int ALADIN = 0;
+   static int SIMBAD = 0;
+   static int NED = 0;
+   static int VIZIER = 0;
+   static int FIELD = 0;
+   static int LOCAL = 0;
 
-    static final String VO_RESOURCES_BY_PLASTIC = "VO res.";
+   static final String VO_RESOURCES_BY_PLASTIC = "VO res.";
 
-	static final String DEFAULTTAILLE = "14";
-	protected String defaultTarget="";            // Le target par defaut
-    protected String defaultTaille=DEFAULTTAILLE; // La taille par defaut (rayon arcmin)
-    protected String defaultDate;                 // La date par défaut
+   static final String DEFAULTTAILLE = "14";
+   protected String defaultTarget="";            // Le target par defaut
+   protected String defaultTaille=DEFAULTTAILLE; // La taille par defaut (rayon arcmin)
+   protected String defaultDate;                 // La date par défaut
 
-	// Les chaines
-	String TITLE,/*HISTORY,*/SUBMIT,RESET,CLEAR,HELP,CLOSE,IMG,CAT,OTHER,MESSAGE,
-           TIPRESET,TIPCLEAR,TIPSUBMIT,TIPCLOSE;
+   // Les chaines
+   String TITLE,/*HISTORY,*/SUBMIT,RESET,CLEAR,HELP,CLOSE,IMG,CAT,OTHER,MESSAGE,
+   TIPRESET,TIPCLEAR,TIPSUBMIT,TIPCLOSE;
 
-	// Les composantes de l'objet
-	Server[] server;
-	JPanel mp; // le panel multiple des formulaires
-	CardLayout card; // et son layout associe
-	SelectDialog selectDialog; // L'entourage du panel multiple des formulaires
-	Label status; // Le status
-	MyButton buttons[]; // Liste des boutons
+   // Les composantes de l'objet
+   Server[] server;
+   JPanel mp; // le panel multiple des formulaires
+   CardLayout card; // et son layout associe
+   SelectDialog selectDialog; // L'entourage du panel multiple des formulaires
+   Label status; // Le status
+   MyButton buttons[]; // Liste des boutons
 
-    // popup d'accès aux serveurs ajoutés par l'utilisateur via PLASTIC
-    ServerFolder voResPopup;
+   // popup d'accès aux serveurs ajoutés par l'utilisateur via PLASTIC
+   ServerFolder voResPopup;
 
-	// Les infos a memoriser
-	int current = 0; // le formulaire courant
-	int bcurrent = 0; // le bouton courant
+   // Les infos a memoriser
+   int current = 0; // le formulaire courant
+   int bcurrent = 0; // le bouton courant
 
-	protected boolean flagSetPos = false; // true si la position de la fenêtre a
-										// déjà été calculée
+   protected boolean flagSetPos = false; // true si la position de la fenêtre a
+   // déjà été calculée
 
-	// pour robot
-	Server curServer, localServer, vizierServer,vizierArchives,vizierSurveys,
-           vizierBestof,discoveryServer, aladinServer, fovServer, almaFovServer, vizierSED;
-	JButton submit;
+   // pour robot
+   Server curServer, localServer, vizierServer,vizierArchives,vizierSurveys,
+   vizierBestof,discoveryServer, aladinServer, fovServer, almaFovServer, vizierSED, hipsServer;
+   JButton submit;
 
-	// Les references aux autres objets
-	Aladin aladin;
-	Calque calque;
+   // Les references aux autres objets
+   Aladin aladin;
+   Calque calque;
 
-	/** Retourne le target par défaut en J2000 */
-	protected String getDefaultTargetJ2000(){
-       return defaultTarget.trim();
-	}
+   /** Retourne le target par défaut en J2000 */
+   protected String getDefaultTargetJ2000(){
+      return defaultTarget.trim();
+   }
 
-    /** Retourne le target par défaut dans le frame courant */
-    protected String getDefaultTarget(){
-       return aladin.localisation.getFrameCoord(defaultTarget.trim());
-    }
+   /** Retourne le target par défaut dans le frame courant */
+   protected String getDefaultTarget(){
+      return aladin.localisation.getFrameCoord(defaultTarget.trim());
+   }
 
-	/** Retourne la taille par défaut */
-	protected String getDefaultTaille(){ return defaultTaille.trim(); }
+   /** Retourne la taille par défaut */
+   protected String getDefaultTaille(){ return defaultTaille.trim(); }
 
-	/** Retourne la date par défaut */
-	protected String getDefaultDate() { return defaultDate; }
+   /** Retourne la date par défaut */
+   protected String getDefaultDate() { return defaultDate; }
 
-    /** Mémorisation de la dernière date  */
-    protected void setDefaultDate(String s) { defaultDate=s; }
+   /** Mémorisation de la dernière date  */
+   protected void setDefaultDate(String s) { defaultDate=s; }
 
-    /** Memorisation du dernier target saisie par la saisie rapide */
-    protected void setDefaultTarget(String s) {
-       if( s.equals(" --   --") ) return;
-//       System.out.println("setDefaultTarget("+s+")");
-       defaultTarget=aladin.localisation.getICRSCoord(s);
-    }
+   /** Memorisation du dernier target saisie par la saisie rapide */
+   protected void setDefaultTarget(String s) {
+      if( s.equals(" --   --") ) return;
+      //       System.out.println("setDefaultTarget("+s+")");
+      defaultTarget=aladin.localisation.getICRSCoord(s);
+   }
 
-	/** Memorisation de la taille du plan passé en paramètre */
-	protected void setDefaultTaille(Plan p) {
-	   if( !Projection.isOk(p.projd) ) return;
-	   double rm = Math.max(p.projd.rm,p.projd.rm1);
-	   defaultTaille = (rm>0. ? 1.4142*(rm/2)+"" : DEFAULTTAILLE);
-//	   System.out.println("SetDefaultTaille => "+defaultTaille);
-	}
+   /** Memorisation de la taille du plan passé en paramètre */
+   protected void setDefaultTaille(Plan p) {
+      if( !Projection.isOk(p.projd) ) return;
+      double rm = Math.max(p.projd.rm,p.projd.rm1);
+      defaultTaille = (rm>0. ? 1.4142*(rm/2)+"" : DEFAULTTAILLE);
+      //	   System.out.println("SetDefaultTaille => "+defaultTaille);
+   }
 
-	/** Memorisation de la dernière taille par la saisie rapide */
-	protected void setDefaultTaille(String s) {
-	   if( s==null ) s=DEFAULTTAILLE;
-//	   System.out.println("SetDefaultTaille("+s+")");
-	   defaultTaille=s;
-	}
+   /** Memorisation de la dernière taille par la saisie rapide */
+   protected void setDefaultTaille(String s) {
+      if( s==null ) s=DEFAULTTAILLE;
+      //	   System.out.println("SetDefaultTaille("+s+")");
+      defaultTaille=s;
+   }
 
-	/**
+   /**
     * Ajoute au Vecteur sv les serveurs decrits par le GLU (Glu.vGluServer). Le
     * serveur peut se trouver dans un sous-menu Popup (myPopup!=null) ou avoir
     * un bouton a part entiere
@@ -144,7 +175,7 @@ public final class ServerDialog extends JFrame
     *           serveurs Images, Donnees, ou applications distantes
     */
    private void addGluServer(Vector<Server> sv, int type) {
-//      Enumeration e = Glu.vGluServer.elements();
+      //      Enumeration e = Glu.vGluServer.elements();
       Server sTmp;
       int i;
 
@@ -154,7 +185,7 @@ public final class ServerDialog extends JFrame
 
          // Correction du bug multi-instances d'Aladin dans le cas de l'applet
          // Les fomulaires GLU faisaient référence à la première instance d'Aladin
-//         sTmp.aladin = aladin;
+         //         sTmp.aladin = aladin;
 
          sv.addElement(sTmp);
 
@@ -172,13 +203,13 @@ public final class ServerDialog extends JFrame
                i = sv.size(); // Indice de son emplacement
                sv.addElement(new ServerFolder(aladin, sTmp.aladinMenu, i,
                      type == Server.IMAGE ? ServerFolder.LEFT :
-                     type == Server.CATALOG ? ServerFolder.RIGHT : ServerFolder.TOP ));
+                        type == Server.CATALOG ? ServerFolder.RIGHT : ServerFolder.TOP ));
             }
             ((ServerFolder) sv.elementAt(i)).addItem(sTmp.aladinLabel);
          }
       }
    }
-   
+
    /** Retourne l'indice du formulaire du dernier Serveur GLU chargé
     * => afin de pouvoir le rendre visible immédiatement le cas échéant */
    protected int getLastGluServerIndice() {
@@ -197,19 +228,19 @@ public final class ServerDialog extends JFrame
    private Vector triServer(Vector sv) {
 
       // En mode Outreach, simple Tri sur les noms
-//      if( Aladin.OUTREACH ) {
-//         Collections.sort(sv,new Comparator() {
-//
-//            public int compare(Object arg0, Object arg1) {
-//               Server v0 = (Server)arg0;
-//               Server v1 = (Server)arg1;
-//               if( v0.type!=Server.IMAGE || v1.type!=Server.IMAGE ) return 0;
-//               return v0.nom.compareTo(v1.nom);
-//            }
-//
-//         });
-//         return sv;
-//      }
+      //      if( Aladin.OUTREACH ) {
+      //         Collections.sort(sv,new Comparator() {
+      //
+      //            public int compare(Object arg0, Object arg1) {
+      //               Server v0 = (Server)arg0;
+      //               Server v1 = (Server)arg1;
+      //               if( v0.type!=Server.IMAGE || v1.type!=Server.IMAGE ) return 0;
+      //               return v0.nom.compareTo(v1.nom);
+      //            }
+      //
+      //         });
+      //         return sv;
+      //      }
 
       Vector v = new Vector(sv.size());
       Vector vFirst = new Vector(10);
@@ -245,12 +276,12 @@ public final class ServerDialog extends JFrame
       int j = v.size();
       for( int i = 0; i < 6; i++ ) {
          e = i == 0 ? vFirst.elements() : i==1 ? vPop.elements() : i==2 ? vOther.elements() :
-             i==4 ? vEnd1.elements() : i==5 ? vEnd2.elements() : vEnd3.elements();
-         while( e.hasMoreElements() ) {
-            Server s = (Server) e.nextElement();
-            if( s instanceof ServerFolder ) ((ServerFolder)s).numButton = j++;
-            v.addElement(s);
-         }
+            i==4 ? vEnd1.elements() : i==5 ? vEnd2.elements() : vEnd3.elements();
+            while( e.hasMoreElements() ) {
+               Server s = (Server) e.nextElement();
+               if( s instanceof ServerFolder ) ((ServerFolder)s).numButton = j++;
+               v.addElement(s);
+            }
       }
 
       return v;
@@ -263,11 +294,10 @@ public final class ServerDialog extends JFrame
 
    protected void createChaine() {
       TITLE   = aladin.chaine.getString("SERVERTITLE");
-//      HISTORY = aladin.chaine.getString("HISTORY");
+      //      HISTORY = aladin.chaine.getString("HISTORY");
       SUBMIT  = aladin.chaine.getString("SUBMIT");
       RESET   = aladin.chaine.getString("RESET");
       CLEAR   = aladin.chaine.getString("CLEAR");
-      HELP    = aladin.chaine.getString("CMHELP");
       CLOSE   = aladin.chaine.getString("CLOSE");
       IMG     = aladin.chaine.getString("IMG");
       CAT     = aladin.chaine.getString("CAT");
@@ -280,7 +310,7 @@ public final class ServerDialog extends JFrame
    }
 
 
-long t1,t;
+   long t1,t;
    /**
     * Creation de l'interface et de tous les formulaires necessaires a l'acces
     * aux bases
@@ -305,13 +335,13 @@ long t1,t;
       },
       KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE,0),
       JComponent.WHEN_IN_FOCUSED_WINDOW
-      );
+            );
       getRootPane().registerKeyboardAction(new ActionListener() {
          public void actionPerformed(ActionEvent e) { trapESC(); }
       },
       KeyStroke.getKeyStroke(KeyEvent.VK_W,Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()),
       JComponent.WHEN_IN_FOCUSED_WINDOW
-      );
+            );
 
       JLabel status = new JLabel(""); status.setFont( Aladin.LITALIC );
       status.setForeground( Color.blue );
@@ -345,8 +375,8 @@ long t1,t;
             }
          } else {
             sv.addElement(new ServerSimbad(aladin));
-//            sv.addElement(vizierBestof = new BestofServer(aladin,
-//                  ((VizieRServer) svizier).vSurveys));
+            //            sv.addElement(vizierBestof = new BestofServer(aladin,
+            //                  ((VizieRServer) svizier).vSurveys));
             sv.addElement(vizierSurveys = new ServerVizieRSurvey(aladin,
                   ((ServerVizieR) svizier).vSurveys));
             sv.addElement(vizierArchives = new ServerVizieRMission(aladin,
@@ -362,8 +392,8 @@ long t1,t;
       // liste
       if( !Aladin.OUTREACH ) sv = triServer(sv);
 
-      // L'arbre des allsky
-      sv.addElement(new ServerHips(aladin));
+      // L'arbre des HiPS
+      sv.addElement(hipsServer = new ServerHips(aladin));
 
       // L'acces local/url
       sv.addElement(localServer = new ServerFile(aladin));
@@ -401,9 +431,9 @@ long t1,t;
          addGluServer(sv, Server.APPLI | Server.APPLIIMG);
 
       // Serveurs obtenus via PLASTIC
-//      if( !Aladin.OUTREACH && Aladin.PROTO && Aladin.PLASTIC_SUPPORT ) {
-//         sv.addElement(voResPopup = new ServerFolder(aladin, VO_RESOURCES_BY_PLASTIC, sv.size()-1, ServerFolder.TOP));
-//      }
+      //      if( !Aladin.OUTREACH && Aladin.PROTO && Aladin.PLASTIC_SUPPORT ) {
+      //         sv.addElement(voResPopup = new ServerFolder(aladin, VO_RESOURCES_BY_PLASTIC, sv.size()-1, ServerFolder.TOP));
+      //      }
 
       // Construction des panel des boutons
       JPanel buttonTop = new JPanel();
@@ -474,7 +504,7 @@ long t1,t;
             continue;
          }
 
-              if( server[i] instanceof ServerFile )  LOCAL = i;
+         if( server[i] instanceof ServerFile )  LOCAL = i;
          else if( server[i] instanceof ServerFoV )  FIELD = i;
          else if( server[i] instanceof ServerVizieR ) {
             VIZIER = i;
@@ -509,21 +539,21 @@ long t1,t;
                gbdat.setConstraints(buttons[i],gcdat);
                buttonData.add(buttons[i]);
             } else {
-                lastTop=buttons[i] = new MyButton(aladin, status, MyButton.TOP,
-                        server[i].aladinLabel, server[i].description);
-                gbtop.setConstraints(buttons[i],gctop);
-                buttonTop.add(buttons[i]);
+               lastTop=buttons[i] = new MyButton(aladin, status, MyButton.TOP,
+                     server[i].aladinLabel, server[i].description);
+               gbtop.setConstraints(buttons[i],gctop);
+               buttonTop.add(buttons[i]);
             }
             buttons[i].setAlwaysUp(false);
             buttons[i].setModeMenu(true);
             if( server[i].aladinLogo!=null ) {
-              try {
-              	 buttons[i].setBackGroundLogo(aladin.getImagette(server[i].aladinLogo),
-              	 		server[i] instanceof ServerFolder ? MyButton.WITHLABEL:
-              	 			MyButton.NOLABEL );
-              } catch( Exception e ) {
-                 System.err.println(e.getMessage());
-              }
+               try {
+                  buttons[i].setBackGroundLogo(aladin.getImagette(server[i].aladinLogo),
+                        server[i] instanceof ServerFolder ? MyButton.WITHLABEL:
+                           MyButton.NOLABEL );
+               } catch( Exception e ) {
+                  System.err.println(e.getMessage());
+               }
             }
          }
       }
@@ -585,8 +615,8 @@ long t1,t;
       actions.add((m=new JButton(CLEAR)));    // m.setModeMenu(true);
       m.addActionListener(this); m.setOpaque(false);
       m.setToolTipText(TIPCLEAR);
-//      actions.add((m=new JButton(HISTORY)));  // m.setModeMenu(true);
-//      m.addActionListener(this);
+      //      actions.add((m=new JButton(HISTORY)));  // m.setModeMenu(true);
+      //      m.addActionListener(this);
       actions.add(new JLabel("           "));
       m=submit = new JButton(SUBMIT);         // m.setModeMenu(true);
       m.addActionListener(this); m.setOpaque(false);
@@ -614,7 +644,7 @@ long t1,t;
       JPanel ct = (JPanel)getContentPane();
       ct.setOpaque(true);
       ct.setLayout(new BorderLayout(0,0));
-//      ct.setBackground(new Color(250,249,245));
+      //      ct.setBackground(new Color(250,249,245));
       ct.setBorder(BorderFactory.createEmptyBorder(3,3,0,3));
       Aladin.makeAdd(ct, buttonTop, "North");
       Aladin.makeAdd(ct, milieu, "Center");
@@ -625,8 +655,8 @@ long t1,t;
       setCurrent("hips");
 
       // INUTILE, C'EST MAINTENANT ASSEZ RAPIDE !
-//      Thread th = new Thread(this,"AladinServerPack");
-//      th.start();
+      //      Thread th = new Thread(this,"AladinServerPack");
+      //      th.start();
       run();
    }
 
@@ -677,9 +707,9 @@ long t1,t;
       try {
 
          url = aladin.glu.getURL("IVOAdic");
-//         String s = Aladin.STANDALONE ? "http://aladin.u-strasbg.fr/java"
-//               : Aladin.CGIPATH;
-//         url = new URL(s + "/nph-aladin.pl?frame=ivoadic");
+         //         String s = Aladin.STANDALONE ? "http://aladin.u-strasbg.fr/java"
+         //               : Aladin.CGIPATH;
+         //         url = new URL(s + "/nph-aladin.pl?frame=ivoadic");
 
          Aladin.trace(1, "Loading the remote IVOA glu dictionary");
          Aladin.trace(3, "  => " + url);
@@ -690,8 +720,8 @@ long t1,t;
 
          int n = aladin.glu.vGluServer.size();
          if( n == 0 ) {
-             ivoaServersLoaded = false;
-             return false;
+            ivoaServersLoaded = false;
+            return false;
          }
 
          Server newServer[] = new Server[server.length + n];
@@ -719,31 +749,31 @@ long t1,t;
    // pour workshop Euro-VO
    synchronized protected void appendServersFromStream(InputStream is) {
 
-	      try {
+      try {
 
-	    	 DataInputStream dis = new DataInputStream(is);
-	         aladin.glu.vGluServer = new Vector(50);
-	         aladin.glu.loadGluDic(dis,true,false);
+         DataInputStream dis = new DataInputStream(is);
+         aladin.glu.vGluServer = new Vector(50);
+         aladin.glu.loadGluDic(dis,true,false);
 
-	         int n = aladin.glu.vGluServer.size();
-	         if( n == 0 ) return;
+         int n = aladin.glu.vGluServer.size();
+         if( n == 0 ) return;
 
-	         Server newServer[] = new Server[server.length + n];
-	         System.arraycopy(server, 0, newServer, 0, server.length);
+         Server newServer[] = new Server[server.length + n];
+         System.arraycopy(server, 0, newServer, 0, server.length);
 
-	         for( int i = 0; i < n; i++ ) {
-	            newServer[server.length + i] = (Server) aladin.glu.vGluServer
-	                  .elementAt(i);
-	         }
+         for( int i = 0; i < n; i++ ) {
+            newServer[server.length + i] = (Server) aladin.glu.vGluServer
+                  .elementAt(i);
+         }
 
-	         server = newServer;
-	         newServer = null;
+         server = newServer;
+         newServer = null;
 
-	      } catch( Exception e ) {
-	         e.printStackTrace();
-	         System.err.println("Problem while adding servers");
-	      }
-	   }
+      } catch( Exception e ) {
+         e.printStackTrace();
+         System.err.println("Problem while adding servers");
+      }
+   }
 
    /**
     * Retourne l'indice du serveur correspondant a un nom de serveur, sinon -1
@@ -753,7 +783,7 @@ long t1,t;
       for( j = 0; j < server.length; j++ ) {
          if( server[j].is(s) ) return j;
       }
-//      if( s.equalsIgnoreCase("allsky") ) return Integer.MAX_VALUE;
+      //      if( s.equalsIgnoreCase("allsky") ) return Integer.MAX_VALUE;
       return -1;
    }
 
@@ -765,16 +795,16 @@ long t1,t;
 
 
    // Gestion des evenement
-//   public boolean handleEvent(Event e) {
-//      // pour sortir du mode Robot
-//      if( e.id == Event.KEY_PRESS && e.key == java.awt.event.KeyEvent.VK_ESCAPE
-//            && aladin.command.robotMode ) {
-//         aladin.stopRobot(this);
-//         return true;
-//      }
-//      if( (e.id == Event.WINDOW_DESTROY) ) cache();
-//      return super.handleEvent(e);
-//   }
+   //   public boolean handleEvent(Event e) {
+   //      // pour sortir du mode Robot
+   //      if( e.id == Event.KEY_PRESS && e.key == java.awt.event.KeyEvent.VK_ESCAPE
+   //            && aladin.command.robotMode ) {
+   //         aladin.stopRobot(this);
+   //         return true;
+   //      }
+   //      if( (e.id == Event.WINDOW_DESTROY) ) cache();
+   //      return super.handleEvent(e);
+   //   }
 
    /** Action sur une ESC */
    private void trapESC() {
@@ -916,12 +946,12 @@ long t1,t;
       String epoch = null;
       String objet = null;
 
-// BUG [issue154] SI JE NE COMMENTE PAS CETTE LIGNE DE TOUTE FACON INUTILE,
-// IL N'Y AURA PAS MISE A JOUR DES TARGET/RADIUS/DATE SI LE FORMULAIRE
-// COURANT ET UN CHARGEMENT DE FICHIER, OR SI ON CHARGE UN SCRIPT AJS VIA CE FORMULAIRE
-// LES COMMANDES TELLES QUE SKYBOT NE PRENDRONT PAS LA DATE PAR DEFAUT
+      // BUG [issue154] SI JE NE COMMENTE PAS CETTE LIGNE DE TOUTE FACON INUTILE,
+      // IL N'Y AURA PAS MISE A JOUR DES TARGET/RADIUS/DATE SI LE FORMULAIRE
+      // COURANT ET UN CHARGEMENT DE FICHIER, OR SI ON CHARGE UN SCRIPT AJS VIA CE FORMULAIRE
+      // LES COMMANDES TELLES QUE SKYBOT NE PRENDRONT PAS LA DATE PAR DEFAUT
       // pas de target pour les plans de type LOCAL
-//      if( i == LOCAL || server[i] instanceof MyPopup ) return;
+      //      if( i == LOCAL || server[i] instanceof MyPopup ) return;
 
       // Recuperation de la chaine en cours de saisie
       if( mode == 1 || mode == 2 || mode == 5 ) {
@@ -946,7 +976,7 @@ long t1,t;
                if( v.pref.isImage() ) {
                   Calib c = proj.c;
                   taille = Coord.getUnit(c.getImgWidth()) + " x "
-                  + Coord.getUnit(c.getImgHeight());
+                        + Coord.getUnit(c.getImgHeight());
                } else {
                   taille = Coord.getUnit(proj.rm / 120.);
                }
@@ -972,32 +1002,36 @@ long t1,t;
 
       String defTarget = lastTarget != null ? lastTarget
             : objet != null ? aladin.localisation.getFrameCoord(objet) : radec != null ? aladin.localisation.getFrameCoord(radec) : "";
-      String defTaille;
-      if( mode == 5 ) defTaille = lastTaille != null ? lastTaille : taille;
-      else defTaille = taille != null ? taille : lastTaille;
+            String defTaille;
+            if( mode == 5 ) defTaille = lastTaille != null ? lastTaille : taille;
+            else defTaille = taille != null ? taille : lastTaille;
 
-      setDefaultTarget(defTarget);
-      if( server[i].modeRad != Server.NOMODE ) setDefaultTaille(taille);
+            setDefaultTarget(defTarget);
+            if( server[i].modeRad != Server.NOMODE ) setDefaultTaille(taille);
 
-      // Positionnement de l'epoque d'observation
-      if( v!=null ) {
-         epoch = v.getEpoch();
-         if( epoch != null ) server[i].setDate(epoch);
-         else if( v.pref instanceof PlanImage ) {
-            epoch = ((PlanImage)v.pref).getDateObs();
-            if( epoch!=null ) server[i].setDate(epoch);
-         }
-         setDefaultDate(epoch);
-      }
+            // Positionnement de l'epoque d'observation
+            if( v!=null ) {
+               epoch = v.getEpoch();
+               if( epoch != null ) server[i].setDate(epoch);
+               else if( v.pref instanceof PlanImage ) {
+                  epoch = ((PlanImage)v.pref).getDateObs();
+                  if( epoch!=null ) server[i].setDate(epoch);
+               }
+               setDefaultDate(epoch);
+            }
 
-      // Si le formulaire a un arbre de métadata non vide, on ne met pas
-      // à jour le target à moins que le target soit vide
-      if( server[i].tree != null && !server[i].tree.isEmpty()
-            && (server[i].target==null || server[i].target.getText().trim().length()!=0 ) ) return;
+            // Si le formulaire a un arbre de métadata non vide, on ne met pas
+            // à jour le target à moins que le target soit vide
+            if( server[i].tree != null && !server[i].tree.isEmpty()
+                  && (server[i].target==null || server[i].target.getText().trim().length()!=0 ) ) return;
 
-      server[i].setTarget(defTarget);
-      if( defTaille != null && defTaille.trim().length()!=0
-        && server[i].modeRad != Server.NOMODE ) server[i].resolveRadius(defTaille, true);
+            server[i].setTarget(defTarget);
+            try {
+               if( defTaille != null && defTaille.trim().length()!=0
+                     && server[i].modeRad != Server.NOMODE ) server[i].resolveRadius(defTaille, true);
+            } catch( Exception e ) {
+               if( aladin.levelTrace>=3 ) e.printStackTrace();
+            }
 
    }
 
@@ -1013,12 +1047,12 @@ long t1,t;
       }
    }
 
-//   protected String getDefaultRadius() {
-//      Plan p;
-//
-//      if( (p = aladin.calque.getPlanRef()) == null || !Projection.isOk(p.projd) ) return "14";
-//      return "" + (Math.floor((p.projd.rm / 2) * 1.4142));
-//   }
+   //   protected String getDefaultRadius() {
+   //      Plan p;
+   //
+   //      if( (p = aladin.calque.getPlanRef()) == null || !Projection.isOk(p.projd) ) return "14";
+   //      return "" + (Math.floor((p.projd.rm / 2) * 1.4142));
+   //   }
 
    /** Affiche la fenêtre. Attend éventuellement la fin d'un pack en cours */
    void showNow() {
@@ -1114,6 +1148,8 @@ long t1,t;
       super.toFront();
    }
 
+
+
    /** retourne l'indice d'un serveur */
    private int findIndiceServer(Server x) {
       for( int i = 0; i < server.length; i++ ) {
@@ -1142,7 +1178,7 @@ long t1,t;
 
    /** Retourne la liste des noms de servers d'un certain type
     * On fait deux tours pour compter au préalable le nombre d'élus.*/
-      protected String [] getServerNames(int type,boolean all) {
+   protected String [] getServerNames(int type,boolean all) {
       int n=0;
       String [] res=null;
 
@@ -1156,7 +1192,7 @@ long t1,t;
             if( !all && !(server[i] instanceof ServerGlu) ) continue;
             String s[] = server[i].getNomPaths();
             if( j==1 ) {
-              for( int k=0; k<s.length; k++ ) res[n+k] = s[k];
+               for( int k=0; k<s.length; k++ ) res[n+k] = s[k];
             }
             n+=s.length;
          }
@@ -1220,7 +1256,7 @@ long t1,t;
       // maj de la taille des Choice (thomas pour randy)
       // TODO : ce n'est certainement plus necessaire
       if( server[i] instanceof ServerGlu ) ((ServerGlu) server[i])
-            .majChoiceSize();
+      .majChoiceSize();
 
       card.show(mp, server[i].aladinLabel);
 
@@ -1246,7 +1282,7 @@ long t1,t;
       // On cache, on reset, on submit
       if( CLOSE.equals(s) ) {
          server[current].memTarget(); // Memorisation du precédent target
-//         myClose.normal();
+         //         myClose.normal();
          cache();
          return;
       }
@@ -1297,4 +1333,52 @@ long t1,t;
       if( name.equalsIgnoreCase("aladin") ) return cl.getLocation( buttons[ALADIN], this);
       return null;
    }
+
+
+   public void show() {
+      super.show();
+      startHipsUpdater();
+   }
+
+   public void hide() {
+      stopHipsUpdater();
+      super.hide();
+   }
+
+   private Thread threadUpdater=null;
+   private boolean encore=true;
+
+   private void startHipsUpdater() {
+      if( threadUpdater==null ) {
+         threadUpdater = new Updater("HipsUpdater");
+         threadUpdater.start();
+      } else encore=true;
+   }
+
+   private void stopHipsUpdater() { encore=false; }
+
+   class Updater extends Thread {
+      public Updater(String s) { super(s); }
+
+      public void run() {
+         encore=true;
+         //         System.out.println("Hips updater running");
+         while( encore ) {
+            try {
+               //               System.out.println("Hips updater checking...");
+               if( isOpened() ) ((ServerHips)aladin.dialog.hipsServer).hipsUpdate();
+               Thread.currentThread().sleep(1000);
+            } catch( Exception e ) { }
+         }
+         //         System.out.println("Hips updater stopped");
+         threadUpdater=null;
+      }
+   }
+
+   private boolean isOpened() {
+//      Window window = SwingUtilities.windowForComponent(this);
+      return isVisible();
+   }
+
+
 }

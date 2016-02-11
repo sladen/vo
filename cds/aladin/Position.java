@@ -20,6 +20,8 @@
 
 package cds.aladin;
 
+import healpix.essentials.FastMath;
+
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -27,11 +29,6 @@ import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Vector;
-
-import javax.swing.JTextField;
 
 import cds.aladin.Hist.HistItem;
 import cds.tools.Util;
@@ -55,9 +52,9 @@ public class Position extends Obj {
    protected double xv[],yv[];   // Position de l'objet pour chaque vue
 
    /** Variables statiques utilisées pour le calcul des statistiques sur un polygone */
-   static int minx,maxx;
-   static int miny,maxy;
-   static int posx,posy;    // position pour l'accrochage du label (-1,-1 si non fourni)
+   static double minx,maxx;
+   static double miny,maxy;
+   static double posx,posy;    // position pour l'accrochage du label (-1,-1 si non fourni)
    static double total;
    static double carre;
    static int nombre;
@@ -65,6 +62,7 @@ public class Position extends Obj {
    static double moyenne;
    static double variance;
    static double sigma;
+   static double minimum,maximum;
    static double mediane;
    static final int MAXMEDIANE = 10000;
    static int medianeArrayNb=0;
@@ -91,7 +89,7 @@ public class Position extends Obj {
    */
 
    protected void createCacheXYVP() {
-      createCacheXYVP(plan==null?ViewControl.MAXVIEW:plan.type==Plan.X?0:plan.aladin.view.modeView);
+      createCacheXYVP( plan==null ? ViewControl.MAXVIEW : plan.type==Plan.X ? 0:plan.aladin.view.getNbView());
    }
    protected void createCacheXYVP(int dim) {
      if( dim==0 ) return;
@@ -225,7 +223,8 @@ public class Position extends Obj {
 
       if( ok ) {
          View view= plan.aladin.view;
-         for( int i=0; i<view.modeView; i++ ) {
+         int m = view.getNbView();
+         for( int i=0; i<m; i++ ) {
             ViewSimple vx = view.viewSimple[i];
             if( vx!=v && !vx.isFree() ) projection(vx);
          }
@@ -346,7 +345,7 @@ public class Position extends Obj {
       double x = xv[v.n]-x0;
       double y = yv[v.n]-y0;
       double cost,sint;
-      xv[v.n] = x0+ x*(cost=Math.cos(theta)) - y*(sint=Math.sin(theta));
+      xv[v.n] = x0+ x*(cost=FastMath.cos(theta)) - y*(sint=FastMath.sin(theta));
       yv[v.n] = y0+ x*sint + y*cost;
       setCoord(v);
    }
@@ -363,7 +362,8 @@ public class Position extends Obj {
 //      if( raj>=360.) raj-=360;
 //      if( raj<0.) raj+=360;
       View view= plan.aladin.view;
-      for( int i=0; i<view.modeView; i++ ) {
+      int m = view.getNbView();
+      for( int i=0; i<m; i++ ) {
          ViewSimple v = view.viewSimple[i];
          if( !v.isFree() ) projection(v);
       }
@@ -549,6 +549,8 @@ public class Position extends Obj {
       carre=total=0;
       medianeArrayNb=0;
       posx=posy=-1;
+      minimum=Double.MAX_VALUE;
+      maximum=-Double.MAX_VALUE;
    }
 
    /** Utilisé pour le calcul des statistiques sur un polygone */
@@ -632,6 +634,8 @@ public class Position extends Obj {
    protected double statPixel(double pix) {
       if( Double.isNaN(pix) ) return pix;
       nombre++;
+      if( pix<minimum ) minimum=pix;
+      if( pix>maximum ) maximum=pix;
       if( medianeArrayNb<MAXMEDIANE ) medianeArray[medianeArrayNb++] = pix;
       total+=pix;
       carre+=pix*pix;
@@ -642,7 +646,7 @@ public class Position extends Obj {
    protected boolean statCompute(Graphics g, ViewSimple v) { return false; };
 
    static final int STATDY = 13;            // Hauteur d'une ligne de texte pour les stats
-   static final int HAUTSTAT = STATDY*7;    // Hauteur de la boite des stats
+   static final int HAUTSTAT = STATDY*9;    // Hauteur de la boite des stats
    static final int LARGSTAT = 120;         // Largeur de la boite des stats
 
    /** Retourne la position en unité View des stats */
@@ -662,22 +666,26 @@ public class Position extends Obj {
        if( !v.flagPhotometry || !v.pref.hasAvailablePixels() || v.pref instanceof PlanImageRGB ) return;
 
        if( !statCompute(g,v) ) return;
-
+       
        String cnt=Util.myRound(nombre);
        String sum=Util.myRound(total);
        String avg=Util.myRound(moyenne);
        String med=Double.isNaN(mediane) ? "" : Util.myRound(mediane);
        String sig=Util.myRound(sigma);
        String surf=Coord.getUnit(surface,false,true)+"²";
+       String min=Util.myRound(minimum);
+       String max=Util.myRound(maximum);
 
        if( isWithStat() || isWithLabel() ) {
+          Color c1=g.getColor();
+          Color c2=c1==Color.red || c1==Color.blue?Color.white:null;
           Rectangle r = getStatPosition(v);
           if( r!=null && (isWithLabel() || v.aladin.view.isMultiView()) ) {
              r.x+=dx;
              r.y+=dy;
              g.drawLine(r.x,r.y,r.x,r.y+HAUTSTAT);
              if( posx==-1 ) {
-                posx = (int)( minx+3*(maxx-minx)/4. );
+                posx = minx+3*(maxx-minx)/4.;
                 posy = (maxy+miny)/2;
              }
              Point c = v.getViewCoord(posx,posy);
@@ -688,36 +696,43 @@ public class Position extends Obj {
                 r.x+=2; r.y+=STATDY-2;
 
                 g.setFont(Aladin.BOLD);
-                g.drawString("Cnt",r.x,r.y);
-                g.drawString(cnt,r.x+43,r.y);  r.y+=STATDY;
-                g.drawString("Sum",r.x,r.y);
-                g.drawString(sum,r.x+43,r.y);  r.y+=STATDY;
-                g.drawString("Avg",r.x,r.y);
-                g.drawString(avg,r.x+43,r.y);  r.y+=STATDY;
-                g.drawString("Sigma",r.x,r.y);
-                g.drawString(sig,r.x+43,r.y);  r.y+=STATDY;
-                if( this instanceof Repere ) {
-                   g.drawString("Rad",r.x,r.y);
-                   g.drawString(Coord.getUnit( ((Repere)this).getRadius()),r.x+43,r.y); 
-                   r.y+=STATDY;
-                }
-                g.drawString("Surf",r.x,r.y);
-                g.drawString(surf,r.x+43,r.y);  r.y+=STATDY;
+                Util.drawStringOutline(g,"Cnt",r.x,r.y,c1,c2);
+                Util.drawStringOutline(g,cnt,r.x+43,r.y,c1,c2);  r.y+=STATDY;
+                Util.drawStringOutline(g,"Sum",r.x,r.y,c1,c2);
+                Util.drawStringOutline(g,sum,r.x+43,r.y,c1,c2);  r.y+=STATDY;
+                Util.drawStringOutline(g,"Sigma",r.x,r.y,c1,c2);
+                Util.drawStringOutline(g,sig,r.x+43,r.y,c1,c2);  r.y+=STATDY;
+                Util.drawStringOutline(g,"Min",r.x,r.y,c1,c2);
+                Util.drawStringOutline(g,min,r.x+43,r.y,c1,c2);  r.y+=STATDY;
+                Util.drawStringOutline(g,"Avg",r.x,r.y,c1,c2);
+                Util.drawStringOutline(g,avg,r.x+43,r.y,c1,c2);  r.y+=STATDY;
                 if( !Double.isNaN(mediane) ) {
-                   g.drawString("Med",r.x,r.y);
-                   g.drawString(med,r.x+43,r.y); 
+                   Util.drawStringOutline(g,"Med",r.x,r.y,c1,c2);
+                   Util.drawStringOutline(g,med,r.x+43,r.y,c1,c2); 
                    r.y+=STATDY;
                 }
+                Util.drawStringOutline(g,"max",r.x,r.y,c1,c2);
+                Util.drawStringOutline(g,max,r.x+43,r.y,c1,c2);  r.y+=STATDY;
+                if( this instanceof Repere ) {
+                   Util.drawStringOutline(g,"Rad",r.x,r.y,c1,c2);
+                   Util.drawStringOutline(g,Coord.getUnit( ((Repere)this).getRadius()),r.x+43,r.y,c1,c2); 
+                   r.y+=STATDY;
+                }
+                Util.drawStringOutline(g,"Surf",r.x,r.y,c1,c2);
+                Util.drawStringOutline(g,surf,r.x+43,r.y,c1,c2);  r.y+=STATDY;
              }
           }
        }
 
        if( v.pref==plan.aladin.calque.getPlanBase() ) {
-          id="Cnt "+cnt+" / Sum "+sum+" / Avg "+avg
+          id="Cnt "+cnt+" / Sum "+sum
                +" / Sigma "+sig
+               +" / Min "+min
+               +" / Avg "+avg
+               +(Double.isNaN(mediane)?"":" / Med "+med)
+               +" / Max "+max
                + (this instanceof Repere ? " / Rad "+Coord.getUnit( ((Repere)this).getRadius()):"")
                +" / Surf "+surf
-               +(Double.isNaN(mediane)?"":" / Med "+med)
                ;
           histOn();
        }

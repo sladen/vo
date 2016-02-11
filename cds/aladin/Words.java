@@ -20,12 +20,6 @@
 
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.image.*;
-import java.net.*;
-import java.io.*;
-import java.util.*;
-
 import cds.tools.Util;
 import cds.xml.Field;
 
@@ -59,7 +53,7 @@ public final class Words implements Runnable {
    int align;	    	// LEFT, RIGHT, CENTER ou COORD
    int size;		    // Utilise par le tag GLU ??????
    int sort;            // pour une entête, permet d'indiquer le tri courant
-   
+
    boolean computed = false; // vrai s'il s'agit d'une colonne calculée
 
    // Type de mots
@@ -69,7 +63,7 @@ public final class Words implements Runnable {
    boolean archive;	    // Bouton (acces a une archive FITS)
    boolean samp;        // Bouton (utilisera SAMP)
    boolean footprint;   // Footprint associé
-   
+
    // Les variables d'etat
    boolean onMouse;	        // Mot sous la souris
    boolean show;            // Mot surligné pour être désigné
@@ -83,20 +77,20 @@ public final class Words implements Runnable {
    MCanvas  m;		    // Canvas pour l'affichage des mesures
    Glu     g;		    // Pour faire appel au GLU
 
-  /** Creation d'une sequence de mots.
-   * Determine s'il s'agit d'un tag GLU, d'un repere (triangle) ou
-   * d'une simple sequence.
-   * @param tag La sequence
-   * @param naxis1 le nombre de caracteres d'affichage
-   * @param align le type d'alignement
-   * @param computed s'agit-il d'un champ calculé ?
-   */
-   protected Words(String tag) { this(tag,0,-1,LEFT); }
-   protected Words(String tag,int width) { this(tag,width,-1,LEFT); }
+   /** Creation d'une sequence de mots.
+    * Determine s'il s'agit d'un tag GLU, d'un repere (triangle) ou
+    * d'une simple sequence.
+    * @param tag La sequence
+    * @param naxis1 le nombre de caracteres d'affichage
+    * @param align le type d'alignement
+    * @param computed s'agit-il d'un champ calculé ?
+    */
+   protected Words(String tag) { this(tag,null,0,-1,LEFT, false,Field.UNSORT); }
+   protected Words(String tag,int width) { this(tag,null,width,-1,LEFT, false,Field.UNSORT); }
    protected Words(String tag,int width,int precision,int align) {
-      this(tag, width, precision,align, false,Field.UNSORT);
+      this(tag, null,width, precision,align, false,Field.UNSORT);
    }
-   protected Words(String tag,int width,int precision,int align,boolean computed,int sort) {
+   protected Words(String tag,String defText,int width,int precision,int align,boolean computed,int sort) {
       this.width = width;
       this.precision = precision;
       this.align = align;
@@ -104,16 +98,17 @@ public final class Words implements Runnable {
       this.sort=sort;
       char [] a = tag.toCharArray();
       if( !(glu=tagGlu(a)) ) text=tag;
+      if( defText!=null ) text=defText;
       setRepere();
    }
-   
-   protected Words(String tag,int width,int precision,int align,boolean computed,boolean footprint) {
-   	  this(tag,width,precision,align);
-   	  this.computed = computed;
-  	  this.footprint = footprint;
- }
 
-  /** Positionne le flag repere et archive a true si c'est le cas */
+   protected Words(String tag,int width,int precision,int align,boolean computed,boolean footprint) {
+      this(tag,width,precision,align);
+      this.computed = computed;
+      this.footprint = footprint;
+   }
+
+   /** Positionne le flag repere et archive a true si c'est le cas */
    void setRepere() {
       repere=false;                // Par defaut
 
@@ -132,15 +127,15 @@ public final class Words implements Runnable {
       id = id.substring(1);
    }
 
-  /** Modifie la position.
-   * @param x,y Nouvelle position
-   */
+   /** Modifie la position.
+    * @param x,y Nouvelle position
+    */
    protected void setPosition(int x,int y) { this.x = x; this.y = y;}
 
-  /** Retourne le texte associe a Word */
+   /** Retourne le texte associe a Word */
    protected String getText() { return text; }
 
-  /** Affiche dans aladin.urlStatus l'URL ou la marque GLU associee */
+   /** Affiche dans aladin.urlStatus l'URL ou la marque GLU associee */
    protected void urlStatus(MyLabel urlStatus) {
       String s;
       if( id.equals("Http") ) s=param;
@@ -148,18 +143,18 @@ public final class Words implements Runnable {
       urlStatus.setText(s);
    }
 
-  /** Modifie la position et la taille.
-   * @param x,y Nouvelle position
-   * @param w,h Nouvelle taille
-   */
+   /** Modifie la position et la taille.
+    * @param x,y Nouvelle position
+    * @param w,h Nouvelle taille
+    */
    protected void setPosition(int x,int y, int w, int h) { this.x = x; this.y = y; this.w = w; this.h = h; }
 
-  /** Analyse de chaine GLU.
-   * Met a jour la variable text avec un eventuel texte d'ancre (<&...|texte>)
-   * @param a La chaine en cours d'analyse
-   * @param i L'indice de la position courante
-   * @return  Indice du prochain caratere a analyser, ou <I>-1</I> si fini
-   */
+   /** Analyse de chaine GLU.
+    * Met a jour la variable text avec un eventuel texte d'ancre (<&...|texte>)
+    * @param a La chaine en cours d'analyse
+    * @param i L'indice de la position courante
+    * @return  Indice du prochain caratere a analyser, ou <I>-1</I> si fini
+    */
    int anchorGlu(char [] a, int i) {
       int j;
       StringBuffer anchor = new StringBuffer();
@@ -170,12 +165,12 @@ public final class Words implements Runnable {
       return (j==a.length)?-1:j;
    }
 
-  /** Analyse de chaine GLU.
-   * Met a jour la variable param avec d'eventuels parametres (<&..params|...>)
-   * @param a La chaine en cours d'analyse
-   * @param i L'indice de la position courante
-   * @return  Indice du prochain caratere a analyser, ou <I>-1</I> si fini
-   */
+   /** Analyse de chaine GLU.
+    * Met a jour la variable param avec d'eventuels parametres (<&..params|...>)
+    * @param a La chaine en cours d'analyse
+    * @param i L'indice de la position courante
+    * @return  Indice du prochain caratere a analyser, ou <I>-1</I> si fini
+    */
    int paramGlu(char [] a, int i) {
       int j;
       StringBuffer param = new StringBuffer();
@@ -187,12 +182,12 @@ public final class Words implements Runnable {
       return (j==a.length)?-1:j;
    }
 
-  /** Analyse de chaine GLU.
-   * Met a jour la variable id avec un eventuel identificateur (<&id ...|...>)
-   * @param a La chaine en cours d'analyse
-   * @param i L'indice de la position courante
-   * @return  Indice du prochain caratere a analyser, ou <I>-1</I> si fini
-   */
+   /** Analyse de chaine GLU.
+    * Met a jour la variable id avec un eventuel identificateur (<&id ...|...>)
+    * @param a La chaine en cours d'analyse
+    * @param i L'indice de la position courante
+    * @return  Indice du prochain caratere a analyser, ou <I>-1</I> si fini
+    */
    int idGlu(char [] a, int i) {
       int j;
       StringBuffer id = new StringBuffer();
@@ -203,13 +198,13 @@ public final class Words implements Runnable {
       return (j==a.length)?-1:j;
    }
 
-  /** Analyse de chaine GLU.
-   * Met a jour les variables id,params,text associees a une
-   * marque GLU (<&id params|text>)
-   * @param a La chaine a analyser
-   * @return <I>true</I> s'il s'agit effectivement d'un tag GLU,
-   *         sinon <I>false</I>
-   */
+   /** Analyse de chaine GLU.
+    * Met a jour les variables id,params,text associees a une
+    * marque GLU (<&id params|text>)
+    * @param a La chaine a analyser
+    * @return <I>true</I> s'il s'agit effectivement d'un tag GLU,
+    *         sinon <I>false</I>
+    */
    protected boolean tagGlu(char [] a ) {
       if( a.length<2 || a[0]!='<' || a[1]!='&' ) return false;
       int i=2;
@@ -221,11 +216,11 @@ public final class Words implements Runnable {
       return true;
    }
 
-  /** Test d'appartenance.
-   * @param xc,yc Position de la souris
-   * @return <I>true</I> si la position est dans la sequence de mots
+   /** Test d'appartenance.
+    * @param xc,yc Position de la souris
+    * @return <I>true</I> si la position est dans la sequence de mots
              sinon <I>false</I>
-   */
+    */
    protected boolean inside(int xc,int yc) {
       return xc>=x-4 && xc<=x+w+2 && yc>=y-1 && yc<=y+h+1;
    }
@@ -235,24 +230,24 @@ public final class Words implements Runnable {
       return xc>=x+w-3 && xc<=x+w+3 && yc>=y-1 && yc<=y+h+1;
    }
 
-  /** Appel au GLU.
-   * L'appel au GLU se fait par un Thread independant.
-   * @param g Reference au GLU
-   * @param m Rerefence au Canvas des mesures
-   */
+   /** Appel au GLU.
+    * L'appel au GLU se fait par un Thread independant.
+    * @param g Reference au GLU
+    * @param m Rerefence au Canvas des mesures
+    */
    protected void callGlu(Glu g,MCanvas m) {
       this.g = g;
       this.m = m;
       haspushed=pushed=true;
 
-/*
+      /*
       // ATTENTION, CETTE METHODE n'AUTORISE QU'UN SEUL PARAMETRE
       // POUR LA MARQUE GLU
       if( !id.equals("Http") ) {
          param= (Glu.cutParam(param))[0];
          param = URLEncoder.encode(param);
       }
-*/
+       */
       thread = new Thread(this,"AladinCallGlu");
       thread.setPriority( Thread.NORM_PRIORITY -1);
       thread.start();
@@ -265,11 +260,11 @@ public final class Words implements Runnable {
       pushed=false;
       if( m!=null ) m.repaint();
    }
-   
+
    private boolean callArchive=false;
    private Aladin _aladin;
    private Obj _o;
-   
+
    protected void callArchive(Aladin aladin,Obj o) {
       haspushed=pushed=true;
       callArchive=true;
@@ -282,41 +277,41 @@ public final class Words implements Runnable {
 
    private void callArchive1(Aladin aladin,Obj o) {
       String label = param;
-      boolean flagHttp = id.equals("Http");
-      String url=null;
-      
-      // URL ou nom de fichier
-      if( flagHttp ) {
-         url = param;
-      
-      // tag Glu
-      } else {
-         try { url = aladin.glu.getURL(id,param,flagHttp)+""; 
-          if( url==null ) throw new Exception("Error during GLU resolution !"); }   
-         catch( Exception e) {
-            aladin.warning(aladin,"URL error");
-            if( Aladin.levelTrace>=3 ) e.printStackTrace();
-            return;
-         }
-      }
-      
+      String url=getURL(aladin);
+
       // Les noms basé sur une url son généralement trop long
-      if( label.startsWith("http://") || label.startsWith("ftp://") ) label=text;
-      
+      if( label.startsWith("http://") || label.startsWith("https://")
+            || label.startsWith("ftp://") ) label=text;
+
       // Cas particulier où il faut transmettre l'URL à une application tierce via SAMP
       if( samp ) {
-//         System.out.println("Je dois transmettre à SAMP les données ["+label+"] via l'URL suivante : "+url);
+         //         System.out.println("Je dois transmettre à SAMP les données ["+label+"] via l'URL suivante : "+url);
          aladin.mesure.mcanvas.toSamp(url,x+w/2,y);
          return;
       }
-      
-      aladin.calque.newPlan(url,label,"provided by the original archive server", o);
 
-//      String objet=Coord.getSexa(((Position)o).raj,((Position)o).dej,"s");     
-//      aladin.calque.newPlanImage(url,PlanImage.OTHER,
-//                                 label,objet,param,
-//                                 "provided by the original archive server",
-//                                 PlanImage.UNKNOWN,PlanImage.UNDEF,
-//                                 o);
+      aladin.calque.newPlan(url,label,"provided by the original archive server", o);
+   }
+   
+   /** Juste pour récupérer l'URL associée */
+   String getURL(Aladin aladin) {
+      if( id==null ) return "";
+      boolean flagHttp = id.equals("Http");
+      String url;
+      
+     // URL ou nom de fichier
+      if( flagHttp ) {
+         url = param;
+
+         // tag Glu
+      } else {
+         try { url = aladin.glu.getURL(id,param,flagHttp)+""; }
+         catch( Exception e) {
+            aladin.warning(aladin,"URL error");
+            if( Aladin.levelTrace>=3 ) e.printStackTrace();
+            return "";
+         }
+      }
+      return url;
    }
 }
