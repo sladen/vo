@@ -21,56 +21,62 @@ package cds.allsky;
 
 import java.io.File;
 
-/** Permet de nettoyer la totalité d'un survey généré
+/** Permet de nettoyer la totalité d'un survey généré, sauf le fichier Properties
  * @author Anaïs Oberto & Pierre Fernique [CDS]
  */
 public class BuilderClean extends Builder {
-   private int nbFile;      // Nombre de fichiers supprimés
+   private int nbFile;       // Nombre de fichiers supprimés
 
    public BuilderClean(Context context) {
       super(context);
       nbFile=0;
    }
-   
+
    public Action getAction() { return Action.CLEAN; }
-   
+
    public void run() throws Exception {
       deleteDir(new File(context.getOutputPath()));
    }
    
-   public void validateContext() throws Exception { validateOutput(); }
-   
-   public boolean isAlreadyDone() { return !(new File(context.getOutputPath())).exists(); }
-   
-   public void showStatistics() { 
-      if( context instanceof ContextGui ) return;
-      context.nlstat(nbFile+" file"+(nbFile>1?"s":"")+" deleted");
+   public void validateContext() throws Exception {      
+      validateOutput();
    }
-   
-   public boolean mustBeDeleted(File f) { return true; }
+
+   public boolean isAlreadyDone() { return !(new File(context.getOutputPath())).exists(); }
+
+   public void showStatistics() {
+      if( context instanceof ContextGui ) return;
+      context.stat(nbFile+" file"+(nbFile>1?"s":"")+" deleted");
+   }
+
+   public boolean mustBeDeleted(File f) {
+      String name = f.getName();
+      if( name.equals(Constante.FILE_PROPERTIES) ) return false;
+      return true;
+   }
    
    public void deleteDir(File dir) throws Exception {
       if( context.isTaskAborting() ) throw new Exception("Task abort !");
-      
+
       // répertoire
       if( dir.isDirectory() ) {
          for ( File f : dir.listFiles() ) deleteDir(f);
          dir.delete();
-      
-      // simple fichier
+
+         // simple fichier
       } else if( mustBeDeleted(dir) ) {
          if( !dir.delete() ) throw new Exception("Cannot delete "+dir.getCanonicalPath());
-//         System.out.println("delete "+dir);
+         //         System.out.println("delete "+dir);
          nbFile++;
          context.setProgress(nbFile);
       }
    }
-   
+
    public void deleteDirExceptIndex(File dir) throws Exception {
       if( context.isTaskAborting() ) throw new Exception("Task abort !");
 
       for( File f : dir.listFiles() ) {
-         if( f.getName().equals(Constante.HPX_FINDER) ) continue;
+         if( f.getName().equals(Constante.FILE_HPXFINDER) ) continue;
          deleteDir(f);
       }
    }

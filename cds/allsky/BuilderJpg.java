@@ -20,13 +20,11 @@
 package cds.allsky;
 
 import java.awt.image.ColorModel;
-import java.io.File;
 
 import cds.aladin.Aladin;
-import cds.aladin.ColorMap;
+import cds.aladin.CanvasColorMap;
 import cds.allsky.Context.JpegMethod;
 import cds.fits.Fits;
-import cds.tools.pixtools.Util;
 
 /** Construction de la hiérarchie des tuiles JPEG à partir des tuiles FITS de plus bas
  * niveau. La méthode employée est soit la médiane soit la moyenne pour passer des 4 pixels de niveau
@@ -44,62 +42,53 @@ public class BuilderJpg extends BuilderTiles {
    private double blank,bscale,bzero;
 
    private int statNbFile;
-   
+
    protected String fmt;
    protected String ext;
 
    /**
     * Création du générateur JPEG.
     * @param cut borne de l'intervalle pour le passage en 8 bits (uniquement si cm==null)
-    * @param cm table des couleurs pour le passage en 8 bits (prioritaire sur cut), 
+    * @param cm table des couleurs pour le passage en 8 bits (prioritaire sur cut),
     * @param context
     */
    public BuilderJpg(Context context) {
       super(context);
       init();
    }
-   
+
    protected void init() {
       fmt = "jpeg";
       ext = ".jpg";
    }
 
    public Action getAction() { return Action.JPEG; }
-   
+
    // Valide la cohérence des paramètres pour la création des tuiles JPEG
    public void validateContext() throws Exception {
       validateOutput();
       if( !context.isExistingAllskyDir() ) throw new Exception("No Fits tile found");
-      validateOrder(context.getOutputPath());      
-      if( !context.isColor() ) {
-         
-//         try {
-            validateCut();
-//         } catch( Exception e ) {
-//            try {
-//               setFitsParamFromPreviousAllsky(context.getOutputPath()+Util.FS+"Norder3"+Util.FS+"Allsky.fits");
-//               context.info("Will use pixelCut ["+context.cutOrig[0]+" .. "+context.cutOrig[1]+"], " +
-//                    "BLANK="+context.blank+" BZERO="+context.bzero+" BSCALE="+context.bscale+" found in Allsky.fits");
-//            } catch( Exception e1 ) {
-//               throw new Exception("Pixel cut unkown => use pixelcut parameter");
-//            }
-//         }
-      }
-      
+      validateOrder(context.getOutputPath());
+      validateDepth();
+      if( !context.isColor() ) validateCut();
+
       // Chargement du MOC réel à la place de celui de l'index (moins précis)
       try { context.loadMoc(); } catch( Exception e ) {
          context.warning("Tile MOC not found => use index MOC");
       }
-      
+
+      // reprise du frame si nécessaire depuis le fichier de propriété
+      if( !context.hasFrame() ) context.setFrameName( getFrame() );
+
       context.initRegion();
-//      context.initParameters();
+      //      context.initParameters();
    }
-   
-   
+
+
    protected int getMinCM() { return 0; }
 
    public void run() throws Exception {
-      ColorModel cm = context.getFct()==null ? null : ColorMap.getCM(0, 128, 255,false, 
+      ColorModel cm = context.getFct()==null ? null : CanvasColorMap.getCM(0, 128, 255,false,
             0/*PlanImage.CMGRAY*/, context.getFct().code());
       tcm = cm==null ? null : cds.tools.Util.getTableCM(cm,2);
       cut = context.getCut();
@@ -110,15 +99,18 @@ public class BuilderJpg extends BuilderTiles {
       context.info("Tile aggregation method="+context.getJpegMethod());
       build();
       if( !context.isTaskAborting() ) {
-         (new BuilderAllsky(context)).createAllSkyColor(context.getOutputPath(),3,fmt,64);
-         context.writePropertiesFile();
+         //         (new BuilderAllsky(context)).createAllSkyColor(context.getOutputPath(),3,fmt,64,0);
+         //         context.writePropertiesFile();
+
+         (new BuilderAllsky(context)).runJpegOrPngOnly(fmt);
          if( context instanceof ContextGui && ((ContextGui) context).mainPanel.planPreview!=null ) {
             if( fmt.equals("jpeg") ) ((ContextGui) context).mainPanel.planPreview.inJPEG = true;
             else ((ContextGui) context).mainPanel.planPreview.inPNG = true;
          }
       }
+
    }
-   
+
    public boolean isAlreadyDone() {
       if( context.isColor() ) {
          context.info("Jpeg conversion not required for Healpix colored survey");
@@ -140,18 +132,18 @@ public class BuilderJpg extends BuilderTiles {
       initStat();
       super.build();
    }
-   
-   protected Fits createLeaveHpx(ThreadBuilderTile hpx, String file,int order,long npix) throws Exception {
+
+   protected Fits createLeaveHpx(ThreadBuilderTile hpx, String file,String path,int order,long npix, int z) throws Exception {
       Fits out = createLeaveJpg(file);
       if( out==null ) return null;
-      
+
       out.writeCompressed(file+ext,cut[0],cut[1],tcm,fmt);
       Aladin.trace(4, "Writing " + file+ext);
       updateStat();
       return out;
    }
-   
-   protected Fits createNodeHpx(String file,String path,int order,long npix,Fits fils[]) throws Exception {
+
+   protected Fits createNodeHpx(String file,String path,int order,long npix,Fits fils[], int z) throws Exception {
       JpegMethod method = context.getJpegMethod();
       Fits out = createNodeJpg(fils, method);
       if( out==null ) return null;
@@ -159,14 +151,14 @@ public class BuilderJpg extends BuilderTiles {
       Aladin.trace(4, "Writing " + file+ext);
       return out;
    }
-   
+
    /** Mise à jour de la barre de progression en mode GUI */
    protected void setProgressBar(int npix) { context.setProgress(npix); }
 
-   
+
    private void initStat() {
       context.setProgressMax(768);
-      statNbFile=0; 
+      statNbFile=0;
       startTime = System.currentTimeMillis();
    }
 
@@ -175,7 +167,7 @@ public class BuilderJpg extends BuilderTiles {
       statNbFile++;
       totalTime = System.currentTimeMillis()-startTime;
    }
-   
+
    /** Construction d'une tuile terminale. De fait, simple chargement
     * du fichier FITS correspondant. */
    private Fits createLeaveJpg(String file) throws Exception {
@@ -200,6 +192,7 @@ public class BuilderJpg extends BuilderTiles {
 
    /** Construction d'une tuile intermédiaire à partir des 4 tuiles filles */
    private Fits createNodeJpg(Fits fils[], JpegMethod method) throws Exception {
+      if( width==0 || fils[0]==null && fils[1]==null && fils[2]==null && fils[3]==null ) return null;
       Fits out = new Fits(width,width,bitpix);
       out.setBlank(blank);
       out.setBscale(bscale);

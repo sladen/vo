@@ -20,45 +20,51 @@
 package cds.allsky;
 
 public enum Action {
-   
-   INDEX     ("Build index (in HpxFinder directory) + MOC index"), 
-   TILES     ("Build all true value pixel tiles (FITS) + Allsky.fits + MOC"), 
+
+   INDEX     ("Build index (in HpxFinder directory) + MOC index"),
+   TILES     ("Build all true value pixel tiles (FITS) + Allsky.fits + MOC"),
    JPEG      ("Build all preview tiles (JPEG) + Allsky.jpg"),
    PNG       ("Build all preview tiles (PNG) + Allsky.png"),
-   MOC       ("(Re)build the output coverage map (MOC order=maxorder)"), 
-   MOCINDEX  ("(Re)build the input coverage map (MOC order=maxorder) in HpxFinder directory"),
+   MOC       ("(Re)build the MOC (MultiOrder Coverage map)"),
+   MOCINDEX  ("(Re)build the index MOC (MultiOrder Coverage map) in HpxFinder directory"),
    MOCHIGHT  ("Build a high resolution output coverage map (MOC order=pixelRes)"),
-   ALLSKY    ("(Re)build all Allsky files"),
+   ALLSKY    ("(Re)build all Allsky files + index.html"),
    GZIP      ("Compress some FITS tiles and Allsky.fits"),
    GUNZIP    ("Uncompress FITS tiles and Allsky.fits"),
-   CLEAN     ("Delete all Hips files (index, tiles, dir, Allsky, MOC, ...)"), 
+   CLEAN     ("Delete all Hips files (except properties file)"),
    CLEANINDEX("Delete index (HpxFinder dir)"),
    CLEANDETAILS("Delete detail index (HpxFinder tree except last order dir)"),
-   CLEANTILES("Delete all HiPS files except index (tiles, dir, Allsky, MOC, ...)"), 
+   CLEANTILES("Delete all HiPS files except index (tiles, dir, Allsky, MOC, ...)"),
    CLEANFITS ("Delete all FITS tiles and Allsky.fits"),
    CLEANJPEG ("Delete all JPEG tiles and Allsky.jpg"),
    CLEANPNG  ("Delete all PNG tiles and Allsky.png"),
+   CLEANWEIGHT ("Delete all WEIGHT tiles"),
+   CLEANDATE ("Delete all tiles older than a specifical date"),
    TREE      ("(Re)build HiPS tree structure from already existing tiles"),
    CONCAT    ("Concatenate one HiPS to another HiPS"),
+   CUBE      ("Create a HiPS cube based on a list of HiPS"),
    DETAILS   ("Adapt HiPS index for supporting the \"detail table\" facility"),
-   RGB       ("** In progress: Build and RGB HiPS from 2 or 3 other HiPS"),
+   UPDATE    ("Upgrade HiPS metadata additionnal files to HiPS version "+Constante.HIPS_VERSION),
+   MIRROR    ("Mirror a remote HiPS locally"),
+   RGB       ("Build and RGB HiPS based on 2 or 3 other HiPS"),
    CHECK     ("** In progress: Check readability of all tiles"),
-   MAPTILES  ("** In progress: Build all FITS tiles from a HEALPix Fits map"),
+   //   INFO      ("Generate properties and index.html information files"),
+   MAPTILES  ("Build all FITS tiles from a HEALPix Fits map"),
    FINDER,PROGEN,  // Pour compatibilité
    ABORT, PAUSE, RESUME;
-   
+
    Action() {}
    Action(String s ) { doc=s; }
-   
+
    private String doc;
    String doc() { return doc; }
    void startTime() { startTime=System.currentTimeMillis(); }
    void stopTime()  { stopTime=System.currentTimeMillis(); }
-   long getDuree() { 
-      return (stopTime==0 ? System.currentTimeMillis():stopTime)-startTime; 
+   long getDuree() {
+      return (stopTime==0 ? System.currentTimeMillis():stopTime)-startTime;
    }
-   
+
    public long startTime,stopTime=0L;
    public long nbFile;
-	
+
 }

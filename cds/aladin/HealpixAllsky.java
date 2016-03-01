@@ -21,6 +21,7 @@
 package cds.aladin;
 
 import java.io.File;
+
 import cds.tools.Util;
 import cds.tools.pixtools.Hpix;
 
@@ -34,16 +35,23 @@ class HealpixAllsky extends HealpixKey {
    protected int nbPix;       // Nombre de losanges
    protected HealpixKey [] pixList;  // Liste des losanges
    private int mem=0;
-   private int order;
 
    protected HealpixAllsky(PlanBG planBG,int order) {
+      this(planBG,order,(int)planBG.getZ());
+   }
+   protected HealpixAllsky(PlanBG planBG,int order,int z) {
+      this(planBG,order,z,ASYNC);
+   }
+   protected HealpixAllsky(PlanBG planBG,int order,int z,int mode) {
       this.planBG = planBG;
       this.order=order;
       this.npix=-1;
+      this.z=z;
       allSky=true;
       resetTimer();
-      String nameNet = "Norder"+order+"/Allsky";
-      String nameCache = planBG.survey+planBG.version+"/"+"Norder"+order+"/Allsky";
+      String sZ = z<=0 ? "" : "_"+z;
+      String nameNet = "Norder"+order+"/Allsky"+sZ;
+      String nameCache = planBG.getCacheName()+"/"+"Norder"+order+"/Allsky"+sZ;
       extCache=extNet=planBG.getTileMode();
 //      if( planBG.truePixels ) extCache=extNet=FITS;
 //      else if( planBG.inPNG && !planBG.inJPEG ) extCache=extNet=PNG;
@@ -57,6 +65,20 @@ class HealpixAllsky extends HealpixKey {
       pixList= null;
 //System.out.println("Création d'un Allsky pour "+nbPix+" losanges");      
       setStatus(ASKING);
+      
+      // Chargement immédiat des données
+      try {
+         if(  mode==SYNC ||
+             (mode==SYNCONLYIFLOCAL && (planBG.useCache && isCached() || planBG.isLocalAllSky())) ) loadNow();
+      } catch( Exception e ) {
+         if( Aladin.levelTrace>=3 ) e.printStackTrace();
+      }
+
+   }
+   
+   // On essaye de garder le plus longtemps possible les allsky en mémoire */
+   protected long getLiveTime() { 
+      return planBG.aladin.enoughMemory() ? -1 : PlanBG.LIVETIME; 
    }
    
    HealpixKey createOneKey(int npix,int width,byte [] pix) {
@@ -64,6 +86,7 @@ class HealpixAllsky extends HealpixKey {
       h.allSky=true;
       h.planBG=planBG;
       h.order=order;
+      h.z=z;
       h.npix=npix;
       h.hpix = new Hpix(order,npix,planBG.frameOrigin);
 //      h.corners = h.computeCorners();
@@ -81,6 +104,7 @@ class HealpixAllsky extends HealpixKey {
       h.planBG=planBG;
       h.order=order;
       h.npix=npix;
+      h.z=z;
 //      h.corners = h.computeCorners();
       h.hpix = new Hpix(order,npix,planBG.frameOrigin);
       h.resetTimer();
@@ -95,8 +119,7 @@ class HealpixAllsky extends HealpixKey {
    static boolean isCached(PlanBG planBG,int order) {
       String pathName = planBG.getCacheDir();
       if( pathName==null ) return false;
-//      String name = planBG.survey+planBG.version+"/"+"Norder"+order+"/Allsky"+ (planBG.truePixels ? ".fits" : planBG.color ? ".jpg" : ".fits");
-      String name = planBG.survey+planBG.version+"/"+"Norder"+order+"/Allsky"+ EXT[planBG.getTileMode()];
+      String name = planBG.getCacheName()+"/"+"Norder"+order+"/Allsky"+ EXT[planBG.getTileMode()];
       pathName = pathName+Util.FS+name;
       File f= new File(pathName);
       return f.exists() && f.canRead();
@@ -121,7 +144,7 @@ class HealpixAllsky extends HealpixKey {
          byte [] pix = new byte[w*w];
          int yLosange=(i/nbLosangeWidth)*w;
          int xLosange=(i%nbLosangeWidth)*w;
-         if( i%100==0 ) Util.pause(10);
+//         if( i%100==0 ) Util.pause(10);
          for( int y=0; y<w; y++ ) {
             for( int x=0; x<w; x++) {
                int offset = (yLosange+y)*width + (xLosange+x);
@@ -163,7 +186,7 @@ class HealpixAllsky extends HealpixKey {
          int [] pix = new int[w*w];
          int yLosange=(npix/nbLosangeWidth)*w;
          int xLosange=(npix%nbLosangeWidth)*w;
-         if( npix%100==0 ) Util.pause(10);
+//         if( npix%100==0 ) Util.pause(10);
          for( int y=0; y<w; y++ ) {
             for( int x=0; x<w; x++) {
                pix[y*w +x] = rgb[ (yLosange+y)*width + (xLosange+x) ];

@@ -110,6 +110,12 @@ public final class Slide {
    protected Plan getPlan() {
       return p;
    }
+   
+   /** retourne vrai si on est sur le voyant lumineux */
+   protected boolean inBall(int x) {
+      if( p.collapse ) return false;
+      return x>Select.ws-12;
+   }
 
    // Retourne vrai si on est sur le triangle de ref
    protected boolean inCheck(int x) {
@@ -469,7 +475,6 @@ public final class Slide {
             else if( p.hashCode()==((PlanImageRGB)planRGB).pi[1] )
                colorForeground=flagInv?Color.magenta:Color.green;
          }
-//         g.setColor( Color.black );
          
          // ref==true => repérage du plan
          boolean ref = xMouse<=0 && p.type!=Plan.NO && p.underMouse && a.view.isVisible(p) && a.view.isMultiView();
@@ -489,12 +494,7 @@ public final class Slide {
                ref || p.selected  || p.type!=Plan.NO && in(yMouse) && inLabel(xMouse)) ) {
             labelBG=(p.selected ? Aladin.STACKBLUE : Aladin.STACKGRAY );
             g.setColor(labelBG.brighter());
-//            Graphics2D g2d = (Graphics2D)g;
-//            Paint p = g2d.getPaint();
-//            Paint gradient = new GradientPaint(x, y, labelBG.brighter().brighter(), x, y+H, labelBG);
-//            g2d.setPaint(gradient);
             g.fillRect(x,y,W,H-2);
-//            g2d.setPaint(p);
             g.setColor(labelBG);
             g.drawRect(x,y,W-1,H-2);
          } else if( mode!=DRAG ) {
@@ -506,7 +506,7 @@ public final class Slide {
          
          // Le gris de remplissage des plan de référence est plus appuyé
          // que pour les autres plans
-         if( /* p.ref */ isRefForVisibleView ) {
+         if( isRefForVisibleView ) {
             colorFillFG = Color.gray;
             colorBorder = new Color(50,50,50);
          }
@@ -535,24 +535,18 @@ public final class Slide {
             
             // Sinon, dessin du calque en fonction du mode activé ou non
          } else {
-            if( p.type==Plan.FOLDER ) g.setColor(!p.active? Color.yellow:jauneGris);
-            else if( /* p.ref */ isRefForVisibleView && (p.isUnderImgBkgd() && p.type!=Plan.ALLSKYIMG) ) g.setColor(colorFillBG);
-            else g.setColor( !p.active || /*!p.ref*/ !isRefForVisibleView && isViewable && canBeTransparent  ? colorFillBG : colorFillFG ) ;
-//            else g.setColor( p.active && !canBeTransparent && p.isViewable() ? Color.gray : colorFillBG );
-//            if( g.getColor()==Color.blue &&  (colorForeground==Color.blue || colorForeground==Color.black) ) colorForeground=Color.white;
+            if( p.type==Plan.FOLDER ) g.setColor(!p.active || canBeTransparent ? Color.yellow:jauneGris);
+            else if( isRefForVisibleView && (p.isUnderImgBkgd() && p.type!=Plan.ALLSKYIMG) ) g.setColor(colorFillBG);
+            else g.setColor( !p.active || !isRefForVisibleView && isViewable && canBeTransparent  ? colorFillBG : colorFillFG ) ;
             g.fillPolygon(xc,yc,frX.length);
 
             if( canBeTransparent ) {
                float transp = p.getOpacityLevel();
                if( transp!=0 ) {
-                  xPoignee=fillTransparency(g,xc,yc,transp,p.active,colorFillFG); 
-//                  xPoignee=fillTransparency(g,xc,yc,transp,p.active || p.isImage(),colorFillFG ); 
+                  xPoignee=fillTransparency(g,xc,yc,transp,p.active, p.type==Plan.FOLDER ? jauneGris : colorFillFG); 
                }
             }
          }
-         
-//         if( p.type!=Plan.NO ) g.setColor( colorBorder = p.ref ? Color.black : Color.gray);
-//         else g.setColor(colorBorder = Aladin.MYGRAY);
          
          g.setColor( colorBorder );
          
@@ -600,7 +594,8 @@ public final class Slide {
             g.fillPolygon(xf,yf,xf.length);
             g.setColor(colorBorder);
             g.drawPolygon(xf,yf,xf.length);
-         } else if( p instanceof PlanImageBlink ) {
+            
+         } else if( p.isCube() ) {
             g.drawLine(xc[1]+1,yc[1]+1,xc[1]+1,yc[1]+1);
             g.drawLine(xc[2]-2,yc[1]+1,xc[2]-2,yc[1]+1);
             g.drawLine(xc[1],yc[1]+2,xc[2]-1,yc[1]+2);
@@ -702,27 +697,37 @@ public final class Slide {
             
            //le voyant d'état
             if( mode!=DRAG ) {
-               if( p.type==Plan.FOLDER && !p.isSync() ) { drawBlink(g,px,py-9);setBlink(true); }
+               p.status=0;
+               if( p.type==Plan.FOLDER && !p.isSync() ) { drawBlink(g,px,py-9);setBlink(true); p.status|=Plan.STATUS_INPROGRESS; }
                else if( p.isSimpleCatalog() || p.isImage()
                      || p instanceof PlanContour || p.type==Plan.FILTER
                      || p instanceof PlanBG ) {
                   if( p.error!=null ) {
                      boolean hasObj = p.pcat!=null && p.pcat.hasObj();
-                     if( p.hasNoReduction() && (!p.isSimpleCatalog() || hasObj)) drawBall(g,px,py-9,Aladin.ORANGE);
-                     else if( p.isSimpleCatalog() && !hasObj ) drawCross(g,px1,py-9);
-                     else if( p instanceof PlanMoc && ((PlanMoc)p).getMoc().getSize()==0 ) drawCross(g,px1,py-9);
-                     else drawBall(g,px1,py-9,Color.red);
+                     if( p.hasNoReduction() && (!p.isSimpleCatalog() || hasObj)) { drawBall(g,px,py-9,Aladin.ORANGE); p.status|=Plan.STATUS_NOCALIB; }
+                     else if( p.isSimpleCatalog() && p.error.indexOf("OVERFLOW")>=0 ) { drawBall(g,px,py-9,Aladin.ORANGE); p.status|=Plan.STATUS_OVERFLOW; }
+                     else if( p.isSimpleCatalog() && !hasObj ) { drawCross(g,px1,py-9); p.status|=Plan.STATUS_EMPTYCAT; }
+                     else if( p instanceof PlanMoc && ((PlanMoc)p).getMoc().getSize()==0 ) { drawCross(g,px1,py-9); p.status|=Plan.STATUS_EMPTYMOC; }
+                     else { drawBall(g,px1,py-9,Color.red); p.status|=Plan.STATUS_ERROR; }
                   } else {
                      boolean flag=false;
-                     Color green = p instanceof PlanBG && ((PlanBG)p).hasMoreDetails() ? Aladin.LIGHTORANGE : Color.green; // Color.green: Aladin.GREEN ;
+                     Color green;
+                     if( p instanceof PlanBG && ((PlanBG)p).hasMoreDetails() ) {
+                        green = Aladin.LIGHTORANGE;
+                        p.status|=Plan.STATUS_MOREDETAILSAVAILABLE;
+                     } else {
+                        green =  Color.green;
+                     }
                      if( !p.flagOk ||
                            ( (p instanceof PlanContour) && (((PlanContour)p).mustAdjustContour)) ||
                            (flag=(p.flagProcessing 
                                  || (p.type==Plan.IMAGEHUGE && ((PlanImageHuge)p).isExtracting) 
                                  || (p instanceof PlanBG && ((PlanBG)p).isLoading()) )) )
                      {
-                        if( flag ) drawBlink(g,px,py-9,Color.orange,green);
-                        else drawBlink(g,px1,py-9);
+                        p.status|=Plan.STATUS_LOADING;
+                        if( flag ) {
+                           drawBlink(g,px,py-9,Color.white,green);
+                        } else drawBlink(g,px1,py-9);
                         
                         setBlink(true);
                         
@@ -731,7 +736,9 @@ public final class Slide {
                            drawBall(g,px,py-9, green );
                          }
                      }
-                     if( p.getCompletude()>=0 && p.active ) drawProportion(g,x+60,py-1,Select.sizeLabel+10-60,(int)p.getCompletude(),green);
+                     if( p.getCompletude()>=0 && p.active ) {
+                        drawProportion(g,x+60,py-1,Select.sizeLabel+10-60,(int)p.getCompletude(),green);
+                     }
                   }
                }
             }
@@ -747,9 +754,14 @@ public final class Slide {
             int xPos = xPoignee;
             if( xPos<dx+debut+largeur ) xPos = dx+debut+largeur;
             if( xPos>dx+fin-largeur ) xPos = dx+fin-largeur;
-            g.setColor( Color.black );
-            g.drawLine( dx+debut,dy+haut,dx+fin,dy+haut);
-            g.drawLine( dx+debut,dy+haut+1,dx+fin,dy+haut+1);
+            
+            // Pas de double trait pour un folder
+            if( p.type!=Plan.FOLDER ) {
+               g.setColor( Color.black );
+               g.drawLine( dx+debut,dy+haut,dx+fin,dy+haut);
+               g.drawLine( dx+debut,dy+haut+1,dx+fin,dy+haut+1);
+            }
+            
             float transp = p.getOpacityLevel();
 //            g.setColor( transp<=0.1 ? Color.white : transp>=0.9 ? Color.green : Color.yellow);
             g.setColor( transp<=0.1 ? Color.red : Color.green );
@@ -774,7 +786,7 @@ public final class Slide {
       if( mode==DRAG ) return;
       
       // Plan overlays qui peut être projeté sur un autre plan => on évite de mettre
-      // la checkbox pour ne pas surcharger les contrôles
+      // la checkbox pour ne pas surcharger les contrôles sauf s'il est déjà en ref
       if( !p.shouldHaveARefCheckBox() ) return;
       
       // Faut-il faire temporairement clignoter la checkbox pour signaler à l'utilisateur

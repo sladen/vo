@@ -27,8 +27,6 @@ import java.util.*;
 import javax.swing.*;
 import javax.swing.tree.*;
 
-import cds.tools.Util;
-
 /**
  * Gestion d'un arbre dynamique
  * @author Pierre Fernique [CDS]
@@ -59,7 +57,7 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
       NoeudRenderer nr = new NoeudRenderer();
       setCellRenderer(nr);
       setCellEditor(new NoeudEditor(this));
-     setEditable(true);
+      setEditable(true);
    }
 
    /** Nettoyage de l'arbre */
@@ -69,14 +67,14 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
       ((DefaultTreeModel)getModel()).setRoot(r);
       root = r;
    }
-   
+
    /** "Mise à jour" de l'arbre en fonction des enregistrements GLU recueillis */
    synchronized protected void updateTree(Enumeration e1) {
-      
-      ArrayList<TreeNode> v = new ArrayList();
+
+      ArrayList<TreeNode> v = new ArrayList<TreeNode>();
       for( TreeNode n : this ) v.add(n);
       freeTree();
-      
+
       while( e1.hasMoreElements() ) {
          TreeNode noeud = (TreeNode)e1.nextElement();
          int i = v.indexOf(noeud);
@@ -88,7 +86,7 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
       }
       defaultExpand();
    }
-   
+
    // Recupération d'un itérator sur tous les noeuds de l'arbre
    public Iterator<TreeNode> iterator() { return new TreeIterator(); }
 
@@ -108,7 +106,7 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
       }
       defaultExpand();
    }
-   
+
    /** Reset */
    public void reset() {
       for( TreeNode n : this ) n.setCheckBox(false);
@@ -126,10 +124,10 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
       if( !ok ) warning();
       reset();
    }
-   
+
    /** Appelé en cas de problème lors du submit => à surcharger */
    protected void warning() {}
-   
+
    /** Met à jour les couleurs des widgets avant de les tracer => à surcharger */
    protected void updateColor() {}
 
@@ -144,7 +142,17 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
     */
    protected void createTreeBranch(DefaultMutableTreeNode node, TreeNode noeud, int opos) {
       int pos;
-      String label = (pos=noeud.path.indexOf('/',opos))<0 ? noeud.path.substring(opos) : noeud.path.substring(opos,pos);
+
+      // On découpe par "/" mais sans prendre en compte "\/"
+      int index=opos;
+      do  {
+         pos=noeud.path.indexOf('/',index);
+         index=pos;
+         if( pos>1 && noeud.path.charAt(pos-1)=='\\') index++;
+         else index=-1;
+      } while( index!=-1 );
+
+      String label = pos<0 ? noeud.path.substring(opos) : noeud.path.substring(opos,pos);
       ((TreeNode)node.getUserObject()).noCheckbox();
 
       try {
@@ -161,17 +169,17 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
             subNode = new DefaultMutableTreeNode( pos!=-1? new TreeNode(aladin,"",null,label,"") : noeud );
             node.add(subNode);
             if( pos!=-1 ) createTreeBranch(subNode, noeud, pos + 1);
-         } else createTreeBranch(subNode, noeud, pos + 1);
+         } else if( pos!=-1 ) createTreeBranch(subNode, noeud, pos + 1);
       } catch( Exception e ) {
          e.printStackTrace();
       }
    }
-   
+
    /** Signale que l'arbre a été modifié */
    public void fireTreeChanged() {
       ((DefaultTreeModel)getModel()).reload();
    }
-   
+
    /** Suppression d'une feuille (désignée par son ID) et éventuellement de sa branche si c'était la dernière  */
    protected boolean removeTreeBranch(DefaultMutableTreeNode node, String id ) {
       DefaultMutableTreeNode subNode = null;
@@ -187,9 +195,22 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
       return rep;
    }
 
+   /** Suppression d'une branche (désignée par son label) */
+   //   protected boolean removeTreeTrunk(DefaultMutableTreeNode node, String label ) {
+   //      DefaultMutableTreeNode subNode = null;
+   //      boolean rep=false;
+   //      Enumeration e = node.children();
+   //      while( e.hasMoreElements() ) {
+   //         subNode = (DefaultMutableTreeNode) e.nextElement();
+   //         TreeNode fils = (TreeNode) subNode.getUserObject();
+   //         if( fils.label!=null && fils.label.equals(label) ) { node.remove(subNode); rep=true;  break; }
+   //      }
+   //      return rep;
+   //   }
+
    /** Préparation de l'arbre afin qu'il "pré-ouvre" les branches terminales */
    protected void defaultExpand() {
-     expandPath(new TreePath(root));
+      expandPath(new TreePath(root));
       Enumeration e = root.preorderEnumeration();
       while( e.hasMoreElements() ) {
          DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
@@ -209,11 +230,17 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
          textBackground = UIManager.getColor("Tree.textBackground");
       }
 
-      public Component getTreeCellRendererComponent(JTree tree, Object obj, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus){
+      public Component getTreeCellRendererComponent(JTree tree, Object obj, boolean selected, boolean expanded,
+            boolean leaf, int row, boolean hasFocus){
          DefaultMutableTreeNode node = (DefaultMutableTreeNode)obj;
          TreeNode n = (TreeNode)node.getUserObject();
 
-         if( n.hasCheckBox() ) {
+         //         System.out.println("getTreeCellRendererComponent ["+node.toString()+"] => "+n.isOk());
+
+         if( n!=null && n.hasCheckBox() ) {
+            if( n.isOk() ) n.checkbox.setForeground(Color.black);
+            else n.checkbox.setForeground(Color.lightGray);
+
             JPanel panel = n.getPanel();
             if (selected) {
                panel.setForeground(selectionForeground);
@@ -224,16 +251,19 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
             }
             return panel;
          }
-         else {
-            return nonLeafRenderer.getTreeCellRendererComponent(tree, obj, selected, expanded, leaf, row, hasFocus);
-         }
+
+         Component c = nonLeafRenderer.getTreeCellRendererComponent(tree, obj, selected, expanded, leaf, row, hasFocus);
+         if( n.isOk() ) c.setForeground( Color.black);
+         else c.setForeground( Color.lightGray );
+         return c;
       }
    }
-
+   
    /** Classe pour la modification d'un noeud de l'arbre => à savoir checkbox */
    class NoeudEditor extends AbstractCellEditor implements TreeCellEditor {
       JTree tree;
       NoeudRenderer renderer = new NoeudRenderer();
+      TreeNode n1 = null;
 
       public NoeudEditor(JTree tree) {
          this.tree = tree;
@@ -251,21 +281,28 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
       public Component getTreeCellEditorComponent(JTree tree, Object obj, boolean isSelected, boolean expanded, boolean leaf, int row){
          DefaultMutableTreeNode node = (DefaultMutableTreeNode)obj;
          TreeNode n = (TreeNode)node.getUserObject();
-         if( n.hasCheckBox() ) {
+         n1 = n;
+         if( n!=null &&  n.hasCheckBox() ) {
+            if( n.isOk() ) n.checkbox.setForeground(Color.black);
+            else n.checkbox.setForeground(Color.lightGray);
             return n.getPanel();
          }
-         return renderer.getTreeCellRendererComponent(tree, obj, true, expanded, leaf, row, true);
+         Component c = renderer.getTreeCellRendererComponent(tree, obj, true, expanded, leaf, row, true);
+         if( n.isOk() ) c.setForeground( Color.black);
+         else c.setForeground( Color.lightGray );
+         return c;
+
       }
       public Object getCellEditorValue() {
-         return null;
+         return n1;
       }
    }
-   
+
    public void paint(Graphics g) {
       updateColor();
       super.paint(g);
    }
 
-   
+
 }
-   
+

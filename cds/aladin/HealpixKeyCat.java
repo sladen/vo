@@ -21,12 +21,7 @@ package cds.aladin;
 
 import java.awt.Graphics;
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.InputStream;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.Iterator;
-import java.util.Vector;
 
 import cds.tools.Util;
 
@@ -46,23 +41,26 @@ public class HealpixKeyCat extends HealpixKey {
       nTotal=0;
    }
 
+   // POUR LE MOMENT JE L'INVALIDE A CAUSE DES CATALOGUES HiPS DE FX QUI CHANGENT DE DATE CONSTAMMENT
    protected void updateCacheIfRequired(int time) throws Exception {
+      if( !planBG.live ) return;
 //      String pathName = planBG.getCacheDir();
 //      pathName = pathName+Util.FS+fileCache;
 //      long ifmodifiedsince = new File(pathName).lastModified();
 //      String fileName = planBG.url+"/"+fileNet;
 //      URLConnection conn = (new URL(fileName)).openConnection();
 //      conn.setIfModifiedSince(ifmodifiedsince);
+//      MyInputStream dis=null;
 //      try {
 //         conn.setReadTimeout(time);
-//         MyInputStream dis = (new MyInputStream(conn.getInputStream())).startRead();
+//         dis = (new MyInputStream(conn.getInputStream())).startRead();
 //         stream = readFully(dis,true);
 //         Aladin.trace(4,getStringNumber()+" => cache update");
 //         writeCache();
 //         dis.close();
 //      } catch( Exception e ) {
 //         //            System.out.println("Le cache est conservé");
-//      }
+//      } finally { if( dis!=null ) dis.close(); }
    }
 
    protected long loadCache(String filename) throws Exception {
@@ -93,7 +91,10 @@ public class HealpixKeyCat extends HealpixKey {
          planBG.aladin.levelTrace=0;
          Legende leg = planBG.getFirstLegende();
          if( leg!=null ) pcat.setGenericLegende(leg);   // Indique a priori la légende à utiliser
-         pcat.tableParsing(in=new MyInputStream( getInputStreamFromStream() ),null);
+         
+         in=new MyInputStream( getInputStreamFromStream() );
+         in.setFileName(filename);
+         pcat.tableParsing(in,null);
          planBG.aladin.levelTrace=trace;
 
          if( !planBG.useCache ) stream=null;
@@ -262,7 +263,7 @@ public class HealpixKeyCat extends HealpixKey {
              Util.align(getCounts()+"s",8)+
              Util.align(getLongFullMem(),8)+
              Util.align(getStatusString(),16)+
-             ( timer==-1 ? -1 : getLiveTime()/1000 ) +
+             ( timer==-1 ? -1 : getCurrentLiveTime()/1000 ) +
 //             "/"+t + "s => "+VIE[-getLive()]+
              "s => "+VIE[-getLive()]+
              (getStatus()==READY?(fromNet?" Net":" Cache")+":"+timeStream+"ms" : "")+

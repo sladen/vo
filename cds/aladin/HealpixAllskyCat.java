@@ -21,15 +21,6 @@
 package cds.aladin;
 
 import java.awt.Graphics;
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-
-import cds.tools.Util;
 
 class HealpixAllskyCat extends HealpixKeyCat {
 
@@ -41,7 +32,7 @@ class HealpixAllskyCat extends HealpixKeyCat {
       allSky=true;
       resetTimer();
       String nameNet = "Norder"+order+"/Allsky";
-      String nameCache = planBG.survey+planBG.version+"/"+"Norder"+order+"/Allsky";
+      String nameCache = planBG.getCacheName()+"/"+"Norder"+order+"/Allsky";
       extCache=extNet=ext;
       fileCache = nameCache+ EXT[extCache];
       fileNet = nameNet+ EXT[extNet];
@@ -50,10 +41,13 @@ class HealpixAllskyCat extends HealpixKeyCat {
 
       setStatus(ASKING);
    }
+   
+   protected boolean isOutView(ViewSimple v) { return false; }
+   protected boolean isOutView(ViewSimple v,PointD []b) { return false; }
 
    protected int draw(Graphics g, ViewSimple v) {
       if( pcat==null || !pcat.hasObj() ) return 0;
-      pcat.draw(g, null, v, true, 0, 0);
+      pcat.draw(g, v.rv, v, true, 0, 0);
       return pcat.getCount();
    }
 

@@ -21,10 +21,6 @@ package cds.allsky;
 
 import java.io.File;
 
-import javax.swing.JProgressBar;
-
-import cds.tools.Util;
-
 /** Permet de nettoyer les détails d'un index HEALPix
  * @author Pierre Fernique [CDS]
  */
@@ -61,8 +57,8 @@ public class BuilderCleanDetails extends BuilderClean {
    
    public boolean mustBeDeleted(File f) {
       String name = f.getName();
-      if( name.equals(Context.METADATA) ) return false;
-      else if( name.equals("Moc.fits") ) return false;
+      if( name.equals(Constante.FILE_METADATAXML) ) return false;
+      else if( name.equals(Constante.FILE_MOC) ) return false;
       return true;
    }
 

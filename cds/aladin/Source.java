@@ -20,11 +20,21 @@
 
 package cds.aladin;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Point;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
-import java.util.*;
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.NoSuchElementException;
+import java.util.StringTokenizer;
+import java.util.Vector;
 
 import cds.image.EPSGraphics;
 import cds.tools.Util;
@@ -263,7 +273,7 @@ public class Source extends Position implements Comparator {
   /** Modification de l'information associee a la source
    * @param info la nouvelle info supplementaire
    */
-   protected void setInfo(String info) { this.info = info; oid=""; }
+   public void setInfo(String info) { this.info = info; oid=""; }
 
   /** Modification de la legende associee a la source
    * @param leg la nouvelle legende
@@ -472,10 +482,7 @@ public class Source extends Position implements Comparator {
                                 4);
       g.drawPolygon(pol);
       if( solid ) g.fillPolygon(pol);
-//      g.drawLine(p.x,p.y-L, p.x+L,p.y);
-//      g.drawLine(p.x+L,p.y, p.x,p.y+L);
-//      g.drawLine(p.x,p.y+L, p.x-L,p.y);
-//      g.drawLine(p.x-L,p.y, p.x,p.y-L);
+      
       if( isWithLabel() ) {
          setBox(g);
          g.drawString(id,p.x+L-box.x,p.y-L+box.y);
@@ -492,9 +499,6 @@ public class Source extends Position implements Comparator {
       g.drawPolygon(pol);
       if( solid ) g.fillPolygon(pol);
 
-//      g.drawLine(p.x-L,p.y+L/3, p.x+L,p.y+L/3);
-//      g.drawLine(p.x-L,p.y+L/3, p.x,p.y-(2*L)/3);
-//      g.drawLine(p.x+L,p.y+L/3, p.x,p.y-(2*L)/3);
       if( isWithLabel() ) {
          setBox(g);
          g.drawString(id,p.x+L-box.x,p.y-L+box.y);
@@ -989,6 +993,7 @@ public class Source extends Position implements Comparator {
     	String ret;
       	try {
       	   ret = getCodedValue(index);
+      	   if( leg.isNullValue(ret, index) ) ret="";
 
            // Pierre: En cas de marques GLU
            if( ret.startsWith("<&") ) {
@@ -1139,6 +1144,9 @@ public class Source extends Position implements Comparator {
     /** Retourne la liste des Precisions pour chaque valeur */
     public String [] getPrecisions() { return getMeta(6); }
 
+    /** Retourne la liste des nullValues pour chaque valeur */
+    public String [] getNullValues() { return getMeta(7); }
+
     /** Retourne la liste d'une metadata particulière associée aux valeurs
      *  @param m 0:label, 1:unit,  2:ucd
      */
@@ -1154,6 +1162,7 @@ public class Source extends Position implements Comparator {
              case 4: u[i]=leg.field[i].arraysize;  break;
              case 5: u[i]=leg.field[i].width;  break;
              case 6: u[i]=leg.field[i].precision;  break;
+             case 7: u[i]=leg.field[i].nullValue;  break;
           }
        }
        return u;

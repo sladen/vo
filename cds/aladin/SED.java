@@ -27,9 +27,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.event.MouseWheelEvent;
-import java.io.UnsupportedEncodingException;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -101,8 +99,19 @@ class SED extends JPanel {
     * si l'utilisateur déplace la souris sur le SED */
    protected void setRepere(Repere simRep) { this.simRep=simRep; }
    
+   
+   static boolean first=true;
+   
    /** Mémorise le source associée au SED */
-   protected void setSource(String source) { this.source=source; }
+   protected void setSource(String source) { 
+      if( source==null && first ) {
+         System.out.println("SED.setSource("+source+")");
+         first=false;
+         try { throw new Exception("ICI"); }
+         catch( Exception e ) { e.printStackTrace(); }
+      }
+      this.source=source;
+   }
    
    /** Mémorise le rayon associé au SED */
    protected void setRadius(double radius) { this.radius = radius; }
@@ -128,7 +137,7 @@ class SED extends JPanel {
       planeAlreadyCreated=true;
       readyToDraw=false;
       try {
-         plan = new PlanCatalog(aladin);
+         if( plan==null ) plan = new PlanCatalog(aladin);
          createSEDlist(it);
          setPosition();
          aladin.calque.zoom.zoomView.flagSED=true;
@@ -626,7 +635,12 @@ class SED extends JPanel {
    }
    
    private void more() {
-      if( source==null ) return;
+      if( source==null ) {
+         System.out.println("SED.more() source=null");
+         return;
+      }
+      System.out.println("SED.more() source="+source);
+      
       // Je dois utiliser le %20 plutôt que le '+' pour l'encodage des blancs
       // parce que l'outil VizieR photometry ne les supporte pas
       // CE N'EST PLUS LA PEINE
@@ -672,6 +686,7 @@ class SED extends JPanel {
 
       // Y a-t-il un point de SED sous la souris ?
       siIn=null;
+      if( sedList==null ) return;
       for( SEDItem si : sedList ) si.highLight=false;
       for( SEDItem si : sedList ) {
          if( si.contains(x,y) ) {
@@ -690,7 +705,7 @@ class SED extends JPanel {
       // Quels sont le flux et la fréquence sous la souris
       Dimension dim = getDimension();
       if( x>margeGauche && x<dim.width-margeDroite ) {
-         currentAbs = getCurrentAbs( (double)(x-margeGauche) );
+         currentAbs = getCurrentAbs( x-margeGauche );
       } else currentAbs = Double.NaN;
 
       if( y>margeHaut+14 && y<dim.height-margeBas-(x>margeGauche+30?0:14) ) {

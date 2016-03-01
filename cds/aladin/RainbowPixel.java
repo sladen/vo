@@ -28,22 +28,22 @@ import java.awt.Graphics;
  * @version 1 (création Avril 2011)
  */
 public class RainbowPixel extends Rainbow {
-   
+
    private ViewSimple v;
    private boolean flagRedCM;
-   
+
    public RainbowPixel(Aladin aladin,ViewSimple v) {
       super(aladin);
       r = new RectangleD(10,v.getHeight()-330,30,300);
       this.v = v;
       flagRedCM=false;
    }
-   
+
    private PlanImage getPlan() { return (PlanImage)v.pref; }
-   
+
    private double oLastPos=-1;
    private long t0=-1;
-   
+
    public void setRedCM() {
       if( flagRedCM && lastPos==oLastPos ) return;
       if( !flagRedCM ) {
@@ -53,21 +53,21 @@ public class RainbowPixel extends Rainbow {
       double greyLevel = 256 * lastPos;
       if( greyLevel>255 ) greyLevel=255;
       PlanImage pimg = getPlan();
-      pimg.setCM(ColorMap.getCMBand((int)greyLevel, getPlan().video==PlanImage.VIDEO_INVERSE,
+      pimg.setCM(CanvasColorMap.getCMBand((int)greyLevel, getPlan().video==PlanImage.VIDEO_INVERSE,
             true,pimg.isTransparent()));
       oLastPos=lastPos;
       flagRedCM=true;
    }
-   
-   public void restoreCM() { 
+
+   public void restoreCM() {
       t0=-1;
       if( !flagRedCM ) return;
       getPlan().restoreCM();
       flagRedCM=false;
    }
-   
+
    public boolean isAvailable() { return v.pref.hasAvailablePixels(); }
-   
+
    /** Reçoit un évènement de la vue suite à un survol de la souris */
    public boolean mouseMove(double xview, double yview) {
       boolean rep = super.mouseMove(xview,yview);
@@ -75,12 +75,12 @@ public class RainbowPixel extends Rainbow {
       else restoreCM();
       return rep;
    }
-   
+
    public boolean submit(ViewSimple v) {
       restoreCM();
       return super.submit(v);
    }
-   
+
    public void draw(Graphics gr,ViewSimple v,int dx, int dy) {
       if( !isAvailable() ) return;
       super.draw(gr,v,dx,dy);

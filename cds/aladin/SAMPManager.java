@@ -25,13 +25,42 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.*;
-import java.net.*;
-import java.util.*;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.MalformedURLException;
+import java.net.Socket;
+import java.net.URI;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Vector;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.DefaultListModel;
+import javax.swing.DefaultListSelectionModel;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
 
 import org.apache.xmlrpc.WebServer;
 import org.apache.xmlrpc.XmlRpcClient;
@@ -137,10 +166,11 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
     static final protected String HUB_MSG_SUBSCRIPTIONS = "samp.hub.event.subscriptions";
 
 
-    static final protected String MSG_LOAD_FITS = "image.load.fits";
+    static final protected String MSG_LOAD_FITS_IMAGE = "image.load.fits";
     static final protected String MSG_POINT_AT_COORDS = "coord.pointAt.sky";
     static final protected String MSG_LOAD_VOT_FROM_URL = "table.load.votable";
     static final protected String MSG_LOAD_FITS_TABLE_FROM_URL = "table.load.fits";
+    static final protected String MSG_LOAD_FITS_MOC_COVERAGE = "coverage.load.moc.fits";
     static final protected String MSG_HIGHLIGHT_OBJECT = "table.highlight.row";
     static final protected String MSG_SELECT_OBJECTS = "table.select.rowList";
 
@@ -157,7 +187,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
     static final protected String MSG_PING = "samp.app.ping";
 
     // liste des messages supportés (i.e auxquels on répond)
-    static final protected String[] SUPPORTED_MESSAGES = {MSG_LOAD_FITS, MSG_POINT_AT_COORDS, MSG_GET_COORDS,MSG_GET_SNAPSHOT,
+    static final protected String[] SUPPORTED_MESSAGES = {MSG_LOAD_FITS_IMAGE, MSG_POINT_AT_COORDS, MSG_GET_COORDS,MSG_GET_SNAPSHOT,
                                     MSG_LOAD_VOT_FROM_URL,
                                     MSG_LOAD_FITS_TABLE_FROM_URL, MSG_HIGHLIGHT_OBJECT, MSG_SELECT_OBJECTS,
                                     MSG_PING, MSG_SEND_ALADIN_SCRIPT_CMD,
@@ -460,7 +490,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
             }
 
             // load FITS image
-            else if( mType.equals(MSG_LOAD_FITS) ) {
+            else if( mType.equals(MSG_LOAD_FITS_IMAGE) ) {
                 String url = (String)msgParams.get("url");
                 String imageId = (String)msgParams.get("image-id");
                 String name = (String)msgParams.get("name");
@@ -498,6 +528,47 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
                 Aladin.trace(3, "Receiving image "+url);
                 a.log("SAMP", "receiving image");
             }
+            // load FITS MOC coverage
+            else if( mType.equals(MSG_LOAD_FITS_MOC_COVERAGE) ) {
+                String url = (String)msgParams.get("url");
+                String coverageId = (String)msgParams.get("coverage-id");
+                String name = (String)msgParams.get("name");
+
+                if( url==null ) {
+                    System.err.println("Missing URL !");
+                    if( responseNeeded ) {
+                        replyToMessage(msgId, MSG_REPLY_SAMP_STATUSERROR, null, "Could not load MOC coverage, URL is missing !");
+                    }
+                    return FALSE;
+                }
+
+                if( coverageId==null ) {
+                    coverageId = url;
+                }
+
+                String senderName = getNameForApp(senderId);
+                Plan p = loadFitsImageFromURL(url, coverageId, name, senderName);
+                if( responseNeeded ) {
+                    if( p==null ) {
+                        replyToMessage(msgId, MSG_REPLY_SAMP_STATUSERROR, null, "Could not load MOC coverage !");
+                    }
+                    // si le plan est deja pret
+                    else if( p.flagOk ) {
+                        replyToMessage(msgId, MSG_REPLY_SAMP_STATUSOK, null, null);
+                    }
+                    // reply is deferred until plane is loaded
+                    else {
+                        trace("Associating message ID " + msgId + " to MOC coverage plane " + p.getLabel());
+                        planesToMsgIds.put(p, msgId);
+                        p.addPlaneLoadListener(this);
+                    }
+                }
+
+                Aladin.trace(3, "Receiving MOC "+url);
+                a.log("SAMP", "receiving MOC");
+            }
+
+            // Aladin script submission
             else if( mType.equals(MSG_SEND_ALADIN_SCRIPT_CMD) ) {
                 String script = (String)msgParams.get("script");
                 if( script==null) {
@@ -1020,7 +1091,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
     }
 
     public void sendMessageLoadImage(String url, String name, List recipients) {
-        Map paramMap = new Hashtable();
+        Map<String, String>paramMap = new Hashtable<String, String>();
         // ajout de l'url
         paramMap.put("url", url);
         // ajout de image-id
@@ -1029,11 +1100,49 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         paramMap.put("name", name);
 
         Map message = new Hashtable();
-        message.put(KEY_MTYPE, MSG_LOAD_FITS);
+        message.put(KEY_MTYPE, MSG_LOAD_FITS_IMAGE);
         message.put(KEY_PARAMS, paramMap);
 
         sendNotification(message, (String[])recipients.toArray(new String[recipients.size()]));
     }
+
+    public void sendMessageLoadMOC(String url, String name, List recipients) {
+        Map<String, String>paramMap = new Hashtable<String, String>();
+        // ajout de l'url
+        paramMap.put("url", url);
+        // ajout de image-id
+        paramMap.put("coverage-id", url);
+        // ajout du name
+        paramMap.put("name", name);
+
+        Map message = new Hashtable();
+        message.put(KEY_MTYPE, MSG_LOAD_FITS_MOC_COVERAGE);
+        message.put(KEY_PARAMS, paramMap);
+
+        sendNotification(message, (String[])recipients.toArray(new String[recipients.size()]));
+    }
+    
+    
+    // Bricolage PIERRE pour Petr Skoda - nov 2015
+    // TOPcat refuse de recevoir un spectre ou une série temporelle, je lui envoie comme une table simple
+    public void sendMessageLoadVOTable(String url, String id, String name, Map metadata, List recipients) {
+       Map paramMap = new Hashtable();
+       // ajout de l'url
+       paramMap.put("url", url);
+       // ajout du spectrum-id
+       paramMap.put("table-id", id);
+       // ajout des métadonnées
+       paramMap.put("meta", metadata);
+       // ajout du name
+       paramMap.put("name", name);
+
+       Map message = new Hashtable();
+       message.put(KEY_MTYPE, MSG_LOAD_VOT_FROM_URL);
+       message.put(KEY_PARAMS, paramMap);
+
+       sendNotification(message, recipients==null?null:(String[])recipients.toArray(new String[recipients.size()]));
+   }
+
 
     public void sendMessageLoadSpectrum(String url, String spectrumId, String spectrumName, Map metadata, List recipients) {
         Map paramMap = new Hashtable();
@@ -1061,7 +1170,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
     public String getMessage(AppMessagingInterface.AbstractMessage abstractMsg) {
         if( abstractMsg==null ) return null;
 
-        if( abstractMsg.equals(ABSTRACT_MSG_LOAD_FITS) ) return MSG_LOAD_FITS;
+        if( abstractMsg.equals(ABSTRACT_MSG_LOAD_FITS) ) return MSG_LOAD_FITS_IMAGE;
 
         if( abstractMsg.equals(ABSTRACT_MSG_LOAD_VOT_FROM_URL) ) return MSG_LOAD_VOT_FROM_URL;
 
@@ -1659,7 +1768,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
 
                 // envoi message SAMP
                 Map message = new Hashtable();
-                message.put(KEY_MTYPE, MSG_LOAD_FITS);
+                message.put(KEY_MTYPE, MSG_LOAD_FITS_IMAGE);
 
                 Map paramMap = new Hashtable();
                 // ajout de l'url
