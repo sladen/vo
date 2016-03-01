@@ -11,6 +11,9 @@
 #
 # Manual updates mean that the source and HTML version get out-of-step
 # (Possible to skip based on Last-modified date of download page?)
+# Kudos to Pierre Fernique for a heads-up that the version number is
+# available as 'vN.nnn - mth. month day HH:mm:ss CET YYYY' from:
+# http://aladin.unistra.fr/java/VERSION
 #
 # The HTML5-based AladinLite (HTML5-based) is distributed separately
 # There is a first-level directory which contains the release version/date
