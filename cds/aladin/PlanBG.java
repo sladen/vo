@@ -3889,10 +3889,11 @@ public class PlanBG extends PlanImage {
    /** Retourne le créateur du HiPS indiqué dans l'identificateur => cad le premier champ */
    public String getCreatorFromId() {
       String s = id;
+      if( s==null ) return null;
       if( s.startsWith("ivo://") ) s=s.substring(6);
       int offset = s.indexOf('/');
       int offset1 = s.indexOf('?');
-      if( offset==-1 && offset1==-1 ) return "UNK_AUT";
+      if( offset==-1 && offset1==-1 ) return null;
       if( offset==-1 ) offset=s.length();
       if( offset1==-1 ) offset1=s.length();
       if( offset1<offset ) offset=offset1;

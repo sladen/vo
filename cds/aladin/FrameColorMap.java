@@ -1008,11 +1008,13 @@ public final class FrameColorMap extends JFrame implements MouseListener {
    @Override
    public void mouseExited(MouseEvent e) {
       if( ignoreMouse(e) ) return;
-      String mins = pixelCutMinField.getText();
-      String maxs = pixelCutMaxField.getText();
-      if( !mins.equals(pimg.getPixelMinInfo()) || !maxs.equals(pimg.getPixelMaxInfo()) ) resumeWidgets();
+      if( pixelCutMinField!=null && pixelCutMaxField!=null ) {
+         String mins = pixelCutMinField.getText();
+         String maxs = pixelCutMaxField.getText();
+         if( !mins.equals(pimg.getPixelMinInfo()) || !maxs.equals(pimg.getPixelMaxInfo()) ) resumeWidgets();
+      } else resumeWidgets();
    }
-   
+
    private boolean ignoreMouse(MouseEvent e) {
       int x = e.getX();
       int y = e.getY();
