@@ -181,7 +181,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    static protected final String FULLTITRE   = "Aladin Sky Atlas";
 
    /** Numero de version */
-   static public final    String VERSION = "v9.012";
+   static public final    String VERSION = "v9.013";
    static protected final String AUTHORS = "P.Fernique, T.Boch, A.Oberto, F.Bonnarel";
    static protected final String OUTREACH_VERSION = "    *** UNDERGRADUATE MODE (based on "+VERSION+") ***";
    static protected final String BETA_VERSION     = "    *** BETA VERSION (based on "+VERSION+") ***";
@@ -298,11 +298,11 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
    // Gère le mode particuliers
    static boolean LOG=true;  // false si on inhibe les logs
-   public static boolean BETA   =false;
+   public static boolean BETA           =false;
    public static boolean CDS=false;   // true si on tourne en mode CDS
    public static boolean PROTO=false;	// true si on tourne en mode PROTO (nécessite Proto.jar)
-   static public boolean OUTREACH   =false;
-   static boolean setOUTREACH   =false;
+   static public boolean OUTREACH           =false;
+   static boolean setOUTREACH           =false;
    static int ALIASING=0;            // 0-défaut système, 1-actif, -1-désactivé
 
    static boolean ENABLE_FOOTPRINT_OPACITY=true; // footprints en transparence ?
