@@ -154,10 +154,13 @@ import cds.xml.XMLParser;
  *
  * @beta <B>New features and performance improvements:</B>
  * @beta <UL>
- * @beta    <LI> High Dynamic Range button
+ * @beta    <LI> Probability sky map MOC extraction
+ * @beta    <LI> Planetary HiPS (longitude inversion)
  * @beta </UL>
  * @beta
  * @beta <B>Major fixed bugs:</B>
+ * @beta    <LI> GLU watchdog timer (sesame mirrors)
+ * @beta    <LI> Blink initial delay
  * @beta <UL>
  * @beta </UL>
  *
@@ -181,7 +184,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    static protected final String FULLTITRE   = "Aladin Sky Atlas";
 
    /** Numero de version */
-   static public final    String VERSION = "v9.013";
+   static public final    String VERSION = "v9.017";
    static protected final String AUTHORS = "P.Fernique, T.Boch, A.Oberto, F.Bonnarel";
    static protected final String OUTREACH_VERSION = "    *** UNDERGRADUATE MODE (based on "+VERSION+") ***";
    static protected final String BETA_VERSION     = "    *** BETA VERSION (based on "+VERSION+") ***";
@@ -298,11 +301,11 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
    // Gère le mode particuliers
    static boolean LOG=true;  // false si on inhibe les logs
-   public static boolean BETA           =false;
+   public static boolean BETA  =false;
    public static boolean CDS=false;   // true si on tourne en mode CDS
    public static boolean PROTO=false;	// true si on tourne en mode PROTO (nécessite Proto.jar)
-   static public boolean OUTREACH           =false;
-   static boolean setOUTREACH           =false;
+   static public boolean OUTREACH  =false;
+   static boolean setOUTREACH  =false;
    static int ALIASING=0;            // 0-défaut système, 1-actif, -1-désactivé
 
    static boolean ENABLE_FOOTPRINT_OPACITY=true; // footprints en transparence ?
@@ -402,6 +405,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    FrameMocOperation frameMocOperation;   // Gere la fenetre pour les opérations sur les MOCs
    FrameMocGenImgs frameMocGenImgs; // Gere la fenetre pour la génération d'un MOC à partir d'une collection d'images
    FrameMocGenImg frameMocGenImg;   // Gere la fenetre pour la génération d'un MOC à partir d'images
+   FrameMocGenProba frameMocGenProba;   // Gere la fenetre pour la génération d'un MOC à partir d'un map de proba
    FrameMocGenCat frameMocGenCat;   // Gere la fenetre pour la génération d'un MOC à partir de catalogues
    FrameMocGenRes frameMocGenRes;   // Gere la fenetre pour la génération d'un MOC à partir d'un autre MOC de meilleure résolution
    FrameBitpix frameBitpix;       // Gere la fenetre pour de conversion du bitpix d'une image
@@ -472,7 +476,8 @@ DropTargetListener, DragSourceListener, DragGestureListener
    miUnSelect,miCut,miStatSurf,miTransp,miTranspon,miTag,miDist,miDraw,miTexte,miCrop,miCreateHpx,
    miCopy,miHpxGrid,miHpxDump,
    miTableInfo,miClone,miPlotcat,miConcat,miExport,miExportEPS,miBackup, /* miHistory, */
-   miInFold,miConv,miArithm,miMocHips,miMocPol,miMocGenImg,miMocGenCat,miMocOp,miMocToOrder,miMocFiltering,miMocCrop,
+   miInFold,miConv,miArithm,miMocHips,miMocPol,miMocGenImg,miMocGenProba,miMocGenCat,miMocOp,
+   miMocToOrder,miMocFiltering,miMocCrop,
    miHealpixArithm,miNorm,miBitpix,miPixExtr,miHead,miFlip,
    miSAMPRegister,miSAMPUnregister,miSAMPStartHub,miSAMPStopHub,miLastFile,
    miBroadcastAll,miBroadcastTables,miBroadcastImgs; // Pour pouvoir modifier ces menuItems
@@ -531,7 +536,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    RGB,MOSAIC,BLINK,GREY,SELECT,SELECTTAG,DETAG,TAGSELECT,SELECTALL,UNSELECT,PANEL,
    PANEL1,PANEL2C,PANEL2L,PANEL4,PANEL9,PANEL16,NTOOL,DIST,DRAW,PHOT,TAG,STATSURF,STATSURFCIRC,
    STATSURFPOLY,CUT,TRANSP,TRANSPON,CROP,COPY,CLONE,CLONE1,CLONE2,PLOTCAT,CONCAT,CONCAT1,CONCAT2,TABLEINFO,
-   SAVEVIEW,EXPORTEPS,EXPORT,BACKUP,FOLD,INFOLD,ARITHM,MOC,MOCGENIMG,MOCGEN,MOCPOL,MOCGENIMGS,MOCGENCAT,
+   SAVEVIEW,EXPORTEPS,EXPORT,BACKUP,FOLD,INFOLD,ARITHM,MOC,MOCGENIMG,MOCGENPROBA,MOCGEN,MOCPOL,MOCGENIMGS,MOCGENCAT,
    MOCM,MOCTOORDER,MOCFILTERING,MOCCROP,MOCHELP,MOCLOAD,MOCHIPS,
    HEALPIXARITHM,/*ADD,SUB,MUL,DIV,*/
    CONV,NORM,BITPIX,PIXEXTR,HEAD,FLIP,TOPBOTTOM,RIGHTLEFT,SEARCH,ALADIN_IMG_SERVER,GLUTOOL,GLUINFO,
@@ -955,6 +960,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       MOC    =  chaine.getString("MMOC");
       MOCGEN   =chaine.getString("MMOCGEN");
       MOCGENIMG   =chaine.getString("MMOCGENIMG");
+      MOCGENPROBA   =chaine.getString("MMOCGENPROBA");
       MOCPOL =chaine.getString("MMOCGENPOL");
       MOCGENIMGS  =chaine.getString("MMOCGENIMGS");
       MOCGENCAT   =chaine.getString("MMOCGENCAT");
@@ -1147,7 +1153,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
                {},{"%"+RETICLE},{"%"+RETICLEL},{"%"+NORETICLE},
             },
             { {MOC},
-               {MOCHIPS},{MOCLOAD}, {MOCGEN, MOCPOL, MOCGENCAT,MOCGENIMG,MOCGENIMGS},
+               {MOCHIPS},{MOCLOAD}, {MOCGEN, MOCPOL, MOCGENCAT,MOCGENIMG,MOCGENIMGS,MOCGENPROBA},
                {},{MOCM},{MOCTOORDER},{},{MOCFILTERING},{MOCCROP},{},{MOCHELP}
             },
             { {MTOOLS},
@@ -1796,6 +1802,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       else if( isMenu(m,MOCFILTERING) )   miMocFiltering  = ji;
       else if( isMenu(m,MOCCROP) )   miMocCrop  = ji;
       else if( isMenu(m,MOCGENIMG) )   miMocGenImg  = ji;
+      else if( isMenu(m,MOCGENPROBA) )   miMocGenProba  = ji;
       else if( isMenu(m,MOCHIPS) )   miMocHips  = ji;
       else if( isMenu(m,MOCPOL) )   miMocPol  = ji;
       else if( isMenu(m,MOCGENCAT) )   miMocGenCat  = ji;
@@ -3120,6 +3127,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       } else if( isMenu(s,MCLOSE) ){ quit(0);
       } else if( isMenu(s,ARITHM) ){ updateArithm();
       } else if( isMenu(s,MOCGENIMG) ){ updateMocGenImg();
+      } else if( isMenu(s,MOCGENPROBA) ){ updateMocGenProba();
       } else if( isMenu(s,MOCPOL) ){ createMocRegion();
       } else if( isMenu(s,MOCGENIMGS) ){ updateMocGenImgs();
       } else if( isMenu(s,MOCGENCAT) ){ updateMocGenCat();
@@ -3232,10 +3240,8 @@ DropTargetListener, DragSourceListener, DragGestureListener
    /** Affichage du header fits du plan passé en paramètre */
    protected void header(Plan plan) {
       if( plan==null ) return;
-      if( plan instanceof PlanBG )  ((PlanBG)plan).seeHipsProp();
-      else if( plan instanceof PlanImage ) ((PlanImage)plan).headerFits.seeHeaderFits();
-      else if( plan instanceof PlanFolder ) ((PlanFolder)plan).headerFits.seeHeaderFits();
-      else ((PlanCatalog)plan).headerFits.seeHeaderFits();
+      if( plan instanceof PlanBG && !(plan instanceof PlanHealpix || plan instanceof PlanMoc ) )  ((PlanBG)plan).seeHipsProp();
+      else plan.headerFits.seeHeaderFits();
    }
 
    //    /** Exécute une convolution sur le plan de base */
@@ -3922,6 +3928,17 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
       return moc;
    }
+   
+   /** Mise à jour de la fenêtre pour la génération d'un MOC */
+   protected void updateMocGenProba() {
+      if( frameMocGenProba==null ) {
+         trace(1,"Creating the MocGenImg window");
+         frameMocGenProba = new FrameMocGenProba(aladin);
+      }
+      frameMocGenProba.maj();
+   }
+
+
 
    /** Mise à jour de la fenêtre pour la génération d'un MOC */
    protected void updateMocGenImg() {
@@ -4848,6 +4865,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
          int nbPlanObj = calque.getNbPlanTool();
          int nbPlanImg = calque.getNbPlanImg();
          int nbPlanMoc = calque.getNbPlanMoc();
+         int nbPlanImgBG=  calque.getNbPlanImgBG();
          int nbPlanHealpix = calque.getNbPlanByClass(PlanHealpix.class);
          int nbPlanTranspImg = calque.getNbPlanTranspImg();
          int nbPlanImgWithoutBG = calque.getNbPlanImg(false);
@@ -4991,6 +5009,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
          if( miMocHips!=null ) miMocHips.setEnabled( pi instanceof PlanBG && ((PlanBG)pi).hasMoc()
                || base instanceof PlanBG && ((PlanBG)base).hasMoc() );
          if( miMocGenImg!=null ) miMocGenImg.setEnabled( nbPlanImg>0 );
+         if( miMocGenProba!=null ) miMocGenProba.setEnabled( nbPlanImgBG>0 );
          if( miMocGenCat!=null ) miMocGenCat.setEnabled( nbPlanCat>0 );
          if( miMocOp!=null ) miMocOp.setEnabled(nbPlanMoc>0);
          if( miMocToOrder!=null ) miMocToOrder.setEnabled(nbPlanMoc>0);

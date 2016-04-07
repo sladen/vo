@@ -191,6 +191,7 @@ public class PlanBG extends PlanImage {
    protected String pixelRange=null;   // Valeur du range si décrit dans le fichier properties "min max" (valeur physique, pas raw)
    protected String pixelCut=null;     // Valeur du cut si décrit dans le fichier properties "min max" (valeur physique, pas raw)
    protected boolean flagNoTarget=false; // Par défaut pas de target indiquée
+   private boolean flagWaitAllSky;     // En attente du chargement AllSky
    private int tileOrder=-1;        // Ordre des losanges
 
    protected int RGBCONTROL[] = { 0,128, 255 , 0,128, 255 , 0,128, 255 };
@@ -2233,6 +2234,8 @@ public class PlanBG extends PlanImage {
       boolean hasDrawnSomething=false;
       int z = (int)getZ(v);
       HealpixKey allsky = pixList.get( key(ALLSKYORDER,  -1, z) );
+      
+      flagWaitAllSky=false;
 
       if( allsky==null ) {
          if( drawMode==DRAWPOLARISATION ) allsky = new HealpixAllskyPol(this,ALLSKYORDER);
@@ -2291,19 +2294,16 @@ public class PlanBG extends PlanImage {
             }
          }
 
-         if( aladin.macPlateform && (aladin.ISJVM15 || aladin.ISJVM16) ) {
-            g.setColor(Color.red);
-            g.drawString("Warning: Java1.5 & 1.6 under Mac is bugged.",5,30);
-            g.drawString("Please update your java.", 5,45);
-         }
+//         if( aladin.macPlateform && (aladin.ISJVM15 || aladin.ISJVM16) ) {
+//            g.setColor(Color.red);
+//            g.drawString("Warning: Java1.5 & 1.6 under Mac is bugged.",5,30);
+//            g.drawString("Please update your java.", 5,45);
+//         }
          //         long t1= (Util.getTime()-t);
          //       System.out.println("drawAllSky "+(partial?"partial":"all")+" order="+ALLSKYORDER+" in "+t1+"ms");
 
       } else {
-         if( drawMode==DRAWPIXEL /* && isPause()*/ ) {
-            g.setColor(Color.red);
-            g.drawString("Whole sky in progress...", 5,30);
-         }
+         flagWaitAllSky=true;
       }
       return hasDrawnSomething;
    }
@@ -3164,9 +3164,19 @@ public class PlanBG extends PlanImage {
    //   protected double angle=0;
    static final int M = 2; //4;
    //   static final int EP =4; //12;
+   
+   protected void drawForeground(Graphics gv, ViewSimple v) {
+      drawForeground1(gv,v);
+      
+      if( flagWaitAllSky && drawMode==DRAWPIXEL ) {
+         gv.setColor(Color.red);
+         gv.drawString("Whole sky in progress...", 5,30);
+      }
+
+   }
 
    /** Tracé d'un bord le long de projection pour atténuer le phénomène de "feston" */
-   protected void drawForeground(Graphics gv,ViewSimple v) {
+   private void drawForeground1(Graphics gv,ViewSimple v) {
       v = v.getProjSyncView();
 
       if( aladin.calque.hasHpxGrid() || isOverlay() ) {

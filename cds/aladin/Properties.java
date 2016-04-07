@@ -110,12 +110,14 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
    TextField blankField;
    Couleur couleur=null;         // La couleur
    JComboBox sourceType=null;       // Le type de representation graphique
+   ButtonGroup longitude;
+   JRadioButton longitudeDescending,longitudeAscending;
    ButtonGroup scope;
    JRadioButton scopeGlobal,scopeLocal;
    ButtonGroup xyLock=null;    // Pour le plan TOOl, mode de calcul des x,y
    JComboBox planRefChoice=null;    // Projections possibles pour le plan de reference
    JComboBox defCatProj=null;    // Les projections possibles par défaut pour un catalogue sans image sous-jacente
-   JComboBox defFrame=null;     // Les frames possibles par défaut pour un catalogue sans image sous-jacente
+   JComboBox defFrame=null;     // Les frames possibles par défaut pour un planBG ou un catalogue sans image sous-jacente
    Plan planRef[]=null;		 // Tableau associe a projsChoice
    JComboBox projsChoice=null;      // Plan de projections possibles
    Projection projs[]=null;	 // Tableau associe a planRefChoice
@@ -1179,28 +1181,34 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
 
             PropPanel.addFilet(p,g,c);
             PropPanel.addSectionTitle(p,DEFCATPROJ,g,c);
-            PropPanel.addCouple(p,CENTER, new JLabel(plan.projd.c.getProjCenter().getSexa()), g,c);
+            if( !(plan instanceof PlanBG) ) PropPanel.addCouple(p,CENTER, new JLabel(plan.projd.c.getProjCenter().getSexa()), g,c);
             PropPanel.addCouple(p,METHOD, defCatProj, g,c);
-
+            
             if( plan.ref && plan instanceof PlanBG ) {
+               
                defFrame = Localisation.createFrameCombo();
                defFrame.setSelectedIndex( ((PlanBG)plan).getFrameDrawing() );
                defFrame.addActionListener(new ActionListener() {
                   public void actionPerformed(ActionEvent e) { actionFrameProj(); }
                });
                PropPanel.addCouple(p,".frame", defFrame, g,c);
+               
+               JPanel plong = new JPanel();
+               plong.setBorder( BorderFactory.createEmptyBorder());
+               longitude = new ButtonGroup();
+               longitudeDescending = new JRadioButton("descending");
+               longitudeDescending.addActionListener(this);
+               longitude.add(longitudeDescending);
+               longitudeAscending = new JRadioButton("ascending");
+               longitudeAscending.addActionListener(this);
+               longitude.add(longitudeAscending); 
+               plong.add( longitudeAscending );
+               plong.add( longitudeDescending );
+               longitudeAscending.setSelected(plan.projd.sym);
+               longitudeDescending.setSelected(!plan.projd.sym);
+               if( Aladin.BETA ) PropPanel.addCouple(p,".longitude", plong, g,c);
+
             }
-            //            else if( plan.ref && plan instanceof PlanCatalog ) {
-            //               defFrame = Localisation.createFrameComboBis();
-            //               int i;
-            //               for( i=0; i<Localisation.FRAMEVAL.length && plan.projd.frame!=i; i++ );
-            //               if( i>Localisation.FRAMEVAL.length ) i=0;
-            //               defFrame.setSelectedIndex(i);
-            //               defFrame.addActionListener(new ActionListener() {
-            //                  public void actionPerformed(ActionEvent e) { actionFrameProjCat(); }
-            //               });
-            //               PropPanel.addCouple(p,".frame", defFrame, g,c);
-            //            }
          }
       }
 
@@ -1683,14 +1691,24 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
 
    private void apply() {
       setFlagFullMaj(true);// Pour que toutes les fenetres soient maj par la suite
-      if( label!=null ) {
+      if( label!=null && !label.getText().equals(plan.label) ) {
          plan.setLabel(label.getText());
          label.setText(plan.label);
          setTitre(BANNER+" \""+plan.label+"\"");
       }
 
       if( blankField!=null ) actionBlank();
-
+      
+      // Modification du sens de la longitude
+      // ATTENTION, DOIT NECESSAIREMENT ETRE AVANT actionDefCatProj() !!!
+      if( longitude!=null && plan.projd!=null ) {
+         boolean flagAsc = longitudeAscending.isSelected();
+         if( plan.projd.sym!=flagAsc ) {
+            plan.projd.setProjSym(flagAsc);
+            aladin.view.newView();
+         }
+      }
+      
       // Changement de projection catalogue par défaut ?
       actionDefCatProj();
 
@@ -1713,7 +1731,7 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
             aladin.calque.repaintAll();
          }
       }
-
+      
       if( plan instanceof PlanContour) {
          int i;
          PlanContour pCont = (PlanContour)plan;
@@ -1785,10 +1803,6 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
                plan.setEpoch(s) ;
                epField.setText(plan.getEpoch().toString("J"));
                epField.setForeground(Color.black);
-               //               double y=2000;
-               //               try { y = Double.parseDouble(s.substring(1));
-               //               } catch( NumberFormatException e ) { }
-               //               epochSlider.setValue((int)y);
                aladin.view.newView(1);
 
             } catch(Exception e ) {
@@ -1848,6 +1862,11 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
       else if( src instanceof JRadioButton && plan.type==Plan.TOOL ) {
          String s = ((JRadioButton)src).getActionCommand();
          try { ((PlanTool)plan).setMovable(s); } catch( Exception e1 ) { }
+      }
+      
+      else if( src instanceof JRadioButton && plan instanceof PlanBG ) {
+         apply();
+         return;
       }
 
       // Peut être le sélecteur de couleur de fond puor une image couleur
