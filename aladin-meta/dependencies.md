@@ -24,6 +24,9 @@ Archive:  AladinSrc_9.013.jar
 
 ## CDS Astro
   * `cds.astro.Udef`, `cds.astro.Qbox`
+  * http://cds.u-strasbg.fr/resources/doku.php?id=downloads
+  * http://cds.u-strasbg.fr/resources/doku.php?id=units (Homepage)
+  * http://cds.u-strasbg.fr/resources/doku.php?id=using_conditions (Licence)
   * http://cdsarc.u-strasbg.fr/doc/javadoc/cds/astro/package-summary.html
   * http://cds.u-strasbg.fr/cdsdevcorner/units1.2/src.zip =1.2
   * Non-Free licence, restricted to educational use
@@ -84,6 +87,21 @@ uk/org/xml/sax
   * https://github.com/Starlink/starjava/tree/master/plastic
   * https://github.com/Starlink/starjava/tree/master/plastic/src/main/org/votech/plastic
   * https://github.com/Starlink/starjava/tree/master/plastic/src/main/uk/ac/starlink/plastic
+`cds/aladin/Aladin.java`:
+```java
+   protected static boolean USE_PLASTIC_REQUESTED = false;
+   protected static boolean USE_SAMP_REQUESTED = false;
+…
+      if( appMessagingMgr==null ) {
+         // choice at user request ?
+         if( USE_SAMP_REQUESTED ) {
+            appMessagingMgr = new SAMPManager(this);
+         }
+         else if( USE_PLASTIC_REQUESTED ) {
+            appMessagingMgr = new PlasticManager(this);
+         }
+```
+Can probably be ripped out.
 
 ### Sax
   * `org.xml.sax`
