@@ -55,8 +55,9 @@ def fetch_rename(url, version, base = None, twidder = None):
     destination = "%s_%s%s" % (base, version, ext)
 
     def progress_ticker(blocks, blocksize, total):
+        BACKSPACE = '\x08'
         percentage = "{0:6.2f}%".format(min(100.0,blocks*blocksize*100.0/total))
-        sys.stdout.write('\x08' * len(percentage) + percentage)
+        sys.stdout.write(BACKSPACE * len(percentage) + percentage)
 
     progress = progress_ticker
     sys.stdout.write('%9s %s %s %s' % (' ', version, destination, url))
@@ -64,13 +65,44 @@ def fetch_rename(url, version, base = None, twidder = None):
     if twidder is True or (twidder is None and sys.stdout.isatty()):
         sys.stdout.write('\r')
     else: progress = None
-    local_filename, headers = urllib.urlretrieve(url, destination, progress)
-    sys.stdout.write('\n')
 
-    # Need to use _tz; plain time.mktime() would lose the accurate timezone
-    date = headers.getdate_tz('Last-modified')
-    epoch_seconds = rfc822.mktime_tz(date)
-    os.utime(local_filename, (epoch_seconds,) * 2)
+    # Parse out Content-Length
+    def get_length(headers):
+        length = int(headers['Content-Length'])
+        return length
+    
+    # Parse out Last-Modified date in a reliable way
+    def get_seconds(headers):
+        date_tuple = headers.getdate_tz('Last-Modified')
+        epoch_seconds = rfc822.mktime_tz(date_tuple)
+        return epoch_seconds
+
+    # Perform a HEAD request
+    def date_size_via_head(url):
+        request = urllib2.Request(url)
+        request.get_method = lambda: 'HEAD'
+        conn = urllib2.urlopen(request)
+        return get_seconds(conn.headers), get_length(conn.headers)
+
+    # Don't clobber existing local files
+    if os.path.isfile(destination):
+        remote_mtime, remote_size = date_size_via_head(url)
+        local_mtime = os.path.getmtime(destination)
+        local_size = os.path.getsize(destination)
+        sys.stdout.write('%8s' % '[skipped]')
+        if remote_size != local_size:
+            sys.stderr.write('Warning: existing "%s" has size mismatch (incomplete cached copy?)\n' % destination)
+        if remote_mtime != local_mtime:
+            sys.stderr.write('Warning: existing "%s" has timestamp mismatch (out-of-date cached copy?)\n' % destination)
+        sys.stdout.write('\n')
+    else:
+        local_filename, headers = urllib.urlretrieve(url, destination, progress)
+
+        # Need to use _tz; plain time.mktime() would lose the accurate timezone
+        epoch_seconds = get_seconds(headers)
+        # reset (atime + mtime) at the same time
+        os.utime(local_filename, (epoch_seconds,) * 2)
+        sys.stdout.write('\n')
 
 def download_desktop_source():
     download_page_url = 'http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading'
