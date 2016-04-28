@@ -18,24 +18,32 @@ def dump_java_file(filename, internal_path = 'cds/aladin/Aladin.java'):
         # Open local jar (zip) file and look inside
         srcjar = zipfile.ZipFile(filename, 'r')
         f = srcjar.open(internal_path)
+    except (KeyError, IOError) as e:
+        # IOError: Exists Not a ZIP/JAR file (ie. a directory)
+        # KeyError: JAR file, but 'Aladin.java' couldn't be found
+        return ''
     except zipfile.BadZipfile as e:
         # Open java file directly
         f = open(filename, 'r')
     lines = f.readlines()
     return lines
 
-def main(filename):
-    lines = dump_java_file(filename)
-    versions = hunt_versions(lines)
+def main():
+    complete_success = True
+    for filename in sys.argv[1:]:
+        lines = dump_java_file(filename)
+        versions = hunt_versions(lines)
 
-    if len(versions) >= 1:
-        sys.stdout.write(versions[0] + '\n')
+        # We are only happy if we fine a single version for each JAR file
+        if len(versions) != 1:
+            complete_success = False
+        if len(versions) >= 1:
+            sys.stdout.write('%s "%s"\n' % (versions[0], filename))
 
     # Report external success only if there was a *single* unambigious
     # version number detected, no more, no fewer
-    sys.exit(len(versions) != 1)
+    sys.exit(not complete_success)
 
 if __name__=='__main__':
+    main()
     print sys.argv[1:]
-    list(map(main, sys.argv[1:]))
-    
