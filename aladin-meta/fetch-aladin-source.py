@@ -104,6 +104,16 @@ def fetch_rename(url, version, base = None, twidder = None):
         os.utime(local_filename, (epoch_seconds,) * 2)
         sys.stdout.write('\n')
 
+    def get_internal_version(filename):
+        import importlib
+        a_i_version = importlib.import_module('aladin-internal-version', '.')
+        versions = a_i_version.versions_from_filename(filename)
+        return versions[0]
+
+    internal = get_internal_version(destination)
+    if internal != version:
+        sys.stderr.write('Warning: "%s" mismatch with internal version string "%s"\n' % (destination, internal))
+
 def download_desktop_source():
     download_page_url = 'http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading'
 

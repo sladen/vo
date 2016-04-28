@@ -28,11 +28,15 @@ def dump_java_file(filename, internal_path = 'cds/aladin/Aladin.java'):
     lines = f.readlines()
     return lines
 
+def versions_from_filename(filename):
+    lines = dump_java_file(filename)
+    versions = hunt_versions(lines)
+    return versions
+
 def main():
     complete_success = True
     for filename in sys.argv[1:]:
-        lines = dump_java_file(filename)
-        versions = hunt_versions(lines)
+        versions = versions_from_filename(filename)
 
         # We are only happy if we fine a single version for each JAR file
         if len(versions) != 1:
