@@ -2,20 +2,40 @@
 
 import sys
 import re
+import zipfile
 
-def main(filename='cds/aladin/Aladin.java'):
-    success = 0
+def hunt_versions(lines):
     VERSION = 'String VERSION.*"v(\d\.\d+)".*;'
-    lines = open(sys.argv[1], 'r').readlines()
+    results = []
     for l in lines:
         m = re.search(VERSION, l)
         if m:
-            print m.group(1)
-            success += 1
+            results.append(m.group(1))
+    return results
 
-    # We want one match of the version string, and only one match.
-    sys.exit(success != 1)
+def dump_java_file(filename, internal_path = 'cds/aladin/Aladin.java'):
+    try:
+        # Open local jar (zip) file and look inside
+        srcjar = zipfile.ZipFile(filename, 'r')
+        f = srcjar.open(internal_path)
+    except zipfile.BadZipfile as e:
+        # Open java file directly
+        f = open(filename, 'r')
+    lines = f.readlines()
+    return lines
+
+def main(filename):
+    lines = dump_java_file(filename)
+    versions = hunt_versions(lines)
+
+    if len(versions) >= 1:
+        sys.stdout.write(versions[0] + '\n')
+
+    # Report external success only if there was a *single* unambigious
+    # version number detected, no more, no fewer
+    sys.exit(len(versions) != 1)
 
 if __name__=='__main__':
-    main()
+    print sys.argv[1:]
+    list(map(main, sys.argv[1:]))
     
