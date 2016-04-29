@@ -20,12 +20,15 @@
 # wget http://aladin.u-strasbg.fr/AladinLite/api/v2/latest/AladinLiteSrc.tar.gz
 # $ tar ztf AladinLiteSrc.tar.gz | grep -m1 AladinLite-
 # ./AladinLite-2015-12-16/
+#
+# If the CRONTAB= environment variable is set, output is muted unless
+# a new version was detected and downloaded.
 
 import urllib
 import urllib2
 import urlparse
 import BeautifulSoup
-import os.path
+import os
 import time
 import sys
 import rfc822
@@ -59,13 +62,6 @@ def fetch_rename(url, version, base = None, twidder = None):
         percentage = "{0:6.2f}%".format(min(100.0,blocks*blocksize*100.0/total))
         sys.stdout.write(BACKSPACE * len(percentage) + percentage)
 
-    progress = progress_ticker
-    sys.stdout.write('%9s %s %s %s' % (' ', version, destination, url))
-    # Percentage update on the console, looks nice if console wide-enough
-    if twidder is True or (twidder is None and sys.stdout.isatty()):
-        sys.stdout.write('\r')
-    else: progress = None
-
     # Parse out Content-Length
     def get_length(headers):
         length = int(headers['Content-Length'])
@@ -84,17 +80,33 @@ def fetch_rename(url, version, base = None, twidder = None):
         conn = urllib2.urlopen(request)
         return get_seconds(conn.headers), get_length(conn.headers)
 
+    crontab = os.environ.has_key('CRONTAB')
+
+    # Percentage update on the console, looks nice if console wide-enough
+    progress = progress_ticker
+    if twidder is True or (twidder is None and sys.stdout.isatty()) and not crontab:
+        sys.stdout.write('\r')
+    else: progress = None
+
+    # Logic of whether to work locally or do a download
+    downloading = not os.path.isfile(destination)
+
+    # Only output under crontab if actually downloading
+    if (crontab and downloading) or not crontab:
+        sys.stdout.write('%9s %s %s %s' % (' ', version, destination, url))
+
     # Don't clobber existing local files
-    if os.path.isfile(destination):
+    if not downloading:
         remote_mtime, remote_size = date_size_via_head(url)
         local_mtime = os.path.getmtime(destination)
         local_size = os.path.getsize(destination)
-        sys.stdout.write('%8s' % '[skipped]')
-        if remote_size != local_size:
-            sys.stderr.write('Warning: existing "%s" has size mismatch (incomplete cached copy?)\n' % destination)
-        if remote_mtime != local_mtime:
-            sys.stderr.write('Warning: existing "%s" has timestamp mismatch (out-of-date cached copy?)\n' % destination)
-        sys.stdout.write('\n')
+        if not crontab:
+            sys.stdout.write('%8s' % '[skipped]')
+            if remote_size != local_size:
+                sys.stderr.write('Warning: existing "%s" has size mismatch (incomplete cached copy?)\n' % destination)
+            if remote_mtime != local_mtime:
+                sys.stderr.write('Warning: existing "%s" has timestamp mismatch (out-of-date cached copy?)\n' % destination)
+            sys.stdout.write('\n')
     else:
         local_filename, headers = urllib.urlretrieve(url, destination, progress)
 
@@ -111,7 +123,7 @@ def fetch_rename(url, version, base = None, twidder = None):
         return versions[0]
 
     internal = get_internal_version(destination)
-    if internal != version:
+    if internal != version and ((crontab and downloading) or not crontab):
         sys.stderr.write('Warning: "%s" mismatch with internal version string "%s"\n' % (destination, internal))
 
 def download_desktop_source():
