@@ -543,6 +543,17 @@ public class Calque extends JPanel implements Runnable {
       return n;
    }
 
+   /** Retourne le nombre de plans HiPS utilisable pour générer un HiPS RGB */
+   protected int getNbPlanImgHiPS4RGB() {
+      int n=0;
+      Plan [] plan = getPlans();
+      for( int i=0; i<plan.length; i++ ) {
+         if( plan[i].type==Plan.ALLSKYIMG && plan[i].flagOk
+               && ((PlanBG)plan[i]).isLocalAllSky() && !((PlanBG)plan[i]).isColored()) n++;
+      }
+      return n;
+   }
+
    /** Retourne le nombre de sources chargées dans l'ensemble des plans */
    protected long getNbSrc() {
       long n=0;
@@ -1655,7 +1666,7 @@ public class Calque extends JPanel implements Runnable {
    protected void updateTagPlane(Tag tag) {
 
       final PlanTool p = selectPlanTool();
-      final Source s = p.addTag( (PlanImage)aladin.view.getMouseView().pref, tag.raj, tag.dej);
+      final SourceTag s = p.addTag( (PlanImage)aladin.view.getMouseView().pref, tag.raj, tag.dej);
 
       SwingUtilities.invokeLater(new Runnable() {
          public void run() {

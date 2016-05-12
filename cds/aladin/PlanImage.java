@@ -3133,6 +3133,10 @@ public class PlanImage extends Plan {
 
       bitpix = headerFits.getIntFromHeader("BITPIX");
       naxis = headerFits.getIntFromHeader("NAXIS");
+      if( naxis==0 && (dis.getType()&MyInputStream.XFITS)!=0 ) {
+         error=aladin.error="NAXIS=0 !";
+         return false;  // Peut être une HDU 0 avec NAXIS=0
+      }
 
       // Il s'agit juste d'une entête FITS indiquant des EXTENSIONs
       if( naxis<=1 && headerFits.getStringFromHeader("EXTEND")!=null ) {
@@ -3149,8 +3153,13 @@ public class PlanImage extends Plan {
          return false;
       }
 
-      width = naxis1 = headerFits.getIntFromHeader("NAXIS1");
-      height = naxis2 = headerFits.getIntFromHeader("NAXIS2");
+      try {
+         width = naxis1 = headerFits.getIntFromHeader("NAXIS1");
+         height = naxis2 = headerFits.getIntFromHeader("NAXIS2");
+      } catch( Exception e1 ) {
+         if( aladin.levelTrace>=3 ) e1.printStackTrace();
+         
+      }
 
       if (naxis <= 1 || width<=0 || height<=0) {
          error=aladin.error=ONEDIM;

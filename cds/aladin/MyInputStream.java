@@ -269,7 +269,7 @@ public final class MyInputStream extends FilterInputStream {
       if( hasFitsKey("COLORMOD", "ARGB") )  type |= ARGB;
 
       // Détection d'une extension FITS à suivre
-      if( hasFitsKey("EXTEND",null) ) type |= XFITS;
+      if( hasFitsKey("EXTEND",null) || hasFitsKey("NAXIS","0") ) type |= XFITS;
 
       if( hasFitsKey("CTYPE3","RGB")
             /* || (type&CUBE)==CUBE && hasFitsKey("NAXIS3","3")*/ ) type |= RGB;
