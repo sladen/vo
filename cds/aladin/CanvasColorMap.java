@@ -467,9 +467,9 @@ MouseMotionListener, MouseListener, KeyListener
 
                j = fctGap[j];
 
-               if( j>max ) j=max;
+               if( j>=Sr.length ) j=Sr.length-1;
                else if( j<0 ) j=0;
-               if( inverse ) j=max-j;
+               if( inverse ) j=Sr.length-j-1;
 
                r[i+gap]=(byte) (0xFF & Sr[ j ]);
                g[i+gap]=(byte) (0xFF & Sg[ j ]);

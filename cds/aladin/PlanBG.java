@@ -968,6 +968,7 @@ public class PlanBG extends PlanImage {
       return super.Free();
    }
    
+   protected void setFmt() { }
    
    private FrameHipsProperties frameHipsProperties = null;
    

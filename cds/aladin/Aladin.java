@@ -154,16 +154,23 @@ import cds.xml.XMLParser;
  *
  * @beta <B>New features and performance improvements:</B>
  * @beta <UL>
+ * @beta    <LI> MultiCCD image support
  * @beta    <LI> Tags improvements
  * @beta    <LI> Probability sky map MOC extraction
  * @beta    <LI> Planetary HiPS (longitude inversion)
  * @beta    <LI> Hipsgen improvements: HiPS color multithread code
+ * @beta    <LI> File dialog window multi-selections
+ * @beta    <LI> Copy-able propertie links
  * @beta </UL>
  * @beta
  * @beta <B>Major fixed bugs:</B>
+ * @beta    <LI> Graphical object mouse selection over a HiPS
+ * @beta    <LI> HiPS catalog "ghost" source selection
+ * @beta    <LI> File dialog window directory selection on MacOs and Linux
  * @beta    <LI> HiPS RGB -f flag
  * @beta    <LI> GLU watchdog timer (sesame mirrors)
  * @beta    <LI> Blink initial delay
+ * @beta    <LI> HiPS cache cleaning
  * @beta <UL>
  * @beta </UL>
  *
@@ -187,7 +194,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    static protected final String FULLTITRE   = "Aladin Sky Atlas";
 
    /** Numero de version */
-   static public final    String VERSION = "v9.020";
+   static public final    String VERSION = "v9.022";
    static protected final String AUTHORS = "P.Fernique, T.Boch, A.Oberto, F.Bonnarel";
    static protected final String OUTREACH_VERSION = "    *** UNDERGRADUATE MODE (based on "+VERSION+") ***";
    static protected final String BETA_VERSION     = "    *** BETA VERSION (based on "+VERSION+") ***";
@@ -2456,6 +2463,11 @@ DropTargetListener, DragSourceListener, DragGestureListener
    /** Mise à jour de la date de modif du répertoire cache afin qu'une autre session
     * ne puisse faire un nettoyage intempestif (toutes les minutes) */
    private void launchCacheUpdater() {
+      
+      // Suppression d'un éventuel vieux fichier "flag" signalant un nettoyage en cours
+      File ft = new File(Cache.getCacheDir()+Util.FS+"ScanRunning.bin");
+      if( ft.exists() ) ft.delete();
+      
       cacheUpdaterRunning=true;
       (updaterCache=new Thread("cacheUpdater"){
          @Override
@@ -3802,7 +3814,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
     * @param size taille à couvrir (en degrés)
     * @return order HEALPix approprié
     */
-   private int getAppropriateOrder(double size) {
+   static public int getAppropriateOrder(double size) {
       int order = 4;
       if( size==0 ) order=HealpixMoc.MAXORDER;
       else {
@@ -5035,7 +5047,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
          if( miBitpix!=null ) miBitpix.setEnabled(hasPixels && !isCube);
          if( miPixExtr!=null ) miPixExtr.setEnabled(hasPixels && !isCube);
          if( miCopy!=null ) miCopy.setEnabled(hasPixels /* && !isCube */);
-         if( miCreateHpx!=null ) miCreateHpx.setEnabled( hasProj && base.isSimpleImage() );
+         if( miCreateHpx!=null ) miCreateHpx.setEnabled( hasProj && base!=null && base.isSimpleImage() );
          if( miCreateHpxRgb!=null ) miCreateHpxRgb.setEnabled( nbPlanHiPS4RGB>1 );
          if( miHpxDump!=null ) miHpxDump.setEnabled(v!=null && v.pref!=null && isBG );
          if( miFlip!=null ) miFlip.setEnabled(hasImage && !isCube && !isBG);
