@@ -324,7 +324,7 @@ public class Context {
    public String checkHipsId(String s,boolean verbose) {
 
       String auth,id;
-      boolean flagQuestion=true;  // true si l'identificateur utilise un ? après l'authority ID, et non un /
+      boolean flagQuestion=false;  // true si l'identificateur utilise un ? après l'authority ID, et non un /
       
       if( s==null && prop!=null )  s = getIdFromProp(prop);
       
@@ -651,7 +651,7 @@ public class Context {
 
       } catch( Exception e ) { setDepth(1); }
 
-      // Il peut s'agit d'un fichier .hhh (sans pixel)
+      // Il peut s'agir d'un fichier .hhh (sans pixel)
       try { initCut(fitsfile); } catch( Exception e ) {
          Aladin.trace(4,"initFromImgEtalon :"+ e.getMessage());
       }
@@ -660,7 +660,9 @@ public class Context {
       // Positionnement initiale du HiPS par défaut
       if( target==null ) {
          Coord c = fitsfile.calib.getImgCenter();
-         setTarget(Util.round(c.al,5)+" "+(c.del>=0?"+":"")+Util.round(c.del,5));
+         String s = Util.round(c.al,5)+" "+(c.del>=0?"+":"")+Util.round(c.del,5);
+         setTarget(s);
+         info("setTarget => "+s);
          if( targetRadius==null ) {
             double r = Math.max( fitsfile.calib.getImgHeight(),fitsfile.calib.getImgWidth());
             setTargetRadius(Util.round(r,5)+"");

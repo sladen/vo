@@ -195,7 +195,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    static protected final String FULLTITRE   = "Aladin Sky Atlas";
 
    /** Numero de version */
-   static public final    String VERSION = "v9.024";
+   static public final    String VERSION = "v9.025";
    static protected final String AUTHORS = "P.Fernique, T.Boch, A.Oberto, F.Bonnarel";
    static protected final String OUTREACH_VERSION = "    *** UNDERGRADUATE MODE (based on "+VERSION+") ***";
    static protected final String BETA_VERSION     = "    *** BETA VERSION (based on "+VERSION+") ***";
@@ -368,7 +368,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    // Le numéro de session d'Aladin
    static private int ALADINSESSION = -1;
    protected int aladinSession=0;
-
+   
    // Les fontes associees a Aladin
    static int  SSIZE,SSSIZE,LSIZE  ;
    static public Font BOLD,PLAIN,ITALIC,SBOLD,SSBOLD,SPLAIN,SSPLAIN,SITALIC,
@@ -473,6 +473,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
    Rectangle origPos=null;       // Dimension d'origine dans le navigateur
    static public String error;          // La derniere chaine d'erreur (DEVRAIT NE PAS ETRE STATIC)
    protected JMenuBar jBar;      // La barre de menu
+   protected int jbarLastIndex=0; // Index du dernier "vrai" menu dans la jBar
+   protected Component iconFullScreen=null;
+   
    private JButton bDetach;
    private JMenuItem miDetach,miCalImg,miCalCat,miAddCol,miSimbad,miAutoDist,miVizierSED,miXmatch,miROI,/*miTip,*/
    miVOtool,miGluSky,miGluTool,miPref,miPlasReg,miPlasUnreg,miPlasBroadcast,
@@ -1445,6 +1448,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
          }
          jBar.add(jm);
       }
+      
+      // Reperage de l'indice du dernier "vrai" menu
+      jbarLastIndex = jBar.getComponentCount();
 
       jBar.add(javax.swing.Box.createGlue());
       JButton b;
@@ -1504,9 +1510,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
          b.addActionListener( new ActionListener() {
             public void actionPerformed(ActionEvent e) {  fullScreen(1); }
          });
-         if( !isApplet() ) jBar.add(b);
+         if( !isApplet() )  jBar.add(b);
 
-         b = new JButton(new ImageIcon(aladin.getImagette("Fullscreen.gif")));
+         iconFullScreen = b = new JButton(new ImageIcon(aladin.getImagette("Fullscreen.gif")));
          b.setMargin(new Insets(0,0,0,0));
          b.setToolTipText(FULLSCREEN);
          b.setBorderPainted(false);
@@ -2088,7 +2094,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       // Creation du menu
       if( !NOGUI ) {
          trace(1,"Creating the Menu");
-         JMenuBar jBar = createJBar( createMenu() );
+         jBar = createJBar( createMenu() );
          // TODO : que faire en mode applet ??
          if( STANDALONE && macPlateform && !isApplet() ) f.setJMenuBar(jBar);
          else setJMenuBar(jBar);
@@ -4877,6 +4883,43 @@ DropTargetListener, DragSourceListener, DragGestureListener
       else if( ct instanceof JApplet ) ct = ((JApplet)ct).getContentPane();
       try { ct.add(c,s); } catch( Error e ) { ct.add(s,c); }
    }
+   
+   private long ot=0L;
+   
+   /** Met à jour différents éléments */
+   protected void resumeVariousThinks() {
+
+      long t = System.currentTimeMillis();
+      if( t-300>ot ) {
+         ot=t;
+         SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+
+               // On met a jour la fenetre des proprietes en indiquant
+               // s'il y a ou non des plans en train d'etre charge
+               // afin d'eviter les clignotement de Properties
+               // intempestifs
+               Properties.majProp(calque.select.slideBlink?1:0);
+
+               // On met a jour la fenetre de la table des couleurs
+               if( frameCM!=null ) frameCM.majCM();
+
+               // Activation ou desactivation des boutons du menu principal
+               // associes a la presence d'au moins un plan
+               setButtonMode();
+
+               // On met a jour la fenetre des contours
+               if( frameContour!=null ) frameContour.majContour();
+
+               // On met a jour la fenetre des RGB et des Blinks
+               if( frameRGB!=null )   frameRGB.maj();
+               if( frameBlink!=null ) frameBlink.maj();
+               if( frameArithm!=null && frameArithm.isVisible() ) frameArithm.maj();
+            }
+         });
+      }
+   }
+
 
 
    /** Activation/Desactivation des boutons du menu principal */

@@ -6661,6 +6661,7 @@ g.drawString(s,10,100);
       if( fullScreen )  {
          //         aladin.fullScreen.drawMesures(g);
          //         aladin.fullScreen.showMesures();
+         aladin.resumeVariousThinks();
          aladin.fullScreen.drawIcons(g);
 
          //         drawOverlayControls(g);
