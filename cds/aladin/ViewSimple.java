@@ -20,8 +20,6 @@
 
 package cds.aladin;
 
-import healpix.essentials.FastMath;
-
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -79,6 +77,7 @@ import cds.astro.AstroMath;
 import cds.moc.Healpix;
 import cds.tools.Util;
 import cds.tools.pixtools.CDSHealpix;
+import healpix.essentials.FastMath;
 
 /**
  * Gestionnaire de la vue. Il s'agit d'afficher les plans acifs (voir
@@ -4560,6 +4559,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
     * mode 0x1 image, 0x2 overlay
     */
    protected void drawForeGround(Graphics g,int mode, boolean flagBordure) {
+      if( aladin.levelTrace==6 ) return;
       Rectangle clip = g.getClipBounds();
       int m = isFullScreen()?0:2;
       g.setClip(m, m, rv.width-2*m, rv.height-2*m);

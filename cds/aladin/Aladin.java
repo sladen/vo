@@ -20,12 +20,6 @@
 
 package cds.aladin;
 
-import healpix.essentials.Moc;
-import healpix.essentials.MocQuery;
-//import healpix.essentials.MocUtil;
-import healpix.essentials.Pointing;
-import healpix.essentials.Vec3;
-
 import java.applet.Applet;
 import java.applet.AppletContext;
 import java.awt.BorderLayout;
@@ -138,6 +132,11 @@ import cds.tools.VOObserver;
 import cds.tools.pixtools.CDSHealpix;
 import cds.xml.Field;
 import cds.xml.XMLParser;
+import healpix.essentials.Moc;
+import healpix.essentials.MocQuery;
+//import healpix.essentials.MocUtil;
+import healpix.essentials.Pointing;
+import healpix.essentials.Vec3;
 
 /**
  * La classe Aladin est le point d'entree d'Aladin.
@@ -159,7 +158,7 @@ import cds.xml.XMLParser;
  * @beta    <LI> Tags improvements
  * @beta    <LI> Probability sky map MOC extraction
  * @beta    <LI> Planetary HiPS (longitude inversion)
- * @beta    <LI> Hipsgen improvements: HiPS color multithread code
+ * @beta    <LI> Hipsgen improvements: HiPS color multithread code, local MIRROR
  * @beta    <LI> File dialog window multi-selections
  * @beta    <LI> Copy-able propertie links
  * @beta </UL>
@@ -195,7 +194,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    static protected final String FULLTITRE   = "Aladin Sky Atlas";
 
    /** Numero de version */
-   static public final    String VERSION = "v9.025";
+   static public final    String VERSION = "v9.027";
    static protected final String AUTHORS = "P.Fernique, T.Boch, A.Oberto, F.Bonnarel";
    static protected final String OUTREACH_VERSION = "    *** UNDERGRADUATE MODE (based on "+VERSION+") ***";
    static protected final String BETA_VERSION     = "    *** BETA VERSION (based on "+VERSION+") ***";
@@ -480,7 +479,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    private JMenuItem miDetach,miCalImg,miCalCat,miAddCol,miSimbad,miAutoDist,miVizierSED,miXmatch,miROI,/*miTip,*/
    miVOtool,miGluSky,miGluTool,miPref,miPlasReg,miPlasUnreg,miPlasBroadcast,
    miDel,miDelAll,miPixel,miContour,miSave,miPrint,miSaveG,miScreen,miPScreen,miMore,miNext,
-   miLock,miDelLock,miStick,miOne,miNorthUp,
+   miLock,miDelLock,miStick,miOne,miNorthUp,miView,
    miProp,miGrid,miNoGrid,miReticle,miReticleL,miNoReticle,
    miTarget,miOverlay,miConst,miRainbow,miZoomPt,miZoom,miSync,miSyncProj,miCopy1,miPaste,
    /* miPrevPos,miNextPos, */
@@ -1719,6 +1718,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       int i;
 
       if( isMenu(m,CALIMG))  miCalImg  = ji;
+      else if( isMenu(m,MVIEW))   miView    = ji;
       else if( isMenu(m,CALCAT))  miCalCat  = ji;
       else if( isMenu(m,MDCH1))   miDetach  = ji;
       else if( isMenu(m,ADDCOL))  miAddCol  = ji;
@@ -4960,6 +4960,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
          boolean mode1 = nbPlans>1 || nbPlans==1 && !isBG;
 
          //         if( console!=null ) console.clone.setEnabled(hasSelectedSrc);
+         if( miView!=null ) miView.setEnabled( !isFullScreen() );
          if( miROI!=null ) miROI.setEnabled( hasImage && (nbPlanCat>0 || nbPlanObj>0) );
          if( miCalImg!=null ) miCalImg.setEnabled( hasImage && !isBG );
          if( miCalCat!=null ) miCalCat.setEnabled( hasSelectedCat );

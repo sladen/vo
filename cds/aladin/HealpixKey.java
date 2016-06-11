@@ -20,8 +20,6 @@
 
 package cds.aladin;
 
-import healpix.essentials.FastMath;
-
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
@@ -62,6 +60,7 @@ import cds.fits.Fits;
 import cds.tools.Util;
 import cds.tools.pixtools.CDSHealpix;
 import cds.tools.pixtools.Hpix;
+import healpix.essentials.FastMath;
 
 /**
  * Gère un losange Healpix pour un PlanBG
@@ -733,7 +732,7 @@ public class HealpixKey implements Comparable<HealpixKey> {
       byte [] buf;
       boolean local=true;
       long t1 = Util.getTime();
-      //       planBG.aladin.trace(4,"loadStream("+filename+")...");
+      planBG.aladin.trace(5,"HealpixKey.loadStream("+filename+")...");
       MyInputStream dis=null;
       boolean fastLoad = this instanceof HealpixAllsky;
 
@@ -1897,6 +1896,7 @@ public class HealpixKey implements Comparable<HealpixKey> {
       if( parente>0 ) { pixels=null; rgb=null; }
 
       drawLosangeBorder(g,b);
+      
 
       long t2 = Util.getTime(0);
       if( !allSky ) planBG.nbImgDraw++;
