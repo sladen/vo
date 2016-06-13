@@ -8,16 +8,28 @@ Upstream-Contact:
 Contributors:
  Francois Ochsenbein <francois@astro.u-strasbg.fr>
  Andre Schaaff <andre.schaaff@astro.unistra.fr>
-Source: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=get&id=AladinSrc.jar
+Source: http://aladin.u-strasbg.fr/java/download/AladinSrc.jar
+Vcs-Git: https://anonscm.debian.org/cgit/debian-astro/packages/vo-aladin.git
+Vcs-Browser: https://anonscm.debian.org/cgit/debian-astro/packages/vo-aladin.git
 
 Files: *
-Copyright: 1999-2012, Universite de Strasbourg / Centre de Donnees
- astronomiques de Strasbourg
+Copyright: 1999-2012, Universite de Strasbourg /
+ Centre de Donnees astronomiques de Strasbourg (CDS)
 License: GPL-3
 
-Files: org/asterope/healpix/*
+Files: healpix/*
 Copyright: Krystof Gorski, Jan Kotek, Nikolai Kuropatkin
-License: GPL-2
+License: GPL-2+
+ This code is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ .
+ This code is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
  On Debian systems the full text of the GNU General Public License
  version 2 can be found in the file `/usr/share/common-licenses/GPL-2'.
 
