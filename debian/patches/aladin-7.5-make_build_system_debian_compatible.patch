@@ -1,0 +1,144 @@
+Description: Modified Aladin's original build.xml file
+ Some useful properties were added, and the build directory
+ infrastructure (creation and deletion of build dirs) was improved.
+ Following the Debian-packaging requirements, we made sure that all
+ third party libs used for building the code and running the program
+ come in Debian packages with JAR files at /usr/share/java/.
+ .
+ Moreover, a "javadoc" target for creating the API documentation of the
+ package was added to "build.xml".
+Origin: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading
+Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
+--- a/build.xml
++++ b/build.xml
+@@ -1,46 +1,107 @@
+ <?xml version="1.0" encoding="UTF-8" ?> 
+ <!-- 
+  Very simple ANT build.xml file for compiling and generating Aladin.jar file
+- * Author : P.Fernique [CDS]
+- * Date   : dec 2011
++ * Author : P.Fernique [CDS] (modified by F. Rothmaier, ZAH Heidelberg)
++ * Date   : dec 2011 (mod. date: 2013-06-15)
+ -->
+ 
+ <project name="Aladin" default="main" basedir="."> 
+ 
+-   <description>Aladin Sky Atlas</description> 
++   <description>Aladin Sky Atlas</description>
++
++   <!-- Define the package name and current version -->
++   <property name="Name" value="Aladin"/>
++   <property name="name" value="aladin"/>
++   <property name="version" value="7.5"/>
++
++   <!-- Directories for the build products -->
++   <property name="src" value="${basedir}/cds"/>
+    <property name="bin" value="${basedir}/bin"/>
+-   
++   <property name="lib" value="${basedir}/lib"/>
++   <property name="docs" value="${basedir}/docs"/>
++
++   <!-- URL and package list for linking against full Java docs -->
++   <property name="javaapi.url"
++     value="http://docs.oracle.com/javase/6/docs/api/"/>
++
++   <!--- Building the binaries -->
+    <target name="compil" description="source compilation" >
+      <mkdir dir="${bin}"/>
+-     <javac srcdir="${basedir}" destdir="${bin}"
+-	    encoding="Cp1252" source="1.5" target="1.5" deprecation="off" >
++     <javac srcdir="${src}" destdir="${bin}"
++	    encoding="Cp1252" deprecation="off" >
+        <classpath>
+-          <pathelement path="${java.class.path}/"/>
+-          <pathelement path="jsamp.jar"/>
+-          <pathelement path="microhub.jar"/>
+-          <pathelement path="Moc.jar"/>
+-          <pathelement path="jhealpixSmall.jar"/>
++         <fileset dir="/usr/share/java">
++           <include name="apache-xmlrpc2.jar"/>
++           <include name="jhealpix.jar"/>
++           <include name="jsamp.jar"/>
++           <include name="kxml2.jar"/>
++           <include name="moc.jar"/>
++           <include name="rmi-lite.jar"/>
++           <include name="savot.jar"/>
++           <include name="starplastic.jar"/>
++         </fileset>
+       </classpath>
+      </javac>
+    </target>
+-   
++
++   <!-- Generating Aladin's jar file -->
+    <target name="main" depends="compil" description="jar generation" >
+-      <jar destfile="Aladin.jar" duplicate="preserve">
+-        <fileset dir="${bin}"/>
+-	    <zipfileset src="jsamp.jar"/>
+-	    <zipfileset src="microhub.jar"/>
+-	    <zipfileset src="Moc.jar"/>
+-	    <zipfileset src="jhealpixSmall.jar"/>
+-	    <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*"/>
+-        <manifest>
++       <mkdir dir="${lib}"/>
++       <path id="class.path">
++         <fileset dir="/usr/share/java">
++           <include name="apache-xmlrpc2.jar"/>
++           <include name="commons-codec.jar"/>
++           <include name="jhealpix.jar"/>
++           <include name="jsamp.jar"/>
++           <include name="kxml2.jar"/>
++           <include name="moc.jar"/>
++           <include name="rmi-lite.jar"/>
++           <include name="savot.jar"/>
++           <include name="starplastic.jar"/>
++         </fileset>
++       </path>
++     <pathconvert property="class-path" dirsep="/" pathsep=" " refid="class.path"/>
++     <jar destfile="${lib}/${name}.jar" duplicate="preserve">
++       <fileset dir="${bin}"/>
++       <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*" excludes="Ala*.jar"/>
++         <manifest>
+            <attribute name="Main-Class" value="cds.aladin.Aladin" />
+-        </manifest>
+-      </jar>
++           <attribute name="Class-Path" value="${class-path}" />
++         </manifest>
++     </jar>
+    </target>
+-   
++
++   <!-- Creating JavaDoc files -->
++   <target name="javadoc"
++      description="JavaDoc creation">
++     <mkdir dir="${docs}"/>
++     <javadoc useexternalfile="yes"
++        destdir="${docs}"
++        author="true"
++        version="true"
++        locale="en"
++        windowtitle="${Name} API"
++        doctitle="${Name}">
++
++       <!-- Get a list of directories that name all the potential
++        !   java packages -->
++       <fileset dir="${basedir}" defaultexcludes="yes"
++          includes="**/*.java"/>
++
++       <!-- Link to the full Java API at SUNs website -->
++       <link offline="true" href="${javaapi.url}"
++          packagelistLoc="${docs}"/>
++
++       <group title="${Name} API" packages="${name}*"/>
++     </javadoc>
++   </target>
++
++   <!-- Removing all build products -->
+    <target name="clean" description="Remove building directory" >
+       <delete includeEmptyDirs="true" quiet="true">
+ 	     <fileset dir="${bin}" />
++	     <fileset dir="${lib}" />
++         <fileset dir="${docs}" />
+       </delete>
+    </target>
+    
