@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 export JAVA_HOME=/usr/lib/jvm/default-java
+export CLASSPATH=/usr/share/java/cds.astro.jar:/usr/share/java/healpix.jar:/usr/share/java/cds.moc.jar:/usr/share/java/cds.savot.jar:/usr/share/java/astrogrid-samp.jar:/usr/share/java/kxml2
 
 %:
 	dh $@ --with javahelper 

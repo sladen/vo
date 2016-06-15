@@ -1,0 +1,13 @@
+Index: aladin/cds/aladin/Aladin.java
+===================================================================
+--- aladin.orig/cds/aladin/Aladin.java	2016-06-15 18:14:23.668191169 +0200
++++ aladin/cds/aladin/Aladin.java	2016-06-15 18:16:32.032194220 +0200
+@@ -364,7 +364,7 @@
+    // l'utilisation par une autre application java (voir methode launch() );
+    public static Aladin aladin;
+ 
+-   static boolean PLASTIC_SUPPORT = true; // activation ou non du support PLASTIC/SAMP
++   static boolean PLASTIC_SUPPORT = false; // activation ou non du support PLASTIC/SAMP
+    static boolean USE_ACR = false; // True si on utilise les librairies ACR (AstroGrid)
+ 
+    private Banner banner=null;

@@ -11,15 +11,16 @@ Origin: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading
 Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
 Index: aladin/build.xml
 ===================================================================
---- aladin.orig/build.xml	2016-06-15 16:27:55.000000000 +0200
-+++ aladin/build.xml	2016-06-15 17:10:21.544099855 +0200
-@@ -12,37 +12,48 @@
+--- aladin.orig/build.xml	2016-06-15 18:17:54.912196190 +0200
++++ aladin/build.xml	2016-06-15 18:18:47.176197432 +0200
+@@ -12,37 +12,47 @@
     
     <target name="compil" description="source compilation" >
       <mkdir dir="${bin}"/>
 -     <javac srcdir="${basedir}" destdir="${bin}"
-+     <javac srcdir="${basedir}/cds" destdir="${bin}"
- 	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" >
+-	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" >
++     <javac srcdir="${basedir}/cds" destdir="${bin}" includeantruntime="false"
++	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off">
         <classpath>
            <pathelement path="${java.class.path}/"/>
 -          <pathelement path="jsamp.jar"/>
@@ -27,10 +28,9 @@ Index: aladin/build.xml
            <pathelement path="microhub.jar"/>
 -          <pathelement path="Moc.jar"/>
 -          <pathelement path="jhealpixSmall.jar"/>
--          <pathelement path="cds.astro.jar"/>
-+          <pathelement path="cds-moc.jar"/>
++          <pathelement path="cds.moc.jar"/>
 +          <pathelement path="healpix.jar"/>
-+          <pathelement path="cds-astro.jar"/>
+           <pathelement path="cds.astro.jar"/>
        </classpath>
       </javac>
     </target>
@@ -51,10 +51,9 @@ Index: aladin/build.xml
 +           <include name="healpix.jar"/>
 +           <include name="astrogrid-samp.jar"/>
 +           <include name="kxml2.jar"/>
-+           <include name="cds-moc.jar"/>
-+           <include name="rmi-lite.jar"/>
-+           <include name="cds-savot.jar"/>
-+           <include name="starplastic.jar"/>
++           <include name="cds.moc.jar"/>
++           <include name="cds.savot.jar"/>
++           <include name="cds.astro.jar"/>
 +         </fileset>
 +       </path>
 +     <pathconvert property="class-path" dirsep="/" pathsep=" " refid="class.path"/>
