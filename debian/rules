@@ -3,7 +3,7 @@
 export JAVA_HOME=/usr/lib/jvm/default-java
 
 %:
-	dh --with javahelper $@
+	dh $@ --with javahelper 
 
 override_dh_auto_build:
 	ant main
