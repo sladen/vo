@@ -5,8 +5,8 @@ Maintainer: Debian Astro Team <debian-astro-maintainers@lists.alioth.debian.org>
 Uploaders: Paul Sladen <debian@paul.sladen.org>
 Build-Depends: debhelper (>= 9), javahelper (>= 0.40), ant
 Build-Depends-Indep: default-jdk, default-jdk-doc, libhealpix-java,
- libjsamp-java, libkxml2-java, libmoc-java, librmilite-java,
- libsavot-java, libstarplastic-java, libxmlrpc2-java
+ libastrogrid-samp-java, libkxml2-java, libcds-moc-java, librmilite-java,
+ libcds-savot-java, libstarplastic-java, libxmlrpc3-client-java
 Standards-Version: 3.9.8
 Homepage: http://aladin.u-strasbg.fr/
 Vcs-Git: https://anonscm.debian.org/cgit/debian-astro/packages/aladin.git
