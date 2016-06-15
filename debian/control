@@ -1,4 +1,4 @@
-Source: vo-aladin
+Source: aladin
 Section: java
 Priority: optional
 Maintainer: Debian Astro Team <debian-astro-maintainers@lists.alioth.debian.org>
@@ -9,10 +9,10 @@ Build-Depends-Indep: default-jdk, default-jdk-doc, libhealpix-java,
  libsavot-java, libstarplastic-java, libxmlrpc2-java
 Standards-Version: 3.9.8
 Homepage: http://aladin.u-strasbg.fr/
-Vcs-Git: https://anonscm.debian.org/cgit/debian-astro/packages/vo-aladin.git
-Vcs-Browser: https://anonscm.debian.org/cgit/debian-astro/packages/vo-aladin.git
+Vcs-Git: https://anonscm.debian.org/cgit/debian-astro/packages/aladin.git
+Vcs-Browser: https://anonscm.debian.org/cgit/debian-astro/packages/aladin.git
 
-Package: vo-aladin
+Package: aladin
 Architecture: all
 Depends: ${java:Depends}, ${misc:Depends}
 Description: Interactive sky atlas for astronomical images and datasets
