@@ -11,28 +11,20 @@ Origin: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading
 Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
 Index: aladin/build.xml
 ===================================================================
---- aladin.orig/build.xml	2016-06-15 18:17:54.912196190 +0200
-+++ aladin/build.xml	2016-06-15 18:18:47.176197432 +0200
-@@ -12,37 +12,47 @@
+--- aladin.orig/build.xml	2016-06-21 21:47:07.059630732 +0200
++++ aladin/build.xml	2016-06-21 21:47:26.635630330 +0200
+@@ -12,8 +12,8 @@
     
     <target name="compil" description="source compilation" >
       <mkdir dir="${bin}"/>
 -     <javac srcdir="${basedir}" destdir="${bin}"
 -	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" >
-+     <javac srcdir="${basedir}/cds" destdir="${bin}" includeantruntime="false"
-+	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off">
++     <javac srcdir="${basedir}/cds" destdir="${bin}"
++	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" includeantruntime="true">
         <classpath>
            <pathelement path="${java.class.path}/"/>
--          <pathelement path="jsamp.jar"/>
-+          <pathelement path="astrogrid-samp.jar"/>
-           <pathelement path="microhub.jar"/>
--          <pathelement path="Moc.jar"/>
--          <pathelement path="jhealpixSmall.jar"/>
-+          <pathelement path="cds.moc.jar"/>
-+          <pathelement path="healpix.jar"/>
-           <pathelement path="cds.astro.jar"/>
-       </classpath>
-      </javac>
+           <pathelement path="jsamp.jar"/>
+@@ -26,23 +26,33 @@
     </target>
     
     <target name="main" depends="compil" description="jar generation" >
@@ -44,25 +36,23 @@ Index: aladin/build.xml
 -	    <zipfileset src="jhealpixSmall.jar"/>
 -	    <zipfileset src="cds.astro.jar"/>
 -	    <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*"/>
--        <manifest>
++      <jar destfile="${lib}/${name}.jar" duplicate="preserve">
 +       <mkdir dir="${lib}"/>
 +       <path id="class.path">
 +         <fileset dir="/usr/share/java">
 +           <include name="healpix.jar"/>
-+           <include name="astrogrid-samp.jar"/>
++           <include name="jsamp.jar"/>
 +           <include name="kxml2.jar"/>
-+           <include name="cds.moc.jar"/>
-+           <include name="cds.savot.jar"/>
-+           <include name="cds.astro.jar"/>
++           <include name="cds-moc.jar"/>
++           <include name="cds-savot.jar"/>
++           <!--<include name="cds.astro.jar"/>-->
 +         </fileset>
 +       </path>
 +     <pathconvert property="class-path" dirsep="/" pathsep=" " refid="class.path"/>
-+     <jar destfile="${lib}/${name}.jar" duplicate="preserve">
 +       <fileset dir="${bin}"/>
 +       <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*" excludes="Ala*.jar"/>
-+         <manifest>
+         <manifest>
             <attribute name="Main-Class" value="cds.aladin.Aladin" />
-+           <attribute name="Class-Path" value="${class-path}" />
          </manifest>
        </jar>
     </target>
@@ -70,7 +60,7 @@ Index: aladin/build.xml
 +   <!-- Removing all build products -->
     <target name="clean" description="Remove building directory" >
        <delete includeEmptyDirs="true" quiet="true">
--	     <fileset dir="${bin}" />
+ 	     <fileset dir="${bin}" />
 +	     <fileset dir="${lib}" />
 +	     <fileset dir="${docs}" />
        </delete>
