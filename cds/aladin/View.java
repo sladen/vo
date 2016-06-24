@@ -1574,17 +1574,25 @@ public class View extends JPanel implements Runnable,AdjustmentListener {
    }
 
 
-   /** Libération des vues sélectionnées */
+   /** Libération des vues sélectionnées, à moins que la dernière vue soit
+    * synchronisée, auquelle cas, on ne supprime que celle-là 
+    */
    protected void freeSelected() {
       StringBuffer cmd = new StringBuffer();
-      for( int i=0; i<ViewControl.MAXVIEW; i++ ) {
-         if( !viewSimple[i].selected ) continue;
-         cmd.append(" "+getIDFromNView(i));
-         viewSimple[i].free();
+      ViewSimple v = getLastClickView();
+      if( aladin.match.isProjSync() ) {
+         cmd.append(" "+getIDFromNView(v.n));
+         v.free();
+      } else {
+         for( int i=0; i<ViewControl.MAXVIEW; i++ ) {
+            if( !viewSimple[i].selected ) continue;
+            cmd.append(" "+getIDFromNView(i));
+            viewSimple[i].free();
+         }
+         viewMemo.freeSelected();
       }
       aladin.console.printCommand("rm "+cmd);
       sauvegarde();
-      viewMemo.freeSelected();
    }
 
    /** Libération des vues spécifiées */
@@ -1939,8 +1947,11 @@ public class View extends JPanel implements Runnable,AdjustmentListener {
       aladin.view.zoomview.repaint();
       return true;
    }
-
+   
+   protected boolean flagGoto=false;
+   
    public void gotoAnimation(final Coord from, final Coord to) {
+      
       final ViewSimple v = getCurrentView();
       if( v.locked || to==null ) return;
       final double zoom = v.zoom;
@@ -1952,12 +1963,13 @@ public class View extends JPanel implements Runnable,AdjustmentListener {
       int i=0;
       boolean encore=true;
       double fct=0;
+      flagGoto=true;
       while( encore ) {
 
          switch(mode) {
             case 0:
                if( z<0.1 ) i++;
-               if( z>0.05 ) z=z/1.05;
+               if( z>0.08 ) z=z/1.05;
                else mode=1;
                break;
             case 1:
@@ -1981,6 +1993,7 @@ public class View extends JPanel implements Runnable,AdjustmentListener {
          //                System.out.println("gotoAnimation(...) i="+i+" z="+z+" c="+c);
          //                Util.pause(75);
       }
+      flagGoto=false;
       gotoThere(to,zoom,true);
    }
    //     }

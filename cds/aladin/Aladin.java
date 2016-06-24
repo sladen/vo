@@ -153,6 +153,8 @@ import healpix.essentials.Vec3;
  *
  * @beta <B>New features and performance improvements:</B>
  * @beta <UL>
+ * @beta    <LI> Fisheye projection support (ARC) => planetarium usage
+ * @beta    <LI> Fullscreen mode improvements (global menu)
  * @beta    <LI> MOC script support (cmoc command)
  * @beta    <LI> MultiCCD image support
  * @beta    <LI> Tags improvements
@@ -164,6 +166,8 @@ import healpix.essentials.Vec3;
  * @beta </UL>
  * @beta
  * @beta <B>Major fixed bugs:</B>
+ * @beta    <LI> Fix to x,y tag coordinates in Huge FITS image
+ * @beta    <LI> Fix to ZEA and ARC projection in HiPS context
  * @beta    <LI> Graphical object mouse selection over a HiPS
  * @beta    <LI> HiPS catalog "ghost" source selection
  * @beta    <LI> File dialog window directory selection on MacOs and Linux
@@ -194,7 +198,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    static protected final String FULLTITRE   = "Aladin Sky Atlas";
 
    /** Numero de version */
-   static public final    String VERSION = "v9.027";
+   static public final    String VERSION = "v9.031";
    static protected final String AUTHORS = "P.Fernique, T.Boch, A.Oberto, F.Bonnarel";
    static protected final String OUTREACH_VERSION = "    *** UNDERGRADUATE MODE (based on "+VERSION+") ***";
    static protected final String BETA_VERSION     = "    *** BETA VERSION (based on "+VERSION+") ***";
@@ -336,8 +340,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
    // Limite image en full access
    static final long LIMIT_HUGEFILE = Math.min(Integer.MAX_VALUE,Runtime.getRuntime().maxMemory()/2L);
+//   static final long LIMIT_HUGEFILE =  Runtime.getRuntime().maxMemory()/2L;
 
-   static long MAXMEM = Runtime.getRuntime().maxMemory()/(1024*1024);
+   static long MAXMEM = Runtime.getRuntime().maxMemory()/(1024L*1024L);
 
    // Marge limite en MO pour le chargement des cubes en RAM.
    // Il faut au-moins 500Mo de disponible pour une telle stratégie
@@ -2357,7 +2362,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       if( SCREEN.equals("full") ) {
          detach(false);
          fullScreen(0);
-      } else if( SCREEN.equals("cinema") ) {
+      } else if( isCinema() ) {
          detach(false);
          fullScreen(3);
       } else if( SCREEN.startsWith("preview") ) {
@@ -2367,6 +2372,11 @@ DropTargetListener, DragSourceListener, DragGestureListener
          detach();
       }
       flagScreen=false;
+   }
+   
+   /** True si on est en mode cinema = planetarium) */
+   public boolean isCinema() {
+      return SCREEN!=null && SCREEN.equals("cinema");
    }
 
    /** Positionnement d'un message d'attente */

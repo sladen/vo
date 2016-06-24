@@ -3201,6 +3201,7 @@ public class PlanBG extends PlanImage {
       g.setStroke(new BasicStroke(epaisseur));
 
       Projection projd = v.getProj().copy();
+      projd.setProjCenter(0, 0);
       projd.frame=0;
 
       //      g.setColor( Color.yellow );
@@ -3209,12 +3210,12 @@ public class PlanBG extends PlanImage {
       int chouilla = (int)( (v.getWidth()/800. -1)*6 );
       if( chouilla<0 ) chouilla=0;
 
-      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.ZEA) {
+      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.FEYE || projd.t==Calib.ZEA) {
          Coord c = projd.c.getProjCenter();
          projd.getXYNative(c);
          PointD center = v.getViewCoordDble(c.x, c.y);
          double signe = c.del<0?1:-1;
-         c.del = c.del + signe*( projd.t==Calib.SIN ? 89 : 179);
+         c.del = c.del + signe*( projd.t==Calib.SIN || projd.t==Calib.FEYE ? 89 : 179);
          projd.getXYNative(c);
          PointD haut = v.getViewCoordDble(c.x, c.y);
          double deltaY = haut.y-center.y;
@@ -3258,7 +3259,7 @@ public class PlanBG extends PlanImage {
          m=0;
          g.setStroke(new BasicStroke(2));
          g.setColor( new Color(210,220,255) );
-         if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.ZEA) {
+         if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.FEYE || projd.t==Calib.ZEA) {
             g.drawOval(x-m,y-m,(rayon+m)*2,(rayon+m)*2);
          } else if( projd.t==Calib.AIT || projd.t==Calib.MOL) {
             if( angle==0 ) g.drawOval(x-m,y-m,(grandAxe+m)*2,(rayon+m)*2);
@@ -3271,7 +3272,7 @@ public class PlanBG extends PlanImage {
       g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
 
    }
-
+   
    /** Tracé d'un fond couvrant la forme de tout le ciel en fonction du type de projection
     * pour atténuer le phénomène de "feston" */
    protected void drawBackground(Graphics g,ViewSimple v) {
@@ -3279,6 +3280,7 @@ public class PlanBG extends PlanImage {
       if( aladin.calque.hasHpxGrid() || isOverlay() ) return;
 
       Projection projd = v.getProjSyncView().getProj().copy();
+      projd.setProjCenter(0, 0);
       projd.frame=0;
 
       int x=0,y=0,rayon=0,grandAxe=0;
@@ -3287,13 +3289,16 @@ public class PlanBG extends PlanImage {
       Color bckCol = color ? Color.black : cm==null ? Color.white : new Color(cm.getRed(0),cm.getGreen(0),cm.getBlue(0));
       g.setColor( bckCol );
       rayon=0;
-      if( projd.t==Calib.TAN || projd.t==Calib.SIP ) g.fillRect(0,0,v.getWidth(),v.getHeight());
-      else if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.ZEA) {
+      
+//      if( projd.t==Calib.TAN || projd.t==Calib.SIP ) g.fillRect(0,0,v.getWidth(),v.getHeight());
+//      else 
+         
+      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.FEYE || projd.t==Calib.ZEA) {
          Coord c = projd.c.getProjCenter();
          projd.getXYNative(c);
          PointD center = v.getViewCoordDble(c.x, c.y);
          double signe = c.del<0?1:-1;
-         c.del = c.del + signe*( projd.t==Calib.SIN ? 89 : 179);
+         c.del = c.del + signe*( projd.t==Calib.SIN || projd.t==Calib.FEYE ? 89 : 179);
          projd.getXYNative(c);
          PointD haut = v.getViewCoordDble(c.x, c.y);
          double deltaY = haut.y-center.y;
@@ -3351,7 +3356,21 @@ public class PlanBG extends PlanImage {
             else Util.fillEllipse(g, x+grandAxe,y+rayon, grandAxe, rayon, angle );
          }
 
-      } else g.fillRect(0, 0, v.rv.width, v.rv.height);
+      } else {
+         int w = v.rv.width;
+         int h = v.rv.height;
+         if( isTransparent() ) {
+            Graphics2D g2d = (Graphics2D)g;
+            Paint paint = g2d.getPaint();
+            Paint gradient = new GradientPaint(0, 0,new Color(0,0,70),
+                  w,h, new Color(180,190,200));
+            g2d.setPaint(gradient);
+            g.fillRect(0, 0, w,h);
+            g2d.setPaint(paint);
+         } else {
+            g.fillRect(0, 0,w,h);
+         }
+      }
    }
 
    protected float getSegmentLenFactor() {
