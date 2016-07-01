@@ -297,8 +297,8 @@ Runnable, SwingWidgetFinder, Widget {
       if( src==menuCreatFold )  a.fold();
       else if( src==menuTableInfo )  a.tableInfo(null);
       else if( src==menuPlot )       a.createPlotCat();
-      else if( src==menuConcat1 )    a.concat(true);
-      else if( src==menuConcat2 )    a.concat(false);
+      else if( src==menuConcat1 )    a.concat(false);
+      else if( src==menuConcat2 )    a.concat(true);
       else if( src==menuInsertFold ) insertFolder();
       else if( src==menuSelect )     a.select();
       else if( src==menuUnselect )   a.unSelect();
@@ -569,7 +569,6 @@ Runnable, SwingWidgetFinder, Widget {
       if( currentPlan.type==Plan.FILTER
             || currentPlan instanceof PlanContour
             || currentPlan.type==Plan.FOLDER
-            //            || currentPlan.type==Plan.CATALOG
             || currentPlan.type==Plan.TOOL) return false;
 
       // Image sans astrométrie non encore pris comme référence
@@ -1015,7 +1014,7 @@ Runnable, SwingWidgetFinder, Widget {
 
          // Sélection de tous les objets du plan par double-clic
          if( x>gapL && !boutonDroit && e.getClickCount()==2 && (p.isCatalog() ||
-               p.type==Plan.TOOL && !(p instanceof PlanContour) ) && p.active ) {
+               p instanceof PlanTool && !(p instanceof PlanContour) ) && p.active ) {
             a.view.calque.selectAllObjectInPlans();
 
             // On repasse en mode SELECT si nécessaire
