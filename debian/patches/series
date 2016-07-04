@@ -1,4 +1,5 @@
 aladin-retrieve-cds-astro-source-from-aladin-7.x.patch
 aladin-disable-plastik.diff
 aladin-make-build-system-debian-compatible.diff
-jcombox.patch
+aladin-jcombobox-string-compat.patch
+
