@@ -11,8 +11,8 @@ Origin: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading
 Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
 Index: aladin/build.xml
 ===================================================================
---- aladin.orig/build.xml	2016-06-21 21:47:07.059630732 +0200
-+++ aladin/build.xml	2016-06-21 21:47:26.635630330 +0200
+--- aladin.orig/build.xml	2016-07-04 10:12:49.819241954 +0200
++++ aladin/build.xml	2016-07-04 10:36:14.571275340 +0200
 @@ -12,8 +12,8 @@
     
     <target name="compil" description="source compilation" >
@@ -20,7 +20,7 @@ Index: aladin/build.xml
 -     <javac srcdir="${basedir}" destdir="${bin}"
 -	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" >
 +     <javac srcdir="${basedir}/cds" destdir="${bin}"
-+	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" includeantruntime="true">
++	    encoding="Cp1252" deprecation="off" includeantruntime="true">
         <classpath>
            <pathelement path="${java.class.path}/"/>
            <pathelement path="jsamp.jar"/>
