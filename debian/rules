@@ -8,4 +8,3 @@ export CLASSPATH=/usr/share/java/healpix.jar:/usr/share/java/cds-moc.jar:/usr/sh
 
 override_dh_auto_build:
 	ant main
-	ant javadoc

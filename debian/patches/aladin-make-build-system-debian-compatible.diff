@@ -11,9 +11,14 @@ Origin: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading
 Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
 Index: aladin/build.xml
 ===================================================================
---- aladin.orig/build.xml	2016-07-04 10:12:49.819241954 +0200
-+++ aladin/build.xml	2016-07-04 10:36:14.571275340 +0200
-@@ -12,8 +12,8 @@
+--- aladin.orig/build.xml	2016-07-07 16:39:16.824287998 +0200
++++ aladin/build.xml	2016-07-07 16:57:33.432314060 +0200
+@@ -9,11 +9,13 @@
+ 
+    <description>Aladin Sky Atlas</description> 
+    <property name="bin" value="${basedir}/bin"/>
++   <property name="lib" value="${basedir}/lib"/>
++   <property name="name" value="aladin"/>
     
     <target name="compil" description="source compilation" >
       <mkdir dir="${bin}"/>
@@ -24,7 +29,7 @@ Index: aladin/build.xml
         <classpath>
            <pathelement path="${java.class.path}/"/>
            <pathelement path="jsamp.jar"/>
-@@ -26,23 +26,33 @@
+@@ -26,23 +28,33 @@
     </target>
     
     <target name="main" depends="compil" description="jar generation" >
@@ -36,8 +41,7 @@ Index: aladin/build.xml
 -	    <zipfileset src="jhealpixSmall.jar"/>
 -	    <zipfileset src="cds.astro.jar"/>
 -	    <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*"/>
-+      <jar destfile="${lib}/${name}.jar" duplicate="preserve">
-+       <mkdir dir="${lib}"/>
++     <mkdir dir="${lib}"/>
 +       <path id="class.path">
 +         <fileset dir="/usr/share/java">
 +           <include name="healpix.jar"/>
@@ -49,6 +53,7 @@ Index: aladin/build.xml
 +         </fileset>
 +       </path>
 +     <pathconvert property="class-path" dirsep="/" pathsep=" " refid="class.path"/>
++     <jar destfile="${lib}/${name}.jar" duplicate="preserve">
 +       <fileset dir="${bin}"/>
 +       <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*" excludes="Ala*.jar"/>
          <manifest>
