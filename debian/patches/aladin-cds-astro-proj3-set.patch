@@ -1,0 +1,56 @@
+Descripion: CDS Astro Proj3.set() API
+ The source for CDS Astro is missing, and the retrieved source code rescued
+ from earlier versions appears to have a slightly different API.  However in
+ each of the conflicting cases, a commented out alternative was found in the
+ Aladin source that appears to work when uncommented and used instead.
+ It is unclear which is the 'newer'/prefered API variant.
+Author: Paul Sladen <debian@paul.sladen.org>
+Last-Update: 2016-07-07
+diff --git a/cds/aladin/Forme.java b/cds/aladin/Forme.java
+index 2342c6a..927d21b 100644
+--- a/cds/aladin/Forme.java
++++ b/cds/aladin/Forme.java
+@@ -185,8 +185,7 @@ protected Coord applySphereRot(Coord c, double radius, double angle) {
+       double sint = Math.sin( Math.PI*angle/180.);
+       double x =  tanr*sint;
+       double y =  tanr*cost;
+-//      a.computeAngles(x,y);
+-      a.set(x,y);
++      a.computeAngles(x,y);
+       return new Coord(a.getLon(),a.getLat());
+    }
+    
+diff --git a/cds/aladin/PlanField.java b/cds/aladin/PlanField.java
+index f755562..3b90b79 100644
+--- a/cds/aladin/PlanField.java
++++ b/cds/aladin/PlanField.java
+@@ -655,8 +655,7 @@ synchronized private void setTarget(double raP,double deP,double raR, double deR
+       a = new Proj3(Proj3.TAN,raP,deP);
+ 
+       Position rot = getRotCenterObjet();
+-      a.set( new Coo(raR,deR));
+-      //      a.computeXY(raR, deR);
++      a.computeXY(raR, deR);
+       offsetX = a.getX();
+       offsetY = a.getY();
+       rot.x = offsetX;
+@@ -684,8 +683,7 @@ synchronized private void setTarget(double raP,double deP,double raR, double deR
+                   x=xr + offsetX;
+                   y=yr + offsetY;
+                }
+-               //                a.computeAngles(x,y);
+-               a.set(x,y);
++               a.computeAngles(x,y);
+                p.raj = a.getLon();
+                p.dej = a.getLat();
+ 
+@@ -701,8 +699,7 @@ synchronized private void setTarget(double raP,double deP,double raR, double deR
+                x=xr + offsetX;
+                y=yr + offsetY;
+             }
+-            //             a.computeAngles(x,y);
+-            a.set(x,y);
++            a.computeAngles(x,y);
+             p.raj = a.getLon();
+             p.dej = a.getLat();
+          }

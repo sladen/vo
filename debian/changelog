@@ -1,0 +1,5 @@
+aladin (9.013+dfsg-1) UNRELEASED; urgency=low
+
+  * Initial release. (Closes: #818373)
+
+ -- Paul Sladen <debian@paul.sladen.org>  Mon, 13 Jun 2016 14:00:00 +0200

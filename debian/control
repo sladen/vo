@@ -1,0 +1,32 @@
+Source: aladin
+Section: java
+Priority: optional
+Maintainer: Debian Astro Team <debian-astro-maintainers@lists.alioth.debian.org>
+Uploaders: Paul Sladen <debian@paul.sladen.org>
+Build-Depends: debhelper (>= 9), javahelper (>= 0.40), ant
+Build-Depends-Indep: default-jdk, default-jdk-doc, libhealpix-java,
+ libastrogrid-samp-java, libkxml2-java, libcds-moc-java, 
+ libcds-savot-java, libxmlrpc3-client-java
+Standards-Version: 3.9.8
+Homepage: http://aladin.u-strasbg.fr/
+Vcs-Git: https://anonscm.debian.org/cgit/debian-astro/packages/aladin.git
+Vcs-Browser: https://anonscm.debian.org/cgit/debian-astro/packages/aladin.git
+
+Package: aladin
+Architecture: all
+Depends: ${java:Depends}, ${misc:Depends}
+Description: Interactive sky atlas for astronomical images and datasets
+ Aladin is an interactive software sky atlas allowing the user to
+ visualise digitised astronomical images, to superimpose entries from
+ astronomical catalogues or databases, and to interactively access
+ related data and information from the Simbad database, the VizieR
+ service and other archives for all known sources in the field.
+ .
+ Created in 1999, Aladin has become a widely-used tool of the Virtual
+ Observatory (VO) framework capable of addressing challenges such as
+ locating data of interest, accessing and exploring distributed
+ datasets, and visualising multi-wavelength data. Compliance with
+ existing or emerging VO standards, interconnection with other
+ visualisation or analysis tools, and the ability to easily compare
+ heterogeneous data are the key topics which allow Aladin to be a
+ powerful data exploration and integration tool.

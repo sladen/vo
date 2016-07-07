@@ -1,0 +1,73 @@
+Description: Modified Aladin's original build.xml file
+ Some useful properties were added, and the build directory
+ infrastructure (creation and deletion of build dirs) was improved.
+ Following the Debian-packaging requirements, we made sure that all
+ third party libs used for building the code and running the program
+ come in Debian packages with JAR files at /usr/share/java/.
+ .
+ Moreover, a "javadoc" target for creating the API documentation of the
+ package was added to "build.xml".
+Origin: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading
+Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
+Index: aladin/build.xml
+===================================================================
+--- aladin.orig/build.xml	2016-07-07 16:39:16.824287998 +0200
++++ aladin/build.xml	2016-07-07 16:57:33.432314060 +0200
+@@ -9,11 +9,13 @@
+ 
+    <description>Aladin Sky Atlas</description> 
+    <property name="bin" value="${basedir}/bin"/>
++   <property name="lib" value="${basedir}/lib"/>
++   <property name="name" value="aladin"/>
+    
+    <target name="compil" description="source compilation" >
+      <mkdir dir="${bin}"/>
+-     <javac srcdir="${basedir}" destdir="${bin}"
+-	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" >
++     <javac srcdir="${basedir}/cds" destdir="${bin}"
++	    encoding="Cp1252" deprecation="off" includeantruntime="true">
+        <classpath>
+           <pathelement path="${java.class.path}/"/>
+           <pathelement path="jsamp.jar"/>
+@@ -26,23 +28,33 @@
+    </target>
+    
+    <target name="main" depends="compil" description="jar generation" >
+-      <jar destfile="Aladin.jar" duplicate="preserve">
+-        <fileset dir="${bin}"/>
+-	    <zipfileset src="jsamp.jar"/>
+-	    <zipfileset src="microhub.jar"/>
+-	    <zipfileset src="Moc.jar"/>
+-	    <zipfileset src="jhealpixSmall.jar"/>
+-	    <zipfileset src="cds.astro.jar"/>
+-	    <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*"/>
++     <mkdir dir="${lib}"/>
++       <path id="class.path">
++         <fileset dir="/usr/share/java">
++           <include name="healpix.jar"/>
++           <include name="jsamp.jar"/>
++           <include name="kxml2.jar"/>
++           <include name="cds-moc.jar"/>
++           <include name="cds-savot.jar"/>
++           <!--<include name="cds.astro.jar"/>-->
++         </fileset>
++       </path>
++     <pathconvert property="class-path" dirsep="/" pathsep=" " refid="class.path"/>
++     <jar destfile="${lib}/${name}.jar" duplicate="preserve">
++       <fileset dir="${bin}"/>
++       <fileset dir="${basedir}" includes="*.gif,*.jpg,Ala*.*" excludes="Ala*.jar"/>
+         <manifest>
+            <attribute name="Main-Class" value="cds.aladin.Aladin" />
+         </manifest>
+       </jar>
+    </target>
+    
++   <!-- Removing all build products -->
+    <target name="clean" description="Remove building directory" >
+       <delete includeEmptyDirs="true" quiet="true">
+ 	     <fileset dir="${bin}" />
++	     <fileset dir="${lib}" />
++	     <fileset dir="${docs}" />
+       </delete>
+    </target>
+    

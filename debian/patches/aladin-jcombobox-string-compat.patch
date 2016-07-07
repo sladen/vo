@@ -1,0 +1,56 @@
+diff --git a/cds/aladin/FrameColorMap.java b/cds/aladin/FrameColorMap.java
+index 27e2cc9..0fdec97 100644
+--- a/cds/aladin/FrameColorMap.java
++++ b/cds/aladin/FrameColorMap.java
+@@ -99,10 +99,10 @@ public final class FrameColorMap extends JFrame implements MouseListener {
+    private JPanel p=null;                          // Le panel courant
+    private JTextField pixelCutMinField;            // Champ de saisie pour le pixelCutMax
+    private JTextField pixelCutMaxField;            // Champ de saisie pour le pixelCutMax
+-   private JComboBox<String> comboCM;              // Pour le choix de la colormap
++   private JComboBox comboCM;              // Pour le choix de la colormap
+ 
+    private JButton localCutButton, getAllButton, resetAllButton, resetDistribButton, resetCMButton, applyOnAll;
+-   private JComboBox<String> cmCombo, fctCombo;
++   private JComboBox cmCombo, fctCombo;
+    private JCheckBox reverseCb;
+    private JRadioButton rPreview,rFull;
+ 
+@@ -483,7 +483,7 @@ public final class FrameColorMap extends JFrame implements MouseListener {
+ 
+       JButton b;
+       JLabel l;
+-      JComboBox<String> cb;
++      JComboBox cb;
+       JCheckBox cc;
+ 
+       l = new JLabel( Util.fold(CMMETHOD,30,true) );
+@@ -730,16 +730,16 @@ public final class FrameColorMap extends JFrame implements MouseListener {
+    public Dimension getMinimumSize() { return new Dimension(200,300); }
+ 
+    /** Création d'un Combo des CM possibles */
+-   protected static JComboBox<String> createComboCM() {
+-      JComboBox<String> c = new JComboBox<String>();
++   protected static JComboBox createComboCM() {
++      JComboBox c = new JComboBox();
+       for( String s : CanvasColorMap.getCMList() ) c.addItem(s);
+       c.addItem(" -- ");
+       return c;
+    }
+ 
+    /** Création d'un Combo des Fonctions de transferts possibles */
+-   protected static JComboBox<String> createComboFct() {
+-      JComboBox<String> c = new JComboBox<String>( PlanImage.TRANSFERTFCT );
++   protected static JComboBox createComboFct() {
++      JComboBox c = new JComboBox( PlanImage.TRANSFERTFCT );
+       return c;
+    }
+ 
+@@ -893,7 +893,7 @@ public final class FrameColorMap extends JFrame implements MouseListener {
+    }
+ 
+    /** Changement de la color map */
+-   private void changeCM(JComboBox<String> c) {
++   private void changeCM(JComboBox c) {
+       int n = c.getSelectedIndex();
+       if( n==pimg.typeCM ) return;
+       pimg.typeCM = n;
