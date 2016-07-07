@@ -7,10 +7,10 @@ Description: Follow Apache XMLRPC2->XMLRPC3 API changes
  so this patch has been developed somewhat blindly.
 Author: Paul Sladen <debian@paul.sladen.org>
 Last-Update: 2016-07-07
-diff --git a/cds/aladin/SAMPManager.java b/cds/aladin/SAMPManager.java
-index 96ae643..e7d6f4d 100644
---- a/cds/aladin/SAMPManager.java
-+++ b/cds/aladin/SAMPManager.java
+Index: aladin/cds/aladin/SAMPManager.java
+===================================================================
+--- aladin.orig/cds/aladin/SAMPManager.java	2016-07-07 16:13:33.220251312 +0200
++++ aladin/cds/aladin/SAMPManager.java	2016-07-07 16:38:30.488286897 +0200
 @@ -62,8 +62,11 @@
  import javax.swing.ListSelectionModel;
  import javax.swing.SwingUtilities;
@@ -34,7 +34,17 @@ index 96ae643..e7d6f4d 100644
  
      static final protected String NOTIFY = "samp.hub.notify";
      static final protected String NOTIFY_ALL = "samp.hub.notifyAll";
-@@ -351,7 +354,14 @@ public boolean register(boolean silent, boolean launchHubIfNeeded) {
+@@ -347,11 +350,28 @@
+         // start XML-RPC server
+         int xmlRpcPort = findFreePort();
+         aladinXmlRpcServer = new WebServer(xmlRpcPort);
+-        aladinXmlRpcServer.start();
++        try {
++            aladinXmlRpcServer.start();
++        }
++        catch (java.io.IOException e) {
++            e.printStackTrace();
++        }
          String callbackAddress = "http://"+getLocalhost()+":"+xmlRpcPort+"/";
  
          trace(" Aladin callback address is: "+callbackAddress);
@@ -45,12 +55,17 @@ index 96ae643..e7d6f4d 100644
 +        // XMLRPCHandler interface and XMLRPCHandler::execute() switch method.
 +        PropertyHandlerMapping propHandlerMapping = new PropertyHandlerMapping();
 +        propHandlerMapping.setVoidMethodEnabled(true);
-+        propHandlerMapping.addHandler("samp.client", this.getClass());
++	try {
++            propHandlerMapping.addHandler("samp.client", this.getClass());
++	}
++        catch (org.apache.xmlrpc.XmlRpcException e) {
++	    e.printStackTrace();
++	}
 +        aladinXmlRpcServer.getXmlRpcServer().setHandlerMapping(propHandlerMapping);
  
          // set XML-RPC callback
          params = new Vector();
-@@ -988,7 +998,10 @@ private boolean getHubListener(boolean silent, boolean launchHubIfNeeded) {
+@@ -988,12 +1008,15 @@
          try  {
              // testing if the hub is alive (by pinging it)
              URL url = new URL(hubUrl);
@@ -62,3 +77,32 @@ index 96ae643..e7d6f4d 100644
  
              try {
                  hubClient.execute(HUB_MSG_PING, new Vector());
+             }
+-            catch(ConnectException xre) {
++            catch(XmlRpcException xre) {
+                 Aladin.trace(3, "Unable to connect to the hub, deleting the .samp file");
+                 // on efface le fichier ".samp" qui, apparemment, pointe vers un hub ne tournant plus
+                 try {
+@@ -1015,7 +1038,7 @@
+ 
+ 
+         }
+-        catch(java.rmi.ConnectException ce) {
++        catch(Exception ce) {
+             Aladin.trace(3, "Unable to connect to the hub, deleting the .samp file");
+             // on efface le fichier ".plastic" qui, apparemment, pointe vers un hub ne tournant plus
+             try {
+@@ -1028,10 +1051,9 @@
+                     return false;
+                 }
+             }
+-            catch(Exception e) {return false;}
+-        }
+-        catch(Exception e) {
+-            e.printStackTrace();
++            catch(Exception e) {}
++
++            ce.printStackTrace();
+             trace("Unable to create the PlasticHubListener object");
+ 
+             if( !silent ) Aladin.warning(CANT_CONNECT);
