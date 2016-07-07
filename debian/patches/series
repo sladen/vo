@@ -3,4 +3,5 @@ aladin-disable-plastik.diff
 aladin-make-build-system-debian-compatible.diff
 aladin-jcombobox-string-compat.patch
 aladin-savot4-enumeration.patch
+aladin-sampmanager-xmlrpc3.patch
 

@@ -1,0 +1,64 @@
+Description: Follow Apache XMLRPC2->XMLRPC3 API changes
+ The 'SAMPManager' components of Aladin were written
+ against the Apache XMLRPC v2 API; but only the v3 libraries
+ are available in Debian.  The APIs been altered both in
+ namespace, and also in operation.  Unfortunately
+ nearly all documentation and examples are only for v2;
+ so this patch has been developed somewhat blindly.
+Author: Paul Sladen <debian@paul.sladen.org>
+Last-Update: 2016-07-07
+diff --git a/cds/aladin/SAMPManager.java b/cds/aladin/SAMPManager.java
+index 96ae643..e7d6f4d 100644
+--- a/cds/aladin/SAMPManager.java
++++ b/cds/aladin/SAMPManager.java
+@@ -62,8 +62,11 @@
+ import javax.swing.ListSelectionModel;
+ import javax.swing.SwingUtilities;
+ 
+-import org.apache.xmlrpc.WebServer;
+-import org.apache.xmlrpc.XmlRpcClient;
++import org.apache.xmlrpc.server.PropertyHandlerMapping;
++import org.apache.xmlrpc.webserver.WebServer;
++import org.apache.xmlrpc.client.XmlRpcClient;
++import org.apache.xmlrpc.client.XmlRpcClientConfigImpl;
++import org.apache.xmlrpc.server.XmlRpcServer;
+ import org.apache.xmlrpc.XmlRpcException;
+ import org.apache.xmlrpc.XmlRpcHandler;
+ import org.astrogrid.samp.hub.Hub;
+@@ -125,7 +128,7 @@
+  * @see <a href="http://www.ivoa.net/cgi-bin/twiki/bin/view/IVOA/SampProgress">SAMP page on the IVOA web site</a>
+  *
+  */
+-public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneLoadListener {
++public class SAMPManager implements AppMessagingInterface, PlaneLoadListener {
+ 
+     static final protected String NOTIFY = "samp.hub.notify";
+     static final protected String NOTIFY_ALL = "samp.hub.notifyAll";
+@@ -351,7 +354,14 @@ public boolean register(boolean silent, boolean launchHubIfNeeded) {
+         String callbackAddress = "http://"+getLocalhost()+":"+xmlRpcPort+"/";
+ 
+         trace(" Aladin callback address is: "+callbackAddress);
+-        aladinXmlRpcServer.addHandler("samp.client", this);
++
++        // Hints from https://ws.apache.org/xmlrpc/handlerCreation.html - Paul Sladen
++        // It would appear that this might be either-or vs. implementing the
++        // XMLRPCHandler interface and XMLRPCHandler::execute() switch method.
++        PropertyHandlerMapping propHandlerMapping = new PropertyHandlerMapping();
++        propHandlerMapping.setVoidMethodEnabled(true);
++        propHandlerMapping.addHandler("samp.client", this.getClass());
++        aladinXmlRpcServer.getXmlRpcServer().setHandlerMapping(propHandlerMapping);
+ 
+         // set XML-RPC callback
+         params = new Vector();
+@@ -988,7 +998,10 @@ private boolean getHubListener(boolean silent, boolean launchHubIfNeeded) {
+         try  {
+             // testing if the hub is alive (by pinging it)
+             URL url = new URL(hubUrl);
+-            hubClient = new XmlRpcClient(url);
++            hubClient = new XmlRpcClient();
++            XmlRpcClientConfigImpl clientConfig = new XmlRpcClientConfigImpl();
++            clientConfig.setServerURL(url);
++            hubClient.setConfig(clientConfig);
+ 
+             try {
+                 hubClient.execute(HUB_MSG_PING, new Vector());
