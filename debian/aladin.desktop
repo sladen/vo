@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Encoding=UTF-8
+Type=Application
+Name=Aladin
+GenericName=Astronomical Sky Atlas
+# Tooltip/searching
+Comment=Interactive Sky atlas for astronomical images and datasets
+Exec=/usr/bin/aladin
+Icon=cds-aladin
+Terminal=false
+Categories=Education;Astronomy;Application;DataVisualization;Java;Viewer;Presentation;ImageProcessing
+# https://www.ietf.org/rfc/rfc4047.txt since 2005
+MimeType=application/x-votable+xml;application/fits;image/fits
+
