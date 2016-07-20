@@ -1,4 +1,4 @@
 #!/usr/bin/dh-exec
 lib/aladin.jar usr/share/aladin
 debian/aladin.desktop usr/share/applications
-ALADIN_LOGO-vect.svg => usr/share/pixmaps/cds-aladin.svg
+ALADIN_LOGO-vect.svg => usr/share/pixmaps/aladin.svg

@@ -7,7 +7,7 @@ GenericName=Planetarium
 # Tooltip/searching
 Comment=Astronomical Sky Atlas and star catalogue for astronomical images and datasets
 Exec=/usr/bin/aladin
-Icon=cds-aladin
+Icon=aladin
 Terminal=false
 Categories=Science;Astronomy;Application;DataVisualization;Java;Education;Viewer;
 # https://www.ietf.org/rfc/rfc4047.txt since 2005
