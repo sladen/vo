@@ -3,7 +3,7 @@ Section: java
 Priority: optional
 Maintainer: Debian Astro Team <debian-astro-maintainers@lists.alioth.debian.org>
 Uploaders: Paul Sladen <debian@paul.sladen.org>
-Build-Depends: debhelper (>= 9), javahelper (>= 0.40), ant
+Build-Depends: debhelper (>= 9), dh-exec, javahelper (>= 0.40), ant
 Build-Depends-Indep: default-jdk, default-jdk-doc, libhealpix-java,
  libastrogrid-samp-java, libkxml2-java, libcds-moc-java, 
  libcds-savot-java, libxmlrpc3-client-java
