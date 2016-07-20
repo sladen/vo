@@ -21,7 +21,7 @@ aladin \- interactive software sky atlas
 .SH DESCRIPTION
 .B aladin 
 is an interactive sky atlas for viewing astronomical images in the
-online Virtual Observatory (VO).  It is possible superimpose entries
+online Virtual Observatory (VO).  It is possible to superimpose entries
 from astronomical catalogues or databases with remotely accessed data
 fetched on demand.
 
@@ -91,19 +91,35 @@ Script-/command-line based Hierarchical Progressive Surveys (HiPS) generation.
 .TP
 .B -hipsgen [-h]
 command-line/script-based generation of Hierarchical Progressive Surveys (HiPS).
+.\" Example of -hipsgen given by Pierre Fernique as of 2016
+.\" https://voparis-confluence.obspm.fr/pages/viewpage.action?pageId=564111
+.\" This can exanded when the option is better understood.
+An example of how to use the HiPS generation:
+
+.\"java -jar Aladin.jar -hipsgen in=\fIyourFolder\fR color=true
+\fBaladin\fR -hipsgen in=\fIyourFolder\fR color=true
+
+Additional options are described in \fBaladin -hipsgen -h\fR.
 
 .SS MOC Command
 script-/command-line based Multi-Order Coverage Map (MOC) generation options.
 .TP
 .B -mocgen [-h]
 command-line/script-based generation of Multi-Order Coverage Maps (MOC).
+.\" Example found in:
+.\" http://wiki.ivoa.net/internal/IVOA/InterOpSep2013Applications/MOC-Fernique-Hawaii.pdf
+An example of how to use the MOC generation:
+
+\fBaladin\fR -mocgen in=\fIDirScuba\fR order=\fI15\fR out=\fIsfoo.fits\fR
+
+Additional options are described in \fBaladin -mocgen -h\fR.
 
 .SS Applet Options
 Aladin can run remotely over the web inside a web-browser and appears to take the following options.
 .TP
 \fBaladin\fR [\fI\-c\fR] [\fI\-rm\fR] [\fI\-server\fR] [\fI\-source\fR] [\fIimg\fR] [\fI\-preview\fR] [\fI-fov\fR] [\fI-aladin.resolution\fR] [\fI\-aladin.zoom\fR] [\fIscript\fR] [\fIinFrame\fR] [\fIfrom\fR] [\fIimg\fR]
 .TP
-.B -glufile=<http://example.com/file.dic>
+.B -glufile=<\fIhttp://example.com/file.dic\fR>
 An HTTP-encoded URL to a publically-accessible dictionary file containing configuration data for alternative for data providers, in the format:
 \". Found at http://aladin.u-strasbg.fr/java/FAQ.htx#ToC65
 .TP
