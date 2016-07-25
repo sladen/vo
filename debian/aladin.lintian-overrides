@@ -3,3 +3,21 @@
 # Fixed in Lintian (>= 2.5.16) per https://bugs.debian.org/539315 
 aladin binary: executable-not-elf-or-script
 
+# The Debian .menu entry is there for those who need it.  It can
+# specify an icon.
+#
+# Historically the world used old Window Mangers (WMs) which
+# displayed tiny 16x16/32x32 small bitmap icons in old simple
+# text-based formats.  Whilst this is wonderful for knowing that a WM
+# from the 1990s will still function, it then precludes nice results
+# on modern WMs or pretty results on high-DPI screens.
+# This Lintian warning can be dealt by doing the following and
+# then specifying the result in the .menu file.
+#
+# convert +antialias -trim -background transparent -resize 32x32 \
+#   -gravity center -extent 32x32 -fuzz '99%' -transparent white \
+#   ALADIN_LOGO-vect.svg cds-aladin.xpm
+#
+# and then ditto for 16x16, 24x24 etc.  However for the generic case
+# forcing a fixed-size icon is probably worse; so lets override it:
+aladin binary: menu-icon-not-in-xpm-format
