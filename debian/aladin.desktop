@@ -1,0 +1,33 @@
+[Desktop Entry]
+Version=1.0
+Encoding=UTF-8
+Type=Application
+Name=Aladin
+GenericName=Planetarium
+# Tooltip/searching
+Comment=Astronomical Sky Atlas and star catalogue for astronomical images and datasets
+Exec=/usr/bin/aladin
+Icon=aladin
+Terminal=false
+Categories=Science;Astronomy;Application;DataVisualization;Java;Education;Viewer;
+# https://www.ietf.org/rfc/rfc4047.txt since 2005
+MimeType=application/x-votable+xml;application/fits;image/fits
+Actions=Outreach;Cinema;Antialias;Console
+
+[Desktop Action Outreach]
+Exec=/usr/bin/aladin -outreach
+Name=Outreach Mode
+
+[Desktop Action Cinema]
+Exec=/usr/bin/aladin -screen=cinema
+Name=Cinema mode
+
+[Desktop Action Antialias]
+Exec=/usr/bin/aladin -antialiasing
+Name=Antialised text
+
+[Desktop Action Console]
+Exec=/usr/bin/aladin
+Name=With console
+Terminal=true
+

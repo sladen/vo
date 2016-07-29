@@ -7,18 +7,202 @@
 .SH NAME
 aladin \- interactive software sky atlas
 .SH SYNOPSIS
-.B aladin
+\fBaladin\fR [\fI\-help\fR] [\fI\-version\fR] [\fIoptions...\fR] [\fIfilenames...\fR]
+.br
+.\" aladin -help
+\fBaladin\fR \fI\-hipsgen\fR|\fI\-mocgen\fR [\fI\-h\fR] <\fIoptions...\fR>
+.br
+.\" ./cds/aladin/Aladin.java myInit() ... isApplet() codepath
+\fBaladin\fR [\fI\-c\fR] [\fI\-rm\fR] [\fI\-server\fR] [\fI\-source\fR] [\fIimg\fR] [\fI\-preview\fR] [\fI-fov\fR] [\fI-aladin.resolution\fR] [\fI\-aladin.zoom\fR] [\fIsciprt\fR] [\fIinFrame\fR] [\fIfrom\fR]
+.br
+\fBaladin\fR [\fI\-debug\fR] [\fI\-trace\fR] [\fI\-[no]hub\fR] [\fI\-glufile=\fR] [\fI\-scriptfile=\fR] [\fI\-screen\fR] [\fI\-load\fR] [\fI\-c\fR]
+ [\fI\-stringfile=\fR] [\fIinFrame=\fR] [\fIcgi\fR]
+
 .SH DESCRIPTION
 .B aladin 
-is an interactive software sky atlas allowing the user to visualize
-digitized astronomical images, superimpose entries from astronomical
-catalogues or databases.
+is an interactive sky atlas for viewing astronomical images in the
+online Virtual Observatory (VO).  It is possible to superimpose entries
+from astronomical catalogues or databases with remotely accessed data
+fetched on demand.
+
+Aladin can also open and save to a large number of astronomical image
+formats (FITS, HEALPix, JPEG/GIF/PNG/...); and table formats (FITS,
+VO-Table, CSV/TSV, S-extractor, IPAC-TBL, Skycat, ASCII, ...).
+
+.SH OPTIONS
+
+.TP
+.B \-help
+show top-level help
+.TP
+.B \-version
+show version of Aladin installed
+.TP
+.B \-local
+skip internet connectivity tests (off-line usage)
+.TP
+.BR \-screen =<full|cinema|preview|previewhidden|frame>
+start in full-screen, cinema, preview, or other visual modes.  \fI\-preview\fR is 
+.TP
+.B \-preview
+equivalent to \fI\-screen=preview\fR
+.TP
+.BR \-script =cmd1;cmd2;...
+script commands passed on the command-line
+.TP
+.B \-nogui
+script-mode.  Does not use graphical user interface. Equivalent to
+.B -noplugin -nobanner -nobookmarks -nohub
+.TP
+.B \-nobanner
+hide the Aladin start up splash screen/loading status
+.TP
+.B \-noreleasetest
+do not perform an only check to see if a new releases of Aladin is available
+.TP
+.B \-[no]hub
+disable/enable starting the internal SAMP communcations hub for sharing data with other astronomical applications
+.TP
+.B \-[no]plugin
+disable/enable plugin support
+.TP
+.B \-[no]bookmarks
+disable/enable bookmarks
+.TP
+.B \-[no]outreach
+disable/enable alternative user interface used for Aladin "Outreach"/"Undergraduate" mode
+
+.SS Debugging Options
+.TP
+.B \-[no]beta
+disable/enable features that currently in beta-test
+.TP
+.B \-[no]proto
+disable/enable prototype feature.  Useful for testing or when performing demonstrations
+.TP
+.B \-trace
+debugging trace mode
+.TP
+.B \-debug
+debugging extra verbose mode
+
+.SS HiPS Command
+Script-/command-line based Hierarchical Progressive Surveys (HiPS) generation.
+.TP
+.B -hipsgen [-h]
+command-line/script-based generation of Hierarchical Progressive Surveys (HiPS).
+.\" Example of -hipsgen given by Pierre Fernique as of 2016
+.\" https://voparis-confluence.obspm.fr/pages/viewpage.action?pageId=564111
+.\" This can exanded when the option is better understood.
+An example of how to use the HiPS generation:
+
+.\"java -jar Aladin.jar -hipsgen in=\fIyourFolder\fR color=true
+\fBaladin\fR -hipsgen in=\fIyourFolder\fR color=true
+
+Additional options are described in \fBaladin -hipsgen -h\fR.
+
+.SS MOC Command
+script-/command-line based Multi-Order Coverage Map (MOC) generation options.
+.TP
+.B -mocgen [-h]
+command-line/script-based generation of Multi-Order Coverage Maps (MOC).
+.\" Example found in:
+.\" http://wiki.ivoa.net/internal/IVOA/InterOpSep2013Applications/MOC-Fernique-Hawaii.pdf
+An example of how to use the MOC generation:
+
+\fBaladin\fR -mocgen in=\fIDirScuba\fR order=\fI15\fR out=\fIsfoo.fits\fR
+
+Additional options are described in \fBaladin -mocgen -h\fR.
+
+.SS Applet Options
+Aladin can run remotely over the web inside a web-browser and appears to take the following options.
+.TP
+\fBaladin\fR [\fI\-c\fR] [\fI\-rm\fR] [\fI\-server\fR] [\fI\-source\fR] [\fIimg\fR] [\fI\-preview\fR] [\fI-fov\fR] [\fI-aladin.resolution\fR] [\fI\-aladin.zoom\fR] [\fIscript\fR] [\fIinFrame\fR] [\fIfrom\fR] [\fIimg\fR]
+.TP
+.B -glufile=<\fIhttp://example.com/file.dic\fR>
+An HTTP-encoded URL to a publically-accessible dictionary file containing configuration data for alternative for data providers, in the format:
+\". Found at http://aladin.u-strasbg.fr/java/FAQ.htx#ToC65
+.TP
+       %ActionName        Foo
+       %Description       My own server definition
+       %Aladin.Label      MyServer
+       %Aladin.Menu       Others...
+       %Aladin.LabelPlane MyServer $1/$2                      
+       %Url               http://example.com/yyy?ra=$1&dec=$2&radius=$3&color=$4...
+       %Param.Description $1=Right Ascension
+       %Param.Description $2=Declination
+       %Param.Description $3=Radius
+       %Param.Description $4=Color
+       %Param.DataType    $1=Target(RA)
+       %Param.DataType    $2=Target(DE)
+       %Param.DataType    $3=Field(RADIUS)
+       %Param.Value       $3=14.1 arcmin
+       %Param.Value       $4=Red
+       %Param.Value       $4=Blue
+       %Param.Value       $4=Infrared 
+       %Aladin.filter     filter Mag.Circle { draw circle(-${Mag}) }
+       %Aladin.filter     filter Prop.motion { draw pm(5*${pmRA},5*${pmDE}) }
+       %ResultDataType    Mime(image/fits)
+
+.LP
+The following options are visible the source code, but are not clearly
+documented in other sources, and appear to be related to applet usage
+for running inside a web-browser.
+
+.TP
+\fBinFrame\fR=<\fIload\fR|\fIlaunching\fR>
+possibly related to Applet use when running inside a web-browser.
+.TP
+.B cgi=...
+in Applet mode, this is a path to a remote script that can be queried
+for additional configuration instructions. It is appended to the
+top-level hostname URL that the Applet is being executed from.
+.TP
+.B from=...
+in Applet mode, appears to be appended to the CGI request.  At point this is compared to the string "CDS-WebStart".
+.TP
+.B -load=<redirect|launching>
+appears to be for internal use.
+
+\". From 'cds/aladin/CreatObj.java'
+\". .B img
+\". .TP
+\". .B -c
+\". .TP
+\". .B script
+
+.SH FORMATS
+Aladin is able to process the following file formats:
+.TP
+.B images
+FITS (gzipped,RICE,MEF,...), HEALPix maps, JPEG,GIF,PNG
+.TP
+.B tables
+FITS, XML/VOTable, CSV, TSV, S-extractor, IPAC-TBL, Skycat or ASCII tables
+.TP
+.B graphics
+Aladin or IDL or DS9 regions, MOCs
+.TP
+.B directories
+HiPS (Hierarchical Progressive Surveys)
+.TP
+.B Aladin backups
+Files with "*.aj" extension
+.TP
+.B Aladin scripts
+Files with "*.ajs" extension
 .P
-For more information on
-.BR aladin
-please refer to the webpage \fIhttp://aladin.u\-strasbg.fr/\fR.
-.P
-A comprehensive \fIuser manual\fR is available from that site. 
+A comprehensive User Manual is available from the CDS website in PDF format at:
+http://aladin.u-strasbg.fr/java/AladinManual6.pdf
+.SH ENVIRONMENT VARIABLES
+.\" found in cds/aladin/SAMPManager.java getHubListener()/getLockFile()
+.TP
+.BR USERPROFILE =<path>
+used by the built-in SAMP hub to create the \fI.samp\fR lock-file
+
+.SH HOMEPAGE
+http://aladin.u-strasbg.fr/
+
 .SH "ORIGINAL AUTHORS"
 T. Boch, F. Bonnarel, P. Fernique, A. Oberto, F. Ochsenbein, A. Schaaf
 .SH COPYRIGHT
@@ -35,10 +219,9 @@ Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public
 License along with this library; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-.SH AUTHOR 
-This manual page was written by Florian Rothmaier
-<gavo@ari.uni-heidelberg.de>, for the Debian GNU/Linux system
-(but may be used by others). 
+.SH AUTHORS
+This manual page was written by Florian Rothmaier and Paul Sladen, for
+the Debian GNU/Linux system (but may be used by others).
 .\"
 .\" EOF
 .\"
