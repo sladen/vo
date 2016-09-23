@@ -2097,8 +2097,8 @@ public final class Calib  implements Cloneable {
       double tet ;
       switch(proj)
       {
-         case NCP :
          case SIN : // SIN proj
+         case NCP :
             x_stand = x_tet_phi ;
             y_stand = y_tet_phi ;
             if ((xydpoly[1] != 0 ) && (xydpoly[2] != 0 ))
@@ -2613,10 +2613,8 @@ public final class Calib  implements Cloneable {
                sdelp = FastMath.sin((90.-deltai)*deg_to_rad);
             }
             double phi ;
-            double z =
-                  1 - x_objr*x_objr/16 -y_objr*y_objr/4;
-            if (z < 0.5)
-               throw new Exception("No coordinates") ;
+            double z = 1 - x_objr*x_objr/16 -y_objr*y_objr/4;
+            if (z < 0.5) throw new Exception("No coordinates") ;
             //{ c.del = -32000.0 ; c.al = -32000.0;}
             else
             {
@@ -2630,24 +2628,24 @@ public final class Calib  implements Cloneable {
                //                System.out.println("Le sin de delt"+sdelp*FastMath.sin(tet));
                //                System.out.println("Le sin de delt"+cdelp*FastMath.cos(tet)*FastMath.cos(phi));
                //                System.out.println("Le sin de delt"+(sdelp*FastMath.sin(tet)+cdelp*FastMath.cos(tet)*FastMath.cos(phi)));
-               c.del = rad_to_deg*
-                     Math.asin((sdelp*FastMath.sin(tet)+
-                           cdelp*FastMath.cos(tet)*FastMath.cos(phi)));
-               double arg1 = -(FastMath.sin(tet)*cdelp
-                     - FastMath.cos(tet)*sdelp*FastMath.cos(phi));
-               double arg ;
-               arg = (FastMath.cos(tet)*FastMath.sin(phi));
+               
+               double ctet = FastMath.cos(tet); 
+               double stet = FastMath.sin(tet);  // PFOPT: PEUT ETRE PRENDRE DIRECTEMENT ctet = y_objr*Z
+               double cphi = FastMath.cos(phi);
+               c.del = rad_to_deg* Math.asin((sdelp*stet+ cdelp*ctet*cphi));
+               double arg1 = -(stet*cdelp - ctet*sdelp*cphi);
+               double arg  = (ctet*FastMath.sin(phi));
                //      if (Math.abs(deltai) != 90.)
                c.al = alphai + rad_to_deg*Math.atan2(arg,arg1) ;
                if (deltai < 0.) c.al = c.al + 180. ;
                //               c.al = alphai + rad_to_deg*phi ;
 
                //   System.out.println((rad_to_deg*Math.atan2(arg,arg1))+" ");
-               if((c.del*c.del > 90.*90.)&&(Math.abs(deltai) > 65.))
-               {
+//               if((c.del*c.del > 90.*90.)&&(Math.abs(deltai) > 65.))
+//               {
                   // c.al = 180. - c.al ;
                   // c.del = 2*deltai - c.del ;
-               }
+//               }
             }
             //              System.out.println("al del Coord"+c.al+" "+c.del);
 
@@ -3016,13 +3014,13 @@ public final class Calib  implements Cloneable {
          //      int goodness = 1;
 
       if( withTest ) {
-         switch(proj)
-         {  case TPV:
+         switch(proj) {
             case SIN:
+            case TAN: // TAN proj
             case SINSIP:    
             case NCP : // NCP
-            case TAN: // TAN proj
             case SIP:   
+            case TPV:
                if (dalpha > Math.PI )   dalpha = -2*Math.PI +dalpha ;
                if (dalpha < -Math.PI )  dalpha = + 2*Math.PI +dalpha ;
                if ((-sin_del * sdelz)/(cos_del * cdelz) > 1  )
@@ -3095,7 +3093,12 @@ public final class Calib  implements Cloneable {
                //            System.out.println("xystand"+x_stand+" "+y_stand);
                //                        System.out.println("proj 2\n");
                
-               if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&(aladin == 0))
+               // PFOPT: ACCELERATION
+               if( aladin>3 || xyapoly[1]==0 || xyapoly[1]==1 ) {
+                  x_stand *= rad_to_deg;
+                  y_stand *= rad_to_deg;
+               }
+               else if ((xyapoly[1] != 0)&&(xyapoly[1] != 1)&&(aladin == 0))
                {
                    x_stand *= rad_to_deg ;
                    y_stand *= rad_to_deg ;
@@ -3478,16 +3481,14 @@ public final class Calib  implements Cloneable {
                double cdelp = FastMath.cos(deltai*deg_to_rad+Math.PI/2);
                double sdelp = FastMath.sin(deltai*deg_to_rad+Math.PI/2) ;
 
-               phi = Math.atan2(cos_del *sin_dalpha
-                     ,-(sin_del*cdelp - cos_del*sdelp *cos_dalpha));
+               phi = Math.atan2(cos_del *sin_dalpha,-(sin_del*cdelp - cos_del*sdelp *cos_dalpha));
 
                tet =  Math.asin(sin_del*sdelp + cos_del*cdelp *cos_dalpha);
                //                  System.out.println("phi tet"+phi+" "+tet);
                if (phi > Math.PI )   phi = -2*Math.PI +phi ;
                //                  if (phi < -Math.PI )  phi = + 2*Math.PI +phi ;
 
-               double alph =
-                     Math.sqrt(2/(1+FastMath.cos(tet)*FastMath.cos(phi/2.)));
+               double alph = Math.sqrt(2/(1+FastMath.cos(tet)*FastMath.cos(phi/2.)));
                x_stand = 2*alph*FastMath.cos(tet)*FastMath.sin(phi/2);
                y_stand = alph*FastMath.sin(tet) ;
                //                     System.out.println("xy "+x_stand+" "+y_stand+"\n");

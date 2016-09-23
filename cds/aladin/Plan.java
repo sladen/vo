@@ -339,6 +339,7 @@ public class Plan implements Runnable {
     */
    protected void setSourceType(int sourceType) {
       Iterator<Obj> it = iterator();
+      if( it==null ) return;
       while( it.hasNext() ) {
          Obj o = it.next();
          if( !(o instanceof Source) ) continue;
@@ -650,7 +651,9 @@ public class Plan implements Runnable {
             if( s.leg!=leg ) continue;
             String ra = s.getValue(nra);
             String dec= s.getValue(ndec);
-            format = TableParser.getRaDec(c, ra, dec, format);
+            int unit = TableParser.getUnit( s.getUnit(nra) );
+            
+            format = TableParser.getRaDec(c, ra, dec, format, unit);
             //             if( first ) System.out.println("c="+c);
             if( npmra>0 && npmde>0 ) {
                try {

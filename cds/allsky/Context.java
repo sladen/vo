@@ -499,7 +499,8 @@ public class Context {
       if (this.bitpix==-1) this.bitpix = bitpixO;
    }
    public void setBitpix(int bitpix) { this.bitpix = bitpix; }
-   public void setBlankOrig(double x) {  blankOrig = x; hasAlternateBlank=true; }
+   public void setBlankOrig(double x) {  
+      blankOrig = x; hasAlternateBlank=true; }
    public void setColor(String colorMode) {
       if( colorMode.equalsIgnoreCase("false")) return;
       bitpixOrig=0;
@@ -1070,8 +1071,41 @@ public class Context {
       return true;
    }
 
+   public boolean verifFrame() {
+
+      // Récupération d'un éventuel changement de hips_frame dans les propriétés du HpxFinder
+      InputStream in = null;
+      boolean flagFrameFound=false;
+      try {
+         String propFile = getHpxFinderPath()+Util.FS+Constante.FILE_PROPERTIES;
+         MyProperties prop = new MyProperties();
+         prop.load( in=new FileInputStream( propFile ) );
+         int o=0;
+         String s = prop.getProperty(Constante.KEY_HIPS_FRAME);
+         if( s!=null ) {
+            flagFrameFound=true;
+            o = getFrameVal(s);
+         }
+
+         if( flagFrameFound ) {
+            if( hasFrame() ) {
+               if( o!=getFrame() ) {
+                  warning("Uncompatible coordinate frame="+getFrameName()+" compared to pre-existing survey frame="+getFrameName(o));
+                  return false;
+               }
+            } else {
+               setFrame(o);
+            }
+         }
+      } catch( Exception e ) { }
+      finally { if( in!=null ) { try { in.close(); } catch( Exception e ) {} } }
+
+      return true;
+   }
+
    public boolean verifCoherence() {
 
+      if( !verifFrame() ) return false;
       if( !verifTileOrder() ) return false;
 
       if( mode==Mode.REPLACETILE ) return true;

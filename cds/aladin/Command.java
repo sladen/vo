@@ -152,7 +152,7 @@ public final class Command implements Runnable {
       "flipflop","get","grey","grid","help","hide","hist","info","kernel","list","load","lock",
       "macro","md","mem","northup","match",
       "mosaic","mv","norm","overlay","pause","print","quit","resamp","reset","reticle",
-      "RGB","RGBdiff","rm","save","scale","search","select","set","setconf","show",
+      "RGB","RGBdiff","rm","save",/*"scale",*/"search","select","set","setconf","show",
       "status",/*"stick",*/"sync","tag","thumbnail","trace","unlock",/* "unstick",*/
       "untag","xmatch","moreonxmatch","zoom","+","-","*","/","=",
    };
@@ -287,7 +287,7 @@ public final class Command implements Runnable {
       boolean encore=true;
       int b=0;
       int acc=0;  // Profondeur de crochets pour éviter les fausses détections de ';' au sein d'une UCD
-
+      
       do {
          // Une commande qui provient du pad et prioritaire sur stdin
          if( (stream==null || stream==System.in) &&
@@ -1360,6 +1360,14 @@ public final class Command implements Runnable {
          a.calque.repaintAll();
          return "";
       }
+      else if( propertie.equalsIgnoreCase("screen") ) {
+         if( value.equalsIgnoreCase("cinema") ) a.fullScreen(3);
+         else if( value.equalsIgnoreCase("preview") ) a.fullScreen(1);
+         else if( value.equalsIgnoreCase("full") ) a.fullScreen(0);
+         else a.fullScreen(-1);
+         a.calque.repaintAll();
+         return "";
+      }
 
       try { a.configuration.setconf(propertie,value); }
       catch( Exception e ) {
@@ -2302,6 +2310,22 @@ public final class Command implements Runnable {
          return e.getMessage()!=null ? "cmoc error: "+e.getMessage() : "cmoc error";
       }
    }
+   
+   protected void gotoAnimation(String param) {
+      StringBuffer targetX=new StringBuffer();
+      StringBuffer radiusX=new StringBuffer();
+      
+      String target,radius=null;
+      
+      if( extractRadius(radiusX,targetX,param) ) {
+         target = targetX.toString();
+         radius = radiusX.toString();
+      } else target = param;
+
+      System.out.println("target="+target+" radius="+radius);
+      
+      a.gotoAnimation(target,radius);
+   }
 
    /** réduction à une portion de l'image
     * Dans le cas d'une copie préalable, retourne le nouveau Plan
@@ -2593,6 +2617,7 @@ public final class Command implements Runnable {
          } else if( fct.equalsIgnoreCase("phot") ) {
             SourceStat phot;
             ViewSimple v = a.view.getCurrentView();
+           
             try {
                if( drawMode==DRAWRADEC ) {
                   newobj = phot = new SourceStat(plan,v,c,null);
@@ -2601,9 +2626,10 @@ public final class Command implements Runnable {
                   newobj = phot = new SourceStat(plan,v,x,y,null);
                   phot.setRayon( v,parseDouble(p[2]) );
                }
+               if( p.length>2 ) phot.setOrder(p[3]);
                phot.setLocked(true);
             } catch( Exception e ) {
-               printConsole("!!! draw phot error: usage: draw phot(x,y,radius)");
+               printConsole("!!! draw phot error: usage: draw phot(x,y,radius[,order|max])");
                return false;
             }
 
@@ -2816,8 +2842,12 @@ public final class Command implements Runnable {
     * @param verbose true si on baratine
     * @return null si la premiere commande n'est pas trouvee
     */
-   public String execScript(String s) { return execScript(s,true,false); }
+   public String execScript(String s) {
+      return execScript(s,true,false);
+   }
    synchronized public String execScript(String s,boolean verbose,boolean flagOnlyFunction) {
+      
+      
       //      StringTokenizer st = new StringTokenizer(s,";\n\r");
       // thomas, 16/11/06 : permet de ne pas couper la déf. des filtres (pb des ';' dans les UCD !)
       String[] commands = Util.split(s, ";\n\r", '[', ']');
@@ -2902,7 +2932,7 @@ public final class Command implements Runnable {
    protected String exec(String s) { return exec(s,true,false); }
    protected String exec(String s1,boolean verbose,boolean flagOnlyFunction) {
       if( a.isFullScreen() && !a.fullScreen.isVisible() ) a.fullScreen.setVisible(true);
-
+      
       // mémorisation du dernier commentaire pour une éventuelle définition de fonction
       if( s1.trim().charAt(0)=='#' ) {
          if( comment==null ) comment = new StringBuffer(s1.trim().substring(1));
@@ -3046,7 +3076,7 @@ public final class Command implements Runnable {
       else if( cmd.equalsIgnoreCase("tag") )    a.tagselect();
       else if( cmd.equalsIgnoreCase("untag") )  a.untag();
       else if( cmd.equalsIgnoreCase("reloadglu") )  a.glu = new Glu(a);
-      else if( cmd.equalsIgnoreCase("goto") )   goTo(param);
+      else if( cmd.equalsIgnoreCase("goto") )   gotoAnimation(param);
       else if( cmd.equalsIgnoreCase("crop") )   execCropCmd(param,label);
       else if( cmd.equalsIgnoreCase("match") )   execMatchCmd(param);
       else if( cmd.equalsIgnoreCase("stick") )  execViewCmd(param,STICKVIEW);
@@ -4088,17 +4118,6 @@ public final class Command implements Runnable {
       if( robotInfo!=null && infoTxt!=null ) infoTxt.setText("");
    }
 
-   protected void goTo(String param) {
-      StringTokenizer st = new StringTokenizer(param);
-      a.view.gotoThere(param);
-      //      try {
-      //         int x = Integer.parseInt(st.nextToken());
-      //         int y = Integer.parseInt(st.nextToken());
-      //         a.view.getCurrentView().goTo(x,y);
-      //      } catch( Exception e ) { e.printStackTrace(); }
-   }
-
-
    /************************************* Gestion des fonctions *************************************************/
 
    private ArrayList<Function> function=new ArrayList<Function>();
@@ -4816,12 +4835,8 @@ public final class Command implements Runnable {
    }
 
    private void hop() {
-      try {
-        a.calque.stack();
-      } catch (Exception e) {
-         e.printStackTrace();
-      }
-
+//      PlanMoc.PERIMETER = !PlanMoc.PERIMETER;
+//      System.out.println("Tracage perimetre MOC : "+PlanMoc.PERIMETER);
    }
 
 }

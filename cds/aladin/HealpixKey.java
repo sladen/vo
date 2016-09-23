@@ -1460,7 +1460,7 @@ public class HealpixKey implements Comparable<HealpixKey> {
       if( (status==ERROR || status==LOADINGFROMNET) && parente==0  /* || npix==-1 */ ) return INLIFE;
 
       if( getCurrentLiveTime()<=time ) return INLIFE;     // En vie
-      if( getCurrentLiveTime()>time+3000 ) return DEATH;
+      if( getCurrentLiveTime()>time+ 3000 ) return DEATH;
       return MAYBEDEATH;
    }
 
@@ -1694,23 +1694,29 @@ public class HealpixKey implements Comparable<HealpixKey> {
 
    /** Retourne true si le losange décrit par ses quatres coins est trop
     * grand pour être tracé en une seule fois => subdivision */
-   static final double M = 280*280;
-   static final double N = 150*150;
+   static final double M = 220*220;
+//   static final double M = 150*150;
+//   static final double N = 150*150;
    static final double RAP=0.7;
 
    protected boolean mustBeDivided(PointD b[] ) throws Exception {
       if( planBG.DEBUGMODE ) return false;
-      double d1,d2;
-      if( (d1=dist(b,0,2))>M || (d2=dist(b,2,1))>M ) return true;
+      double d1,d2,m;
+      boolean animated = planBG.aladin.isAnimated();
+      if( animated ) m = M*6;
+      else m=M;
+      double N = M; //1.42*1.42*m;
+      if( (d1=dist(b,0,2))>m || (d2=dist(b,2,1))>m ) return true;
       if( d1==0 || d2==0 ) throw new Exception("Rhomb error");
       double diag1 = dist(b,0,3);
       double diag2 = dist(b,1,2);
       if( diag2==0 || diag2==0 ) throw new Exception("Rhomb error");
-      double rap = diag2>diag1 ? diag1/diag2 : diag2/diag1;
+      double rap = animated ? 1 : diag2>diag1 ? diag1/diag2 : diag2/diag1;
       return rap<RAP && (diag1>N || diag2>N);
    }
    
    protected boolean isTooLarge(PointD b[], int N) throws Exception {
+      if( planBG.aladin.isAnimated() ) N *=6;
       N *= N;
       double d1,d2;
       if( (d1=dist(b,0,2))>N || (d2=dist(b,2,1))>N ) return true;
@@ -1761,6 +1767,8 @@ public class HealpixKey implements Comparable<HealpixKey> {
       // Agrandissement du losange d'un pixel pour cacher les coutures
       try { b = grow(b, 1); } catch( Exception e ) {  }
       boolean drawFast = planBG.mustDrawFast();
+      boolean animated = planBG.aladin.isAnimated();
+
       
       // On a les 4 coins
       if( b[0]!=null && b[1]!=null && b[2]!=null && b[3]!=null ) {
@@ -1799,7 +1807,7 @@ public class HealpixKey implements Comparable<HealpixKey> {
                      || planBG.projd.t==Calib.CAR;
                
                // Methode récursive pour s'approcher du bord du ciel
-               if( methodeRecursive && isTooLarge(b,planBG.projd.t==Calib.ARC||planBG.projd.t==Calib.FEYE ? 100 : 150) ) {
+               if( methodeRecursive && isTooLarge(b, planBG.projd.t==Calib.ARC||planBG.projd.t==Calib.FEYE ? 100 : 150) ) {
                   resetTimer();
                   int m = drawFils(g,v,drawFast?1:planBG.projd.t==Calib.ZEA?8:4);
                   if( m>0 ) return m;   // si aucun fils n'est tracé, on tentera le père
