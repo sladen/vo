@@ -1,7 +1,7 @@
 .\"
 .\" $Id: aladin.1,v 0.1 2012/01/05 22:12:40 rdm Exp $
 .\"
-.TH ALADIN 1 "Version 1" "ROOT"
+.TH ALADIN 1 "Nov 2016" "" "Virtual Observatory"
 .\" NAME should be all caps, SECTION should be 1-8, maybe w/ subsection
 .\" other parms are allowed: see man(7), man(1)
 .SH NAME
@@ -17,20 +17,17 @@ aladin \- interactive software sky atlas
 .br
 \fBaladin\fR [\fI\-debug\fR] [\fI\-trace\fR] [\fI\-[no]hub\fR] [\fI\-glufile=\fR] [\fI\-scriptfile=\fR] [\fI\-screen\fR] [\fI\-load\fR] [\fI\-c\fR]
  [\fI\-stringfile=\fR] [\fIinFrame=\fR] [\fIcgi\fR]
-
 .SH DESCRIPTION
 .B aladin 
 is an interactive sky atlas for viewing astronomical images in the
 online Virtual Observatory (VO).  It is possible to superimpose entries
 from astronomical catalogues or databases with remotely accessed data
 fetched on demand.
-
+.PP
 Aladin can also open and save to a large number of astronomical image
 formats (FITS, HEALPix, JPEG/GIF/PNG/...); and table formats (FITS,
 VO-Table, CSV/TSV, S-extractor, IPAC-TBL, Skycat, ASCII, ...).
-
 .SH OPTIONS
-
 .TP
 .B \-help
 show top-level help
@@ -71,7 +68,6 @@ disable/enable bookmarks
 .TP
 .B \-[no]outreach
 disable/enable alternative user interface used for Aladin "Outreach"/"Undergraduate" mode
-
 .SS Debugging Options
 .TP
 .B \-[no]beta
@@ -85,70 +81,68 @@ debugging trace mode
 .TP
 .B \-debug
 debugging extra verbose mode
-
 .SS HiPS Command
 Script-/command-line based Hierarchical Progressive Surveys (HiPS) generation.
 .TP
-.B -hipsgen [-h]
+.B \-hipsgen [\-h]
 command-line/script-based generation of Hierarchical Progressive Surveys (HiPS).
-.\" Example of -hipsgen given by Pierre Fernique as of 2016
+.\" Example of \-hipsgen given by Pierre Fernique as of 2016
 .\" https://voparis-confluence.obspm.fr/pages/viewpage.action?pageId=564111
 .\" This can exanded when the option is better understood.
 An example of how to use the HiPS generation:
-
-.\"java -jar Aladin.jar -hipsgen in=\fIyourFolder\fR color=true
+.PP
+.\"java \-jar Aladin.jar -hipsgen in=\fIyourFolder\fR color=true
 \fBaladin\fR -hipsgen in=\fIyourFolder\fR color=true
-
 Additional options are described in \fBaladin -hipsgen -h\fR.
-
 .SS MOC Command
 script-/command-line based Multi-Order Coverage Map (MOC) generation options.
 .TP
-.B -mocgen [-h]
+.B \-mocgen [\-h]
 command-line/script-based generation of Multi-Order Coverage Maps (MOC).
 .\" Example found in:
 .\" http://wiki.ivoa.net/internal/IVOA/InterOpSep2013Applications/MOC-Fernique-Hawaii.pdf
 An example of how to use the MOC generation:
-
+.PP
 \fBaladin\fR -mocgen in=\fIDirScuba\fR order=\fI15\fR out=\fIsfoo.fits\fR
-
+.PP
 Additional options are described in \fBaladin -mocgen -h\fR.
-
 .SS Applet Options
 Aladin can run remotely over the web inside a web-browser and appears to take the following options.
 .TP
 \fBaladin\fR [\fI\-c\fR] [\fI\-rm\fR] [\fI\-server\fR] [\fI\-source\fR] [\fIimg\fR] [\fI\-preview\fR] [\fI-fov\fR] [\fI-aladin.resolution\fR] [\fI\-aladin.zoom\fR] [\fIscript\fR] [\fIinFrame\fR] [\fIfrom\fR] [\fIimg\fR]
 .TP
-.B -glufile=<\fIhttp://example.com/file.dic\fR>
-An HTTP-encoded URL to a publically-accessible dictionary file containing configuration data for alternative for data providers, in the format:
+.B \-glufile=<\fIhttp://example.com/file.dic\fR>
+An HTTP-encoded URL to a publically-accessible dictionary file containing
+configuration data for alternative for data providers, in the format:
 \". Found at http://aladin.u-strasbg.fr/java/FAQ.htx#ToC65
-.TP
-       %ActionName        Foo
-       %Description       My own server definition
-       %Aladin.Label      MyServer
-       %Aladin.Menu       Others...
-       %Aladin.LabelPlane MyServer $1/$2                      
-       %Url               http://example.com/yyy?ra=$1&dec=$2&radius=$3&color=$4...
-       %Param.Description $1=Right Ascension
-       %Param.Description $2=Declination
-       %Param.Description $3=Radius
-       %Param.Description $4=Color
-       %Param.DataType    $1=Target(RA)
-       %Param.DataType    $2=Target(DE)
-       %Param.DataType    $3=Field(RADIUS)
-       %Param.Value       $3=14.1 arcmin
-       %Param.Value       $4=Red
-       %Param.Value       $4=Blue
-       %Param.Value       $4=Infrared 
-       %Aladin.filter     filter Mag.Circle { draw circle(-${Mag}) }
-       %Aladin.filter     filter Prop.motion { draw pm(5*${pmRA},5*${pmDE}) }
-       %ResultDataType    Mime(image/fits)
-
-.LP
+.RS
+.nf
+  %ActionName        Foo
+  %Description       My own server definition
+  %Aladin.Label      MyServer
+  %Aladin.Menu       Others...
+  %Aladin.LabelPlane MyServer $1/$2                      
+  %Url               http://example.com/yyy?ra=$1&dec=$2...
+  %Param.Description $1=Right Ascension
+  %Param.Description $2=Declination
+  %Param.Description $3=Radius
+  %Param.Description $4=Color
+  %Param.DataType    $1=Target(RA)
+  %Param.DataType    $2=Target(DE)
+  %Param.DataType    $3=Field(RADIUS)
+  %Param.Value       $3=14.1 arcmin
+  %Param.Value       $4=Red
+  %Param.Value       $4=Blue
+  %Param.Value       $4=Infrared 
+  %Aladin.filter     filter Mag.Circle { draw circle(\-${Mag}) }
+  %Aladin.filter     filter Prop.motion { draw pm(5*${pmRA},5*${pmDE}) }
+  %ResultDataType    Mime(image/fits)
+.fi
+.RE
+.IP
 The following options are visible the source code, but are not clearly
 documented in other sources, and appear to be related to applet usage
 for running inside a web-browser.
-
 .TP
 \fBinFrame\fR=<\fIload\fR|\fIlaunching\fR>
 possibly related to Applet use when running inside a web-browser.
@@ -161,16 +155,14 @@ top-level hostname URL that the Applet is being executed from.
 .B from=...
 in Applet mode, appears to be appended to the CGI request.  At point this is compared to the string "CDS-WebStart".
 .TP
-.B -load=<redirect|launching>
+.B \-load=<redirect|launching>
 appears to be for internal use.
-
 \". From 'cds/aladin/CreatObj.java'
 \". .B img
 \". .TP
-\". .B -c
+\". .B \-c
 \". .TP
 \". .B script
-
 .SH FORMATS
 Aladin is able to process the following file formats:
 .TP
@@ -199,26 +191,22 @@ http://aladin.u-strasbg.fr/java/AladinManual6.pdf
 .TP
 .BR USERPROFILE =<path>
 used by the built-in SAMP hub to create the \fI.samp\fR lock-file
-
 .SH HOMEPAGE
 http://aladin.u-strasbg.fr/
-
 .SH "ORIGINAL AUTHORS"
 T. Boch, F. Bonnarel, P. Fernique, A. Oberto, F. Ochsenbein, A. Schaaf
 .SH COPYRIGHT
-This library is free software; you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as
-published by the Free Software Foundation; either version 2.1 of the
-License, or (at your option) any later version.
-.P
-This library is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-Lesser General Public License for more details.
-.P
-You should have received a copy of the GNU Lesser General Public
-License along with this library; if not, write to the Free Software
-Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+Aladin is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3 of the License.
+.PP
+Aladin is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+.PP
+On Debian systems the full text of the GNU General Public License
+version 3 can be found in the file `/usr/share/common-licenses/GPL-3'.
 .SH AUTHORS
 This manual page was written by Florian Rothmaier and Paul Sladen, for
 the Debian GNU/Linux system (but may be used by others).
