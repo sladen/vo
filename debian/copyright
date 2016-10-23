@@ -10,13 +10,19 @@ Contributors:
  Andre Schaaff <andre.schaaff@astro.unistra.fr>
 Source: http://aladin.u-strasbg.fr/java/download/AladinSrc.jar
 
-Files: *
+Files: * debian/patches/aladin-upstream-vector-logo.patch
+ debian/patches/aladin-cds-astro-proj3-set.patch
 Copyright: 1999-2012, Universite de Strasbourg /
- Centre de Donnees astronomiques de Strasbourg (CDS)
+ Centre de Donnees astronomiques de Strasbourg (CDS/CNRS)
+ 2001-2016 Pierre Fernique
+ 1993 Association of Universities for Research in Astronomy
 License: GPL-3
 
-Files: healpix/*
-Copyright: Krystof Gorski, Jan Kotek, Nikolai Kuropatkin
+Files: healpix/* cds/image/Iqefunc.java
+Copyright: 1997-2013 Healpix Collaboration
+ 1997-2013 Krystof Gorski, Jan Kotek, Nikolai Kuropatkin
+ 1994-1995 European Southern Observatory (ESO)
+ 2011-2015 Max-Planck-Society
 License: GPL-2+
  This code is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -31,11 +37,46 @@ License: GPL-2+
  On Debian systems the full text of the GNU General Public License
  version 2 can be found in the file `/usr/share/common-licenses/GPL-2'.
 
+Files: cds/tools/Util.java cds/vizier/VizieRTable.java
+Copyright: 1999-2005 - Universite Louis Pasteur / Centre National de la
+ Recherche Scientifique
+License: ******************* NON-FREE ********************
+ In accordance with the international conventions about intellectual
+ property rights this software and associated documentation files
+ (the "Software") is protected. The rightholder authorizes :
+ the reproduction and representation as a private copy or for educational
+ and research purposes outside any lucrative use,
+ subject to the following conditions:
+ .
+ The above copyright notice shall be included.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON INFRINGEMENT,
+ LOSS OF DATA, LOSS OF PROFIT, LOSS OF BARGAIN OR IMPOSSIBILITY
+ TO USE SUCH SOFWARE. IN NO EVENT SHALL THE RIGHTHOLDER BE LIABLE
+ FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+ THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ .
+ For any other exploitation contact the rightholder.
+Comment: This has to be clarified before upload! VizieRTable.java is
+ also (alternatively?) GPLv3.
+
 Files: debian/*
 Copyright: 2012, Florian Rothmaier <gavo@ari.uni-heidelberg.de>
  2016, Paul Sladen <debian@paul.sladen.org>
 License: GPL-3
 
 License: GPL-3
+ Aladin is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, version 3 of the License.
+ .
+ Aladin is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
  On Debian systems the full text of the GNU General Public License
  version 3 can be found in the file `/usr/share/common-licenses/GPL-3'.
