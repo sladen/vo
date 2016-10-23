@@ -6,7 +6,7 @@ Name=Aladin
 GenericName=Planetarium
 # Tooltip/searching
 Comment=Astronomical Sky Atlas and star catalogue for astronomical images and datasets
-Exec=/usr/bin/aladin
+Exec=/usr/bin/aladin %F
 Icon=aladin
 Terminal=false
 Categories=Science;Astronomy;Application;DataVisualization;Java;Education;Viewer;
