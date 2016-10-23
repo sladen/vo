@@ -1,5 +1,6 @@
-diff --git a/cds/aladin/FrameColorMap.java b/cds/aladin/FrameColorMap.java
-index 27e2cc9..0fdec97 100644
+Author: Paul Sladen <debian@paul.sladen.org>
+Date: Mon Jul 4 10:56:34 2016 +0200
+Description: Remove JCompoBox<String> from FrameColorMap for compatibility
 --- a/cds/aladin/FrameColorMap.java
 +++ b/cds/aladin/FrameColorMap.java
 @@ -99,10 +99,10 @@ public final class FrameColorMap extends JFrame implements MouseListener {
