@@ -8,31 +8,18 @@ Description: Remove deprecated PLASTIC support
  disabled/dead-codepaths.
 Author: Paul Sladen <debian@paul.sladen.org>
 Last-Updated: 2016-07-07
-Index: aladin/build.xml
-===================================================================
---- aladin.orig/build.xml	2016-07-07 15:26:41.000000000 +0200
-+++ aladin/build.xml	2016-07-07 15:26:41.000000000 +0200
-@@ -14,6 +14,7 @@
-      <mkdir dir="${bin}"/>
-      <javac srcdir="${basedir}/cds" destdir="${bin}"
- 	    encoding="Cp1252" deprecation="off" includeantruntime="true">
+--- a/build.xml
++++ b/build.xml
+@@ -19,6 +19,7 @@
+        <src path="${basedir}/cds"/>
+        <src path="${basedir}/org"/>
+        <src path="${basedir}/uk"/>
 +       <exclude name="**/PlasticManager.java" />
         <classpath>
            <pathelement path="${java.class.path}/"/>
            <pathelement path="jsamp.jar"/>
-Index: aladin/cds/aladin/Aladin.java
-===================================================================
---- aladin.orig/cds/aladin/Aladin.java	2016-07-07 15:26:36.292184364 +0200
-+++ aladin/cds/aladin/Aladin.java	2016-07-07 15:37:53.864200467 +0200
-@@ -364,7 +364,7 @@
-    // l'utilisation par une autre application java (voir methode launch() );
-    public static Aladin aladin;
- 
--   static boolean PLASTIC_SUPPORT = true; // activation ou non du support PLASTIC/SAMP
-+   static boolean PLASTIC_SUPPORT = false; // activation ou non du support PLASTIC/SAMP
-    static boolean USE_ACR = false; // True si on utilise les librairies ACR (AstroGrid)
- 
-    private Banner banner=null;
+--- a/cds/aladin/Aladin.java
++++ b/cds/aladin/Aladin.java
 @@ -5590,21 +5590,12 @@
           if( USE_SAMP_REQUESTED ) {
              appMessagingMgr = new SAMPManager(this);
@@ -55,13 +42,3 @@ Index: aladin/cds/aladin/Aladin.java
           else {
              appMessagingMgr = new SAMPManager(this);
           }
-@@ -5617,9 +5608,6 @@
-             @Override
-             public void run() {
-                Aladin.trace(1, "In shutdown hook");
--               if( Aladin.PLASTIC_SUPPORT && messagingMgrCreated ) {
--                  try { getMessagingMgr().unregister(true, true); } catch( Exception e ) {}
--               }
-             }
-          });
-       }
