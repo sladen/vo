@@ -9,11 +9,9 @@ Description: Modified Aladin's original build.xml file
  package was added to "build.xml".
 Origin: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading
 Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
-Index: aladin/build.xml
-===================================================================
---- aladin.orig/build.xml	2016-07-07 16:39:16.824287998 +0200
-+++ aladin/build.xml	2016-07-07 16:57:33.432314060 +0200
-@@ -9,11 +9,13 @@
+--- a/build.xml
++++ b/build.xml
+@@ -9,11 +9,16 @@
  
     <description>Aladin Sky Atlas</description> 
     <property name="bin" value="${basedir}/bin"/>
@@ -24,12 +22,15 @@ Index: aladin/build.xml
       <mkdir dir="${bin}"/>
 -     <javac srcdir="${basedir}" destdir="${bin}"
 -	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" >
-+     <javac srcdir="${basedir}/cds" destdir="${bin}"
++     <javac destdir="${bin}"
 +	    encoding="Cp1252" deprecation="off" includeantruntime="true">
++       <src path="${basedir}/cds"/>
++       <src path="${basedir}/org"/>
++       <src path="${basedir}/uk"/>
         <classpath>
            <pathelement path="${java.class.path}/"/>
            <pathelement path="jsamp.jar"/>
-@@ -26,23 +28,33 @@
+@@ -26,23 +31,33 @@
     </target>
     
     <target name="main" depends="compil" description="jar generation" >

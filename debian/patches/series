@@ -4,5 +4,5 @@ aladin-make-build-system-debian-compatible.patch
 aladin-disable-plastik.patch
 aladin-jcombobox-string-compat.patch
 aladin-savot4-enumeration.patch
-aladin-sampmanager-xmlrpc3.patch
 aladin-cds-astro-proj3-set.patch
+aladin-add-xmlrpc2.patch
