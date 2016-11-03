@@ -1,0 +1,19 @@
+Author: Ole Streicher <olebole@debian.org>
+Description: Don't call home for logging
+ By default, Aladin loggs back every start, which can be disabled in the
+ configuration. For a better privacy, we reverse this behaviour.
+ .
+ Note however, that Aladin is an online tool and automatically connects to
+ GLU server to retrieve the list of available data sources. This is intended
+ behaviour of the program, which would otherwise not function as expected.
+--- a/cds/aladin/Configuration.java
++++ b/cds/aladin/Configuration.java
+@@ -828,7 +828,7 @@
+    /** Retourne true si le mode log est activé */
+    protected boolean isLog() {
+       String s = get(LOG);
+-      return s==null || s.equals(ACTIVATED);
++      return s!=null && s.equals(ACTIVATED);
+    }
+ 
+    /** Retourne true s'il faut un slider d'époque */
