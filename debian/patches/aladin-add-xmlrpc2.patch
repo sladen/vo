@@ -32,7 +32,7 @@ Last-Update: 2016-11-03
 + * A callback interface for an asynchronous XML-RPC call.
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
-+ * @version $Id: AsyncCallback.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: AsyncCallback.java,v 1.3 2005/04/22 10:25:57 hgomez Exp $
 + */
 +public interface AsyncCallback
 +{
@@ -73,7 +73,7 @@ Last-Update: 2016-11-03
 +/**
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
-+ * @version $Id: AuthDemo.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: AuthDemo.java,v 1.3 2005/04/22 10:25:57 hgomez Exp $
 + */
 +public class AuthDemo implements AuthenticatedXmlRpcHandler
 +{
@@ -184,7 +184,7 @@ Last-Update: 2016-11-03
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/CommonsXmlRpcTransport.java
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,191 @@
 +/*
 + * Copyright 1999,2005 The Apache Software Foundation.
 + * 
@@ -228,18 +228,11 @@ Last-Update: 2016-11-03
 + * Note: <b>Currently this transport is not thread safe</b>
 + *
 + * @author <a href="mailto:rhoegg@isisnetworks.net">Ryan Hoegg</a>
-+ * @version $Id: CommonsXmlRpcTransport.java 350039 2005-11-30 21:30:55 +0100 (Mi, 30 Nov 2005) jochen $
++ * @version $Id: CommonsXmlRpcTransport.java,v 1.7 2005/04/28 09:05:06 dlr Exp $
 + * @since 2.0
 + */
 +public class CommonsXmlRpcTransport implements XmlRpcTransport 
 +{
-+    private URL           url;
-+    private HttpClient    client;
-+    private final Header  userAgentHeader = new Header("User-Agent", XmlRpc.version);
-+    private boolean       http11          = false; // defaults to HTTP 1.0
-+    private boolean       gzip            = false;
-+    private boolean       rgzip           = false;
-+    private Credentials   creds;
 +    
 +    protected PostMethod method;
 +
@@ -247,7 +240,6 @@ Last-Update: 2016-11-03
 +    public CommonsXmlRpcTransport(URL url, HttpClient client) 
 +    {
 +        this.url = url;
-+        
 +        if (client == null) 
 +        {
 +            HttpClient newClient = new HttpClient();
@@ -263,6 +255,14 @@ Last-Update: 2016-11-03
 +    {
 +        this(url, null);
 +    }
++    
++    private URL url;
++    private HttpClient client;
++    private final Header userAgentHeader = new Header("User-Agent", XmlRpc.version);
++    private boolean http11 = false; // defaults to HTTP 1.0
++    private boolean gzip = false;
++    private boolean rgzip = false;
++    private Credentials creds;
 +    
 +    public InputStream sendXmlRpc(byte[] request) throws IOException, XmlRpcClientException 
 +    {
@@ -354,31 +354,6 @@ Last-Update: 2016-11-03
 +    }
 +
 +    /**
-+     * Sets the socket timeout (<tt>SO_TIMEOUT</tt>) in milliseconds which is the 
-+     * timeout for waiting for data. A timeout value of zero is interpreted as an 
-+     * infinite timeout.
-+     *
-+     * @param newTimeoutInMilliseconds Timeout in milliseconds
-+     */
-+    public void setTimeout(int timeout)
-+    {
-+        client.setTimeout(timeout);
-+    }
-+    
-+    /**
-+     * Sets the timeout until a connection is etablished. A timeout value of 
-+     * zero means the timeout is not used. The default value is zero.
-+     * 
-+     * @param newTimeoutInMilliseconds Timeout in milliseconds.
-+     * 
-+     * @see HttpConnection#setConnectionTimeout(int)
-+     */
-+    public void setConnectionTimeout(int ctimeout)
-+    {
-+        client.setConnectionTimeout(ctimeout);
-+    }
-+        
-+    /**
 +     * Sets Authentication for this client, very basic for now user/password
 +     * 
 +     * @param user
@@ -387,18 +362,6 @@ Last-Update: 2016-11-03
 +    public void setBasicAuthentication(String user, String password)
 +    {
 +        creds = new UsernamePasswordCredentials(user, password);
-+        client.getState().setCredentials(null, null, creds);
-+    }
-+
-+    /**
-+     * Sets Authentication for this client.
-+     *
-+     * @param auth the <username>:<password> formed string used for basic \
-+                authentication
-+     */
-+    public void setBasicAuthentication(String auth)
-+    {
-+        creds = new UsernamePasswordCredentials(auth);
 +        client.getState().setCredentials(null, null, creds);
 +    }
 +
@@ -412,134 +375,6 @@ Last-Update: 2016-11-03
 +    {
 +        method.releaseConnection();
 +    }
-+}
---- /dev/null
-+++ b/org/apache/xmlrpc/CommonsXmlRpcTransportFactory.java
-@@ -0,0 +1,125 @@
-+/*
-+ * Copyright 2005 The Apache Software Foundation.
-+ * 
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ * 
-+ *      http://www.apache.org/licenses/LICENSE-2.0
-+ * 
-+ * Unless required by applicable law or agreed to in writing, software
-+ * distributed under the License is distributed on an "AS IS" BASIS,
-+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ * See the License for the specific language governing permissions and
-+ * limitations under the License.
-+ */
-+package org.apache.xmlrpc;
-+
-+import java.net.URL;
-+
-+import org.apache.commons.httpclient.HttpClient;
-+
-+
-+/** A transport factory, which uses the Jakarta Commons
-+ * HttpClient.
-+ */
-+public class CommonsXmlRpcTransportFactory implements XmlRpcTransportFactory
-+{
-+	// default properties for new common http-client http transports
-+	private URL url;
-+	private String auth;
-+	private Integer timeout;
-+	private Integer connectionTimeout; 
-+
-+	/** Creates a new instance with the given server URL.
-+	 */
-+	public CommonsXmlRpcTransportFactory(URL pURL)
-+	{
-+		url = pURL;
-+	}
-+
-+	public XmlRpcTransport createTransport () throws XmlRpcClientException
-+	{
-+		HttpClient client = new HttpClient();
-+
-+		CommonsXmlRpcTransport transport = new CommonsXmlRpcTransport(url, client);
-+
-+		if (auth != null)
-+		{
-+			transport.setBasicAuthentication(auth);
-+		}
-+
-+		// set timeout if set
-+		if (timeout != null)
-+		{
-+			transport.setTimeout(timeout.intValue());
-+		}
-+
-+		// set connection timeout if set
-+		if (connectionTimeout != null)
-+		{
-+			transport.setConnectionTimeout(connectionTimeout.intValue());
-+		}
-+
-+		return transport;
-+	}
-+
-+	/**
-+	 * Sets Authentication for this client. This will be sent as Basic
-+	 * Authentication header to the server as described in
-+	 * <a href="http://www.ietf.org/rfc/rfc2617.txt">
-+	 * http://www.ietf.org/rfc/rfc2617.txt</a>.
-+	 */
-+	public void setBasicAuthentication(String pAuth)
-+	{
-+		auth = pAuth;
-+	}
-+	
-+	/**
-+	 * Sets Authentication for this client. This will be sent as Basic
-+	 * Authentication header to the server as described in
-+	 * <a href="http://www.ietf.org/rfc/rfc2617.txt">
-+	 * http://www.ietf.org/rfc/rfc2617.txt</a>.
-+	 */
-+	public void setBasicAuthentication(String pUsername, String pPassword)
-+	{
-+		auth = pUsername + ":" + pPassword;
-+	}
-+
-+    /**
-+     * Sets the socket timeout (<tt>SO_TIMEOUT</tt>) in milliseconds which is the
-+     * timeout for waiting for data. A timeout value of zero is interpreted as an
-+     * infinite timeout.
-+     *
-+     * @param newTimeoutInMilliSeconds timeout in milliseconds (ms)
-+     * @see org.apache.commons.httpclient.HttpClient#setTimeout
-+     */
-+    public void setTimeout(int newTimeoutInMilliSeconds)
-+    {
-+    	timeout = new Integer(newTimeoutInMilliSeconds);
-+    }
-+
-+    /**
-+     * Sets the timeout until a connection is etablished. A timeout value of zero \
-+                means the timeout is not used. The default value is zero.
-+     *
-+     * @param newConnectionTimeoutInMilliSeconds timeout in milliseconds (ms)
-+     * @see org.apache.commons.httpclient.HttpClient#setConnectionTimeout
-+     */
-+    public void setConnectionTimeout(int newConnectionTimeoutInMilliSeconds)
-+    {
-+    	connectionTimeout = new Integer(newConnectionTimeoutInMilliSeconds);
-+    }
-+
-+	public void setProperty(String propertyName, Object value)
-+	{
-+		if (TRANSPORT_AUTH.equals(propertyName))
-+		{
-+			auth = (String) value;
-+		}
-+		else if (TRANSPORT_URL.equals(propertyName))
-+		{
-+			url = (URL) value;
-+		}
-+	}
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/ContextXmlRpcHandler.java
@@ -571,7 +406,7 @@ Last-Update: 2016-11-03
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
 + * @see org.apache.xmlrpc.AuthenticationFailed
-+ * @version $Id: ContextXmlRpcHandler.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: ContextXmlRpcHandler.java,v 1.2 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public interface ContextXmlRpcHandler
@@ -775,7 +610,7 @@ Last-Update: 2016-11-03
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/DefaultTypeFactory.java
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,107 @@
 +/*
 + * Copyright 1999,2005 The Apache Software Foundation.
 + * 
@@ -797,7 +632,6 @@ Last-Update: 2016-11-03
 +
 +
 +import java.text.ParseException;
-+import java.util.TimeZone;
 +
 +import org.apache.commons.codec.binary.Base64;
 +import org.apache.commons.codec.DecoderException;
@@ -836,10 +670,6 @@ Last-Update: 2016-11-03
 +     */
 +    public DefaultTypeFactory()
 +    {
-+    }
-+
-+    public DefaultTypeFactory(TimeZone tz) {
-+        dateTool.setTimeZone(tz);
 +    }
 +
 +    public Object createInteger(String cdata)
@@ -914,7 +744,7 @@ Last-Update: 2016-11-03
 + * handler mapping.
 + *
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: DefaultXmlRpcContext.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: DefaultXmlRpcContext.java,v 1.2 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public class DefaultXmlRpcContext
@@ -981,7 +811,7 @@ Last-Update: 2016-11-03
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
 + * @author <a href="mailto:rhoegg@isisnetworks.net">Ryan Hoegg</a>
-+ * @version $Id: DefaultXmlRpcTransport.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: DefaultXmlRpcTransport.java,v 1.4 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public class DefaultXmlRpcTransport implements XmlRpcTransport
@@ -1097,7 +927,7 @@ Last-Update: 2016-11-03
 + * @author <a href="mailto:lmeader@ghsinc.com">Larry Meader</a>
 + * @author <a href="mailto:cjackson@ghsinc.com">Chris Jackson</a>
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: DefaultXmlRpcTransportFactory.java 332740 2005-11-12 09:03:34 +0100 (Sa, 12 Nov 2005) hgomez $
++ * @version $Id: DefaultXmlRpcTransportFactory.java,v 1.6 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public class DefaultXmlRpcTransportFactory implements XmlRpcTransportFactory 
@@ -1106,7 +936,7 @@ Last-Update: 2016-11-03
 +    protected URL url;
 +    protected String auth;
 +
-+    protected XmlRpcTransportFactory httpsTransportFactory;
++    protected static XmlRpcTransportFactory httpsTransportFactory;
 +
 +    public static final String DEFAULT_HTTPS_PROVIDER = "comnetsun";
 +
@@ -1120,7 +950,7 @@ Last-Update: 2016-11-03
 +        transports.put("comnetsun", "org.apache.xmlrpc.secure.sunssl.SunSSLTransportFactory");
 +    }
 +
-+    public void setHTTPSTransport(String transport, Properties properties)
++    public static void setHTTPSTransport(String transport, Properties properties)
 +        throws XmlRpcClientException
 +    {
 +        httpsTransportFactory = createTransportFactory(transport, properties);    
@@ -1221,8 +1051,8 @@ Last-Update: 2016-11-03
 +  
 +            return httpsTransportFactory.createTransport();
 +        }
-+        
-+        return new DefaultXmlRpcTransport(url, auth);
++         
++        return new DefaultXmlRpcTransport(url);
 +    }
 +    
 +    /**
@@ -1280,7 +1110,7 @@ Last-Update: 2016-11-03
 + * A simple handler which echos its input parameters.
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
-+ * @version $Id: Echo.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: Echo.java,v 1.4 2005/04/22 10:25:57 hgomez Exp $
 + */
 +public class Echo implements XmlRpcHandler
 +{
@@ -1502,7 +1332,7 @@ Last-Update: 2016-11-03
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: LiteXmlRpcTransport.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: LiteXmlRpcTransport.java,v 1.6 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +class LiteXmlRpcTransport implements XmlRpcTransport
@@ -1829,7 +1659,7 @@ Last-Update: 2016-11-03
 + * @author <a href="mailto:adam@megacz.com">Adam Megacz</a>
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
 + * @author Daniel L. Rall
-+ * @version $Id: MultiCall.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: MultiCall.java,v 1.5 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public class MultiCall
@@ -1957,7 +1787,7 @@ Last-Update: 2016-11-03
 +/**
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
-+ * @version $Id: ServerInputStream.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: ServerInputStream.java,v 1.4 2005/04/22 10:25:57 hgomez Exp $
 + */
 +class ServerInputStream extends InputStream
 +{
@@ -2334,7 +2164,7 @@ Last-Update: 2016-11-03
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/WebServer.java
-@@ -0,0 +1,954 @@
+@@ -0,0 +1,938 @@
 +/*
 + * Copyright 1999,2005 The Apache Software Foundation.
 + * 
@@ -2782,12 +2612,9 @@ Last-Update: 2016-11-03
 +        {
 +            while (listener != null)
 +            {
-+                Socket socket = null;
-+                Runner runner = null;
-+                
 +                try
 +                {
-+                    socket = serverSocket.accept();
++                    Socket socket = serverSocket.accept();
 +                    try
 +                    {
 +                        socket.setTcpNoDelay(true);
@@ -2799,7 +2626,7 @@ Last-Update: 2016-11-03
 +
 +                    if (allowConnection(socket))
 +                    {
-+                        runner = getRunner();
++                        Runner runner = getRunner();
 +                        runner.handle(socket);
 +                    }
 +                    else
@@ -2827,19 +2654,6 @@ Last-Update: 2016-11-03
 +                            + err + ").");
 +                    err.printStackTrace();
 +                }
-+                finally
-+                {
-+                    if (runner == null && socket != null)
-+                    {
-+	                    try
-+	                    {
-+	                        socket.close();
-+	                    }
-+	                    catch (Throwable e)
-+	                    {
-+	                    }
-+                    }
-+               }
 +            }
 +        }
 +        catch (Exception exception)
@@ -3011,6 +2825,7 @@ Last-Update: 2016-11-03
 +        private BufferedInputStream input;
 +        private BufferedOutputStream output;
 +        private String user, password;
++        private Base64 base64Codec;
 +        byte[] buffer;
 +
 +        /**
@@ -3175,11 +2990,10 @@ Last-Update: 2016-11-03
 +         *
 +         * @param line
 +         */
-+        private synchronized void parseAuth(String line)
++        private void parseAuth(String line)
 +        {
 +            try
 +            {
-+            	Base64 base64Codec = new Base64();
 +                byte[] c = base64Codec.decode(toHTTPBytes(line.substring(21)));
 +                String str = new String(c);
 +                int col = str.indexOf(':');
@@ -3291,7 +3105,7 @@ Last-Update: 2016-11-03
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/XmlRpc.java
-@@ -0,0 +1,789 @@
+@@ -0,0 +1,783 @@
 +/*
 + * Copyright 1999,2005 The Apache Software Foundation.
 + * 
@@ -3311,15 +3125,18 @@ Last-Update: 2016-11-03
 +
 +package org.apache.xmlrpc;
 +
-+import org.xml.sax.*;
-+import uk.co.wilson.xml.MinML;
-+
 +import java.io.InputStream;
 +import java.io.InputStreamReader;
 +import java.util.Hashtable;
 +import java.util.Stack;
-+import java.util.TimeZone;
 +import java.util.Vector;
++import org.xml.sax.AttributeList;
++import org.xml.sax.HandlerBase;
++import org.xml.sax.InputSource;
++import org.xml.sax.Parser;
++import org.xml.sax.SAXException;
++import org.xml.sax.SAXParseException;
++import uk.co.wilson.xml.MinML;
 +
 +/**
 + * This abstract base class provides basic capabilities for XML-RPC,
@@ -3336,7 +3153,7 @@ Last-Update: 2016-11-03
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
 + * @author Daniel L. Rall
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpc.java 350048 2005-11-30 21:49:32 +0100 (Mi, 30 Nov 2005) jochen $
++ * @version $Id: XmlRpc.java,v 1.42 2005/05/16 21:23:21 dlr Exp $
 + */
 +public abstract class XmlRpc extends HandlerBase
 +{
@@ -3526,7 +3343,7 @@ Last-Update: 2016-11-03
 +        // If we're using the default, provide it immediately.
 +        if (c == null || DefaultTypeFactory.class.equals(c))
 +        {
-+            return new DefaultTypeFactory(tz);
++            return new DefaultTypeFactory();
 +        }
 +
 +        try
@@ -3542,17 +3359,8 @@ Last-Update: 2016-11-03
 +            {
 +                e.printStackTrace();
 +            }
-+            return new DefaultTypeFactory(tz);
++            return new DefaultTypeFactory();
 +        }
-+    }
-+
-+    TimeZone tz;
-+    
-+    void setServerTimeZone(TimeZone z) {
-+        tz = z;
-+        }
-+    TimeZone getServerTimeZone() {
-+        return tz;
 +    }
 +
 +    /**
@@ -4083,7 +3891,7 @@ Last-Update: 2016-11-03
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/XmlRpcClient.java
-@@ -0,0 +1,501 @@
+@@ -0,0 +1,488 @@
 +/*
 + * Copyright 1999,2005 The Apache Software Foundation.
 + * 
@@ -4109,7 +3917,6 @@ Last-Update: 2016-11-03
 +import java.util.EmptyStackException;
 +import java.util.Stack;
 +import java.util.Vector;
-+import java.util.TimeZone;
 +
 +/**
 + * A multithreaded, reusable XML-RPC client object. Use this if you
@@ -4120,7 +3927,7 @@ Last-Update: 2016-11-03
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
 + * @author <a href="mailto:rhoegg@isisnetworks.net">Ryan Hoegg</a>
-+ * @version $Id: XmlRpcClient.java 350048 2005-11-30 21:49:32 +0100 (Mi, 30 Nov 2005) jochen $
++ * @version $Id: XmlRpcClient.java,v 1.22 2005/04/22 10:25:57 hgomez Exp $
 + */
 +public class XmlRpcClient implements XmlRpcHandler
 +{
@@ -4352,13 +4159,10 @@ Last-Update: 2016-11-03
 +        {
 +            try
 +            {
-+                if (call == null)
-+                    call = dequeue();
-+                
 +                while (call != null)
 +                {
-+                    executeAsync(call.request, call.callback, call.transport);
 +                    call = dequeue();
++                    executeAsync(call.request, call.callback, call.transport);
 +                }
 +            }
 +            finally
@@ -4434,19 +4238,10 @@ Last-Update: 2016-11-03
 +                {
 +                    workers += 1;
 +                }
-+                return new XmlRpcClientWorker(getTimeZone());
++                return new XmlRpcClientWorker();
 +            }
 +            throw new IOException("XML-RPC System overload");
 +        }
-+    }
-+
-+    TimeZone tz;
-+    public void setTimeZone(TimeZone z) {
-+        tz = z;
-+    }
-+
-+    public TimeZone getTimeZone() {
-+        return tz;
 +    }
 +
 +    /**
@@ -4613,7 +4408,7 @@ Last-Update: 2016-11-03
 + * will wrap a cause exception in the JDK 1.4 style.
 + *
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcClientException.java 233944 2005-05-02 04:22:21Z dlr $
++ * @version $Id: XmlRpcClientException.java,v 1.3 2005/05/02 04:22:21 dlr Exp $
 + * @since 1.2
 + */
 +public class XmlRpcClientException extends XmlRpcException
@@ -4663,7 +4458,7 @@ Last-Update: 2016-11-03
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcClientLite.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcClientLite.java,v 1.13 2005/04/22 10:25:57 hgomez Exp $
 + */
 +public class XmlRpcClientLite extends XmlRpcClient
 +{
@@ -4765,7 +4560,7 @@ Last-Update: 2016-11-03
 + * Interface to an XML-RPC request made by a client.
 + *
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcClientRequest.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcClientRequest.java,v 1.3 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public interface XmlRpcClientRequest
@@ -4776,7 +4571,7 @@ Last-Update: 2016-11-03
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/XmlRpcClientRequestProcessor.java
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,120 @@
 +/*
 + * Copyright 1999,2005 The Apache Software Foundation.
 + * 
@@ -4799,7 +4594,6 @@ Last-Update: 2016-11-03
 +import java.io.ByteArrayOutputStream;
 +import java.io.IOException;
 +import java.io.OutputStream;
-+import java.util.TimeZone;
 +
 +/**
 + * Process an XML-RPC client request into a byte array or directly onto
@@ -4807,18 +4601,16 @@ Last-Update: 2016-11-03
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcClientRequestProcessor.java 350048 2005-11-30 21:49:32 +0100 (Mi, 30 Nov 2005) jochen $
++ * @version $Id: XmlRpcClientRequestProcessor.java,v 1.5 2005/05/14 21:31:48 jochen Exp $
 + * @since 1.2
 + */
 +public class XmlRpcClientRequestProcessor
 +{
-+    TimeZone tz;
 +    /**
 +     * Creates a new instance.
 +     */
-+    public XmlRpcClientRequestProcessor(TimeZone tz)
++    public XmlRpcClientRequestProcessor()
 +    {
-+        this.tz = tz;
 +    }
 +	
 +    /**
@@ -4827,6 +4619,7 @@ Last-Update: 2016-11-03
 +     *
 +     * @param request the request to encode.
 +     * @param encoding the Java name for the encoding to use.
++     * @return byte [] the encoded request.
 +     */
 +    public void encodeRequest(XmlRpcClientRequest request, String encoding,
 +                              OutputStream out)
@@ -4835,7 +4628,7 @@ Last-Update: 2016-11-03
 +        XmlWriter writer;
 +
 +        writer = new XmlWriter(out, encoding);
-+        writer.dateTool.setTimeZone(tz);
++       
 +        writer.startElement("methodCall");
 +        writer.startElement("methodName");
 +        writer.write(request.getMethodName());
@@ -4901,7 +4694,7 @@ Last-Update: 2016-11-03
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/XmlRpcClientResponseProcessor.java
-@@ -0,0 +1,149 @@
+@@ -0,0 +1,147 @@
 +/*
 + * Copyright 1999,2005 The Apache Software Foundation.
 + * 
@@ -4921,12 +4714,11 @@ Last-Update: 2016-11-03
 +
 +package org.apache.xmlrpc;
 +
++import java.util.Hashtable;
++import java.io.InputStream;
++
 +import org.xml.sax.AttributeList;
 +import org.xml.sax.SAXException;
-+
-+import java.io.InputStream;
-+import java.util.Hashtable;
-+import java.util.TimeZone;
 +
 +/**
 + * Process an XML-RPC server response from a byte array or an
@@ -4935,7 +4727,7 @@ Last-Update: 2016-11-03
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcClientResponseProcessor.java 350048 2005-11-30 21:49:32 +0100 (Mi, 30 Nov 2005) jochen $
++ * @version $Id: XmlRpcClientResponseProcessor.java,v 1.4 2005/05/14 21:31:48 jochen Exp $
 + * @since 2.0
 + */
 +public class XmlRpcClientResponseProcessor extends XmlRpc
@@ -4949,9 +4741,8 @@ Last-Update: 2016-11-03
 +    /**
 +     * Creates a new instance.
 +     */
-+    public XmlRpcClientResponseProcessor(TimeZone tz)
++    public XmlRpcClientResponseProcessor()
 +    {
-+        setServerTimeZone(tz);
 +    }
 +
 +    /**
@@ -5053,7 +4844,7 @@ Last-Update: 2016-11-03
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/XmlRpcClientWorker.java
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,149 @@
 +/*
 + * Copyright 1999,2005 The Apache Software Foundation.
 + * 
@@ -5075,7 +4866,6 @@ Last-Update: 2016-11-03
 +
 +import java.io.InputStream;
 +import java.io.IOException;
-+import java.util.TimeZone;
 +
 +/**
 + * Tie together the XmlRequestProcessor and XmlResponseProcessor to handle
@@ -5095,10 +4885,10 @@ Last-Update: 2016-11-03
 +     */
 +    private static final Object PROCESSING_ERROR_FLAG = new Object();
 +
-+    public XmlRpcClientWorker(TimeZone tz)
++    public XmlRpcClientWorker()
 +    {
-+        this(new XmlRpcClientRequestProcessor(tz),
-+             new XmlRpcClientResponseProcessor(tz)
++        this(new XmlRpcClientRequestProcessor(), 
++             new XmlRpcClientResponseProcessor()
 +        );
 +    }
 +
@@ -5114,24 +4904,19 @@ Last-Update: 2016-11-03
 +        throws XmlRpcException, XmlRpcClientException, IOException
 +    {
 +        long now = 0;
++        Object response = PROCESSING_ERROR_FLAG;
 +
 +        if (XmlRpc.debug)
 +        {
 +            now = System.currentTimeMillis();
 +        }
 +
-+        boolean endClientRequestDone = false;
 +        try
 +        {
 +            byte[] request = requestProcessor.encodeRequestBytes
 +                (xmlRpcRequest, responseProcessor.getEncoding());
 +            InputStream is  = transport.sendXmlRpc(request);
-+            Object response = responseProcessor.decodeResponse(is);
-+            endClientRequestDone = true;
-+            transport.endClientRequest();
-+            if (response != null  &&  response instanceof XmlRpcException) {
-+            	throw (XmlRpcException) response;
-+            }
++            response = responseProcessor.decodeResponse(is);
 +            return response;
 +        }
 +        catch (IOException ioe)
@@ -5159,15 +4944,39 @@ Last-Update: 2016-11-03
 +                                   + " millis in request/process/response");
 +            }
 +
-+            if (!endClientRequestDone)
++            // End the transport's session, handling any problem while
++            // avoiding hiding of any earlier exception.
++            try
 +            {
-+            	try
-+            	{
-+            		transport.endClientRequest();
-+            	}
-+            	catch (Throwable ignore)
-+            	{
-+            	}
++                transport.endClientRequest();
++            }
++            catch (Throwable t)
++            {
++                // Don't clobber an earlier exception.
++                boolean haveFault = response instanceof XmlRpcException;
++                if (haveFault || response == PROCESSING_ERROR_FLAG)
++                {
++                    System.err.println("Avoiding obscuring previous error " +
++                                       "by supressing error encountered " +
++                                       "while ending request: " + t);
++                    if (haveFault)
++                    {
++                        throw (XmlRpcException) response;
++                    }
++                    // else we've already thrown an exception
++                }
++                else
++                {
++                    if (t instanceof XmlRpcException)
++                    {
++                        throw (XmlRpcException) t;
++                    }
++                    else
++                    {
++                        throw new XmlRpcClientException
++                            ("Unable to end request", t);
++                    }
++                }
 +            }
 +        }
 +    }
@@ -5211,7 +5020,7 @@ Last-Update: 2016-11-03
 + * The minimal context that an XML-RPC request will occur in.
 + *
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcContext.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcContext.java,v 1.2 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public interface XmlRpcContext
@@ -5265,7 +5074,7 @@ Last-Update: 2016-11-03
 + * IOException will be thrown instead.
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
-+ * @version $Id: XmlRpcException.java 233944 2005-05-02 04:22:21Z dlr $
++ * @version $Id: XmlRpcException.java,v 1.4 2005/05/02 04:22:21 dlr Exp $
 + */
 +public class XmlRpcException extends Exception
 +{
@@ -5354,7 +5163,7 @@ Last-Update: 2016-11-03
 + * for an XML-RPC request.
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
-+ * @version $Id: XmlRpcHandler.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcHandler.java,v 1.3 2005/04/22 10:25:57 hgomez Exp $
 + */
 +public interface XmlRpcHandler
 +{
@@ -5442,7 +5251,7 @@ Last-Update: 2016-11-03
 + * initialization parameter <code>url</code>.
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
-+ * @version $Id: XmlRpcProxyServlet.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcProxyServlet.java,v 1.5 2005/04/22 10:25:57 hgomez Exp $
 + */
 +public class XmlRpcProxyServlet extends HttpServlet
 +{
@@ -5518,7 +5327,7 @@ Last-Update: 2016-11-03
 + * Default implementation of an XML-RPC request for both client and server.
 + *
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcRequest.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcRequest.java,v 1.5 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public class XmlRpcRequest
@@ -6059,7 +5868,7 @@ Last-Update: 2016-11-03
 + * Interface to an XML-RPC request made to the server.
 + *
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcServerRequest.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcServerRequest.java,v 1.2 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public interface XmlRpcServerRequest
@@ -6098,7 +5907,7 @@ Last-Update: 2016-11-03
 + *
 + * @author <a href="mailto:hannes@apache.org">Hannes Wallnoefer</a>
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcTransport.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcTransport.java,v 1.3 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + */
 +public interface XmlRpcTransport
@@ -6152,7 +5961,7 @@ Last-Update: 2016-11-03
 + * Interface from XML-RPC to an underlying transport, most likely base on HTTP.
 + *
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: XmlRpcTransportFactory.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcTransportFactory.java,v 1.5 2005/04/22 10:25:57 hgomez Exp $
 + * @since 1.2
 + *
 + * Constructors for SSL implementations of XmlRpcTransportFactory should have a constructor
@@ -6489,7 +6298,7 @@ Last-Update: 2016-11-03
 +     * Thread-safe wrapper for the <code>DateFormat</code> object used
 +     * to parse date/time values.
 +     */
-+    DateTool dateTool = new DateTool();
++    private static DateTool dateTool = new DateTool();
 +
 +    /**
 +     * Whether the XML prolog has been written.
@@ -6848,9 +6657,9 @@ Last-Update: 2016-11-03
 +            return true;
 +
 +        default:
-+            return ( (0x20 <= c && c <= 0xd7ff) ||
-+                     (0xe000 <= c && c <= 0xfffd) ||
-+                     (0x10000 <= c && c <= 0x10ffff) );
++            return ( (0x20 < c && c <= 0xd7ff) ||
++                     (0xe000 < c && c <= 0xfffd) ||
++                     (0x10000 < c && c <= 0x10ffff) );
 +        }
 +    }
 +
@@ -6899,7 +6708,7 @@ Last-Update: 2016-11-03
 + * not converted properly between JavaScript and Java, so the dateArg methods
 + * take long values instead of Date objects as parameters (date.getTime()).
 + *
-+ * @version $Id: JSXmlRpcApplet.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: JSXmlRpcApplet.java,v 1.4 2005/04/22 10:25:58 hgomez Exp $
 + */
 +public class JSXmlRpcApplet extends XmlRpcApplet
 +{
@@ -7147,7 +6956,7 @@ Last-Update: 2016-11-03
 + *
 + * FIXME: This code is VERY out of date with the rest of the package.
 + *
-+ * @version $Id: SimpleXmlRpcClient.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: SimpleXmlRpcClient.java,v 1.10 2005/04/22 10:25:58 hgomez Exp $
 + */
 +public class SimpleXmlRpcClient
 +{
@@ -7923,7 +7732,7 @@ Last-Update: 2016-11-03
 +/**
 + * An applet that provides basic XML-RPC client functionality.
 + *
-+ * @version $Id: XmlRpcApplet.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcApplet.java,v 1.3 2005/04/22 10:25:58 hgomez Exp $
 + */
 +public class XmlRpcApplet extends Applet {
 +
@@ -8032,7 +7841,7 @@ Last-Update: 2016-11-03
 + * If something went wrong at a lower level (e.g. no http connection) an
 + * IOException will be thrown instead.
 + *
-+ * @version $Id: XmlRpcException.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: XmlRpcException.java,v 1.3 2005/04/22 10:25:58 hgomez Exp $
 + */
 +public class XmlRpcException extends Exception
 +{
@@ -8102,7 +7911,7 @@ Last-Update: 2016-11-03
 + * values before anything will work.
 + *
 + * @author <a href="mailto:jvanzyl@apache.org">Jason van Zyl</a>
-+ * @version $Id: SecureWebServer.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: SecureWebServer.java,v 1.7 2005/04/22 10:25:58 hgomez Exp $
 + */
 +public class SecureWebServer 
 +    extends WebServer
@@ -8911,7 +8720,7 @@ Last-Update: 2016-11-03
 + * @author <a href="mailto:lmeader@ghsinc.com">Larry Meader</a>
 + * @author <a href="mailto:cjackson@ghsinc.com">Chris Jackson</a> 
 + * @author <a href="mailto:andrew@kungfoocoder.org">Andrew Evers</a>
-+ * @version $Id: SunSSLTransportFactory.java 233919 2005-04-22 10:26:17Z hgomez $
++ * @version $Id: SunSSLTransportFactory.java,v 1.4 2005/04/22 10:25:58 hgomez Exp $
 + * @since 1.2
 + */
 +public class SunSSLTransportFactory implements XmlRpcTransportFactory
@@ -9019,7 +8828,7 @@ Last-Update: 2016-11-03
 +}
 --- /dev/null
 +++ b/org/apache/xmlrpc/util/DateTool.java
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,67 @@
 +/*
 + * Copyright 1999,2005 The Apache Software Foundation.
 + * 
@@ -9043,7 +8852,6 @@ Last-Update: 2016-11-03
 +import java.text.ParseException;
 +import java.text.SimpleDateFormat;
 +import java.util.Date;
-+import java.util.TimeZone;
 +
 +/**
 + * Wraps a <code>DateFormat</code> instance to provide thread safety.
@@ -9075,10 +8883,6 @@ Last-Update: 2016-11-03
 +    public synchronized String format(Date d)
 +    {
 +        return df.format(d);
-+    }
-+
-+    public synchronized void setTimeZone(TimeZone z) {
-+        if (z != null) df.setTimeZone(z);
 +    }
 +
 +    /**
@@ -9166,7 +8970,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,166 @@
 +// SAX Attribute List Interface.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: AttributeList.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: AttributeList.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -9335,7 +9139,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,95 @@
 +// SAX DTD handler.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: DTDHandler.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: DTDHandler.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -9433,7 +9237,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,219 @@
 +// SAX document handler.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: DocumentHandler.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: DocumentHandler.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -9655,7 +9459,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,105 @@
 +// SAX entity resolver.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: EntityResolver.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: EntityResolver.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -9763,7 +9567,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,110 @@
 +// SAX error handler.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: ErrorHandler.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: ErrorHandler.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -9876,7 +9680,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,352 @@
 +// SAX default handler base class.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: HandlerBase.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: HandlerBase.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -10231,7 +10035,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,312 @@
 +// SAX input source.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: InputSource.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: InputSource.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -10546,7 +10350,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,80 @@
 +// SAX locator interface for document events.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: Locator.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: Locator.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -10629,7 +10433,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,190 @@
 +// SAX parser interface.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: Parser.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: Parser.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -10822,7 +10626,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,129 @@
 +// SAX exception class.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: SAXException.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: SAXException.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
@@ -10954,7 +10758,7 @@ Last-Update: 2016-11-03
 @@ -0,0 +1,210 @@
 +// SAX exception class.
 +// No warranty; no copyright -- use this as you will.
-+// $Id: SAXParseException.java 233605 2001-11-06 18:33:40Z hannes $
++// $Id: SAXParseException.java,v 1.1 2001/11/06 18:33:40 hannes Exp $
 +
 +package org.xml.sax;
 +
