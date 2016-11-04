@@ -17,3 +17,30 @@ Description: Don't call home for logging
     }
  
     /** Retourne true s'il faut un slider d'époque */
+@@ -1661,7 +1661,7 @@
+       if( ocache==null || !s1.equals(ocache) ) set(MAXCACHE,s1);
+ 
+       String s = get(LOG);
+-      if( s!=null && s.equals(ACTIVATED) ) remove(LOG);
++      if( s==null ) set(LOG, NOTACTIVATED);
+ 
+       s = get(HELP);
+       if( s!=null && s.equals(ACTIVATED) ) remove(HELP);
+@@ -1910,14 +1910,12 @@
+       // Pourle log
+       if( logChoice!=null ) {
+          if( logChoice.getSelectedIndex()==1 ) {
+-            if( get(LOG)==null ) aladin.glu.log("Log", "off");
+-            set(LOG,(String)logChoice.getSelectedItem());
++	     if( isLog() ) aladin.glu.log("Log", "off");
+          }
+          else {
+-            boolean pub = get(LOG)!=null && get(LOG).equals(NOTACTIVATED);
+-            remove(LOG);
+-            if( pub ) aladin.glu.log("Log", "on");
++	     if( !isLog() ) aladin.glu.log("Log", "on");
+          }
++	 set(LOG,(String)logChoice.getSelectedItem());
+       }
+ 
+       // Pour l'assistant débutant
