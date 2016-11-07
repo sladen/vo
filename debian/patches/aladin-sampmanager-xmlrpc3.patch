@@ -5,13 +5,14 @@ Author: Paul Sladen <debian@paul.sladen.org>, Ole Streicher <olebole@debian.org>
 Last-Update: 2016-11-07
 --- a/cds/aladin/SAMPManager.java
 +++ b/cds/aladin/SAMPManager.java
-@@ -62,10 +62,14 @@
+@@ -62,10 +62,15 @@
  import javax.swing.ListSelectionModel;
  import javax.swing.SwingUtilities;
  
 -import org.apache.xmlrpc.WebServer;
 -import org.apache.xmlrpc.XmlRpcClient;
 +import org.apache.xmlrpc.server.XmlRpcHandlerMapping;
++import org.apache.xmlrpc.server.XmlRpcNoSuchHandlerException;
 +import org.apache.xmlrpc.webserver.WebServer;
 +import org.apache.xmlrpc.client.XmlRpcClient;
 +import org.apache.xmlrpc.client.XmlRpcClientConfigImpl;
@@ -22,16 +23,7 @@ Last-Update: 2016-11-07
  import org.astrogrid.samp.hub.Hub;
  import org.astrogrid.samp.hub.HubServiceMode;
  
-@@ -125,7 +129,7 @@
-  * @see <a href="http://www.ivoa.net/cgi-bin/twiki/bin/view/IVOA/SampProgress">SAMP page on the IVOA web site</a>
-  *
-  */
--public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneLoadListener {
-+public class SAMPManager implements AppMessagingInterface, PlaneLoadListener {
- 
-     static final protected String NOTIFY = "samp.hub.notify";
-     static final protected String NOTIFY_ALL = "samp.hub.notifyAll";
-@@ -347,11 +351,30 @@
+@@ -347,11 +352,25 @@
          // start XML-RPC server
          int xmlRpcPort = findFreePort();
          aladinXmlRpcServer = new WebServer(xmlRpcPort);
@@ -47,24 +39,66 @@ Last-Update: 2016-11-07
 -        aladinXmlRpcServer.addHandler("samp.client", this);
 +
 +	XmlRpcHandlerMapping rpcHandlerMapping = new XmlRpcHandlerMapping() {
-+		public XmlRpcHandler getHandler(String handlerName) {
-+		    return new XmlRpcHandler() {
-+			public Object execute(XmlRpcRequest pRequest)
-+			    throws XmlRpcException {
-+			    Vector params = new Vector();
-+			    for (int i = 0; i < pRequest.getParameterCount(); i++) {
-+				params.add(pRequest.getParameter(i));
-+			    }
-+			    return SAMPManager.this.execute(pRequest.getMethodName(), params);
-+			}
-+		    };
++		public XmlRpcHandler getHandler(String handlerName) throws XmlRpcNoSuchHandlerException {
++		    if( handlerName.equals(METHOD_RECEIVE_NOTIFICATION) || handlerName.equals(METHOD_RECEIVE_CALL) ) {
++			return SAMPManager.this;
++		    } else {
++			throw new XmlRpcNoSuchHandlerException("Unknown method" + handlerName);
++		    }
 +		}
 +	    };
 +        aladinXmlRpcServer.getXmlRpcServer().setHandlerMapping(rpcHandlerMapping);
  
          // set XML-RPC callback
          params = new Vector();
-@@ -988,12 +1011,15 @@
+@@ -389,24 +408,25 @@
+     }
+ 
+     // TODO : faut il la synchronizer ??? SAMP4IDL ne fonctionnait plus bien avec les commandes script
+-    public synchronized Object execute(String method, Vector params) throws XmlRpcException {
+-        trace("Receiving XML request :\nmethod="+method+"\nparams="+params);
++    public synchronized Object execute(XmlRpcRequest pRequest) throws XmlRpcException {
++        trace("Receiving XML request :\nmethod=" + pRequest.getMethodName());
+ 
+ 
+         // TODO : définir des objets messages qui gèrent tout : message.process(params)
+ 
+         // TODO : catcher les problemes de cast !
+-        if( method.equals(METHOD_RECEIVE_NOTIFICATION) || method.equals(METHOD_RECEIVE_CALL) ) {
++        if( pRequest.getMethodName().equals(METHOD_RECEIVE_NOTIFICATION)
++	    || pRequest.getMethodName().equals(METHOD_RECEIVE_CALL) ) {
+             Object retValue = TRUE;
+-            String senderId = (String)params.get(1);
++            String senderId = (String)pRequest.getParameter(1);
+ 
+-            boolean responseNeeded = method.equals(METHOD_RECEIVE_CALL);
++            boolean responseNeeded = pRequest.getMethodName().equals(METHOD_RECEIVE_CALL);
+             String msgId = null;
+             if( responseNeeded ) {
+-                msgId = (String)params.get(2);
++                msgId = (String)pRequest.getParameter(2);
+             }
+             int paramIdx = responseNeeded?3:2;
+-            Map map = (Map)params.get(paramIdx);
++            Map map = (Map)pRequest.getParameter(paramIdx);
+             Object mType = map.get(KEY_MTYPE);
+             Map msgParams = (Map)map.get(KEY_PARAMS);
+ 
+@@ -722,12 +742,10 @@
+             return retValue;
+         }
+         // réponse à un appel antérieur
+-        else if( method.equals(METHOD_RECEIVE_RESPONSE) ) {
++        else if( pRequest.getMethodName().equals(METHOD_RECEIVE_RESPONSE) ) {
+             // TODO !!
+         }
+ 
+-        // unknown method
+-        System.err.println("Unknown method "+method);
+         return null;
+     }
+ 
+@@ -988,12 +1006,15 @@
          try  {
              // testing if the hub is alive (by pinging it)
              URL url = new URL(hubUrl);
@@ -82,7 +116,7 @@ Last-Update: 2016-11-07
                  Aladin.trace(3, "Unable to connect to the hub, deleting the .samp file");
                  // on efface le fichier ".samp" qui, apparemment, pointe vers un hub ne tournant plus
                  try {
-@@ -1015,24 +1041,9 @@
+@@ -1015,24 +1036,9 @@
  
  
          }
