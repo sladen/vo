@@ -1,70 +1,107 @@
 Description: Update to cope with Vector to ArrayList in SAVOTv4
  The internal storage structure in the GPLed SAVOT v4 release uses
  ArrayList instead of Vector, which lacks the built-in '.elements()'
- method.  This can hopefully be replaced by using
- Collections.enumeration() to generation the iterator.
-Author: Paul Sladen <debian@paul.sladen.org>
-Last-Update: 2016-07-05
-diff --git a/cds/aladin/SIAPExtBuilder.java b/cds/aladin/SIAPExtBuilder.java
-index 54a8ba2..8b108c5 100644
+ method. So, we now use iterators instead of enumerations here.
+Author: Paul Sladen <debian@paul.sladen.org>, Ole Streicher <olebole@debian.org>
+Last-Update: 2016-11-05
 --- a/cds/aladin/SIAPExtBuilder.java
 +++ b/cds/aladin/SIAPExtBuilder.java
-@@ -292,7 +292,7 @@ public class SIAPExtBuilder extends TreeBuilder {
+@@ -292,13 +292,12 @@
  
  		if( trs.getItemCount()==0 ) return;
  
 -		Enumeration e = trs.getItems().elements();
-+		Enumeration e = Collections.enumeration(trs.getItems());
  		String keyVal;
  		ResourceNode node, parentNode;
  
-@@ -348,7 +348,7 @@ public class SIAPExtBuilder extends TreeBuilder {
+ 	    // boucle sur les TR
+-	    while( e.hasMoreElements() ) {
+-	        tr = (SavotTR)e.nextElement();
++	    for( Iterator i = trs.getItems().iterator(); i.hasNext(); ) {
++	        tr = (SavotTR)i.next();
+ 	        tds = tr.getTDs();
+ 
+ 	        keyVal = tds.getContent(obsRefIndex);
+@@ -348,8 +347,6 @@
  	    TRSet trSet = dataAccessTab.getData().getTableData().getTRs();
  	    if( trSet.getItems()==null ) return;
  
 -	    Enumeration e = trSet.getItems().elements();
-+	    Enumeration e = Collections.enumeration(trSet.getItems());
- 
+-
  	    String obsRef, relatedObs;
  	    ResourceNode parent;
-@@ -476,7 +476,7 @@ public class SIAPExtBuilder extends TreeBuilder {
+ 	    Vector children;
+@@ -377,8 +374,8 @@
+         SavotTR tr;
+ 
+ 	    // boucle sur les TR
+-	    while( e.hasMoreElements() ) {
+-	        tr = (SavotTR)e.nextElement();
++	for( Iterator i = trSet.getItems().iterator(); i.hasNext(); ) {
++	        tr = (SavotTR)i.next();
+ 	        tds = tr.getTDs();
+ 	        obsRef = tds.getContent(obsRefIndex);
+ //	        System.out.println("obsref : "+obsRef);
+@@ -476,15 +473,14 @@
  
  	    TRSet trSet = compositionTab.getData().getTableData().getTRs();
  	    SavotTR tr;
 -	    Enumeration e = trSet.getItems().elements();
-+	    Enumeration e = Collections.enumeration(trSet.getItems());
  	    String obsRef, relatedObs;
  	    ResourceNode parent;
  	    ResourceNode curMembersNode;
-@@ -541,7 +541,7 @@ public class SIAPExtBuilder extends TreeBuilder {
+ 	    Vector children;
+ 
+ 	    // boucle sur les TR
+-	    while( e.hasMoreElements() ) {
+-	        tr = (SavotTR)e.nextElement();
++	    for( Iterator i = trSet.getItems().iterator(); i.hasNext(); ) {
++	        tr = (SavotTR)i.next();
+ 	        obsRef = ((SavotTD)(tr.getTDs().getItemAt(obsRefIndex))).getContent();
+ 	        parent = (ResourceNode)namesToNodes.get(obsRef);
+ 
+@@ -541,12 +537,11 @@
  
  	    TRSet trSet = characTab.getData().getTableData().getTRs();
  	    SavotTR tr;
 -	    Enumeration e = trSet.getItems().elements();
-+	    Enumeration e = Collections.enumeration(trSet.getItems());
  	    String obsRef;
  	    ResourceNode curInfoNode;
  
-diff --git a/cds/aladin/TreeBuilder.java b/cds/aladin/TreeBuilder.java
-index a3dac94..fc3dcd8 100644
+-	    while( e.hasMoreElements() ) {
+-	        tr = (SavotTR)e.nextElement();
++	    for( Iterator i = trSet.getItems().iterator(); i.hasNext(); ) {
++	        tr = (SavotTR)i.next();
+ 
+ 	        obsRef = ((SavotTD)(tr.getTDs().getItemAt(obsRefIndex))).getContent();
+ 	        ResourceNode parent = (ResourceNode)namesToNodes.get(obsRef);
 --- a/cds/aladin/TreeBuilder.java
 +++ b/cds/aladin/TreeBuilder.java
-@@ -266,8 +266,7 @@ public class TreeBuilder {
+@@ -266,13 +266,11 @@
          	return false;
          }
  
 -//        Enumeration<SavotField> fields = firstRes.getFieldSet(0).getItems().elements();
 -        Enumeration<Object> fields = firstRes.getFieldSet(0).getItems().elements();
-+        Enumeration<SavotField> fields = Collections.enumeration(firstRes.getFieldSet(0).getItems());
          SavotField curField;
          String curUtype, curUCD;
          // TODO : pour distinguer vraiment SSAP de SIAP, on pourrait peut-etre se baser sur le namespace
-@@ -315,7 +314,7 @@ public class TreeBuilder {
+-        while( fields.hasMoreElements() ) {
+-            curField = (SavotField)fields.nextElement();
++        for( Iterator i = firstRes.getFieldSet(0).getItems().iterator(); i.hasNext(); ) {
++            curField = (SavotField)i.next();
+             curUtype = stripNSForUtype(curField.getUtype().trim());
+             curUCD = curField.getUcd();
+             if(    curUtype.equalsIgnoreCase(UTYPE_ACREF_SSA) && ! curUCD.equalsIgnoreCase(SIAP_URL)
+@@ -315,9 +313,8 @@
          if( firstRes.getTableCount()>0 ) {
          	FieldSet fSet = firstRes.getFieldSet(0);
          	if( fSet!=null && fSet.getItems()!=null ) {
 -        		Enumeration e = fSet.getItems().elements();
-+			Enumeration e = Collections.enumeration(fSet.getItems());
-         		while( e.hasMoreElements() ) {
-         			if( ((SavotField)e.nextElement()).getUtype().equalsIgnoreCase(FOOTPRINT_REF_UTYPE) ) {
+-        		while( e.hasMoreElements() ) {
+-        			if( ((SavotField)e.nextElement()).getUtype().equalsIgnoreCase(FOOTPRINT_REF_UTYPE) ) {
++        		for( Iterator i = fSet.getItems().iterator(); i.hasNext(); ) {
++        			if( ((SavotField)i.next()).getUtype().equalsIgnoreCase(FOOTPRINT_REF_UTYPE) ) {
          				type = SIAP_EXT;
+         				return;
+         			}
