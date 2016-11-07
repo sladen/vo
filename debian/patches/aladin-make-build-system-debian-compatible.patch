@@ -11,7 +11,7 @@ Origin: http://aladin.u-strasbg.fr/java/nph-aladin.pl?frame=downloading
 Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
 --- a/build.xml
 +++ b/build.xml
-@@ -9,11 +9,16 @@
+@@ -9,11 +9,13 @@
  
     <description>Aladin Sky Atlas</description> 
     <property name="bin" value="${basedir}/bin"/>
@@ -22,15 +22,12 @@ Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
       <mkdir dir="${bin}"/>
 -     <javac srcdir="${basedir}" destdir="${bin}"
 -	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" >
-+     <javac destdir="${bin}"
++     <javac srcdir="${basedir}/cds" destdir="${bin}"
 +	    encoding="Cp1252" deprecation="off" includeantruntime="true">
-+       <src path="${basedir}/cds"/>
-+       <src path="${basedir}/org"/>
-+       <src path="${basedir}/uk"/>
         <classpath>
            <pathelement path="${java.class.path}/"/>
            <pathelement path="jsamp.jar"/>
-@@ -26,23 +31,33 @@
+@@ -26,23 +28,33 @@
     </target>
     
     <target name="main" depends="compil" description="jar generation" >

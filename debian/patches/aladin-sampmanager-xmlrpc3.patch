@@ -1,31 +1,28 @@
 Description: Follow Apache XMLRPC2->XMLRPC3 API changes
- The 'SAMPManager' components of Aladin were written
- against the Apache XMLRPC v2 API; but only the v3 libraries
- are available in Debian.  The APIs been altered both in
- namespace, and also in operation.  Unfortunately
- nearly all documentation and examples are only for v2;
- so this patch has been developed somewhat blindly.
-Author: Paul Sladen <debian@paul.sladen.org>
-Last-Update: 2016-07-07
-Index: aladin/cds/aladin/SAMPManager.java
-===================================================================
---- aladin.orig/cds/aladin/SAMPManager.java	2016-07-07 16:13:33.220251312 +0200
-+++ aladin/cds/aladin/SAMPManager.java	2016-07-07 16:38:30.488286897 +0200
-@@ -62,8 +62,11 @@
+ The 'SAMPManager' components of Aladin were written against the
+ Apache XMLRPC v2 API; but only the v3 libraries are available in Debian.
+Author: Paul Sladen <debian@paul.sladen.org>, Ole Streicher <olebole@debian.org>
+Last-Update: 2016-11-07
+--- a/cds/aladin/SAMPManager.java
++++ b/cds/aladin/SAMPManager.java
+@@ -62,10 +62,14 @@
  import javax.swing.ListSelectionModel;
  import javax.swing.SwingUtilities;
  
 -import org.apache.xmlrpc.WebServer;
 -import org.apache.xmlrpc.XmlRpcClient;
-+import org.apache.xmlrpc.server.PropertyHandlerMapping;
++import org.apache.xmlrpc.server.XmlRpcHandlerMapping;
 +import org.apache.xmlrpc.webserver.WebServer;
 +import org.apache.xmlrpc.client.XmlRpcClient;
 +import org.apache.xmlrpc.client.XmlRpcClientConfigImpl;
 +import org.apache.xmlrpc.server.XmlRpcServer;
  import org.apache.xmlrpc.XmlRpcException;
  import org.apache.xmlrpc.XmlRpcHandler;
++import org.apache.xmlrpc.XmlRpcRequest;
  import org.astrogrid.samp.hub.Hub;
-@@ -125,7 +128,7 @@
+ import org.astrogrid.samp.hub.HubServiceMode;
+ 
+@@ -125,7 +129,7 @@
   * @see <a href="http://www.ivoa.net/cgi-bin/twiki/bin/view/IVOA/SampProgress">SAMP page on the IVOA web site</a>
   *
   */
@@ -34,15 +31,14 @@ Index: aladin/cds/aladin/SAMPManager.java
  
      static final protected String NOTIFY = "samp.hub.notify";
      static final protected String NOTIFY_ALL = "samp.hub.notifyAll";
-@@ -347,11 +350,28 @@
+@@ -347,11 +351,30 @@
          // start XML-RPC server
          int xmlRpcPort = findFreePort();
          aladinXmlRpcServer = new WebServer(xmlRpcPort);
 -        aladinXmlRpcServer.start();
 +        try {
-+            aladinXmlRpcServer.start();
-+        }
-+        catch (java.io.IOException e) {
++	    aladinXmlRpcServer.start();
++        } catch(IOException e) {
 +            e.printStackTrace();
 +        }
          String callbackAddress = "http://"+getLocalhost()+":"+xmlRpcPort+"/";
@@ -50,22 +46,25 @@ Index: aladin/cds/aladin/SAMPManager.java
          trace(" Aladin callback address is: "+callbackAddress);
 -        aladinXmlRpcServer.addHandler("samp.client", this);
 +
-+        // Hints from https://ws.apache.org/xmlrpc/handlerCreation.html - Paul Sladen
-+        // It would appear that this might be either-or vs. implementing the
-+        // XMLRPCHandler interface and XMLRPCHandler::execute() switch method.
-+        PropertyHandlerMapping propHandlerMapping = new PropertyHandlerMapping();
-+        propHandlerMapping.setVoidMethodEnabled(true);
-+	try {
-+            propHandlerMapping.addHandler("samp.client", this.getClass());
-+	}
-+        catch (org.apache.xmlrpc.XmlRpcException e) {
-+	    e.printStackTrace();
-+	}
-+        aladinXmlRpcServer.getXmlRpcServer().setHandlerMapping(propHandlerMapping);
++	XmlRpcHandlerMapping rpcHandlerMapping = new XmlRpcHandlerMapping() {
++		public XmlRpcHandler getHandler(String handlerName) {
++		    return new XmlRpcHandler() {
++			public Object execute(XmlRpcRequest pRequest)
++			    throws XmlRpcException {
++			    Vector params = new Vector();
++			    for (int i = 0; i < pRequest.getParameterCount(); i++) {
++				params.add(pRequest.getParameter(i));
++			    }
++			    return SAMPManager.this.execute(pRequest.getMethodName(), params);
++			}
++		    };
++		}
++	    };
++        aladinXmlRpcServer.getXmlRpcServer().setHandlerMapping(rpcHandlerMapping);
  
          // set XML-RPC callback
          params = new Vector();
-@@ -988,12 +1008,15 @@
+@@ -988,12 +1011,15 @@
          try  {
              // testing if the hub is alive (by pinging it)
              URL url = new URL(hubUrl);
@@ -83,26 +82,29 @@ Index: aladin/cds/aladin/SAMPManager.java
                  Aladin.trace(3, "Unable to connect to the hub, deleting the .samp file");
                  // on efface le fichier ".samp" qui, apparemment, pointe vers un hub ne tournant plus
                  try {
-@@ -1015,7 +1038,7 @@
+@@ -1015,24 +1041,9 @@
  
  
          }
 -        catch(java.rmi.ConnectException ce) {
-+        catch(Exception ce) {
-             Aladin.trace(3, "Unable to connect to the hub, deleting the .samp file");
-             // on efface le fichier ".plastic" qui, apparemment, pointe vers un hub ne tournant plus
-             try {
-@@ -1028,10 +1051,9 @@
-                     return false;
-                 }
-             }
+-            Aladin.trace(3, "Unable to connect to the hub, deleting the .samp file");
+-            // on efface le fichier ".plastic" qui, apparemment, pointe vers un hub ne tournant plus
+-            try {
+-                if( confFile.delete() ) {
+-                    updateState();
+-                    return getHubListener(silent, launchHubIfNeeded);
+-                }
+-                else {
+-                    if( !silent ) Aladin.warning(CANT_CONNECT);
+-                    return false;
+-                }
+-            }
 -            catch(Exception e) {return false;}
 -        }
--        catch(Exception e) {
--            e.printStackTrace();
-+            catch(Exception e) {}
-+
-+            ce.printStackTrace();
-             trace("Unable to create the PlasticHubListener object");
+         catch(Exception e) {
+             e.printStackTrace();
+-            trace("Unable to create the PlasticHubListener object");
++            trace("Unable to create the SAMPHubListener object");
  
              if( !silent ) Aladin.warning(CANT_CONNECT);
+             return false;

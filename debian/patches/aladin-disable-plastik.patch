@@ -10,10 +10,10 @@ Author: Paul Sladen <debian@paul.sladen.org>
 Last-Updated: 2016-07-07
 --- a/build.xml
 +++ b/build.xml
-@@ -19,6 +19,7 @@
-        <src path="${basedir}/cds"/>
-        <src path="${basedir}/org"/>
-        <src path="${basedir}/uk"/>
+@@ -16,6 +16,7 @@
+      <mkdir dir="${bin}"/>
+      <javac srcdir="${basedir}/cds" destdir="${bin}"
+ 	    encoding="Cp1252" deprecation="off" includeantruntime="true">
 +       <exclude name="**/PlasticManager.java" />
         <classpath>
            <pathelement path="${java.class.path}/"/>
