@@ -12,7 +12,7 @@ Last-Updated: 2016-07-07
 +++ b/build.xml
 @@ -16,6 +16,7 @@
       <mkdir dir="${bin}"/>
-      <javac srcdir="${basedir}/cds" destdir="${bin}"
+      <javac srcdir="${basedir}/cds" destdir="${bin}" debug="true"
  	    encoding="Cp1252" deprecation="off" includeantruntime="true">
 +       <exclude name="**/PlasticManager.java" />
         <classpath>

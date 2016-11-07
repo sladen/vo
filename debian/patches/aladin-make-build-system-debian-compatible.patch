@@ -22,7 +22,7 @@ Author: Florian Rothmaier <gavo@ari.uni-heidelberg.de>
       <mkdir dir="${bin}"/>
 -     <javac srcdir="${basedir}" destdir="${bin}"
 -	    encoding="Cp1252" source="1.6" target="1.6" deprecation="off" >
-+     <javac srcdir="${basedir}/cds" destdir="${bin}"
++     <javac srcdir="${basedir}/cds" destdir="${bin}" debug="true"
 +	    encoding="Cp1252" deprecation="off" includeantruntime="true">
         <classpath>
            <pathelement path="${java.class.path}/"/>
