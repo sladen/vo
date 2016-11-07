@@ -8,3 +8,16 @@ export CLASSPATH=/usr/share/java/healpix.jar:/usr/share/java/cds.moc.jar:/usr/sh
 
 override_dh_auto_build:
 	ant main
+
+get-orig-source:
+	wget http://aladin.unistra.fr/java/download/AladinSrc.jar
+	( mkdir AladinSrc ; \
+	cd AladinSrc ; \
+	unzip ../AladinSrc.jar ;\
+	rm -f *.jar ; \
+	VERSION=`fgrep "String VERSION" cds/aladin/Aladin.java | sed 's/.*"v\(.*\)".*/\1/'` ; \
+	tar cf ../aladin_$$VERSION+dfsg.orig.tar . ; \
+	cd .. ; \
+	rm -rf AladinSrc ; \
+	mv -f AladinSrc.jar AladinSrc-$$VERSION.jar ; \
+	xz aladin_$$VERSION+dfsg.orig.tar )
