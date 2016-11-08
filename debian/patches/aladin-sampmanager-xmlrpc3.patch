@@ -84,7 +84,26 @@ Last-Update: 2016-11-07
              Object mType = map.get(KEY_MTYPE);
              Map msgParams = (Map)map.get(KEY_PARAMS);
  
-@@ -722,12 +742,10 @@
+@@ -634,14 +654,11 @@
+             else if( mType.equals(MSG_SELECT_OBJECTS) ) {
+                 String tableId = (String)msgParams.get("table-id");
+                 trace("id recu : "+tableId);
+-                List rowList = (List)msgParams.get("row-list");
+-                int[] rowIdxArray = new int[rowList.size()];
+-                Iterator it = rowList.iterator();
+-                int k = 0;
++                Object[] rowList = (Object[])msgParams.get("row-list");
++                int[] rowIdxArray = new int[rowList.length];
+                 try {
+-                    while( it.hasNext() ) {
+-                        rowIdxArray[k] = Integer.parseInt((String)it.next());
+-                        k++;
++                    for( int k = 0; k < rowList.length; k++ ) {
++                        rowIdxArray[k] = Integer.parseInt((String)rowList[k]);
+                     }
+                 }
+                 catch(NumberFormatException nfe) {
+@@ -722,12 +739,10 @@
              return retValue;
          }
          // réponse à un appel antérieur
@@ -98,7 +117,7 @@ Last-Update: 2016-11-07
          return null;
      }
  
-@@ -988,12 +1006,15 @@
+@@ -988,12 +1003,15 @@
          try  {
              // testing if the hub is alive (by pinging it)
              URL url = new URL(hubUrl);
@@ -116,7 +135,7 @@ Last-Update: 2016-11-07
                  Aladin.trace(3, "Unable to connect to the hub, deleting the .samp file");
                  // on efface le fichier ".samp" qui, apparemment, pointe vers un hub ne tournant plus
                  try {
-@@ -1015,24 +1036,9 @@
+@@ -1015,24 +1033,9 @@
  
  
          }
