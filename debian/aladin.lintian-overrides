@@ -1,8 +1,3 @@
-# Appears because /usr/bin/aladin is a symlink to the .jar; the
-# default for all javahelper/jarwrapper-created Java packages.
-# Fixed in Lintian (>= 2.5.16) per https://bugs.debian.org/539315 
-aladin binary: executable-not-elf-or-script
-
 # The Debian .menu entry is there for those who need it.  It can
 # specify an icon.
 #
