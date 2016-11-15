@@ -2,7 +2,8 @@ Source: aladin
 Section: java
 Priority: optional
 Maintainer: Debian Astro Team <debian-astro-maintainers@lists.alioth.debian.org>
-Uploaders: Paul Sladen <debian@paul.sladen.org>
+Uploaders: Paul Sladen <debian@paul.sladen.org>,
+           Ole Streicher <olebole@debian.org>
 Build-Depends: ant, debhelper (>= 9), dh-exec, javahelper (>= 0.40)
 Build-Depends-Indep: default-jdk,
                      default-jdk-doc,
