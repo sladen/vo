@@ -44,3 +44,14 @@ Description: Don't call home for logging
        }
  
        // Pour l'assistant débutant
+--- a/Aladin0.string
++++ b/Aladin0.string
+@@ -1649,7 +1649,7 @@
+ UPCACHE	Permanent disk cache
+ UPCACHEH	Aladin requires local disk space for keeping data from one session to the other. More it has, better it runs
+ UPLOG CDS log
+-UPLOGH You will help the CDS team to improve Aladin by keeping the log mechanism activated. These "logs" are anonymous and do not transmit any local information (paths, file names,...) just some usage statistics and possibly bug reports. Thanks !
++UPLOGH You will help the CDS team to improve Aladin by activating the log mechanism. These "logs" are anonymous and do not transmit any local information (paths, file names,...) just some usage statistics and possibly bug reports. Thanks !
+ UPHELP Wizard
+ UPHELPH Switch on/off the beginner help. Help new Aladin users to discover progressively the Aladin graphical interface.
+ #UPTAGCENTER	Centered tag
