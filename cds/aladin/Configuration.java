@@ -98,6 +98,10 @@ import cds.tools.Util;
  */
 public final class Configuration extends JFrame
 implements Runnable, ActionListener, ItemListener, ChangeListener  {
+   
+   static final int DEF_HWIDTH  = 200;  // Largeur par défaut du panel de l'arbre des HiPS
+   static final int DEF_ZWIDTH  = 220;  // Largeur par défaut du panel du zoomView
+   static final int DEF_ZHEIGHT = 150;  // Hauteur par défaut du panel du zoomView
 
    static final String ASTRONOMER    = "astronomer";
    static final String UNDERGRADUATE = "undergraduate";
@@ -136,6 +140,9 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
    protected static String HPXGRID    = "HealpixGrid";
    protected static String MESURE     = "HideMeasurements";
    protected static String MHEIGHT    = "MeasurementHeight";
+   protected static String ZHEIGHT    = "ZoomHeight";
+   protected static String ZWIDTH     = "ZoomWidth";
+   protected static String HWIDTH     = "HiPSWidth";
    protected static String BOOKMARKS  = "Bookmarks";
    protected static String FRAME      = "Frame";
    protected static String FRAMEALLSKY= "FrameAllsky";
@@ -1049,17 +1056,26 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       return size;
    }
 
-   private Point initWinLocXY=new Point();      // Position initiale de la fenêtre
+   private Point initWinLocXY=new Point();          // Position initiale de la fenêtre
    private Dimension initWinLocWH=new Dimension();  // Dimenison initiale de la fenêtre
-   private int initMesureHeight=0;               // Taille de la fenêtre des mesures
+   private int initMesureHeight=0;                  // Hauteur de la fenêtre des mesures
+//   private int initZoomHeight=0;                    // Hauteur de la fenêtre du zoom
+//   private int initZoomWidth=0;                     // Largeur de la fenêtre du zoom
+//   private int initHipsWidth=0;                     // Largeur de la fenêtre du HiPS market
 
    /** Retourne true si la fenêtre d'Aladin n'a ni bougé, ni été redimensionnée */
    private boolean sameWinParam() {
       if( aladin.isApplet() ) return true;  // pas de gestion de positionnement en mode applet
       Dimension d = aladin.f.getSize();
       Point p = aladin.f.getLocation();
-      int mesureHeight = aladin.splitH.getMesureHeight();
-      return initWinLocXY.equals(p) && initWinLocWH.equals(d) && initMesureHeight==mesureHeight;
+      int mesureHeight = aladin.splitMesureHeight.getSplit();
+//      int zoomHeight = aladin.splitZoomHeight.getPos();
+//      int zoomWidth = aladin.splitZoomWidth.getPos();
+//      int hipsWidth = aladin.splitHiPSWidth.getPos();
+      return initWinLocXY.equals(p) && initWinLocWH.equals(d) 
+            && initMesureHeight==mesureHeight 
+//            && initHipsWidth!=hipsWidth && initZoomHeight==zoomHeight && initZoomWidth==zoomWidth
+            ;
    }
 
    /** Retourne la position et la taille de la fenêtre Aladin. Mémorise
@@ -1086,10 +1102,25 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       String s;
       int mesureHeight=150;
       try { s = get(MHEIGHT);
-      mesureHeight=Integer.parseInt(s);
+         mesureHeight=Integer.parseInt(s);
       } catch( Exception e ) {}
       setInitMesureHeight(mesureHeight);
       return mesureHeight;
+   }
+   
+   protected int getHiPSWinDivider() {
+      try { return Integer.parseInt( get(HWIDTH)); } catch( Exception e ) {}
+      return DEF_HWIDTH; 
+   }
+
+   protected int getZoomWidth() {
+      try { return Integer.parseInt( get(ZWIDTH)); } catch( Exception e ) {}
+      return DEF_ZWIDTH; 
+   }
+
+   protected int getZoomHeight() {
+      try { return Integer.parseInt( get(ZHEIGHT)); } catch( Exception e ) {}
+      return DEF_ZHEIGHT; 
    }
 
    /** Mémorisation de la position et de la taille de la fenêtre initiale d'Aladin en vue
@@ -1459,10 +1490,12 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       else modeChoice.setSelectedItem(s);
       modeItem = modeChoice.getSelectedIndex();
 
-      s = get(LOOKANDFEEL);
-      if( s==null && Aladin.macPlateform )  lfChoice.setSelectedIndex(1);
-      if( s==null || s.equals(JAVA) ) lfChoice.setSelectedIndex(0);
-      else lfChoice.setSelectedIndex(1);
+      if( !Aladin.OUTREACH ) {
+         s = get(LOOKANDFEEL);
+         if( s==null && Aladin.macPlateform )  lfChoice.setSelectedIndex(1);
+         if( s==null || s.equals(JAVA) ) lfChoice.setSelectedIndex(0);
+         else lfChoice.setSelectedIndex(1);
+      }
 
       //      s = get(PIXEL);
       //      if( s == null || s.charAt(0)!='8' ) pixelChoice.setSelectedIndex(0);
@@ -1636,6 +1669,8 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       }
       return null;
    }
+   
+ 
 
    private int oFrame=Localisation.ICRS;
 
@@ -1670,9 +1705,17 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       if( aladin.mesure.isReduced() && get(MESURE)==null ) remove(MESURE);
       if( !aladin.mesure.isReduced() && get(MESURE)!=null ) set(MESURE,"on");
 
-      // On conserve la taille de la fenêtre des mesures
-      int hd = aladin.splitH.getMesureHeight();
-      set(MHEIGHT,""+hd);
+
+      // On conserve la taille des différents panels si nécessaire
+      int n;
+      n = aladin.splitZoomHeight.getPos(); if( n!=DEF_ZHEIGHT ) set(ZHEIGHT,""+n ); else remove(ZHEIGHT);
+      n = aladin.splitZoomWidth.getPos();  if( n!=DEF_ZWIDTH )  set(ZWIDTH,""+n );  else remove(ZWIDTH);
+      n = aladin.splitHiPSWidth.getPos();  if( n!=DEF_HWIDTH )  set(HWIDTH,""+n );  else remove(HWIDTH);
+//      set(ZHEIGHT,""+aladin.splitZoomHeight.getPos());
+//      set(ZWIDTH,""+aladin.splitZoomWidth.getPos());
+//      set(HWIDTH,""+aladin.splitHiPSWidth.getPos());
+            
+      set(MHEIGHT,""+aladin.splitMesureHeight.getSplit());
 
       // On mémorise les bookmarks si nécessaire
       if( !Aladin.OUTREACH && aladin.bookmarks.canBeSaved() ) {

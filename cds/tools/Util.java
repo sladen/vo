@@ -58,8 +58,6 @@
 //
 package cds.tools;
 
-import healpix.essentials.FastMath;
-
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -133,6 +131,7 @@ import cds.aladin.Forme;
 import cds.aladin.MyInputStream;
 import cds.aladin.Tok;
 import cds.image.EPSGraphics;
+import healpix.essentials.FastMath;
 
 /**
  * Diverses méthodes utilitaires
@@ -162,20 +161,64 @@ public final class Util {
    static public MyInputStream openStream(String u,boolean useCache, int timeOut) throws Exception {
       return openStream(new URL(u),useCache,timeOut);
    }
-   static public MyInputStream openStream(URL u) throws Exception { return openStream(u,true,10000); }
+//   static public MyInputStream openStream(URL u) throws Exception { return openStream(u,true,10000); }
+   static public MyInputStream openStream(URL u) throws Exception { return openStream(u,true,-1); }
    static public MyInputStream openStream(URL u, boolean useCache,int timeOut) throws Exception {
       URLConnection conn = u.openConnection();
       if( !useCache ) conn.setUseCaches(false);
-      conn.setConnectTimeout(timeOut);
+      if( timeOut>0 ) conn.setConnectTimeout(timeOut);
       // DEJA FAIT DANS Aladin.myInit() => mais sinon ne marche pas en applet
       if( conn instanceof HttpURLConnection ) {
          HttpURLConnection http = (HttpURLConnection)conn;
          http.setRequestProperty("http.agent", "Aladin/"+Aladin.VERSION);
       }
 
-      MyInputStream mis = new MyInputStream(openConnectionCheckRedirects(conn));
+      MyInputStream mis = new MyInputStream(openConnectionCheckRedirects(conn,timeOut));
       //       MyInputStream mis = new MyInputStream(conn.getInputStream());
       return mis.startRead();
+   }
+   
+   /** Je suis obligé de passer par un Thread indépendant pour qu'un timeout soit effectivement pris en compte
+    * -1 si timeout indéfini
+    */
+   static public InputStream openConnectionCheckRedirects(URLConnection conn, long timeOut) throws Exception {
+      
+      // Pas de timeout => le thread courant fera l'affaire
+      // POUR LE MOMENT ON COURT-CIRCUITE CELA CAR POUR LES IMAGES 2MASS DE FRANCOIS B.
+      // ON DEPASSE LARGEMENT LE CHIEN DE GARDE DE 10s JUSTE POUR CREER LE SOCKET
+      if( timeOut==-1 ) return openConnectionCheckRedirects1(conn);
+      
+      // C'est parti...
+      OpenConnection c = (new Util()).new OpenConnection(conn,timeOut);
+      if( c.error!=null ) throw c.error;
+      return c.in;
+   }
+   
+   class OpenConnection extends Thread {
+      URLConnection conn;
+      InputStream in=null;
+      boolean ok=false;
+      Exception error=null;
+      long t0;
+      
+      public OpenConnection(URLConnection conn, long timeout) {
+         this.conn=conn;
+         t0 = System.currentTimeMillis();
+         start();
+         
+         // Tant  qu'il n'y a ni réponse, ni erreur, ni timeout, on attend
+         while( in==null && error==null && (timeout==-1 || (System.currentTimeMillis()-t0)<timeout) ) {
+            try { Util.pause(10); }
+            catch( Exception e ) { }
+         }
+      }
+      
+      public void run() {
+         try {
+            in = openConnectionCheckRedirects1(conn);
+            ok = true;
+         } catch( Exception e ) { error=e; }
+      }
    }
 
 
@@ -185,7 +228,7 @@ public final class Util {
     *
     * Code copied from http://download.oracle.com/javase/1.4.2/docs/guide/deployment/deployment-guide/upgrade-guide/article-17.html
     */
-   static private InputStream openConnectionCheckRedirects(URLConnection conn) throws IOException {
+   static private InputStream openConnectionCheckRedirects1(URLConnection conn) throws IOException {
       boolean redir;
       int redirects = 0;
       InputStream in = null;

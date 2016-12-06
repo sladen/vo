@@ -780,6 +780,12 @@ public final class Command implements Runnable {
             res.append("Movable  "+((PlanField)plan).isMovable()+"\n");
             String fov = ((PlanField)plan).getStatusSubFov();
             if( fov!=null ) res.append(fov);
+         } else if( plan instanceof PlanMoc ) {
+            res.append("Color   "+Action.findColorName(plan.c)+"\n");
+            res.append("Order   "+((PlanMoc)plan).getPropMocOrder()+"\n");
+            res.append("Coverage "+((PlanMoc)plan).getPropCoverage()+"\n");
+            res.append("Drawing "+((PlanMoc)plan).getPropDrawingMethod()+"\n");
+            
          } else if( plan.isCatalog() ) {
             res.append("NbObj   "+plan.getCounts()+"\n");
             res.append("Shape   "+Source.getShape(plan.sourceType)+"\n");
@@ -788,6 +794,7 @@ public final class Command implements Runnable {
          } else if( plan.type==Plan.TOOL ) {
             res.append("Color   "+Action.findColorName(plan.c)+"\n");
             res.append("Movable "+(plan.isMovable()?"on":"off")+"\n");
+            
          } else if( plan.type==Plan.IMAGE || plan.type==Plan.IMAGEHUGE ) {
             res.append("Width   "+((PlanImage)plan).naxis1+"\n"
                   + "Height  "+((PlanImage)plan).naxis2+"\n"
@@ -796,7 +803,6 @@ public final class Command implements Runnable {
                String s = Coord.getUnit(plan.projd.c.GetResol()[0]);
                res.append("PixelRes "+s);
             }
-
          } else if( plan.type==Plan.FOLDER ) {
             res.append("Scope   "+(((PlanFolder)plan).localScope?"local":"global")+"\n");
             String item = ((PlanFolder)plan).getStatusItems();
@@ -804,7 +810,11 @@ public final class Command implements Runnable {
          }
 
          if( plan instanceof PlanBG && plan.isPixel() ) {
-            res.append("PixelRes "+((PlanBG)plan).getMaxResolution());
+            res.append("PixelRes "+((PlanBG)plan).getMaxResolution()+"\n");
+         }
+
+         if( plan instanceof PlanBG ) {
+            res.append("Proj    "+ Calib.getProjName(plan.projd.c.getProj())+"\n" );
          }
 
 
@@ -986,7 +996,8 @@ public final class Command implements Runnable {
       StringTokenizer st = new StringTokenizer(s,",(");
       String server = st.nextToken();
       if( server.equalsIgnoreCase("allsky") ) server="hips";   // pour compatibilité
-      if( !withServer || a.dialog.getServer(server)<0 ) {
+      if( !withServer || a.dialog.getServer(server)<0 
+            && (!Aladin.PROTO || Aladin.PROTO && !server.equalsIgnoreCase("HiPS"))) {
 
          // Si la vue courante est vide il faut prendre
          // la liste des serveurs par defaut
@@ -1192,8 +1203,14 @@ public final class Command implements Runnable {
          Aladin.trace(4,"Command.execGetCmd("+cmd+","+label+") => server=["+server+"] criteria=["+criteria+"] target=["+target+"] radius=["+radius+"])");
          if( server.equalsIgnoreCase("VizierX") ) server="VizieR";   // Pour charger tout un catalogue sans poser un problème de compatibilité
 
+         if( Aladin.PROTO && server.equalsIgnoreCase("hips") ) {
+            int n=a.hipsMarket.createPlane(target,radius,criteria,label,null);
+            if( n!=-1 ) {
+               a.calque.getPlan(n).setBookmarkCode("get "+server+(criteria.length()>0?"("+criteria+")":"")+" $TARGET $RADIUS");
+            }
+            if( a.isFullScreen() ) a.fullScreen.repaint();
 
-         if( (j=a.dialog.getServer(server))>=0 ) {
+         } else if( (j=a.dialog.getServer(server))>=0 ) {
             a.dialog.server[j].flagToFront=false;	// Pour eviter le toFront d'Aladin
             int n=a.dialog.server[j].createPlane(target,radius,criteria,label,a.dialog.server[j].institute);
             if( n!=-1 ) {

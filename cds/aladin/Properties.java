@@ -266,7 +266,6 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
       t.x+=i*20;
       t.y+=i*20;
       setLocation(t);
-
    }
 
    /** Initialisation d'un JPanel en fonction d'un plan
