@@ -134,6 +134,7 @@ public class HipsMarket extends JPanel {
    /** Génération initiale de l'arbre HiPS - et maj des menus Aladin correspondants */
    private void initTree() {
       if( mocServerLoading ) return;
+      repaint();
       (new Thread("initTree") {
          public void run() {
             try {
