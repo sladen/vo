@@ -737,10 +737,8 @@ public final class Glu implements Runnable {
       char[] a = s.toCharArray();
       int i, j;
 
-      for( i = 0; i < a.length && (a[i] < '0' || a[i] > '9'); i++ )
-         ;
-      for( j = i + 1; j < a.length && a[j] >= '0' && a[j] <= '9'; j++ )
-         ;
+      for( i = 0; i < a.length && (a[i] < '0' || a[i] > '9'); i++ ) ;
+      for( j = i + 1; j < a.length && a[j] >= '0' && a[j] <= '9'; j++ ) ;
       return (j < a.length) ? new String(a, i, j - i) : "";
    }
 
@@ -1062,6 +1060,21 @@ public final class Glu implements Runnable {
       vGluCategory.addElement(new TreeNodeCategory(aladin,actionName,description,
             aladinTree,url,docUser,aladinUrlDemo));
    }
+   
+   
+   // Retourne la plus grande clé d'une hashtable (clés sur des entiers)
+   // 0 si problème.
+   private int hashSize(Hashtable h) {
+      int max = -1;
+      Enumeration e = h.keys();
+      while( e.hasMoreElements() ) {
+         try {
+            int n = Integer.parseInt( (String)e.nextElement() );
+            if( n>max ) max=n;
+         } catch( Exception e1 ) {}
+      }
+      return max;
+   }
 
    /**
     * Memorisation dans le Vecteur vGluServer des Serveurs definis au moyen du
@@ -1101,7 +1114,12 @@ public final class Glu implements Runnable {
       }
 
       if( paramDescription1 == null ) return;
-      int n = paramDescription1.size();
+            
+//      int n = paramDescription1.size();
+      int n = hashSize(paramDescription1);
+      int m = hashSize(paramDataType1); if( m>n ) n=m;
+      m = hashSize(paramValue1); if( m>n ) n=m;
+      
       String[] paramDescription = new String[n];
       for( i = 1; i <= n; i++ )
          paramDescription[i - 1] = (String) paramDescription1.get(i + "");
@@ -1333,16 +1351,20 @@ public final class Glu implements Runnable {
                   }
                }
 
-               if( hasValidProfile(aladinProfile,aladinTree,flagPlastic) && distribAladin ) {
-                  if( aladin!=null && aladinBookmarks!=null ) aladin.bookmarks.memoGluBookmarks(actionName,aladinBookmarks);
-                  else if( flagGluSky ) memoGluSky(withLog,actionName,id,aladinLabel,aladinMenuNumber,url,description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,aladinTree,
-                        aladinSurvey,aladinHpxParam,skyFraction);
-                  else if( aladinTree!=null ) memoTree(actionName,description,aladinTree,url,docUser,aladinUrlDemo);
-                  else if( flagPlastic ) memoApplication(actionName,aladinLabel,aladinMenuNumber,description,verboseDescr,institute,releaseNumber,
-                        copyright,docUser,jar,javaParam,download,webstart,applet,dir,aladinActivated,system);
-                  else if( flagLabel ) memoServer(actionName,description,verboseDescr,aladinMenu,aladinMenuNumber,
-                        aladinLabel,aladinLabelPlane,docUser,paramDescription,paramDataType,paramValue,
-                        resultDataType,institute,aladinFilter,aladinLogo,dir,localFile?system:null,record,aladinProtocol);
+               try {
+                  if( hasValidProfile(aladinProfile,aladinTree,flagPlastic) && distribAladin ) {
+                     if( aladin!=null && aladinBookmarks!=null ) aladin.bookmarks.memoGluBookmarks(actionName,aladinBookmarks);
+                     else if( flagGluSky ) memoGluSky(withLog,actionName,id,aladinLabel,aladinMenuNumber,url,description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,aladinTree,
+                           aladinSurvey,aladinHpxParam,skyFraction);
+                     else if( aladinTree!=null ) memoTree(actionName,description,aladinTree,url,docUser,aladinUrlDemo);
+                     else if( flagPlastic ) memoApplication(actionName,aladinLabel,aladinMenuNumber,description,verboseDescr,institute,releaseNumber,
+                           copyright,docUser,jar,javaParam,download,webstart,applet,dir,aladinActivated,system);
+                     else if( flagLabel ) memoServer(actionName,description,verboseDescr,aladinMenu,aladinMenuNumber,
+                           aladinLabel,aladinLabelPlane,docUser,paramDescription,paramDataType,paramValue,
+                           resultDataType,institute,aladinFilter,aladinLogo,dir,localFile?system:null,record,aladinProtocol);
+                  }
+               } catch( Exception e ) {
+                  if( Aladin.levelTrace>=3 ) e.printStackTrace();
                }
                distribAladin = !testDomain;
                flagGluSky=flagPlastic=flagLabel = false;
@@ -1859,7 +1881,7 @@ public final class Glu implements Runnable {
             if( i == a.length ) break one;
 
             // Determination du numero
-            for( offsetNum = ++i; i < a.length && a[i] > '0' && a[i] <= '9'; i++ );
+            for( offsetNum = ++i; i < a.length && a[i] >= '0' && a[i] <= '9'; i++ );
             try {
                num = Integer.parseInt(new String(a, offsetNum, i - offsetNum));
             } catch( NumberFormatException e ) {

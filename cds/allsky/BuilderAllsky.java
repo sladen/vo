@@ -51,6 +51,7 @@ final public class BuilderAllsky  extends Builder {
    public void run() throws Exception {
       abort=false;
       validateDepth();
+      context.info("Creating Allsky...");
       for( int z=0; !abort && z<context.depth; z++ ) {
          if( !context.isColor() ) createAllSky(context.getOutputPath(),3, 64, z);
          try {
@@ -76,7 +77,7 @@ final public class BuilderAllsky  extends Builder {
    private void postJob() throws Exception {
       validateLabel();
       validateBitpix();
-      context.writePropertiesFile();
+      context.writeMetaFile();
    }
 
    /** Création des fichiers Allsky.fits (true bitpix) et Allsky.jpg (8 bits) pour tout un niveau Healpix
@@ -221,6 +222,7 @@ final public class BuilderAllsky  extends Builder {
             int yLosange=npix/nbOutLosangeWidth;
             int xLosange=npix%nbOutLosangeWidth;
             int gap = in.width/outLosangeWidth;
+            if( gap<1 ) gap=1;
             for( int y=0; y<in.width/gap; y++ ) {
                for( int x=0; x<in.width/gap; x++ ) {
                   int p=in.getPixelRGB(x*gap,in.width-y*gap-1);

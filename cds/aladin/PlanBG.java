@@ -191,6 +191,7 @@ public class PlanBG extends PlanImage {
    protected String pixelRange=null;   // Valeur du range si décrit dans le fichier properties "min max" (valeur physique, pas raw)
    protected String pixelCut=null;     // Valeur du cut si décrit dans le fichier properties "min max" (valeur physique, pas raw)
    protected boolean flagNoTarget=false; // Par défaut pas de target indiquée
+   private boolean flagWaitAllSky;     // En attente du chargement AllSky
    private int tileOrder=-1;        // Ordre des losanges
 
    protected int RGBCONTROL[] = { 0,128, 255 , 0,128, 255 , 0,128, 255 };
@@ -263,6 +264,9 @@ public class PlanBG extends PlanImage {
       (new File(getCacheDir()+Util.FS+getCacheName())).mkdir();
       aladin.trace(3,"HEALPix local cache for "+getCacheName()+" is out of date => renamed => will be removed");
    }
+   
+   
+   
 
 
    /** Charge les propriétés à partir du fichier "properties" et en profite
@@ -282,7 +286,8 @@ public class PlanBG extends PlanImage {
          else {
 
             // Eventuellement changera de site Web s'il y a mieux
-            checkSite(false);
+            // MAINTENANT ON LE FAIT EN AMONT
+//            checkSite(false);
 
             String cacheFile = getCacheDir()+Util.FS+getCacheName()+Util.FS+Constante.FILE_PROPERTIES;
             File f = new File(cacheFile);
@@ -398,8 +403,33 @@ public class PlanBG extends PlanImage {
       if( s.startsWith("ivo://") ) s = s.substring(6);
       return s;
    }
-
+   
+   /** Chargement des propriétés du HiPS.
+    * On en profite pour vérifier s'il n'y aurait pas un site miroirs plus rapide
+    */
    protected boolean scanProperties() {
+      boolean rep=true;
+      boolean alternative=true;
+      
+      // Vérifie qu'il y a au-moins une alternative
+      URL u = aladin.glu.getURL(gluTag,"",false,false,2);
+      if( u==null ) alternative=false;
+      
+      // Pas de réponse immédiate => on cherche un autre site tout de suite
+      if( !scanProperties1() && alternative ) {
+         Aladin.trace(3,"HiPS server unreachable ["+url+"] ! Trying another...");
+         checkSite(false);
+         rep = scanProperties1();
+         
+      // Une réponse, mais peut être y a-t-il plus rapide => on teste en parallèle
+      } else if( alternative ) {
+         Aladin.trace(3,"HiPS server OK ["+url+"], looking for a faster...");
+         (new Thread() { public void run() { checkSite(false); } }).start();
+      }
+      return rep;
+   }
+
+   private boolean scanProperties1() {
       // Information supplémentaire par le fichier properties ?
       try {
          java.util.Properties prop = loadPropertieFile();
@@ -508,6 +538,7 @@ public class PlanBG extends PlanImage {
 
       scanProperties();
       scanMetadata();
+      
 
       gluSky.reset();
    }
@@ -532,7 +563,10 @@ public class PlanBG extends PlanImage {
       maxOrder=3;
       useCache = false;
       this.label=label;
-      paramByTreeNode(new TreeNodeAllsky(aladin, url), c, radius);
+      TreeNodeAllsky gsky = null;
+      try { gsky= new TreeNodeAllsky(aladin, url); }
+      catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
+      paramByTreeNode(gsky, c, radius);
       scanProperties();
       scanMetadata();
       aladin.trace(3,"AllSky local... frame="+Localisation.getFrameName(frameOrigin)+" "+this+(c!=null ? " around "+c:""));
@@ -553,7 +587,10 @@ public class PlanBG extends PlanImage {
       local = false;
       co=c;
       coRadius=radius;
-      paramByTreeNode(new TreeNodeAllsky(aladin, url),c,radius);
+      TreeNodeAllsky gsky = null;
+      try { gsky= new TreeNodeAllsky(aladin, url); }
+      catch( Exception e ) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
+      paramByTreeNode(gsky,c,radius);
       int n = url.length();
       if( url.endsWith("/") ) n--;
       survey = this.label!=null && this.label.length()>0 ? this.label : url.substring(url.lastIndexOf('/',n-1)+1,n);
@@ -966,6 +1003,7 @@ public class PlanBG extends PlanImage {
       return super.Free();
    }
    
+   protected void setFmt() { }
    
    private FrameHipsProperties frameHipsProperties = null;
    
@@ -1059,10 +1097,12 @@ public class PlanBG extends PlanImage {
       }
 
       // Juste pour mettre à jour l'histogramme des pixels
-      int size = pixelsOrigin.length/(Math.abs(bitpix)/8);
-      if( pixels==null || pixels.length!=size ) pixels = new byte[size];
-      to8bits(pixels, 0, pixelsOrigin, size, bitpix, pixelMin, pixelMax, false);
-      resetHist();
+      if( pixelsOrigin!=null ) {
+         int size = pixelsOrigin.length/(Math.abs(bitpix)/8);
+         if( pixels==null || pixels.length!=size ) pixels = new byte[size];
+         to8bits(pixels, 0, pixelsOrigin, size, bitpix, pixelMin, pixelMax, false);
+         resetHist();
+      }
 
       return true;
    }
@@ -1952,6 +1992,8 @@ public class PlanBG extends PlanImage {
    /** Change le format d'affichage truePixels (Fits) <=> 8bits (JPEG) */
    protected void switchFormat() {
       truePixels = !truePixels;
+      pixMode = truePixels ? PIX_TRUE : colorPNG ? PIX_255 : PIX_256;
+      restoreCM();
       forceReload();
       if( aladin.frameCM!=null ) aladin.frameCM.majCM(true);
    }
@@ -2233,6 +2275,8 @@ public class PlanBG extends PlanImage {
       boolean hasDrawnSomething=false;
       int z = (int)getZ(v);
       HealpixKey allsky = pixList.get( key(ALLSKYORDER,  -1, z) );
+      
+      flagWaitAllSky=false;
 
       if( allsky==null ) {
          if( drawMode==DRAWPOLARISATION ) allsky = new HealpixAllskyPol(this,ALLSKYORDER);
@@ -2291,19 +2335,16 @@ public class PlanBG extends PlanImage {
             }
          }
 
-         if( aladin.macPlateform && (aladin.ISJVM15 || aladin.ISJVM16) ) {
-            g.setColor(Color.red);
-            g.drawString("Warning: Java1.5 & 1.6 under Mac is bugged.",5,30);
-            g.drawString("Please update your java.", 5,45);
-         }
+//         if( aladin.macPlateform && (aladin.ISJVM15 || aladin.ISJVM16) ) {
+//            g.setColor(Color.red);
+//            g.drawString("Warning: Java1.5 & 1.6 under Mac is bugged.",5,30);
+//            g.drawString("Please update your java.", 5,45);
+//         }
          //         long t1= (Util.getTime()-t);
          //       System.out.println("drawAllSky "+(partial?"partial":"all")+" order="+ALLSKYORDER+" in "+t1+"ms");
 
       } else {
-         if( drawMode==DRAWPIXEL /* && isPause()*/ ) {
-            g.setColor(Color.red);
-            g.drawString("Whole sky in progress...", 5,30);
-         }
+         flagWaitAllSky=true;
       }
       return hasDrawnSomething;
    }
@@ -2626,7 +2667,7 @@ public class PlanBG extends PlanImage {
       if(  op<=0.1 ) return;
 
       resetFading();
-
+      
       if( g instanceof Graphics2D ) {
          Graphics2D g2d = (Graphics2D)g;
          Composite saveComposite = g2d.getComposite();
@@ -2919,7 +2960,7 @@ public class PlanBG extends PlanImage {
       boolean allKeyReady = false;
       boolean oneKeyReady = false;
       boolean allskyDrawn=false;           // true si on a déjà essayé de tracer un allsky
-      StringBuilder debug=new StringBuilder(" order="+max);
+      StringBuilder debug=new StringBuilder(" ");
       HealpixKey allsky = pixList.get( key(ALLSKYORDER,  -1, z) );
 
       if( z>0 ) debug.append(" z="+z);
@@ -2997,6 +3038,11 @@ public class PlanBG extends PlanImage {
          //         redraw.clear();
          HealpixKey healpix = null;
          int cmin = min<max && allKeyReady ? max : min<max-3 ? max-3 : min;
+         
+         // Petite accélération
+         if( aladin.isAnimated() ) {
+            if( cmin<max-1) { cmin=max-1; oneKeyReady=true; }
+         }
 
          if( max>=ALLSKYORDER )
             for( int order=cmin; order<=max || !oneKeyReady && order<=max+2 && order<=maxOrder; order++ ) {
@@ -3127,7 +3173,7 @@ public class PlanBG extends PlanImage {
       }
       statTimeDisplay = nbStat>0 ? totalStatTime/nbStat : -1;
       statNbItems = nb/*+nb1*/;
-      //      aladin.trace(4,"Draw"+debug+" in "+statTime+"ms");
+//            aladin.trace(4,"Draw"+debug+(aladin.isAnimated()?" anim.":"")+" in "+statTime+"ms");
    }
 
    /** Ne marche que pour les cubes */
@@ -3164,9 +3210,19 @@ public class PlanBG extends PlanImage {
    //   protected double angle=0;
    static final int M = 2; //4;
    //   static final int EP =4; //12;
+   
+   protected void drawForeground(Graphics gv, ViewSimple v) {
+      drawForeground1(gv,v);
+      
+      if( flagWaitAllSky && drawMode==DRAWPIXEL ) {
+         gv.setColor(Color.red);
+         gv.drawString("Whole sky in progress...", 5,30);
+      }
+
+   }
 
    /** Tracé d'un bord le long de projection pour atténuer le phénomène de "feston" */
-   protected void drawForeground(Graphics gv,ViewSimple v) {
+   private void drawForeground1(Graphics gv,ViewSimple v) {
       v = v.getProjSyncView();
 
       if( aladin.calque.hasHpxGrid() || isOverlay() ) {
@@ -3180,13 +3236,14 @@ public class PlanBG extends PlanImage {
 
       if( v.getTaille()<15 ) return;
       g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-      g.setColor(Color.white);
+      g.setColor( aladin.isCinema() ? Color.black : Color.white);
       Stroke st = g.getStroke();
 
-      int epaisseur = 50;
+      int epaisseur = 200;
       g.setStroke(new BasicStroke(epaisseur));
 
       Projection projd = v.getProj().copy();
+      projd.setProjCenter(0, 0);
       projd.frame=0;
 
       //      g.setColor( Color.yellow );
@@ -3195,12 +3252,12 @@ public class PlanBG extends PlanImage {
       int chouilla = (int)( (v.getWidth()/800. -1)*6 );
       if( chouilla<0 ) chouilla=0;
 
-      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.ZEA) {
+      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.FEYE || projd.t==Calib.ZEA) {
          Coord c = projd.c.getProjCenter();
          projd.getXYNative(c);
          PointD center = v.getViewCoordDble(c.x, c.y);
          double signe = c.del<0?1:-1;
-         c.del = c.del + signe*( projd.t==Calib.SIN ? 89 : 179);
+         c.del = c.del + signe*( projd.t==Calib.SIN || projd.t==Calib.FEYE ? 89 : 179);
          projd.getXYNative(c);
          PointD haut = v.getViewCoordDble(c.x, c.y);
          double deltaY = haut.y-center.y;
@@ -3244,7 +3301,7 @@ public class PlanBG extends PlanImage {
          m=0;
          g.setStroke(new BasicStroke(2));
          g.setColor( new Color(210,220,255) );
-         if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.ZEA) {
+         if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.FEYE || projd.t==Calib.ZEA) {
             g.drawOval(x-m,y-m,(rayon+m)*2,(rayon+m)*2);
          } else if( projd.t==Calib.AIT || projd.t==Calib.MOL) {
             if( angle==0 ) g.drawOval(x-m,y-m,(grandAxe+m)*2,(rayon+m)*2);
@@ -3257,7 +3314,7 @@ public class PlanBG extends PlanImage {
       g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
 
    }
-
+   
    /** Tracé d'un fond couvrant la forme de tout le ciel en fonction du type de projection
     * pour atténuer le phénomène de "feston" */
    protected void drawBackground(Graphics g,ViewSimple v) {
@@ -3265,6 +3322,7 @@ public class PlanBG extends PlanImage {
       if( aladin.calque.hasHpxGrid() || isOverlay() ) return;
 
       Projection projd = v.getProjSyncView().getProj().copy();
+      projd.setProjCenter(0, 0);
       projd.frame=0;
 
       int x=0,y=0,rayon=0,grandAxe=0;
@@ -3273,13 +3331,16 @@ public class PlanBG extends PlanImage {
       Color bckCol = color ? Color.black : cm==null ? Color.white : new Color(cm.getRed(0),cm.getGreen(0),cm.getBlue(0));
       g.setColor( bckCol );
       rayon=0;
-      if( projd.t==Calib.TAN || projd.t==Calib.SIP ) g.fillRect(0,0,v.getWidth(),v.getHeight());
-      else if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.ZEA) {
+      
+//      if( projd.t==Calib.TAN || projd.t==Calib.SIP ) g.fillRect(0,0,v.getWidth(),v.getHeight());
+//      else 
+         
+      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.FEYE || projd.t==Calib.ZEA) {
          Coord c = projd.c.getProjCenter();
          projd.getXYNative(c);
          PointD center = v.getViewCoordDble(c.x, c.y);
          double signe = c.del<0?1:-1;
-         c.del = c.del + signe*( projd.t==Calib.SIN ? 89 : 179);
+         c.del = c.del + signe*( projd.t==Calib.SIN || projd.t==Calib.FEYE ? 89 : 179);
          projd.getXYNative(c);
          PointD haut = v.getViewCoordDble(c.x, c.y);
          double deltaY = haut.y-center.y;
@@ -3337,7 +3398,21 @@ public class PlanBG extends PlanImage {
             else Util.fillEllipse(g, x+grandAxe,y+rayon, grandAxe, rayon, angle );
          }
 
-      } else g.fillRect(0, 0, v.rv.width, v.rv.height);
+      } else {
+         int w = v.rv.width;
+         int h = v.rv.height;
+         if( isTransparent() ) {
+            Graphics2D g2d = (Graphics2D)g;
+            Paint paint = g2d.getPaint();
+            Paint gradient = new GradientPaint(0, 0,new Color(0,0,70),
+                  w,h, new Color(180,190,200));
+            g2d.setPaint(gradient);
+            g.fillRect(0, 0, w,h);
+            g2d.setPaint(paint);
+         } else {
+            g.fillRect(0, 0,w,h);
+         }
+      }
    }
 
    protected float getSegmentLenFactor() {
@@ -3643,50 +3718,51 @@ public class PlanBG extends PlanImage {
          loading= nb[HealpixKey.ASKING]>0 || nb[HealpixKey.TOBELOADFROMCACHE]>0
                || nb[HealpixKey.TOBELOADFROMNET]>0 || nb[HealpixKey.LOADINGFROMCACHE]>0
                || nb[HealpixKey.LOADINGFROMNET]>0;
-               purging= stillOnePurge || nb[HealpixKey.PURGING]>0;
+               
+         purging= stillOnePurge || nb[HealpixKey.PURGING]>0;
 
-               pourcent = n==0 ? -2 : n>=10 ? 1 : (10-n)*10.;
-               readyAfterDraw= n==0;
+         pourcent = n==0 ? -2 : n>=10 ? 1 : (10-n)*10.;
+         readyAfterDraw= n==0;
 
-               // Pour du debug
-               nbReady=nb[HealpixKey.READY];
+         // Pour du debug
+         nbReady=nb[HealpixKey.READY];
 
 
-               //                        System.out.print("HealpixKey loader (loading="+loading+" purging="+purging+"): ");
-               //                        for( int i=0; i<HealpixKey.NBSTATUS; i++ ) {
-               //                           if( nb[i]>0 ) System.out.print(HealpixKey.STATUS[i]+"="+nb[i]+" ");
-               //                        }
-               //                        System.out.println();
+         //                        System.out.print("HealpixKey loader (loading="+loading+" purging="+purging+"): ");
+         //                        for( int i=0; i<HealpixKey.NBSTATUS; i++ ) {
+         //                           if( nb[i]>0 ) System.out.print(HealpixKey.STATUS[i]+"="+nb[i]+" ");
+         //                        }
+         //                        System.out.println();
 
-               if( detectServerError(nb) ) error="Server not available";
+         if( detectServerError(nb) ) error="Server not available";
 
-               // Eventuel arrêt du chargement en cours si priorité désormais plus faible
-               HealpixKey healpixMin=null,healpixNet=null;
-               int min = Integer.MAX_VALUE;
-               Enumeration<HealpixKey> e = pixList.elements();
-               while( e.hasMoreElements() ) {
-                  HealpixKey healpix = e.nextElement();
-                  int status = healpix.getStatus();
-                  if( status!=HealpixKey.TOBELOADFROMNET && status!=HealpixKey.LOADINGFROMNET ) continue;
-                  if( status==HealpixKey.LOADINGFROMNET ) healpixNet=healpix;
-                  if( healpix.priority<min ) {
-                     min=healpix.priority;
-                     healpixMin=healpix;
-                  }
-               }
+         // Eventuel arrêt du chargement en cours si priorité désormais plus faible
+         HealpixKey healpixMin=null,healpixNet=null;
+         int min = Integer.MAX_VALUE;
+         Enumeration<HealpixKey> e = pixList.elements();
+         while( e.hasMoreElements() ) {
+            HealpixKey healpix = e.nextElement();
+            int status = healpix.getStatus();
+            if( status!=HealpixKey.TOBELOADFROMNET && status!=HealpixKey.LOADINGFROMNET ) continue;
+            if( status==HealpixKey.LOADINGFROMNET ) healpixNet=healpix;
+            if( healpix.priority<min ) {
+               min=healpix.priority;
+               healpixMin=healpix;
+            }
+         }
 
-               if( healpixNet!=null && healpixNet!=healpixMin ) healpixNet.abort();
+         if( healpixNet!=null && healpixNet!=healpixMin ) healpixNet.abort();
 
-               if( nb[HealpixKey.TOBELOADFROMCACHE]>0 ) cacheLoader.wakeUp();
-               if( nb[HealpixKey.TOBELOADFROMNET]>0 )   netLoader.wakeUp();
+         if( nb[HealpixKey.TOBELOADFROMCACHE]>0 ) cacheLoader.wakeUp();
+         if( nb[HealpixKey.TOBELOADFROMNET]>0 )   netLoader.wakeUp();
 
-               // Pour faire blinker le plan
-               if( aladin.calque!=null && oLoading!=loading ) {
-                  oLoading=loading;
-                  aladin.calque.select.repaint();
-               }
+         // Pour faire blinker le plan
+         if( aladin.calque!=null && oLoading!=loading ) {
+            oLoading=loading;
+            aladin.calque.select.repaint();
+         }
 
-               if( perhapsOneDeath ) shouldRefresh();
+         if( perhapsOneDeath ) shouldRefresh();
 
       }
    }

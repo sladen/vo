@@ -65,6 +65,8 @@ public class PlanBGCat extends PlanBG {
       loadGenericLegende();
    }
    
+   protected boolean isCatalog() { return true; }
+   
    protected boolean isSync() {
       boolean isSync = super.isSync();
       isSync = isSync && (planFilter==null || planFilter.isSync() );
@@ -161,6 +163,17 @@ public class PlanBGCat extends PlanBG {
    protected int getCurrentMaxOrder(ViewSimple v) { 
       return Math.max(1,Math.min(maxOrder(v)+gapOrder,maxOrder)); 
    }
+   
+   /** Pour eviter qu'une source précédemment sélectionnée dans une autre région reste
+    * sélectionnable
+    */
+   private void resetDrawnInView(ViewSimple v) {
+      Enumeration<HealpixKey> e = pixList.elements();
+      while( e.hasMoreElements() ) {
+         HealpixKeyCat healpix = (HealpixKeyCat)e.nextElement();
+         if( healpix!=null ) healpix.resetDrawnInView(v);
+      }
+   }
 
    protected void draw(Graphics g,ViewSimple v) {
       long [] pix=null;
@@ -172,6 +185,8 @@ public class PlanBGCat extends PlanBG {
       boolean allsky1=false,allsky2=false,allsky3=false;
       boolean hipsOld = allskyExt==HealpixAllsky.XML;  // Vieille version d'un HiPS catalog
       StringBuilder debug = new StringBuilder();
+      
+      resetDrawnInView(v);
       
 //      System.out.println("order="+order+" hipsOld="+hipsOld);
       if( !hipsOld ) allsky1=drawAllSky(g, v,  1);
@@ -222,8 +237,6 @@ public class PlanBGCat extends PlanBG {
          for( int i=0; i<pixLength; i++ ) {
             
             if( isOutMoc(norder, pix[i]) ) continue;
-            
-
 
             if( (new HealpixKey(this,norder,pix[i],HealpixKey.NOLOAD)).isOutView(v) ) continue;
 
@@ -329,7 +342,6 @@ public class PlanBGCat extends PlanBG {
       aladin.view.repaintAll();
    }
    
-   // HONNETEMENT JE NE COMPRENDS PAS POURQUOI JE DOIS FAIRE CE REPAINT ICI
    protected void planReady(boolean ready) {
       super.planReady(ready);
       askForRepaint();
@@ -480,9 +492,11 @@ public class PlanBGCat extends PlanBG {
       Enumeration<HealpixKey> e = null;
       Iterator<Obj> it = null;
       int order;
+      ViewSimple v;
 
       ObjIterator(ViewSimple v) {
          super();
+         this.v=v;
          order = v!=null ? getCurrentMaxOrder(v) : -1;
          if( order==1 ) order=2;
       }
@@ -500,7 +514,7 @@ public class PlanBGCat extends PlanBG {
 //               System.out.println("ne prend plus en compte (order="+healpix.order+" maxOrder="+order+") "+healpix);
                continue;
             }
-            it = healpix.pcat.iterator();
+            it = healpix.pcat.iterator(v);
          }
          return it.hasNext();
       }
@@ -513,7 +527,7 @@ public class PlanBGCat extends PlanBG {
             HealpixKeyCat healpix = (HealpixKeyCat)e.nextElement();
             if( healpix.getStatus()!=HealpixKey.READY ) continue;
             if( order!=-1 && healpix.order>order ) continue;
-            it = healpix.pcat.iterator();
+            it = healpix.pcat.iterator(v);
          }
          return it.next();
       }

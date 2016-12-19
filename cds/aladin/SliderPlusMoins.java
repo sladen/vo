@@ -34,12 +34,12 @@ import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
-import cds.aladin.Aladin;
 import cds.tools.Util;
 
 /**
@@ -102,6 +102,7 @@ MouseMotionListener,MouseListener,Widget {
 
       setEnabled(false);
 
+      setBorder( BorderFactory.createEmptyBorder(0, 10, 0, 5));
       addMouseWheelListener(this);
       this.wheelIncr=wheelIncr;
    }

@@ -411,6 +411,14 @@ final public class Fits {
    //      }
    //   }
 
+   
+   // Test si un Display X11 est bien accessible
+   static boolean X11OK=true;;
+   static {
+      try { Toolkit.getDefaultToolkit( ); } catch( Exception e) { X11OK=false; }
+      System.out.println("X11 Display => "+X11OK);
+   }
+   
    public void loadPreview(MyInputStream dis, int x, int y, int w, int h, boolean flagColor, int format) throws Exception {
       BufferedImage imgBuf;
 
@@ -426,20 +434,20 @@ final public class Fits {
       // Lecture de l'image complète avec la méthode de base (plus rapide que le
       // BufferedImage loader)
       // En revanche il faut réimplanter un ImageConsumer pour éviter l'usage
-      // d'un Component qui recquière un DISPLAY (via MediaTracker)
-      if(( w==-1 && flagColor)  ) {
+      // d'un Component qui requière un DISPLAY (via MediaTracker)
+      if(( w==-1 && flagColor && X11OK )  ) {
          widthCell = w;
          heightCell = h;
          xCell = x;
          yCell = y;
          pixMode = format==PREVIEW_PNG ? PIX_ARGB : PIX_RGB;
-         Image img = Toolkit.getDefaultToolkit().createImage(dis.readFully());
+         Image img = Toolkit.getDefaultToolkit( ).createImage(dis.readFully());
          MyImageLoader loader = new MyImageLoader();
          img.getSource().startProduction(loader);
          while( !loader.ready() ) Util.pause(5);
          if( width==-1 ) throw new Exception("MyLoader error");
 
-         // Lecture par cellules, plus lente
+      // Lecture via ImageReader et éventuellement par cellules, plus lente
       } else {
          String coding = format==PREVIEW_PNG ? "png" : "jpeg";
          Iterator readers = ImageIO.getImageReadersByFormatName(coding);
@@ -1140,6 +1148,61 @@ final public class Fits {
       }
       this.setFilename(file);
    }
+   
+   private static Toolkit kit = null;
+   private static Object lockKit = new Object();
+   
+   public static void setToolKit() {
+      if( kit==null ) {
+         synchronized( lockKit ) {
+            try { ImageIO.setUseCache(false); } catch( Throwable e) {}
+            if( kit==null ) kit = Toolkit.getDefaultToolkit();
+         }
+      }
+   }
+   
+//   BufferedImage bufferedImage;
+//   if( img instanceof BufferedImage ) bufferedImage = (BufferedImage)img;
+//   else {
+//      bufferedImage = new BufferedImage(
+//            img.getWidth(null),
+//            img.getHeight(null),
+//            RGB ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_BYTE_GRAY );
+//      Graphics g = bufferedImage.createGraphics();
+//      g.drawImage(img,0,0,aladin);
+//      g.dispose();
+//   }
+//   aladin.waitImage(img);
+   
+   
+//   /** writes a BufferedImage of type TYPE_INT_ARGB to PNG using PNGJ */
+//   public static void writeARGB(BufferedImage bi, OutputStream os) {
+//       if(bi.getType() != BufferedImage.TYPE_INT_ARGB) 
+//          throw new PngjException("This method expects  BufferedImage.TYPE_INT_ARGB" );
+//       ImageInfo imi = new ImageInfo(bi.getWidth(), bi.getHeight(), 8, true);
+//       PngWriter pngw = new PngWriter(os, imi);
+//       pngw.setCompLevel(9);// maximum compression, not critical usually
+//       pngw.setFilterType(FilterType.FILTER_ADAPTIVE_FAST); // see what you prefer here
+//       DataBufferInt db =((DataBufferInt) bi.getRaster().getDataBuffer());
+//       SinglePixelPackedSampleModel samplemodel =  (SinglePixelPackedSampleModel) bi.getSampleModel();
+//       if(db.getNumBanks()!=1) 
+//           throw new PngjException("This method expects one bank");
+//       int [] scanline = new int[ imi.samplesPerRow*imi.rows ];
+//       ImageLineInt line = new ImageLineInt(imi,scanline);
+//       for (int row = 0; row < imi.rows; row++) {
+//           int elem=samplemodel.getOffset(0,row);
+//           for (int col = 0,j=0; col < imi.cols; col++) {
+//               int sample = db.getElem(elem++);
+//               scanline[j++] =  (sample & 0xFF0000)>>16; // R
+//               scanline[j++] =  (sample & 0xFF00)>>8; // G
+//               scanline[j++] =  (sample & 0xFF); // B
+//               scanline[j++] =  (((sample & 0xFF000000)>>24)&0xFF); // A
+//           }
+//           pngw.writeRow(line, row);
+//       }
+//       pngw.end();
+//   }
+
 
    public void writePreview(OutputStream os, double pixelMin,
          double pixelMax, byte[] tcm, String format) throws Exception {
@@ -1148,21 +1211,21 @@ final public class Fits {
       int[] rgb = this.rgb;
       int typeInt = format.equals("png") ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
 
+      setToolKit();
+      
       if( bitpix == 0 || pixMode == PIX_RGB || pixMode == PIX_ARGB ) {
          if( RGBASFITS ) {
             rgb = new int[this.rgb.length];
             System.arraycopy(this.rgb, 0, rgb, 0, rgb.length);
             invImageLine(widthCell, heightCell, rgb);
          }
-         imgSrc = Toolkit.getDefaultToolkit().createImage(
-               new MemoryImageSource(widthCell, heightCell, rgb, 0, widthCell));
+         imgSrc = kit.createImage( new MemoryImageSource(widthCell, heightCell, rgb, 0, widthCell));
          imgTarget = new BufferedImage(width, height, typeInt);
       } else {
          int targetPixMode = format.equals("png") ? PIX_255 : PIX_256;
          byte[] pix8 = toPix8(pixelMin, pixelMax, tcm, targetPixMode);
-         imgSrc = Toolkit.getDefaultToolkit().createImage(
-               new MemoryImageSource(widthCell, heightCell,
-                     getCM(targetPixMode), pix8, 0, widthCell));
+         imgSrc = kit.createImage(
+               new MemoryImageSource(widthCell, heightCell, getCM(targetPixMode), pix8, 0, widthCell));
          //          imgTarget = new BufferedImage(width,height,BufferedImage.TYPE_BYTE_INDEXED,(IndexColorModel) getCM(targetPixMode));
          imgTarget = new BufferedImage(width, height, typeInt);
       }
@@ -1171,6 +1234,8 @@ final public class Fits {
       int yJpegCell = RGBASFITS ? height - yCell - heightCell : yCell;
       g.drawImage(imgSrc, xCell, yJpegCell, null); // observer);
       g.dispose();
+      
+//      if( true ) { writeARGB(imgTarget, os); return; }
 
       // if( RGBASFITS && bitpix==0 ) invImageLine(widthCell,heightCell, rgb);
 
@@ -1194,45 +1259,45 @@ final public class Fits {
     * Génération d'un fichier JPEG ou PNG à partir des pixels RGB
     * @param format "jpeg" ou "png"
     */
-   public void writeRGBPreview(String file, String format) throws Exception {
-      createDir(file);
-      FileOutputStream fos = null;
-      try{
-         fos = new FileOutputStream(new File(file));
-         writeRGBPreview(fos, format);
-      } finally { if( fos!=null )  fos.close(); }
-      this.setFilename(file);
-   }
+//   public void writeRGBPreview(String file, String format) throws Exception {
+//      createDir(file);
+//      FileOutputStream fos = null;
+//      try{
+//         fos = new FileOutputStream(new File(file));
+//         writeRGBPreview(fos, format);
+//      } finally { if( fos!=null )  fos.close(); }
+//      this.setFilename(file);
+//   }
 
-   public void writeRGBPreview(OutputStream os, String format)
-         throws Exception {
-      Image img;
-      int typeInt = format.equals("png") ? BufferedImage.TYPE_INT_ARGB
-            : BufferedImage.TYPE_INT_RGB;
-
-      img = Toolkit.getDefaultToolkit().createImage(
-            new MemoryImageSource(widthCell, heightCell, rgb, 0, widthCell));
-
-      BufferedImage bufferedImage = new BufferedImage(width, height, typeInt);
-      Graphics g = bufferedImage.createGraphics();
-      g.drawImage(img, xCell, yCell, null); //observer);
-      g.dispose();
-
-      ImageWriter writer = ImageIO.getImageWritersByFormatName(format).next();
-      ImageWriteParam iwp = writer.getDefaultWriteParam();
-      if( format.equals("jpeg") ) {
-         iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-         iwp.setCompressionQuality(0.95f);
-      }
-
-      ImageOutputStream out = null;
-      try {
-         out = ImageIO.createImageOutputStream(os);
-         writer.setOutput(out);
-         writer.write(null, new IIOImage(bufferedImage, null, null), iwp);
-         writer.dispose();
-      } finally { if( out!=null ) out.close(); }
-   }
+//   public void writeRGBPreview(OutputStream os, String format)
+//         throws Exception {
+//      Image img;
+//      int typeInt = format.equals("png") ? BufferedImage.TYPE_INT_ARGB
+//            : BufferedImage.TYPE_INT_RGB;
+//
+//      img = Toolkit.getDefaultToolkit().createImage(
+//            new MemoryImageSource(widthCell, heightCell, rgb, 0, widthCell));
+//
+//      BufferedImage bufferedImage = new BufferedImage(width, height, typeInt);
+//      Graphics g = bufferedImage.createGraphics();
+//      g.drawImage(img, xCell, yCell, null); //observer);
+//      g.dispose();
+//
+//      ImageWriter writer = ImageIO.getImageWritersByFormatName(format).next();
+//      ImageWriteParam iwp = writer.getDefaultWriteParam();
+//      if( format.equals("jpeg") ) {
+//         iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+//         iwp.setCompressionQuality(0.95f);
+//      }
+//
+//      ImageOutputStream out = null;
+//      try {
+//         out = ImageIO.createImageOutputStream(os);
+//         writer.setOutput(out);
+//         writer.write(null, new IIOImage(bufferedImage, null, null), iwp);
+//         writer.dispose();
+//      } finally { if( out!=null ) out.close(); }
+//   }
 
    /**
     * Retourne true s'il s'agit d'un mode graphique qui supporte la transparence
@@ -1241,7 +1306,7 @@ final public class Fits {
       return isTransparent(pixMode);
    }
 
-   static protected boolean isTransparent(int pixMode) {
+   static public boolean isTransparent(int pixMode) {
       return pixMode == PIX_255 || pixMode == PIX_TRUE || pixMode == PIX_ARGB;
    }
 
@@ -1395,8 +1460,7 @@ final public class Fits {
    }
 
    public void setPixelRGBJPG(int x, int y, int val) {
-      if( Fits.JPEGFROMTOP ) rgb[((height - y - 1) - yCell) * widthCell
-                                 + (x - xCell)] = val;
+      if( Fits.JPEGFROMTOP ) rgb[((height - y - 1) - yCell) * widthCell + (x - xCell)] = val;
       else rgb[(y - yCell) * widthCell + (x - xCell)] = val;
    }
 
@@ -1545,6 +1609,34 @@ final public class Fits {
             // setPix8(x+xCell,y+yCell,pixOut);
             setPixValInt(pix8, 8, (height - y - 1) * widthCell + (x + xCell),
                   pixOut);
+
+         }
+      }
+      return pix8;
+   }
+
+   public byte[] toPix8Int(double min, double max, int pixMode) {
+      int range = 256;
+      int gap = 0;
+      if( isTransparent(pixMode) ) {
+         gap = 2;
+         range -= gap;
+      }
+
+      byte[] pix8 = new byte[widthCell * heightCell * 4];
+      double r = range / (max - min);
+      range--;
+      int pixOut;
+
+      for( int y = 0; y < heightCell; y++ ) {
+         for( int x = 0; x < widthCell; x++ ) {
+            double pixIn = getPixelDouble(x + xCell, y + yCell);
+            if( isBlankPixel(pixIn) ) pixOut = 0;
+            else {
+               pixOut = ((gap + (pixIn <= min ? 0x00 : pixIn>Integer.MAX_VALUE ? Integer.MAX_VALUE
+                     : (int) (((pixIn - min) * r)))) );
+            }
+            setPixValInt(pix8, 32, (height - y - 1) * widthCell + (x + xCell), pixOut);
 
          }
       }
@@ -2163,7 +2255,7 @@ final public class Fits {
       }
    }
 
-   private int getPixValInt(byte[] t, int bitpix, int i) {
+   public  int getPixValInt(byte[] t, int bitpix, int i) {
       try {
          switch( bitpix ) {
             case 8:

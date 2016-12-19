@@ -76,20 +76,9 @@ public final class Projection {
    protected Coord coo[];			// Liste de quadruplets pour methode QUADRUPLET de recalibration
 
    // Liste des projections comme elles apparaissent dans Aladin, et correspondances dans Calib
-   static String [] alaProj            = {"SINUS", "TANGENTIAL", "AITOFF", "ZENITAL_EQUAL_AREA", "STEREOGRAPHIC", "CARTESIAN", "MOLLWEIDE" };
-   static String [] alaProjToType      = {"SIN",   "TAN",        "AIT",    "ZEA",                "STG",           "CAR",       "MOL",      };
+   static String [] alaProj            = {"Sinus", "Tangential", "Aitoff", "Zenital equal area", "Stereographic", "Cartesian", "Mollweide", "Arc", "Fisheye" };
+   static String [] alaProjToType      = {"SIN",   "TAN",        "AIT",    "ZEA",                "STG",           "CAR",       "MOL",       "ARC", "FEYE" };
 
-   //          LORSQUE FRANCOIS AURA CORRIGE LES PROJECTIONS QUI MERDOIENT
-   static {
-      if( Aladin.PROTO ) {
-         alaProj       = new String[]{"SINUS", "TANGENTIAL", "AITOFF", "ZENITAL_EQUAL_AREA", "STEREOGRAPHIC", "CARTESIAN", "MOLLWEIDE", "ARC", "NCP", "ZPN",  };
-         alaProjToType = new String[]{"SIN",   "TAN",        "AIT",    "ZEA",                "STG",           "CAR",       "MOL",       "ARC", "NCP", "ZPN",  };
-      } else {
-         alaProj       =  new String[]{"SINUS", "TANGENTIAL", "AITOFF", "ZENITAL_EQUAL_AREA", "STEREOGRAPHIC", "CARTESIAN", "MOLLWEIDE" };
-         alaProjToType =  new String[]{"SIN",   "TAN",        "AIT",    "ZEA",                "STG",           "CAR",       "MOL",      };
-
-      }
-   }
 
    /** Retourne l'indice de la signature de la projection (case insensitive, qu'il s'agisse de son nom complet
     * apparaissant dans Aladin, ou sa signature */
@@ -125,11 +114,12 @@ public final class Projection {
 
    protected double getRaMax() { return getRaMax(t); }
    static protected double getRaMax(int t) {
-      return t==Calib.SIN || t==Calib.TAN || t==Calib.SIP ? 180 :360;
+      return t==Calib.SIN || t==Calib.TAN || t==Calib.SIP || t==Calib.FEYE ? 180 :360;
    }
 
    protected double getDeMax() {
-      return t==Calib.SIN || t==Calib.TAN || t==Calib.SIP || t==Calib.AIT || t==Calib.CAR || t==Calib.MOL ? 180 : 360;
+      return t==Calib.FEYE ? 90 : t==Calib.SIN || t==Calib.TAN || t==Calib.SIP || t==Calib.AIT || t==Calib.CAR || t==Calib.MOL
+            || t==Calib.ZEA || t==Calib.ARC ? 180 : 360;
    }
 
    protected Projection(double refX,double refY,double x, double y, double refW, double refH, double w, double h,
@@ -319,7 +309,7 @@ public final class Projection {
       if( label==null ) this.label = getName(modeCalib,t);
       this.coo = null;
    }
-
+   
    //   protected void modifyFrame(int nFrame) {
    //      if( nFrame==frame ) return;
    //      Coord c = new Coord(alphai,deltai);
@@ -329,6 +319,10 @@ public final class Projection {
    //      int nSystem= Localisation.FRAMEBISVAL[i];
    //      modify(label,modeCalib,c.al,c.del,rm,rm1,cx,cy,r,r1,rot,sym,t,nSystem);
    //   }
+
+   public void setProjSym(boolean sym) {
+      modify(label,modeCalib,alphai,deltai,rm,rm1,cx,cy,r,r1,rot,sym,t,system);
+   }
 
    protected void setProjCenter(double ra,double dec) {
       Coord c = new Coord(ra,dec);
@@ -425,14 +419,14 @@ public final class Projection {
          alphai = co.al;
          deltai = co.del;
          co = c.getImgCenter();
-         if( frame!=Localisation.ICRS ) co = Localisation.frameToFrame(co, frame,Localisation.ICRS);
+         co = Localisation.frameToFrame(co, frame,Localisation.ICRS);
          //         co.x = c.xnpix/2.;
          //         co.y = c.ynpix/2.;
          //         getCoord(co);
          raj = co.al;
          dej = co.del;
       } catch( Exception e ) {
-         if( Aladin.levelTrace>=3 ) e.printStackTrace();
+//         if( Aladin.levelTrace>=4 ) e.printStackTrace();
       }
 
       double w = c.getImgWidth();
@@ -750,6 +744,13 @@ public final class Projection {
       Coord coo = c.getProjCenter();
       return Localisation.frameToFrame(coo,frame,Localisation.ICRS);
    }
+   
+   
+//   protected Coord flip(Coord c) {
+//      if( Command.longitude==1 ) return c;
+//      Coord c1 = new Coord(-c.al,c.del);
+//      return c1;
+//   }
 
    // thomas, 19/11/2007
    /** S'agit-il d'une projection dans le sens direct */

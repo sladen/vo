@@ -131,7 +131,7 @@ public class ServerFile extends Server implements XMLConsumer {
          JButton browse = new JButton(BROWSE);
          browse.setMargin(new Insets(0,0,0,0) );
          browse.addActionListener(this);
-         browse.setBounds(xpos,y+5,wpos,20); y+=40;
+         browse.setBounds(xpos,y+1,wpos,24); y+=40;
          add(browse);
       }
       else y+=40;
@@ -320,9 +320,9 @@ public class ServerFile extends Server implements XMLConsumer {
             }
 
             // support FTP --> ça fonctionne avec par exemple une URL du type ftp://user:passwd@server/....
-            else if( is==null && f.startsWith("ftp://") ) {
+            else if( is==null && f.indexOf("ftp://")>=0  ) {
                u = new URL(getNameWithoutBrackets(f));
-               try { in = Util.openStream(u); } catch( Exception e ) { }
+               in = Util.openStream(u);
                mode="ftp";
             }
             // URL du type file://...
@@ -399,8 +399,8 @@ public class ServerFile extends Server implements XMLConsumer {
                         label,null,f, origin,
                         PlanImage.UNKNOWN,PlanImage.UNDEF,
                         o,resNode);
-               } else
-                  n=aladin.calque.newPlanImage(f,in,label,origin,o,resNode);
+                  
+               } else n=aladin.calque.newPlanImage(f,in,label,origin,o,resNode);
             }
             else if( (type & MyInputStream.FOV_ONLY) != 0 ) {
                // un nouveau plan sera créé sur la pile si la description contient les PARAM de position
@@ -512,27 +512,32 @@ public class ServerFile extends Server implements XMLConsumer {
       file.setCaretPosition(file.getText().length());
    }
 
-   /** Chargement de l'image ou des donnees */
+   /** Chargement des images ou des donnees */
    @Override
    public void submit() {
       waitCursor();
       String f = file.getText().trim();
-      f=aladin.getFullFileName(f);
-      if( !f.equals(of) ) tree.clear();
-      of=f;
-      if( tree!=null && !tree.isEmpty() ) {
-         if( tree.nbSelected()>0 ) {
-            if( !tooManyChecked() ) {
-               tree.loadSelected();
-               tree.resetCb();
-            }
-         } else Aladin.warning(this,WNEEDCHECK);
-         defaultCursor();
-      } else {
-         String code = "load "+f;
-         aladin.console.printCommand(code);
-         int n=creatLocalPlane(f,null,null,null,null,null,this,null,null);
-         if( n!=-1 ) aladin.calque.getPlan(n).setBookmarkCode(code);
+      if( !f.startsWith("\"") ) f = Tok.quote(f,true);
+      Tok tok = new Tok(f," ");
+      while( tok.hasMoreTokens() ) {
+         f = tok.nextToken();
+         f=aladin.getFullFileName(f);
+         if( !f.equals(of) ) tree.clear();
+         of=f;
+         if( tree!=null && !tree.isEmpty() ) {
+            if( tree.nbSelected()>0 ) {
+               if( !tooManyChecked() ) {
+                  tree.loadSelected();
+                  tree.resetCb();
+               }
+            } else Aladin.warning(this,WNEEDCHECK);
+            defaultCursor();
+         } else {
+            String code = "load "+f;
+            aladin.console.printCommand(code);
+            int n=creatLocalPlane(f,null,null,null,null,null,this,null,null);
+            if( n!=-1 ) aladin.calque.getPlan(n).setBookmarkCode(code);
+         }
       }
    }
 
@@ -573,11 +578,16 @@ public class ServerFile extends Server implements XMLConsumer {
 
    /** Ouverture de la fenêtre de sélection d'un fichier */
    protected void browseFile() {
-      String path = Util.dirBrowser(aladin.dialog, description,
-            aladin.getDefaultDirectory(),file);
+      String path = Util.dirBrowser(description, aladin.getDefaultDirectory(),file,2);
       if( path==null ) return;
 
       String dir = path;
+      int offset = path.indexOf(" ");
+      if( offset>0 ) {
+         Tok tok = new Tok(path," ");
+         dir = tok.nextToken();
+      }
+      
       File f = new File(dir);
       if( !f.isDirectory() ) dir = f.getParent();
       aladin.memoDefaultDirectory(dir);
@@ -721,7 +731,7 @@ public class ServerFile extends Server implements XMLConsumer {
             break;
          case Plan.APERTURE:
          case Plan.TOOL:
-            plan = ( new PlanTool(aladin));
+            plan = new PlanTool(aladin);
             if( (s=(String)atts.get("color"))!=null )  plan.c=Action.getColor(s);
             if( (s=(String)atts.get("withsource"))!=null )  flagCatalogSource=true;
             if( (s=(String)atts.get("xylock"))!=null ) {
@@ -1105,7 +1115,7 @@ public class ServerFile extends Server implements XMLConsumer {
       Source o = (leg!=null)?new Source(plan,ra,de,id,rec,leg): new Source(plan,ra,de,id,rec);
 
       // Cas particulier de sources dans un plan tool
-      if( leg!=null && typePlan==CATALOGTOOL && ((PlanTool)plan).legPhot==null ) ((PlanTool)plan).legPhot=leg;
+//      if( leg!=null && typePlan==CATALOGTOOL && ((PlanTool)plan).legPhot==null ) ((PlanTool)plan).legPhot=leg;
 
       plan.pcat.setObjetFast(o);
 
@@ -1150,7 +1160,7 @@ public class ServerFile extends Server implements XMLConsumer {
       if( typeTool.equals("tag") )        o = ( new Repere(plan) );   // Pour compatibilité avec les versions <7
       else if( typeTool.equals("text") )      o = ( new Tag(plan) );      // Pour compatibilité avec les versions <7
 
-      else if( typeTool.equals("phot") )      o = ( new Repere(plan) );
+      else if( typeTool.equals("phot") )      o = ( new SourceStat(plan) );
       else if( typeTool.equals("source") )    o = ( new Repere(plan) );
       else if( typeTool.equals("taglabel") )  o = ( new Tag(plan) );
       else if( typeTool.equals("line") )      o = ( new Ligne(plan) );

@@ -27,7 +27,6 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.Frame;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
@@ -53,7 +52,9 @@ import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JSlider;
@@ -110,12 +111,14 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
    TextField blankField;
    Couleur couleur=null;         // La couleur
    JComboBox sourceType=null;       // Le type de representation graphique
+   ButtonGroup longitude;
+   JRadioButton longitudeDescending,longitudeAscending;
    ButtonGroup scope;
    JRadioButton scopeGlobal,scopeLocal;
    ButtonGroup xyLock=null;    // Pour le plan TOOl, mode de calcul des x,y
    JComboBox planRefChoice=null;    // Projections possibles pour le plan de reference
    JComboBox defCatProj=null;    // Les projections possibles par défaut pour un catalogue sans image sous-jacente
-   JComboBox defFrame=null;     // Les frames possibles par défaut pour un catalogue sans image sous-jacente
+   JComboBox defFrame=null;     // Les frames possibles par défaut pour un planBG ou un catalogue sans image sous-jacente
    Plan planRef[]=null;		 // Tableau associe a projsChoice
    JComboBox projsChoice=null;      // Plan de projections possibles
    Projection projs[]=null;	 // Tableau associe a planRefChoice
@@ -263,7 +266,6 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
       t.x+=i*20;
       t.y+=i*20;
       setLocation(t);
-
    }
 
    /** Initialisation d'un JPanel en fonction d'un plan
@@ -449,18 +451,36 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
             });
             addMouseListener(new MouseListener() {
                public void mouseReleased(MouseEvent e) {
+                  if( (e.getModifiers() & java.awt.event.InputEvent.BUTTON3_MASK) !=0 ) return;
                   if( url!=null ) aladin.glu.showDocument(url);
                   else aladin.info(c,more1.replace("\\n","\n"));
                }
-               public void mousePressed(MouseEvent e)  { }
+               public void mousePressed(MouseEvent e)  { 
+                  if( (e.getModifiers() & java.awt.event.InputEvent.BUTTON3_MASK) !=0 ) {
+                     showPopMenu(e.getX(),e.getY());
+                  }
+               }
                public void mouseExited(MouseEvent e)   { Aladin.makeCursor(c,Aladin.DEFAULTCURSOR); }
                public void mouseEntered(MouseEvent e)  { }
                public void mouseClicked(MouseEvent e) { }
             });
          }
       }
+      
+      // Affiche le popup
+      private void showPopMenu(int x,int y) {
+         JPopupMenu popMenu = new JPopupMenu();
+         popMenu.setLightWeightPopupEnabled(false);
+         JMenuItem j=new JMenuItem(aladin.chaine.getString("MFCOPYURL"));
+         popMenu.add(j);
+         j.addActionListener( new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+               aladin.copyToClipBoard(url);
+            }
+         });
+         popMenu.show(this,x,y);
+      }
    }
-
 
    /** Construction du panel des proprietes du plan courant.
     * @return Le panel des proprietes du plan courant
@@ -954,80 +974,64 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
          PropPanel.addSectionTitle(p, "HiPS properties", g, c);
          PropPanel.addCouple(p, "Best pixel resolution", new JLabel(pbg.getMaxResolution()), g, c);
          PropPanel.addCouple(p, "HEALPix NSide:",  new JLabel(CDSHealpix.pow2(res)+" (2^"+res+")"), g, c);
-         //         PropPanel.addCouple(p, "Tile format", new JLabel(pbg.getFormat()), g, c);
-         //         if( ord>0 ) PropPanel.addCouple(p, "Tile width:",  new JLabel((int)CDSHealpix.pow2(ord)+" pix (2^"+ord+")"), g, c);
-         //         if( pbg.inFits && (pbg.inJPEG || pbg.inPNG) ) {
-         //            //            JButton bt = new JButton( pbg.truePixels ? "Switch to fast 8 bit pixel mode" : "Switch to (slow) true pixel mode");
-         //            JButton bt = new JButton( pbg.isTruePixels() ? aladin.chaine.getString("ALLSKYSWJPEG") : aladin.chaine.getString("ALLSKYSWFITS") );
-         //            bt.addActionListener(new ActionListener() {
-         //               public void actionPerformed(ActionEvent e) {
-         //                  pbg.switchFormat();
-         //                  showProp(true);
-         //                  aladin.view.repaintAll();
-         //
-         //               }
-         //            } );
-         //            PropPanel.addCouple(p,"",bt, g, c);
-         //         }
       }
 
       if( plan.type==Plan.ALLSKYMOC ) {
          final PlanMoc pmoc = (PlanMoc)plan;
-         final Frame frameProp = this;
+//         final Frame frameProp = this;
          double cov = pmoc.getMoc().getCoverage();
          double degrad = Math.toDegrees(1.0);
          double skyArea = 4.*Math.PI*degrad*degrad;
-         final long mocSize = pmoc.getMoc().getSize();
+//         final long mocSize = pmoc.getMoc().getSize();
          PropPanel.addCouple(p,"Coverage: ",new JLabel(Util.round(cov*100, 3)+"% of sky => "+Coord.getUnit(skyArea*cov, false, true)+"^2"),g,c);
          PropPanel.addCouple(p,"Best MOC ang.res: ",new JLabel(Coord.getUnit(pmoc.getMoc().getAngularRes())
                +" (moc order="+pmoc.getMoc().getMocOrder()+")"),g,c);
 //         PropPanel.addCouple(p,"Size: ",new JLabel(mocSize+" cells - about "+Util.getUnitDisk(pmoc.getMoc().getMem())),g,c);
 
-         final JCheckBox b1 = new JCheckBox("borders");
+         final JCheckBox b1 = new JCheckBox("cell borders");
+         final JCheckBox b3 = new JCheckBox("perimeter");
+         
          b1.setSelected( pmoc.isDrawingBorder() );
          b1.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { pmoc.setDrawingBorder(b1.isSelected()); aladin.calque.repaintAll(); }
+            public void actionPerformed(ActionEvent e) {
+               boolean a = b1.isSelected();
+               pmoc.setDrawingBorder(a);
+               if( a ) {
+                  pmoc.setDrawingPerimeter(!a);
+                  b3.setSelected(!a);
+                  aladin.console.printCommand("set drawing=+border,-perimeter");
+               } else aladin.console.printCommand("set drawing=-border");
+              aladin.calque.repaintAll();
+            }
          });
+         b3.setSelected( pmoc.isDrawingPerimeter() );
+         b3.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+               boolean a = b3.isSelected();
+               pmoc.setDrawingPerimeter(a);
+               if( a ) {
+                  pmoc.setDrawingBorder(!a);
+                  b1.setSelected(!a);
+                  aladin.console.printCommand("set drawing=+perimeter,-border");
+               } else aladin.console.printCommand("set drawing=-perimeter");
+               aladin.calque.repaintAll();
+            }
+         });
+         
          final JCheckBox b2a = new JCheckBox("fill in");
          b2a.setSelected( pmoc.isDrawingFillIn() );
          b2a.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) { pmoc.setDrawingFillIn(b2a.isSelected()); aladin.calque.repaintAll(); }
+            public void actionPerformed(ActionEvent e) {
+               boolean a=b2a.isSelected();
+               pmoc.setDrawingFillIn(a);
+               aladin.calque.repaintAll();
+               aladin.console.printCommand("set drawing="+(a?"+":"-")+"fill");
+            }
          });
          JPanel p1 = new JPanel(new FlowLayout(FlowLayout.LEFT,0,0));
-         //         final JCheckBox b2 = new JCheckBox("diagonals");
-         //         b2.setSelected( pmoc.isDrawingDiagonal() );
-         //         b2.addActionListener(new ActionListener() {
-         //            public void actionPerformed(ActionEvent e) { pmoc.setDrawingDiagonal(b2.isSelected()); aladin.calque.repaintAll(); }
-         //         });
+         p1.add(b1); p1.add(b3);
          p1.add(b1); p1.add(b2a);
-         //         p1.add(b2);
          PropPanel.addCouple(p,"Drawing method: ",p1,g,c);
-
-         //         boolean twoResMode = pmoc.getTwoResMode();
-         //         ButtonGroup bg = new ButtonGroup();
-         //         final JCheckBox b3 = new JCheckBox("on");
-         //         b3.setSelected(twoResMode);
-         //         b3.addActionListener(new ActionListener() {
-         //            public void actionPerformed(ActionEvent e) { pmoc.setTwoResMode(b3.isSelected()); aladin.calque.repaintAll(); }
-         //         });
-         //         JCheckBox b4 = new JCheckBox("off");
-         //         b4.setSelected(!twoResMode);
-         //         b4.addActionListener(new ActionListener() {
-         //            public void actionPerformed(ActionEvent e) {
-         //               if( mocSize>20000L ) {
-         //                  if( !aladin.confirmation(frameProp,"This MOC is quite big: the drawing process will be slow !\n continue ?") ) {
-         //                     b3.setSelected(true);
-         //                     return;
-         //                  }
-         //               }
-         //               pmoc.setTwoResMode(b3.isSelected());
-         //               aladin.calque.repaintAll();
-         //            }
-         //         });
-         //         p1 = new JPanel(new FlowLayout(FlowLayout.LEFT,0,0));
-         //         bg.add(b3); bg.add(b4);
-         //         p1.add(b3); p1.add(b4);
-         //         PropPanel.addCouple(p,"Adaptative resolution: ",p1,g,c);
 
       }
 
@@ -1049,19 +1053,15 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
       if( plan instanceof PlanBG ) {
          final PlanBG pbg = (PlanBG) plan;
          PropPanel.addCouple(p, "Coord.sys.:", new JLabel(Localisation.getFrameName(pbg.frameOrigin)), g, c);
-         String s = Aladin.BETA ? pbg.getNetSpeed() : null;
-         if( s!=null ) {
-            JLabel lab = new JLabel(s);
-            if( s.indexOf("error")>=0 ) lab.setForeground(Color.red);
-            PropPanel.addCouple(p, "Avg net speed:", lab, g, c);
-         }
 
          if( plan.type==Plan.ALLSKYIMG ) {
+            int level = pbg.getMaxFileOrder();
+            PropPanel.addCouple(p, "Number of levels", new JLabel(level+""), g, c);
+            
             long ord = pbg.getTileOrder();
             PropPanel.addCouple(p, "Tile format", new JLabel(pbg.getFormat()), g, c);
             if( ord>0 ) PropPanel.addCouple(p, "Tile width:",  new JLabel((int)CDSHealpix.pow2(ord)+" pix (2^"+ord+")"), g, c);
             if( pbg.inFits && (pbg.inJPEG || pbg.inPNG) ) {
-               //            JButton bt = new JButton( pbg.truePixels ? "Switch to fast 8 bit pixel mode" : "Switch to (slow) true pixel mode");
                JButton bt = new JButton( pbg.isTruePixels() ? aladin.chaine.getString("ALLSKYSWJPEG") : aladin.chaine.getString("ALLSKYSWFITS") );
                bt.addActionListener(new ActionListener() {
                   public void actionPerformed(ActionEvent e) {
@@ -1075,6 +1075,12 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
             }
          }
 
+         String s = Aladin.BETA ? pbg.getNetSpeed() : null;
+         if( s!=null ) {
+            JLabel lab = new JLabel(s);
+            if( s.indexOf("error")>=0 ) lab.setForeground(Color.red);
+            PropPanel.addCouple(p, "Avg net speed:", lab, g, c);
+         }
 
 
          //         if( pbg.hasMoc() || pbg.hasHpxFinder() ) {
@@ -1179,28 +1185,34 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
 
             PropPanel.addFilet(p,g,c);
             PropPanel.addSectionTitle(p,DEFCATPROJ,g,c);
-            PropPanel.addCouple(p,CENTER, new JLabel(plan.projd.c.getProjCenter().getSexa()), g,c);
+            if( !(plan instanceof PlanBG) ) PropPanel.addCouple(p,CENTER, new JLabel(plan.projd.c.getProjCenter().getSexa()), g,c);
             PropPanel.addCouple(p,METHOD, defCatProj, g,c);
-
+            
             if( plan.ref && plan instanceof PlanBG ) {
+               
                defFrame = Localisation.createFrameCombo();
                defFrame.setSelectedIndex( ((PlanBG)plan).getFrameDrawing() );
                defFrame.addActionListener(new ActionListener() {
                   public void actionPerformed(ActionEvent e) { actionFrameProj(); }
                });
                PropPanel.addCouple(p,".frame", defFrame, g,c);
+               
+               JPanel plong = new JPanel();
+               plong.setBorder( BorderFactory.createEmptyBorder());
+               longitude = new ButtonGroup();
+               longitudeDescending = new JRadioButton("descending");
+               longitudeDescending.addActionListener(this);
+               longitude.add(longitudeDescending);
+               longitudeAscending = new JRadioButton("ascending");
+               longitudeAscending.addActionListener(this);
+               longitude.add(longitudeAscending); 
+               plong.add( longitudeAscending );
+               plong.add( longitudeDescending );
+               longitudeAscending.setSelected(plan.projd.sym);
+               longitudeDescending.setSelected(!plan.projd.sym);
+               if( Aladin.BETA ) PropPanel.addCouple(p,".longitude", plong, g,c);
+
             }
-            //            else if( plan.ref && plan instanceof PlanCatalog ) {
-            //               defFrame = Localisation.createFrameComboBis();
-            //               int i;
-            //               for( i=0; i<Localisation.FRAMEVAL.length && plan.projd.frame!=i; i++ );
-            //               if( i>Localisation.FRAMEVAL.length ) i=0;
-            //               defFrame.setSelectedIndex(i);
-            //               defFrame.addActionListener(new ActionListener() {
-            //                  public void actionPerformed(ActionEvent e) { actionFrameProjCat(); }
-            //               });
-            //               PropPanel.addCouple(p,".frame", defFrame, g,c);
-            //            }
          }
       }
 
@@ -1320,7 +1332,7 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
       }
 
       // Propriété de déplacement des objets du plan
-      if( plan.type == Plan.TOOL && !(plan instanceof PlanContour) ) {
+      if( plan instanceof PlanTool && !(plan instanceof PlanContour) ) {
          JRadioButton r;
          cb = new ButtonGroup();
          JPanel bg = new JPanel();
@@ -1683,14 +1695,24 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
 
    private void apply() {
       setFlagFullMaj(true);// Pour que toutes les fenetres soient maj par la suite
-      if( label!=null ) {
+      if( label!=null && !label.getText().equals(plan.label) ) {
          plan.setLabel(label.getText());
          label.setText(plan.label);
          setTitre(BANNER+" \""+plan.label+"\"");
       }
 
       if( blankField!=null ) actionBlank();
-
+      
+      // Modification du sens de la longitude
+      // ATTENTION, DOIT NECESSAIREMENT ETRE AVANT actionDefCatProj() !!!
+      if( longitude!=null && plan.projd!=null ) {
+         boolean flagAsc = longitudeAscending.isSelected();
+         if( plan.projd.sym!=flagAsc ) {
+            plan.projd.setProjSym(flagAsc);
+            aladin.view.newView();
+         }
+      }
+      
       // Changement de projection catalogue par défaut ?
       actionDefCatProj();
 
@@ -1713,7 +1735,7 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
             aladin.calque.repaintAll();
          }
       }
-
+      
       if( plan instanceof PlanContour) {
          int i;
          PlanContour pCont = (PlanContour)plan;
@@ -1785,10 +1807,6 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
                plan.setEpoch(s) ;
                epField.setText(plan.getEpoch().toString("J"));
                epField.setForeground(Color.black);
-               //               double y=2000;
-               //               try { y = Double.parseDouble(s.substring(1));
-               //               } catch( NumberFormatException e ) { }
-               //               epochSlider.setValue((int)y);
                aladin.view.newView(1);
 
             } catch(Exception e ) {
@@ -1845,9 +1863,14 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
       }
 
       // Peut être le sélecteur de déplacement des objets dans le cas d'un plan tool
-      else if( src instanceof JRadioButton && plan.type==Plan.TOOL ) {
+      else if( src instanceof JRadioButton && plan instanceof PlanTool ) {
          String s = ((JRadioButton)src).getActionCommand();
          try { ((PlanTool)plan).setMovable(s); } catch( Exception e1 ) { }
+      }
+      
+      else if( src instanceof JRadioButton && plan instanceof PlanBG ) {
+         apply();
+         return;
       }
 
       // Peut être le sélecteur de couleur de fond puor une image couleur

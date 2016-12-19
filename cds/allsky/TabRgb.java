@@ -153,7 +153,7 @@ public class TabRgb extends JPanel implements ActionListener {
       outputField.addKeyListener( new KeyAdapter() {
          public void keyReleased(KeyEvent e) { resumeWidgets(); }
       });
-      dirPanel.add(browse);
+      if( Aladin.aladin.configuration.isLookAndFeelJava() ) dirPanel.add(browse);
       c.gridwidth=GridBagConstraints.REMAINDER;
       pCenter.add(dirPanel,c);
 
@@ -303,15 +303,21 @@ public class TabRgb extends JPanel implements ActionListener {
       return p;
    }
 
-   protected void setStat(int nbTile,long sizeTile,long time) {
-      String s;
-      if( nbTile==-1 ) s="";
-      else s= nbTile+" tile"+(nbTile>1?"s":"") + " for "+Util.getUnitDisk(sizeTile);
-      tileStat.setText(s);
-      if( time==-1 ) s="";
-      else s= Util.getTemps(time,true);
-      timeStat.setText(s);
+//   protected void setStat(int nbTile,long sizeTile,long time) {
+//      String s;
+//      if( nbTile==-1 ) s="";
+//      else s= nbTile+" tile"+(nbTile>1?"s":"") + " for "+Util.getUnitDisk(sizeTile);
+//      tileStat.setText(s);
+//      if( time==-1 ) s="";
+//      else s= Util.getTemps(time,true);
+//      timeStat.setText(s);
+//   }
+   
+   protected void setStat(String sTile,String sTime) {
+      tileStat.setText(sTile);
+      timeStat.setText(sTime);
    }
+   
 
    public void actionPerformed(ActionEvent e) {
       if (e.getSource() == start ) {
@@ -377,7 +383,7 @@ public class TabRgb extends JPanel implements ActionListener {
 
    private void dirBrowser(JTextField dir) {
       String currentDirectoryPath = dir.getText().trim();
-      String path = Util.dirBrowser(null, "",currentDirectoryPath,dir);
+      String path = Util.dirBrowser("",currentDirectoryPath,dir,0);
       if( path==null ) return;
       actionPerformed(new ActionEvent(dir, -1, "dirBrowser Action"));
    }

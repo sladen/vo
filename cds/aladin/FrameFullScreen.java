@@ -22,6 +22,7 @@ package cds.aladin;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.DisplayMode;
 import java.awt.Graphics;
@@ -38,10 +39,16 @@ import java.awt.event.WindowEvent;
 import java.util.Enumeration;
 import java.util.Vector;
 
+import javax.swing.ButtonGroup;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
+import javax.swing.JRadioButtonMenuItem;
+import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
 import javax.swing.Timer;
 
@@ -110,7 +117,9 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       this.mode = mode;
       Aladin.trace(4,"FrameFullScreen(mode="+MODE[mode]+")");
       createPopupMenu();
-
+      
+      insertMenu();
+     
       getRootPane().registerKeyboardAction(new ActionListener() {
          public void actionPerformed(ActionEvent e) { end(); /*full();*/ }
       },
@@ -174,19 +183,6 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       JComponent.WHEN_IN_FOCUSED_WINDOW
             );
 
-      //      getRootPane().registerKeyboardAction(new ActionListener() {
-      //         public void actionPerformed(ActionEvent e) { undo(); }
-      //      },
-      //      KeyStroke.getKeyStroke(KeyEvent.VK_LEFT,InputEvent.ALT_MASK),
-      //      JComponent.WHEN_IN_FOCUSED_WINDOW
-      //      );
-      //
-      //      getRootPane().registerKeyboardAction(new ActionListener() {
-      //         public void actionPerformed(ActionEvent e) { redo(); }
-      //      },
-      //      KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT,InputEvent.ALT_MASK),
-      //      JComponent.WHEN_IN_FOCUSED_WINDOW
-      //      );
 
       if( mode!=CINEMA ) {
          getRootPane().registerKeyboardAction(new ActionListener() {
@@ -264,6 +260,100 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       if( mode!=WINDOW_HIDDEN ) setVisible(true);
       if( !aladin.isApplet() || aladin.flagDetach ) aladin.f.setVisible(false);
    }
+   
+   
+   private Component box1=javax.swing.Box.createGlue();
+   private Component box2=javax.swing.Box.createGlue();
+   private Component box3=javax.swing.Box.createGlue();
+   
+   private void insertMenu() {
+      if( mode==CINEMA ) return;
+      setJMenuBar(aladin.jBar);
+      aladin.jBar.setVisible(false);
+      
+      // On enlève l'icone FullScreen
+      aladin.jBar.remove( aladin.jBar.getMenuCount()-1 );  
+      
+      // On insère le menu des Frames
+      aladin.jBar.add( box1,aladin.jbarLastIndex );
+      aladin.jBar.add( box1,aladin.jbarLastIndex );
+      aladin.jBar.add( getFrameMenu(),aladin.jbarLastIndex );
+      aladin.jBar.add( getBookmarkMenu(),aladin.jbarLastIndex );
+      aladin.jBar.add( box3,aladin.jbarLastIndex );
+   }
+   
+   private void removeMenu() {
+      if( mode==CINEMA ) return;
+      // On enlève le menu Frame
+      aladin.jBar.remove(menuBookmark);
+      aladin.jBar.remove(menuFrame);
+      aladin.jBar.remove(box1);
+      aladin.jBar.remove(box2);
+      aladin.jBar.remove(box3);
+      
+      // On remet l'icone FullScreen
+      aladin.jBar.add( aladin.iconFullScreen );
+     
+      
+      aladin.jBar.setVisible(true);
+      aladin.setJMenuBar(aladin.jBar);
+      aladin.jBar.setBorderPainted(true);
+   }
+   
+   private JMenu menuFrame=null;
+   
+   private JMenu getFrameMenu() {
+      if( menuFrame!=null ) return menuFrame;
+      menuFrame = new JMenu("Frame");
+      JRadioButtonMenuItem ji;
+      ButtonGroup mg = new ButtonGroup();
+      
+      JComboBox c = aladin.localisation.getComboBox();
+      int n=c.getItemCount();
+      Vector<String> list = new Vector<String>(n);
+      for( int i=0; i<n; i++ ) list.add( (String)c.getItemAt(i) );
+      
+      int select = c.getSelectedIndex();
+      for( int i=0; i<n ; i++ ) {
+         String s = list.get(i);
+         ji= new JRadioButtonMenuItem(s);
+         ji.setSelected( i==select ); 
+         mg.add(ji);
+         menuFrame.add(ji);
+         ji.addActionListener( new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+               String s = ((JMenuItem)e.getSource()).getActionCommand();
+               aladin.localisation.setPositionMode(s);
+               
+            }
+         });
+
+      }
+      return menuFrame;
+   }
+   
+   private JMenu menuBookmark=null;
+   
+   private JMenu getBookmarkMenu() {
+      if( menuBookmark!=null ) return menuBookmark;
+      menuBookmark = new JMenu("Bookmark");
+      
+      JToolBar c = aladin.bookmarks;
+      int n=c.getComponentCount();
+      JMenuItem ji;
+      for( int i=0; i<n; i++ ) {
+         Component c1 = c.getComponentAtIndex(i);
+         if( !(c1 instanceof JButton) ) continue;
+         JButton b = (JButton)c1;
+         String label = b.getText();
+         ji= new JMenuItem( label );
+         ji.addActionListener( b.getActionListeners()[0] );
+         menuBookmark.add(ji);
+      }
+      
+      return menuBookmark;
+   }
+   
 
    private void prop() { Properties.createProperties(aladin.calque.getPlanBase()); }
    private void pixel() { aladin.pixel(); }
@@ -272,22 +362,38 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
    
    /** Retourne le mode d'affichage courant WINDOW, WINDOW_HIDDEN, FULL ou CINEMA */
    protected int getMode() { return mode; }
+   
+   private int modeReticle=-1;
 
    /**  Passage en plein écran */
    private void full() {
+
       setUndecorated(true);
-      if( mode==FULL ) {
+      if( mode==FULL || (mode==CINEMA && aladin.winPlateform) ) {
          setLocation(0,0);
          setSize(Aladin.SCREENSIZE);
-      } else if( mode==CINEMA ) {
+         
+      } else {
+         
+         /* GraphicsDevice [] gds = GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices();
+         GraphicsDevice gd;
+         if( gds.length==2 ) gd = gds[1];
+         else  */ 
          GraphicsDevice gd = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
          gd.setFullScreenWindow(this);
       }
+      
+      if( mode==CINEMA ) {
+         modeReticle=aladin.calque.reticleMode;
+         aladin.calque.setReticle(0);
+      }
+      
    }
-
+   
    /** Passage en mode preview avec récupération de la position et de la
     * taille adéquate */
    private void window() {
+      if( modeReticle!=-1 ) aladin.calque.setReticle(modeReticle);
       Dimension d = aladin.f.getSize();
       if( d.width<10 || d.height<10 ) {
          Rectangle r = aladin.configuration.getWinLocation();
@@ -299,8 +405,9 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
          setLocation(aladin.f.getLocation());
       }
    }
-
+   
    public void processWindowEvent(WindowEvent e) {
+      if( modeReticle!=-1 ) aladin.calque.setReticle(modeReticle);
       if( e.getID() == WindowEvent.WINDOW_CLOSING ) {
 //         if( !full ) {
          if( mode!=FULL && mode!=CINEMA ) {
@@ -322,19 +429,23 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
 
    /** Fin du mode plein écran => réintégration de la vue dans son container originale */
    protected void end() {
-      if( mode==CINEMA ) return;
+      
+      System.out.println("end");
       
       viewSimple.aladin.fullScreen=null;
       viewSimple.setToolTipText(null);
       viewSimple.setBounds(bounds);
       aladin.view.adjustPanel();
-//      if( !full ) {
       if( mode!=FULL && mode!=CINEMA ) {
          aladin.toolBox.calcConf(500);   // juste pour remettre les choses en place
          aladin.f.setSize(getSize());
       }
+      
+      removeMenu();
+
       aladin.f.setVisible(true);
       aladin.calque.repaintAll();
+      
       memoCheck=null;
       currentPlan=null;
       dispose();
@@ -431,14 +542,14 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       
       int ymarge=YMARGE;
 
-      // Dessin du logo de sortie du fullscreen
-      if( cross==null ) {
-         cross=aladin.getImagette("Preview.gif");
-         YOUT = 3;
-      }
-      XOUT = viewSimple.getWidth()-18;
-      try { g.drawImage(cross,XOUT,YOUT,viewSimple); }
-      catch( Exception e ) {}
+//      // Dessin du logo de sortie du fullscreen
+//      if( cross==null ) {
+//         cross=aladin.getImagette("Preview.gif");
+//         YOUT = 3;
+//      }
+//      XOUT = viewSimple.getWidth()-18;
+//      try { g.drawImage(cross,XOUT,YOUT,viewSimple); }
+//      catch( Exception e ) {}
 
       // Dessin du logo de la grille
       if( viewSimple.pref!=null && Projection.isOk(viewSimple.getProj()) ) {
@@ -556,8 +667,8 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       // Affichage de la commande en cours de saisie
       if( command || form ) {
          int w=200, h=20;
-         int x = getWidth()/2-w/2;
-         int y = getHeight()/2-100-h/2;
+         int x = form && mode!=CINEMA ? getWidth()/2-w/2 : 10;
+         int y = form && mode!=CINEMA ? getHeight()/2-100-h/2 : 10;
          YC=y;
          g.setColor(Color.white);
          g.fillRect(x, y, w, h);
@@ -576,7 +687,7 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       }
 
       // Affichage du logo au-dessus de la commande si la pile est vide
-      if( form ) {
+      if( form && mode!=CINEMA ) {
          try {
             if( logo==null ) logo=aladin.getImagette("Aladin.png");
             else g.drawImage(logo,getWidth()/2-logo.getWidth(viewSimple)/2,
@@ -585,9 +696,12 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       }
 
       // Affichage du voyant d'état
-      if( blink ) {
-         XBLINK=getWidth()-XMARGE;
-         YBLINK=getHeight()-YMARGE - nCheck*YGAP -YGAP;
+      WidgetControl voc = aladin.calque.select.getWidgetControl();
+      if( blink && voc.isCollapsed() ) {
+         XBLINK = voc.getX()+2;
+         YBLINK = voc.getY()-10;
+//         XBLINK=getWidth()-XMARGE;
+//         YBLINK=getHeight()-YMARGE - nCheck*YGAP -YGAP;
          Slide.drawBall(g, XBLINK, YBLINK, blinkState ? Color.green : Color.white);
       } else XBLINK=-1;
 
@@ -720,7 +834,13 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       }
       return rep;
    }
-
+   
+   private void menu(int y) {
+      boolean a = aladin.jBar.isVisible();
+      aladin.jBar.setVisible(y<50);
+      if( a!=aladin.jBar.isVisible() ) viewSimple.repaint();
+   }
+   
 
    /** Récupération d'une événement mouseMoved (issu de ViwSimple.mousePressed())
     * @return true si l'évènement est pris en compte à ce niveau
@@ -730,7 +850,9 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       int cursor=Aladin.DEFAULTCURSOR;
       Plan p;
       currentPlan=null;
-
+      
+      menu(y);
+      
       // Dans l'icone de sortie du mode fullscreen
       if( inIconOut(x,y)  ) {
          cursor= Aladin.HANDCURSOR;

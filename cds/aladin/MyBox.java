@@ -122,8 +122,10 @@ public abstract class MyBox extends JPanel implements MouseListener,MouseMotionL
       }
 
       addMouseListener(this);
-      setBorder(BorderFactory.createEmptyBorder(0,10,0,0));
+      setBorder(BorderFactory.createEmptyBorder(0,10,0,10));
    }
+   
+   protected JComboBox getComboBox() { return c; }
 
    public void setEnabled(boolean flag) {
       text.setEnabled(flag);

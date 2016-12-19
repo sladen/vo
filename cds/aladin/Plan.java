@@ -97,7 +97,7 @@ public class Plan implements Runnable {
       "Tool","Aperture","Folder","Filter",
       "Image FoV","In progress","ImageHuge",
       "HipsImage","HipsPolarisation","HipsCatalog",
-      "MOC","CubeColor","HipsFinder","HipsCube",
+      "MOC","CubeColor","HipsFinder","HipsCube"
    };
 
    protected int type;           // Type de plan: NO, IMAGE, CATALOG, TOOL, APERTURE,...
@@ -264,7 +264,7 @@ public class Plan implements Runnable {
    protected boolean isSED() {
       if( getCounts()==0 ) return false;
       Obj s = iterator().next();
-      return s instanceof Source && ((Source)s).leg.isSED();
+      return s instanceof Source && ((Source)s).leg!=null && ((Source)s).leg.isSED();
    }
 
    // Il s'agit d'un plan qui s'applique en overlay d'une image */
@@ -339,6 +339,7 @@ public class Plan implements Runnable {
     */
    protected void setSourceType(int sourceType) {
       Iterator<Obj> it = iterator();
+      if( it==null ) return;
       while( it.hasNext() ) {
          Obj o = it.next();
          if( !(o instanceof Source) ) continue;
@@ -388,11 +389,7 @@ public class Plan implements Runnable {
    protected boolean isOnPixel(int xImg, int yImg) { return false; }
 
    /** Il s'agit d'un plan de type catalogue */
-   protected boolean isCatalog() {
-      return   type==CATALOG
-            || type==TOOL && (((PlanTool)this).legPhot!=null || ((PlanTool)this).legTag!=null)
-            || type==ALLSKYCAT;
-   }
+   protected boolean isCatalog() { return false; }
 
    /** Retourne true si le plan est un cube */
    protected boolean isCube() { return false; }
@@ -432,8 +429,7 @@ public class Plan implements Runnable {
 
    /** Il s'agit d'un plan catalogue non progressif */
    protected boolean isSimpleCatalog() {
-      return type==CATALOG || type==TOOL &&
-            ( ((PlanTool)this).legPhot!=null || ((PlanTool)this).legTag!=null);
+      return type==CATALOG || type==TOOL && isCatalog();
    }
 
    /** Retourne true si le plan catalogue peut effacer les sources individuellement */
@@ -655,7 +651,9 @@ public class Plan implements Runnable {
             if( s.leg!=leg ) continue;
             String ra = s.getValue(nra);
             String dec= s.getValue(ndec);
-            format = TableParser.getRaDec(c, ra, dec, format);
+            int unit = TableParser.getUnit( s.getUnit(nra) );
+            
+            format = TableParser.getRaDec(c, ra, dec, format, unit);
             //             if( first ) System.out.println("c="+c);
             if( npmra>0 && npmde>0 ) {
                try {
@@ -1004,7 +1002,7 @@ public class Plan implements Runnable {
    }
 
    /** Retourne l'indice du filter, ou -1 si non trouvé */
-   private int findFilter(String s ) {
+   protected int findFilter(String s ) {
       if( filters==null ) return -1;
       for( int i=0; i<filters.length; i++ ) {
          String fs = Server.getFilterDescription(filters[i]);
@@ -1599,7 +1597,12 @@ public class Plan implements Runnable {
       String s=label;
       int p= (int)getPourcent();
       //      int c= (int)getCompletude();
-      if( p>0 && p<100) s=Util.align((label.length()>6 ? label.substring(0,6):label)+"... ",9)+p+"%";
+      if( p>0 && p<100) {
+         int w = aladin.view.zoomview.getWidth();
+         int c  = w/15;
+         if( c<6 ) c=6;
+         s=Util.align((label.length()>c ? label.substring(0,c):label)+"... ",c+3)+p+"%";
+      }
       else if( error==null && !flagOk ) s= label+"...";
       //      else if( c>0 && c<100) s=Util.align((label.length()>9 ? label.substring(0,9):label),11)+c+"%";
       return s;
@@ -2054,6 +2057,14 @@ public class Plan implements Runnable {
             if( aladin.levelTrace>=3 ) e.printStackTrace();
          }
       }
+      
+      // Pour gérer le chargement des MultiCCD
+      if( isImage() && !doClose ) {
+         if( !ready && error==null )  { error = aladin.error; return; }
+         setPourcent(-1);
+         flagOk = ready;
+         return;
+      }
 
       aladin.endMsg();
 
@@ -2061,7 +2072,6 @@ public class Plan implements Runnable {
          if( error==null ) error = aladin.error;
          aladin.calque.select.repaint();
          aladin.toolBox.toolMode();
-
          return;
       }
 
@@ -2149,6 +2159,7 @@ public class Plan implements Runnable {
     */
    protected boolean hasAssociatedFootprints() {
       Iterator<Obj> it = iterator();
+      if( it==null ) return false;
       while( it.hasNext() ) {
          Obj o = it.next();
          if( !(o instanceof Source) ) continue;

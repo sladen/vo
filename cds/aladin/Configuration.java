@@ -24,7 +24,6 @@ import java.awt.AWTEvent;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FileDialog;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
@@ -99,6 +98,10 @@ import cds.tools.Util;
  */
 public final class Configuration extends JFrame
 implements Runnable, ActionListener, ItemListener, ChangeListener  {
+   
+   static final int DEF_HWIDTH  = 200;  // Largeur par défaut du panel de l'arbre des HiPS
+   static final int DEF_ZWIDTH  = 220;  // Largeur par défaut du panel du zoomView
+   static final int DEF_ZHEIGHT = 150;  // Hauteur par défaut du panel du zoomView
 
    static final String ASTRONOMER    = "astronomer";
    static final String UNDERGRADUATE = "undergraduate";
@@ -137,6 +140,9 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
    protected static String HPXGRID    = "HealpixGrid";
    protected static String MESURE     = "HideMeasurements";
    protected static String MHEIGHT    = "MeasurementHeight";
+   protected static String ZHEIGHT    = "ZoomHeight";
+   protected static String ZWIDTH     = "ZoomWidth";
+   protected static String HWIDTH     = "HiPSWidth";
    protected static String BOOKMARKS  = "Bookmarks";
    protected static String FRAME      = "Frame";
    protected static String FRAMEALLSKY= "FrameAllsky";
@@ -146,6 +152,7 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
    protected static String CACHE      = "HpxCacheSize";
    protected static String MAXCACHE   = "HpxMaxCacheSize";
    protected static String LOG        = "Log";
+   protected static String LOOKANDFEEL= "LookAndFeel";
    protected static String HELP       = "Wizard";
    protected static String SLEPOCH    = "SliderEpoch";
    protected static String SLSIZE     = "SliderSize";
@@ -162,6 +169,8 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
 
    static String NOTACTIVATED = "Not activated";
    static String ACTIVATED = "Activated";
+   static String JAVA = "Java";
+   static String OPSYS = "OS native";
 
    // Les labels des boutons
    static String TITLE,DEFDIR,DEFDIRH,LANGUE,LANGUEH,LANGCONTRIB,CSVCHAR,CSVCHARH,PIXB,/*PIXH,*/PIX8,PIXF,
@@ -169,7 +178,8 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
    REGB,REGH,/*REGCL,REGMAN,*/APPLY,CLOSE,/*GLUTEST,GLUSTOP,*/BROWSE,FRAMEB,FRAMEALLSKYB,FRAMEH,OPALEVEL,
    PROJALLSKYB,PROJALLSKYH,FILTERB,FILTERH,FILTERN,FILTERY,SMBB,SMBH,TRANSB,TRANSH,
    IMGB,IMGH,IMGS,IMGC,MODE,MODEH,CACHES,CACHEH,CLEARCACHE,LOGS,LOGH,HELPS,HELPH,
-   SLIDERS,SLIDERH,SLIDEREPOCH,SLIDERDENSITY,SLIDERCUBE,SLIDERSIZE,SLIDEROPAC,SLIDERZOOM/*,TAGCENTER,TAGCENTERH*/;
+   SLIDERS,SLIDERH,SLIDEREPOCH,SLIDERDENSITY,SLIDERCUBE,SLIDERSIZE,SLIDEROPAC,SLIDERZOOM/*,TAGCENTER,TAGCENTERH*/,
+   FILEDIALOG, FILEDIALOGHELP, FILEDIALOGJAVA, FILEDIALOGNATIVE;
 
    static private String CSVITEM[] = { "tab","|",";",",","tab |","tab | ;" };
    static private String CSVITEMLONG[];
@@ -201,6 +211,7 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
    private JComboBox        cutChoice;            // Choix de l'autocut
    private JComboBox        fctChoice;            // Choix de la fonction de transfert
    private JComboBox        gluChoice;            // Pour la sélection du site GLU
+   private JComboBox        lfChoice;             // Pour la sélection du Look & Feel
    private JComboBox        langChoice;           // Pour la sélection de la langue
    private JComboBox        modeChoice;           // Pour la sélection du mode (astronomers | undergraduate)
    //   private JComboBox        smbChoice;            // Pour la sélection du mode Simbad pointer
@@ -296,6 +307,11 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       SLIDERCUBE = aladin.chaine.getString("SLIDERCUBE");
       SLIDEROPAC = aladin.chaine.getString("OPACITY");
       SLIDERZOOM = aladin.chaine.getString("ZOOM");
+      FILEDIALOG = aladin.chaine.getString("FILEDIALOG");
+      FILEDIALOGHELP = aladin.chaine.getString("FILEDIALOGHELP");
+      FILEDIALOGJAVA = aladin.chaine.getString("FILEDIALOGJAVA");
+      FILEDIALOGNATIVE = aladin.chaine.getString("FILEDIALOGNATIVE");
+      
 
       //      TAGCENTER = aladin.chaine.getString("UPTAGCENTER");
       //      TAGCENTERH = aladin.chaine.getString("UPTAGCENTERH");
@@ -740,6 +756,7 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
     * en mode all-sky */
    protected int getProjAllsky() {
       if( Aladin.OUTREACH ) return Calib.SIN;
+      else if( aladin.isCinema() ) return Calib.ARC;
       try {
          String proj = get(PROJALLSKY);
          int i= Projection.getAlaProjIndex(proj);
@@ -846,7 +863,7 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
    /** Retourne true s'il faut un slider de controle de la densité des sources (PlanBGCat) */
    protected boolean isSliderDensity() {
       String s = get(SLDENS);
-      return s!=null && s.equals("on");
+      return s==null || !s.equals("off");
    }
 
    /** Retourne true s'il faut un slider de controle de cube */
@@ -872,6 +889,15 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       String s = get(HELP);
       return s==null || s.equals(ACTIVATED);
    }
+
+   /** Retourne true si le mode Look & Feel est java (et non operating system) */
+   public boolean isLookAndFeelJava() {
+      String s = get(LOOKANDFEEL);
+      if( s==null && Aladin.macPlateform ) return false;
+      if( s==null || s.equals(JAVA) ) return true;
+      return false;
+   }
+
 
    /** Retourne le mode repéré dans le fichier de config */
    protected boolean isOutReach() {
@@ -1030,17 +1056,26 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       return size;
    }
 
-   private Point initWinLocXY=new Point();      // Position initiale de la fenêtre
+   private Point initWinLocXY=new Point();          // Position initiale de la fenêtre
    private Dimension initWinLocWH=new Dimension();  // Dimenison initiale de la fenêtre
-   private int initMesureHeight=0;               // Taille de la fenêtre des mesures
+   private int initMesureHeight=0;                  // Hauteur de la fenêtre des mesures
+//   private int initZoomHeight=0;                    // Hauteur de la fenêtre du zoom
+//   private int initZoomWidth=0;                     // Largeur de la fenêtre du zoom
+//   private int initHipsWidth=0;                     // Largeur de la fenêtre du HiPS market
 
    /** Retourne true si la fenêtre d'Aladin n'a ni bougé, ni été redimensionnée */
    private boolean sameWinParam() {
       if( aladin.isApplet() ) return true;  // pas de gestion de positionnement en mode applet
       Dimension d = aladin.f.getSize();
       Point p = aladin.f.getLocation();
-      int mesureHeight = aladin.splitH.getMesureHeight();
-      return initWinLocXY.equals(p) && initWinLocWH.equals(d) && initMesureHeight==mesureHeight;
+      int mesureHeight = aladin.splitMesureHeight.getSplit();
+//      int zoomHeight = aladin.splitZoomHeight.getPos();
+//      int zoomWidth = aladin.splitZoomWidth.getPos();
+//      int hipsWidth = aladin.splitHiPSWidth.getPos();
+      return initWinLocXY.equals(p) && initWinLocWH.equals(d) 
+            && initMesureHeight==mesureHeight 
+//            && initHipsWidth!=hipsWidth && initZoomHeight==zoomHeight && initZoomWidth==zoomWidth
+            ;
    }
 
    /** Retourne la position et la taille de la fenêtre Aladin. Mémorise
@@ -1067,10 +1102,25 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       String s;
       int mesureHeight=150;
       try { s = get(MHEIGHT);
-      mesureHeight=Integer.parseInt(s);
+         mesureHeight=Integer.parseInt(s);
       } catch( Exception e ) {}
       setInitMesureHeight(mesureHeight);
       return mesureHeight;
+   }
+   
+   protected int getHiPSWinDivider() {
+      try { return Integer.parseInt( get(HWIDTH)); } catch( Exception e ) {}
+      return DEF_HWIDTH; 
+   }
+
+   protected int getZoomWidth() {
+      try { return Integer.parseInt( get(ZWIDTH)); } catch( Exception e ) {}
+      return DEF_ZWIDTH; 
+   }
+
+   protected int getZoomHeight() {
+      try { return Integer.parseInt( get(ZHEIGHT)); } catch( Exception e ) {}
+      return DEF_ZHEIGHT; 
    }
 
    /** Mémorisation de la position et de la taille de la fenêtre initiale d'Aladin en vue
@@ -1371,6 +1421,14 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
          panel.add(b,BorderLayout.EAST);
          PropPanel.addCouple(this, p, l, REGH, panel, g, c, GridBagConstraints.EAST);
 
+         // Le Look&Feel des FileDialog
+         (l = new JLabel(FILEDIALOG)).setFont(l.getFont().deriveFont(Font.BOLD));
+         lfChoice = new JComboBox();
+         lfChoice.addItem(FILEDIALOGJAVA);
+         lfChoice.addItem(FILEDIALOGNATIVE);
+         lfChoice.addActionListener(this);
+         PropPanel.addCouple(this, p, l, FILEDIALOGHELP, lfChoice, g, c, GridBagConstraints.EAST);
+
          // Les logs
          if( Aladin.LOG ) {
             (l = new JLabel(LOGS)).setFont(l.getFont().deriveFont(Font.BOLD));
@@ -1431,6 +1489,13 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       if( s == null ) modeChoice.setSelectedIndex(0);
       else modeChoice.setSelectedItem(s);
       modeItem = modeChoice.getSelectedIndex();
+
+      if( !Aladin.OUTREACH ) {
+         s = get(LOOKANDFEEL);
+         if( s==null && Aladin.macPlateform )  lfChoice.setSelectedIndex(1);
+         if( s==null || s.equals(JAVA) ) lfChoice.setSelectedIndex(0);
+         else lfChoice.setSelectedIndex(1);
+      }
 
       //      s = get(PIXEL);
       //      if( s == null || s.charAt(0)!='8' ) pixelChoice.setSelectedIndex(0);
@@ -1604,6 +1669,8 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       }
       return null;
    }
+   
+ 
 
    private int oFrame=Localisation.ICRS;
 
@@ -1638,9 +1705,17 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       if( aladin.mesure.isReduced() && get(MESURE)==null ) remove(MESURE);
       if( !aladin.mesure.isReduced() && get(MESURE)!=null ) set(MESURE,"on");
 
-      // On conserve la taille de la fenêtre des mesures
-      int hd = aladin.splitH.getMesureHeight();
-      set(MHEIGHT,""+hd);
+
+      // On conserve la taille des différents panels si nécessaire
+      int n;
+      n = aladin.splitZoomHeight.getPos(); if( n!=DEF_ZHEIGHT ) set(ZHEIGHT,""+n ); else remove(ZHEIGHT);
+      n = aladin.splitZoomWidth.getPos();  if( n!=DEF_ZWIDTH )  set(ZWIDTH,""+n );  else remove(ZWIDTH);
+      n = aladin.splitHiPSWidth.getPos();  if( n!=DEF_HWIDTH )  set(HWIDTH,""+n );  else remove(HWIDTH);
+//      set(ZHEIGHT,""+aladin.splitZoomHeight.getPos());
+//      set(ZWIDTH,""+aladin.splitZoomWidth.getPos());
+//      set(HWIDTH,""+aladin.splitHiPSWidth.getPos());
+            
+      set(MHEIGHT,""+aladin.splitMesureHeight.getSplit());
 
       // On mémorise les bookmarks si nécessaire
       if( !Aladin.OUTREACH && aladin.bookmarks.canBeSaved() ) {
@@ -1665,6 +1740,9 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
 
       s = get(HELP);
       if( s!=null && s.equals(ACTIVATED) ) remove(HELP);
+
+      s = get(LOOKANDFEEL);
+      if( s!=null && s.equals(JAVA) ) remove(LOOKANDFEEL);
 
       // On conserve l'état du pointeur Autodist, Simbad et du pointeur VizierSED
       if( !Aladin.OUTREACH ) {
@@ -1926,6 +2004,12 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
          else remove(HELP);
       }
 
+      // Pour le Look & Feel
+      if( lfChoice!=null ) {
+         if( lfChoice.getSelectedIndex()==1 ) set(LOOKANDFEEL,OPSYS);
+         else remove(LOOKANDFEEL);
+      }
+
       // Les sliders de controle
       if( bxEpoch!=null ) {
          if( !bxEpoch.isSelected() ) set(SLEPOCH,"off");
@@ -1936,8 +2020,8 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
          else remove(SLSIZE);
       }
       if( bxDens!=null ) {
-         if( !bxDens.isSelected() ) remove(SLDENS);
-         else set(SLDENS,"on");
+         if( !bxDens.isSelected() ) set(SLDENS,"off");
+         else remove(SLDENS);
       }
       if( bxCube!=null ) {
          if( !bxCube.isSelected() ) remove(SLCUBE);
@@ -2256,7 +2340,8 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
             || prop.equalsIgnoreCase("Proj") )    setProjAllsky(value);
       else throw new Exception("Unknown conf. propertie ["+prop+"]");
    }
-   private static final String DEFAULT_FILENAME = "-";
+   
+//   private static final String DEFAULT_FILENAME = "-";
 
    // Gestion des evenements
    public void actionPerformed(ActionEvent evt) {
@@ -2281,32 +2366,30 @@ implements Runnable, ActionListener, ItemListener, ChangeListener  {
       // Affichage du selecteur de répertoires
       else if( BROWSE.equals(what) ) {
 
-         //         CDSFileDialog fd = new CDSFileDialog(aladin);
-         //         aladin.setDefaultDirectory(fd);
-         //         String directory = fd.getDirectory();
-         //         aladin.memoDefaultDirectory(directory);
-         //         String d = fd.getFile();
-         //         System.out.println("J'ai sélectionné ["+d+"]");
-         //         if( d!=null ) dir.setText(d);
 
-         FileDialog fd = new FileDialog(aladin.dialog);
-         aladin.setDefaultDirectory(fd);
-
-         // (thomas) astuce pour permettre la selection d'un repertoire
-         // (c'est pas l'ideal, mais je n'ai pas trouve de moyen plus propre en AWT)
-         fd.setFile(DEFAULT_FILENAME);
-
-         fd.show();
-         String directory = fd.getDirectory();
-         aladin.memoDefaultDirectory(directory);
-         String name =  fd.getFile();
-         // si on n'a pas changé le nom, on a selectionne un repertoire
-         boolean isDir = false;
-         if( name!=null && name.equals(DEFAULT_FILENAME) ) {
-            name = "";
-            isDir = true;
-         }
-         if( (name!=null && name.length()>0) || isDir ) dir.setText(directory);
+//         FileDialog fd = new FileDialog(aladin.dialog);
+//         aladin.setDefaultDirectory(fd);
+//
+//         // (thomas) astuce pour permettre la selection d'un repertoire
+//         // (c'est pas l'ideal, mais je n'ai pas trouve de moyen plus propre en AWT)
+//         fd.setFile(DEFAULT_FILENAME);
+//
+//         fd.show();
+//         String directory = fd.getDirectory();
+//         aladin.memoDefaultDirectory(directory);
+//         String name =  fd.getFile();
+//         // si on n'a pas changé le nom, on a selectionne un repertoire
+//         boolean isDir = false;
+//         if( name!=null && name.equals(DEFAULT_FILENAME) ) {
+//            name = "";
+//            isDir = true;
+//         }
+//         if( (name!=null && name.length()>0) || isDir ) dir.setText(directory);
+//         
+         String initDir = dir.getText();
+         if( initDir.length()==0 ) initDir=null;
+         String path = Util.dirBrowser("", initDir, dir, 3);
+         if( path!=null ) aladin.memoDefaultDirectory(path);
       }
    }
 

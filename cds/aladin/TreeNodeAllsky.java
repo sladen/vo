@@ -78,7 +78,7 @@ public class TreeNodeAllsky extends TreeNode {
 
    /** Construction d'un TreeNodeAllSky à partir des infos qu'il est possible de glaner
     * à l'endroit indiqué, soit par exploration du répertoire, soit par le fichier Properties */
-   public TreeNodeAllsky(Aladin aladin,String pathOrUrl) {
+   public TreeNodeAllsky(Aladin aladin,String pathOrUrl) throws Exception {
       String s;
       this.aladin = aladin;
       local=!(pathOrUrl.startsWith("http:") || pathOrUrl.startsWith("https:") ||pathOrUrl.startsWith("ftp:"));
@@ -149,7 +149,7 @@ public class TreeNodeAllsky extends TreeNode {
       if( s==null ) { s = prop.getProperty(Constante.OLD_HIPS_INITIAL_FOV); div2=1; }
       if( s==null ) radius=-1;
       else {
-         try { radius=(Server.getAngle(s, Server.RADIUSd)/60.)/div2; }
+         try { radius=(Server.getAngleInArcmin(s, Server.RADIUSd)/60.)/div2; }
          catch( Exception e) { aladin.trace(3,"radius error!"); radius=-1; }
       }
 
@@ -165,6 +165,8 @@ public class TreeNodeAllsky extends TreeNode {
       try { maxOrder = new Integer(s); }
       catch( Exception e ) {
          maxOrder = getMaxOrderByPath(pathOrUrl,local);
+         
+         if( maxOrder==-1 ) throw new Exception("Not an HiPS");
          if( maxOrder==-1 ) {
             aladin.trace(3,"No maxOrder found (even with scanning dir.) => assuming 11");
             maxOrder=11;
@@ -249,6 +251,7 @@ public class TreeNodeAllsky extends TreeNode {
       if( color && !inJPEG && !inPNG) inJPEG=true;
 
       aladin.trace(4,toString1());
+
    }
 
    private boolean getIsColorByPath(String path,boolean local) {
@@ -358,11 +361,12 @@ public class TreeNodeAllsky extends TreeNode {
       // dans le cas d'un répertoire local => pas d'utilisateur du cache
       if( url!=null && !url.startsWith("http") && !url.startsWith("ftp") ) useCache=false;
 
-      if( copyright!=null || copyrightUrl!=null ) setCopyright(copyright);
-      
       if( color && !inJPEG && !inPNG ) inJPEG=true;
       
-      setMoc();
+      if( !Aladin.PROTO ) {
+         if( copyright!=null || copyrightUrl!=null ) setCopyright(copyright);
+         setMoc();
+      }
 
       //      Aladin.trace(3,this.toString1());
    }
@@ -427,6 +431,9 @@ public class TreeNodeAllsky extends TreeNode {
       if( progen || cat || nside==-1 /*|| maxOrder==-1 */) return -1;
       return (int)Healpix.log2(nside) /*- maxOrder*/;
    }
+   
+   /** true si déjà chargé dans la pile */
+   protected boolean isInStack() { return aladin.calque.isLoaded(internalId); }
 
    protected boolean isLocal() { return local; }
 
@@ -562,4 +569,5 @@ public class TreeNodeAllsky extends TreeNode {
       gb.setConstraints(c,gc);
       getPanel().add(c);
    }
+
 }

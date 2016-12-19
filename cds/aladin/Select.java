@@ -21,6 +21,7 @@
 package cds.aladin;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Image;
@@ -45,7 +46,6 @@ import javax.swing.JComponent;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
-import javax.swing.SwingUtilities;
 
 import cds.tools.Util;
 
@@ -223,6 +223,7 @@ Runnable, SwingWidgetFinder, Widget {
    }
 
    //   public Dimension getPreferredSize() { return new Dimension(ws+5,hs); }
+      public Dimension getPreferredSize() { return new Dimension(100,100); }
 
    JMenuItem menuBroadcast,menuDel,menuDelEmpty,menuDelAll,menuShow,menuGoto,
    menuColl,menuCreatFold,menuInsertFold,menuProp,menuSelect,menuUnselect,
@@ -298,8 +299,8 @@ Runnable, SwingWidgetFinder, Widget {
       if( src==menuCreatFold )  a.fold();
       else if( src==menuTableInfo )  a.tableInfo(null);
       else if( src==menuPlot )       a.createPlotCat();
-      else if( src==menuConcat1 )    a.concat(true);
-      else if( src==menuConcat2 )    a.concat(false);
+      else if( src==menuConcat1 )    a.concat(false);
+      else if( src==menuConcat2 )    a.concat(true);
       else if( src==menuInsertFold ) insertFolder();
       else if( src==menuSelect )     a.select();
       else if( src==menuUnselect )   a.unSelect();
@@ -570,7 +571,6 @@ Runnable, SwingWidgetFinder, Widget {
       if( currentPlan.type==Plan.FILTER
             || currentPlan instanceof PlanContour
             || currentPlan.type==Plan.FOLDER
-            //            || currentPlan.type==Plan.CATALOG
             || currentPlan.type==Plan.TOOL) return false;
 
       // Image sans astrométrie non encore pris comme référence
@@ -1016,7 +1016,7 @@ Runnable, SwingWidgetFinder, Widget {
 
          // Sélection de tous les objets du plan par double-clic
          if( x>gapL && !boutonDroit && e.getClickCount()==2 && (p.isCatalog() ||
-               p.type==Plan.TOOL && !(p instanceof PlanContour) ) && p.active ) {
+               p instanceof PlanTool && !(p instanceof PlanContour) ) && p.active ) {
             a.view.calque.selectAllObjectInPlans();
 
             // On repasse en mode SELECT si nécessaire
@@ -1097,7 +1097,14 @@ Runnable, SwingWidgetFinder, Widget {
     *  reaffichage des bordures des vues si nécessaire */
    private Plan lastPlanUnderMouse=null;
    protected void underMouse(Plan p) {
-      if( lastPlanUnderMouse==p || a.menuActivated() ) return;
+      if( a.menuActivated() ) return;
+      if( p instanceof PlanMultiCCD ) {
+         lastPlanUnderMouse=p;
+         a.calque.selectPlanUnderMouse(p);
+         a.view.repaintAll();
+         return;
+      }
+      if( lastPlanUnderMouse==p ) return;
       a.calque.selectPlanUnderMouse(p);
       if( lastPlanUnderMouse!=null && lastPlanUnderMouse.isImage() ) a.view.repaintAll();
       else a.view.paintBordure();
@@ -1519,12 +1526,12 @@ Runnable, SwingWidgetFinder, Widget {
       }
 
       // Pas très joli
-      if( a.calque.zoom.opacitySlider!=null ) a.calque.zoom.opacitySlider.repaint();
-      if( a.calque.zoom.sizeSlider!=null )    a.calque.zoom.sizeSlider.repaint();
-      if( a.calque.zoom.zoomSlider!=null )    a.calque.zoom.zoomSlider.repaint();
-      if( a.calque.zoom.epochSlider!=null )   a.calque.zoom.epochSlider.repaint();
-      if( a.calque.zoom.cubeSlider!=null )    a.calque.zoom.cubeSlider.repaint();
-      if( a.calque.zoom.densitySlider!=null ) a.calque.zoom.densitySlider.repaint();
+      if( a.calque.slider.opacitySlider!=null ) a.calque.slider.opacitySlider.repaint();
+      if( a.calque.slider.sizeSlider!=null )    a.calque.slider.sizeSlider.repaint();
+      if( a.calque.slider.zoomSlider!=null )    a.calque.slider.zoomSlider.repaint();
+      if( a.calque.slider.epochSlider!=null )   a.calque.slider.epochSlider.repaint();
+      if( a.calque.slider.cubeSlider!=null )    a.calque.slider.cubeSlider.repaint();
+      if( a.calque.slider.densitySlider!=null ) a.calque.slider.densitySlider.repaint();
 
       // Positionnement du curseur apres le demarrage d'Aladin
       if( firstUpdate ) {
@@ -1590,37 +1597,9 @@ Runnable, SwingWidgetFinder, Widget {
 
       lastYMax = y;
       if( a.configuration.isHelp() && beginnerHelp && nbPlanVisible<=4 ) drawBeginnerHelp( g, nbPlanVisible, y);
-
-      long t = System.currentTimeMillis();
-      if( t-300>ot ) {
-         ot=t;
-         SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-
-               // On met a jour la fenetre des proprietes en indiquant
-               // s'il y a ou non des plans en train d'etre charge
-               // afin d'eviter les clignotement de Properties
-               // intempestifs
-               Properties.majProp(slideBlink?1:0);
-
-               // On met a jour la fenetre de la table des couleurs
-               if( a.frameCM!=null ) a.frameCM.majCM();
-
-               // Activation ou desactivation des boutons du menu principal
-               // associes a la presence d'au moins un plan
-               a.setButtonMode();
-
-               // On met a jour la fenetre des contours
-               if( a.frameContour!=null ) a.frameContour.majContour();
-
-               // On met a jour la fenetre des RGB et des Blinks
-               if( a.frameRGB!=null )   a.frameRGB.maj();
-               if( a.frameBlink!=null ) a.frameBlink.maj();
-               if( a.frameArithm!=null && a.frameArithm.isVisible() ) a.frameArithm.maj();
-            }
-         });
-      }
-
+      
+      
+      a.resumeVariousThinks();
 
       // Reaffichage du status du plan sous la souris
       if( planIn!=null ) setInfo(planIn);
@@ -1629,9 +1608,7 @@ Runnable, SwingWidgetFinder, Widget {
       if( slideBlink ) startBlink();
    }
 
-   private long ot=0;
-
-   private boolean slideBlink=false;
+   protected boolean slideBlink=false;
 
    /** Spécifie si au dernier retraçage de la pile au-moins un plan est en clignotement */
    protected void setSlideBlink(boolean flag) { slideBlink=flag; }

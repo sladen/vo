@@ -21,6 +21,7 @@
 package cds.xml;
 
 import java.util.Hashtable;
+
 import cds.tools.Util;
 
 /** Field description according to the Astrores XML standard.
@@ -186,9 +187,9 @@ final public class Field {
          try { n = Integer.parseInt(width); }
          catch( Exception e) { n=0; }
       }
-      if( n==0 && arraysize!=null ) {
+      if( n==0 && arraysize!=null && datatype!=null && datatype.equals("A") ) {
          try {
-            if( !arraysize.endsWith("*") ) n = Integer.parseInt(arraysize);
+            if( !arraysize.endsWith("*")  ) n = Integer.parseInt(arraysize);
             else n = Integer.parseInt(arraysize.substring(0, arraysize.length()-1));
             if( n>20 ) n=0;
          } catch( Exception e) { n=0; }
@@ -282,7 +283,9 @@ final public class Field {
       if( s.equals("B") ) return "unsignedByte";
       if( s.equals("C") ) return "floatComplex";
       if( s.equals("M") ) return "doubleComplex";
-      return "float";
+      if( s.equals("U") ) return "unicodeChar";    // Non Fits standard
+//      return "float";
+      return "char";
    }
 
    /** Conversion d'un type de donnée exprimé dans le standard VOTable
@@ -303,7 +306,9 @@ final public class Field {
       if( s.equals("unsignedByte") )  return "B";
       if( s.equals("floatComplex") )  return "C";
       if( s.equals("doubleComplex") ) return "M";
-      return "E";
+      if( s.equals("unicodeChar") )   return "U";   // Non Fits standard
+//      return "E";
+      return "A";
    }
 
 

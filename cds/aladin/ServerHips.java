@@ -159,8 +159,8 @@ public class ServerHips extends ServerTree  {
             ViewSimple v = aladin.view.getCurrentView();
 //            if( v.isFree() ) return;
 
-            if( v.isFree() || v.isAllSky() ) {
-               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) gSky.ok=true;
+            if( v.isFree() || v.isAllSky() || !Projection.isOk(v.getProj()) ) {
+               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) gSky.isIn=true;
 
             } else {
                String params;
@@ -184,6 +184,7 @@ public class ServerHips extends ServerTree  {
                }
 
                URL u = aladin.glu.getURL("MocServer", params, true);
+               
                Aladin.trace(4,"ServerHips.hipsUpdate: Contacting MocServer : "+u);
                in= new BufferedReader( new InputStreamReader( Util.openStream(u) ));
                String s;
@@ -193,11 +194,11 @@ public class ServerHips extends ServerTree  {
                while( (s=in.readLine())!=null ) set.add( getId(s) );
 
                // Nettoyage préalable de l'arbre
-               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) gSky.ok=false;
+               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) gSky.isIn=false;
 
                // Positionnement des datasets dans le champ
                for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) {
-                  gSky.ok = set.contains(gSky.internalId);
+                  gSky.isIn = set.contains(gSky.internalId);
 //                  if( !gSky.ok ) System.out.println(gSky.internalId+" is out");
                }
             }
@@ -208,7 +209,7 @@ public class ServerHips extends ServerTree  {
                if( c!=null ) {
                   TreeNode n = (TreeNode)c.getCellEditorValue();
                   if( n!=null &&  n.hasCheckBox() ) {
-                     if( n.isOk() ) n.checkbox.setForeground(Color.black);
+                     if( n.isIn() ) n.checkbox.setForeground(Color.black);
                      else n.checkbox.setForeground(Color.lightGray);
                   }
                }
@@ -218,7 +219,7 @@ public class ServerHips extends ServerTree  {
 
             // Mise à jour des branches de l'arbre
             DefaultMutableTreeNode root = tree.getRoot();
-            tree.setOkTree(root);
+            tree.setInTree(root);
             validate();
             repaint();
 
@@ -282,6 +283,7 @@ public class ServerHips extends ServerTree  {
          dynTree=true;
          Aladin.trace(3,"Loading HiPS Tree definitions...");
          String params = "client_application=AladinDesktop"+(aladin.BETA?"*":"")+"&hips_service_url=*&fmt=glu&get=record";
+         
          String u = aladin.glu.getURL("MocServer", params, true).toString();
          InputStream in;
          try {

@@ -179,6 +179,9 @@ public class BuilderIndex extends Builder {
       
       // récupération du MOC de travail
       area = context.getArea();
+      
+      // info sur le coorsys frame
+      context.info("HiPS coordinate frame => "+context.getFrameName());
    }
 
    static public int calculateNSide(double pixsize) {
@@ -288,50 +291,6 @@ public class BuilderIndex extends Builder {
          out.write( line.getBytes() );
       } finally { if( out!=null ) out.close(); }
    }
-
-
-//   // Création si nécessaire du fichier passé en paramètre et ouverture en écriture
-//   private FileOutputStream openFile(String filename) throws Exception {
-//      File f = new File( filename/*.replaceAll(FS+FS, FS)*/ );
-//      if( !f.exists() ) {
-//         cds.tools.Util.createPath(filename);
-//         return new FileOutputStream(f);
-//      }
-//      return new FileOutputStream(f, true);
-//   }
-//
-//   // Insertion d'un nouveau fichier d'origine dans la tuile d'index repérée par out
-//   private void createAFile(FileOutputStream out, String filename, Coord center, String stc, String fitsVal)
-//         throws IOException {
-//
-//      // Détermination d'un nom de produit à partir du filename
-//      // 1.Suppression du path
-//      int o1 = filename.lastIndexOf('/');
-//      int o1b = filename.lastIndexOf('\\');
-//      if( o1b>o1 ) o1=o1b;
-//
-//      // 2.Suppression d'une extension ?
-//      int o2 = filename.lastIndexOf('.');
-//
-//      // 3.Suppression du suffixe [x,y-wxh] si nécessaire
-//      int o3 = filename.charAt(filename.length()-1)==']' ? filename.lastIndexOf('['):-1;
-//      if( o3>o2 ) o2=o3;
-//
-//      if( o2==-1 || o2<=o1 ) o2 = filename.length();
-//      String name = filename.substring(o1+1,o2);
-//
-//      if( fitsVal==null ) fitsVal="";
-//
-//      DataOutputStream dataoutputstream = null;
-//      try {
-//         dataoutputstream = new DataOutputStream(out);
-//         dataoutputstream.writeBytes(
-//               "{ \"name\": \""+name+"\", \"path\": \""+filename+"\", " +
-//                     "\"ra\": \""+center.al+"\", \"dec\": \""+center.del+"\", " +
-//                     "\"stc\": \""+stc+"\""+fitsVal+" }\n");
-//         dataoutputstream.flush();
-//      } finally { if( dataoutputstream!=null ) dataoutputstream.close(); }
-//   }
 
    // Pour chaque fichiers FITS, cherche la liste des losanges couvrant la
    // zone. Créé (ou complète) un fichier texte "d'index" contenant le chemin vers
@@ -465,7 +424,6 @@ public class BuilderIndex extends Builder {
 //         System.out.print(" "+coo.al+" "+coo.del);
 
          cooList.add( context.ICRS2galIfRequired(coo.al, coo.del) );
-         
 
          // S'il s'agit d'une cellule, il faut également calculé le STC pour l'observation complète
          if( hasCell ) {
@@ -481,7 +439,8 @@ public class BuilderIndex extends Builder {
 //      System.out.println();
       
       // On teste le rapport largeur/longeur du pixel si nécessaire
-      if( maxRatio>0 ) {
+      // sauf s'il n'y a qu'une i
+      if( maxRatio>0 && statNbFile>0 ) {
          double w = Coord.getDist(corner[0], corner[1])/fitsfile.width;
          double h = Coord.getDist(corner[1], corner[2])/fitsfile.height;
          //         System.out.println("w="+Coord.getUnit(w)+" h="+Coord.getUnit(h));
@@ -516,7 +475,9 @@ public class BuilderIndex extends Builder {
 
       long[] npixs;
       long nside = CDSHealpix.pow2(order);
-      double radius = Coord.getDist(center, new Coord(cooList.get(0)[0],cooList.get(0)[1]));
+//      Coord c1 = new Coord(cooList.get(0)[0],cooList.get(0)[1]);
+      Coord c1 = corner[0];
+      double radius = Coord.getDist(center,c1 );
       
       // Si le rayon est trop grand on préfèrera une requête pour cone pour
       // éviter le risque d'un polygone sphérique concave
@@ -524,9 +485,11 @@ public class BuilderIndex extends Builder {
          npixs = CDSHealpix.query_polygon(nside, cooList);
       } else {
          try {
-            npixs = CDSHealpix.query_disc(nside, center.al, center.del, radius);
+            double cent[] = context.ICRS2galIfRequired(center.al, center.del);
+            npixs = CDSHealpix.query_disc(nside, cent[0], cent[1], radius);
+//            npixs = CDSHealpix.query_disc(nside, center.al, center.del, radius);
          } catch( Exception e ) {
-          throw new Exception("BuilderIndex error in CDSHealpix.query_disc() order="+order+" radius="+radius+"deg file="+fitsfile.getFilename()+" => ignored");
+          throw new Exception("BuilderIndex error in CDSHealpix.query_disc() order="+order+" center="+center+" corner="+c1+" radius="+radius+"deg file="+fitsfile.getFilename()+" => ignored");
          }
       }
       // pour chacun des losanges concernés

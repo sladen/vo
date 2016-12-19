@@ -100,35 +100,36 @@ public final class Command implements Runnable {
 
    static final String execHelp =
          "\n" +
-               "#PLANE:#                              #VIEW:#\n" +
-               "   @get servers [target] [radius]      @mview [1|2|4|9|16] [n]\n" +
-               "   @load filename                      @cview [-plot] [[x] v]\n" +
-               "   @select x1 [x2..]                   @select v1 [v2..]\n" +
-               "   @set [x1] [x2..] prop=value         @zoom ...\n" +
-               "   @hide|@show [x1] [x2..]              @northup|@unnorthup [v1] [v2..]\n" +
-               "   @mv|@copy x1 x2                      @thumbnail [radius]\n" +
-               "   @rm [x1] [x2..] | -all              @lock|@unlock [v1] [v2..]\n" +
-               "   @export [-fmt] x filename           @match [-scale] [v|x|off]\n" +
-               "                                      @mv|@copy v1 v2\n" +
-               "#IMAGE:#                                @rm [v1] [v2..] | -lock\n" +
-               "   @cm [x1|v1...] [colorMap...]        @save [-fmt] [-lk] [WxH] [filename]\n" +
-               "   @RGB|@RGBdiff [x1|v1...]             @coord|@object\n" +
+               "#PLANE:#                                   #VIEW:#\n" +
+               "   @get servers [target] [radius]           @mview [1|2|4|9|16] [n]\n" +
+               "   @load filename                           @cview [-plot] [[x] v]\n" +
+               "   @select x1 [x2..]                        @select v1 [v2..]\n" +
+               "   @set [x1] [x2..] prop=value              @zoom ...\n" +
+               "   @hide|@show [x1] [x2..]                   @northup|@unnorthup [v1] [v2..]\n" +
+               "   @mv|@copy x1 x2                           @thumbnail [radius]\n" +
+               "   @rm [x1] [x2..] | -all                   @lock|@unlock [v1] [v2..]\n" +
+               "   @export [-fmt] x filename                @match [-scale] [v|x|off]\n" +
+               "                                           @mv|@copy v1 v2\n" +
+               "#IMAGE:#                                     @rm [v1] [v2..] | -lock\n" +
+               "   @cm [x1|v1...] [colorMap...]             @save [-fmt] [-lk] [WxH] [file]\n" +
+               "   @RGB|@RGBdiff [x1|v1...]                  @coord|@object\n" +
                "   @blink|@mosaic [x1] [x2...]\n" +
-               "   @+ | @- | @* | @/ ...                #CATALOG:#\n" +
-               "   @norm [-cut] [x]                    @filter ...\n" +
-               "   @conv [x] ...                       @addcol ...\n" +
-               "   @kernel ...                         @xmatch x1 x2 [dist] ...\n" +
-               "   @resamp x1 x2 ...                   @cplane [name]\n" +
-               "   @crop [x|v] [[X,Y] WxH]             @search {expr|+|-}\n" +
-               "   @flipflop [x|v] [V|H]               @tag|@untag\n" +
-               "   @contour [nn] [nosmooth] [zoom]     @select -tag\n" +
+               "   @+ | @- | @* | @/ ...                     #CATALOG:#\n" +
+               "   @norm [-cut] [x]                         @filter ...\n" +
+               "   @conv [x] ...                            @addcol ...\n" +
+               "   @kernel ...                              @xmatch x1 x2 [dist] ...\n" +
+               "   @resamp x1 x2 ...                        @ccat [-uniq] [x1...]\n" +
+               "   @crop [x|v] [[X,Y] WxH]                  @search {expr|+|-}\n" +
+               "   @flipflop [x|v] [V|H]                    @tag|@untag\n" +
+               "   @contour [nn] [nosmooth] [zoom]          @select -tag\n" +
                "   @grey|@bitpix [-cut] [x] BITPIX\n" +
-               "  \n" +
-               "#GRAPHIC# #TOOL:#                       #FOLDER:#\n" +
-               "   @draw [color] fct(param)            @md [-localscope] [name]\n" +
-               "   @grid [on|off]                      @mv|@rm [name]\n" +
-               "   @reticle [on|off]                   @collapse|@expand [name]\n" +
-               "   @overlay [on|off]                   @show|@hide [name]\n" +
+               "                                         #FOLDER:#\n" +
+               "#GRAPHIC# #TOOL:#                              @md [-localscope] [name]\n" +
+               "   @draw [color] fct(param)                 @mv|@rm [name]\n" +
+               "   @grid [on|off]                           @collapse|@expand [name]\n" +
+               "   @reticle [on|off]\n" +
+               "   @overlay [on|off]                      #COVERAGE:#\n" +
+               "                                           @cmoc [-order=o] [x1|v1...]\n" +
                " \n" +
                "#MISCELLANEOUS:#\n" +
                "   @backup filename     @status       @sync       @demo [on|off|end]  @pause [nn]\n" +
@@ -147,11 +148,11 @@ public final class Command implements Runnable {
    // Liste des commandes scripts documentés
    static final String CMD[] = {
       "addcol","backup","bitpix","blink","call","cm","cmoc","collapse","conv","contour","coord","copy",
-      "cplane","cview","crop","demo","draw","expand","export","filter","moreonfilter","function",
+      "ccat","cview","crop","demo","draw","expand","export","filter","moreonfilter","function",
       "flipflop","get","grey","grid","help","hide","hist","info","kernel","list","load","lock",
       "macro","md","mem","northup","match",
       "mosaic","mv","norm","overlay","pause","print","quit","resamp","reset","reticle",
-      "RGB","RGBdiff","rm","save","scale","search","select","set","setconf","show",
+      "RGB","RGBdiff","rm","save",/*"scale",*/"search","select","set","setconf","show",
       "status",/*"stick",*/"sync","tag","thumbnail","trace","unlock",/* "unstick",*/
       "untag","xmatch","moreonxmatch","zoom","+","-","*","/","=",
    };
@@ -286,7 +287,7 @@ public final class Command implements Runnable {
       boolean encore=true;
       int b=0;
       int acc=0;  // Profondeur de crochets pour éviter les fausses détections de ';' au sein d'une UCD
-
+      
       do {
          // Une commande qui provient du pad et prioritaire sur stdin
          if( (stream==null || stream==System.in) &&
@@ -779,6 +780,12 @@ public final class Command implements Runnable {
             res.append("Movable  "+((PlanField)plan).isMovable()+"\n");
             String fov = ((PlanField)plan).getStatusSubFov();
             if( fov!=null ) res.append(fov);
+         } else if( plan instanceof PlanMoc ) {
+            res.append("Color   "+Action.findColorName(plan.c)+"\n");
+            res.append("Order   "+((PlanMoc)plan).getPropMocOrder()+"\n");
+            res.append("Coverage "+((PlanMoc)plan).getPropCoverage()+"\n");
+            res.append("Drawing "+((PlanMoc)plan).getPropDrawingMethod()+"\n");
+            
          } else if( plan.isCatalog() ) {
             res.append("NbObj   "+plan.getCounts()+"\n");
             res.append("Shape   "+Source.getShape(plan.sourceType)+"\n");
@@ -787,6 +794,7 @@ public final class Command implements Runnable {
          } else if( plan.type==Plan.TOOL ) {
             res.append("Color   "+Action.findColorName(plan.c)+"\n");
             res.append("Movable "+(plan.isMovable()?"on":"off")+"\n");
+            
          } else if( plan.type==Plan.IMAGE || plan.type==Plan.IMAGEHUGE ) {
             res.append("Width   "+((PlanImage)plan).naxis1+"\n"
                   + "Height  "+((PlanImage)plan).naxis2+"\n"
@@ -795,7 +803,6 @@ public final class Command implements Runnable {
                String s = Coord.getUnit(plan.projd.c.GetResol()[0]);
                res.append("PixelRes "+s);
             }
-
          } else if( plan.type==Plan.FOLDER ) {
             res.append("Scope   "+(((PlanFolder)plan).localScope?"local":"global")+"\n");
             String item = ((PlanFolder)plan).getStatusItems();
@@ -803,7 +810,11 @@ public final class Command implements Runnable {
          }
 
          if( plan instanceof PlanBG && plan.isPixel() ) {
-            res.append("PixelRes "+((PlanBG)plan).getMaxResolution());
+            res.append("PixelRes "+((PlanBG)plan).getMaxResolution()+"\n");
+         }
+
+         if( plan instanceof PlanBG ) {
+            res.append("Proj    "+ Calib.getProjName(plan.projd.c.getProj())+"\n" );
          }
 
 
@@ -860,7 +871,7 @@ public final class Command implements Runnable {
       if( s.endsWith("'") ) s = s.substring(0,s.length()-1)+"m";
       else if( s.endsWith("\"") ) s = s.substring(0,s.length()-1)+"s";
 
-      radius.append(""+Server.getAngle(s,Server.RADIUS));
+      radius.append(""+Server.getAngleInArcmin(s,Server.RADIUS));
       tX.append( new String(a,0,j));
       return true;
    }
@@ -985,7 +996,8 @@ public final class Command implements Runnable {
       StringTokenizer st = new StringTokenizer(s,",(");
       String server = st.nextToken();
       if( server.equalsIgnoreCase("allsky") ) server="hips";   // pour compatibilité
-      if( !withServer || a.dialog.getServer(server)<0 ) {
+      if( !withServer || a.dialog.getServer(server)<0 
+            && (!Aladin.PROTO || Aladin.PROTO && !server.equalsIgnoreCase("HiPS"))) {
 
          // Si la vue courante est vide il faut prendre
          // la liste des serveurs par defaut
@@ -1191,8 +1203,14 @@ public final class Command implements Runnable {
          Aladin.trace(4,"Command.execGetCmd("+cmd+","+label+") => server=["+server+"] criteria=["+criteria+"] target=["+target+"] radius=["+radius+"])");
          if( server.equalsIgnoreCase("VizierX") ) server="VizieR";   // Pour charger tout un catalogue sans poser un problème de compatibilité
 
+         if( Aladin.PROTO && server.equalsIgnoreCase("hips") ) {
+            int n=a.hipsMarket.createPlane(target,radius,criteria,label,null);
+            if( n!=-1 ) {
+               a.calque.getPlan(n).setBookmarkCode("get "+server+(criteria.length()>0?"("+criteria+")":"")+" $TARGET $RADIUS");
+            }
+            if( a.isFullScreen() ) a.fullScreen.repaint();
 
-         if( (j=a.dialog.getServer(server))>=0 ) {
+         } else if( (j=a.dialog.getServer(server))>=0 ) {
             a.dialog.server[j].flagToFront=false;	// Pour eviter le toFront d'Aladin
             int n=a.dialog.server[j].createPlane(target,radius,criteria,label,a.dialog.server[j].institute);
             if( n!=-1 ) {
@@ -1356,6 +1374,14 @@ public final class Command implements Runnable {
          Color c = Action.getColor(value);
          if( c==null ) return "!!! Unknown color";
          a.view.gridColorDEC=c;
+         a.calque.repaintAll();
+         return "";
+      }
+      else if( propertie.equalsIgnoreCase("screen") ) {
+         if( value.equalsIgnoreCase("cinema") ) a.fullScreen(3);
+         else if( value.equalsIgnoreCase("preview") ) a.fullScreen(1);
+         else if( value.equalsIgnoreCase("full") ) a.fullScreen(0);
+         else a.fullScreen(-1);
          a.calque.repaintAll();
          return "";
       }
@@ -2118,12 +2144,92 @@ public final class Command implements Runnable {
       } else a.switchMatch(mode==3);
    }
    
+   /** Execution de la commande "ccat" pour la création d'un catalogue à partir
+    * 1) des sources sélectionnés        => cat
+    * 2) ou des catalogues spécifiés     => cat p1 p2 ...
+    * 3) filtré ou non par un plan MOC   => cat pmoc p1 p2 ...
+    */
+   protected void execCcatCmd(String cmd,String param,String label) {
+      
+      // prise en compte de l'option -uniq
+      int i = param.indexOf("-uniq");
+      boolean uniqTable = i>=0;
+      if( uniqTable ) param = param.replace("-uniq","").trim();
+      
+      // prise en compte de l'option -out
+      i = param.indexOf("-out");
+      boolean lookIn = i<0;
+      if( !lookIn ) param = param.replace("-out","").trim();
+      
+      // Pour compatibilité avec l'ancienne commande: "cplane [plan_target]"
+      if( cmd.equalsIgnoreCase("cplane") && param.trim().length()>0 ) { label="="+param; param=""; }
+      
+      // Génération d'un plan catalogue à partir des sources sélectionnées
+      if( param.length()==0 ) {
+         a.calque.newPlanCatalogBySelectedObjet(label,uniqTable);
+         a.calque.repaintAll();
+         return;
+      }
+      
+      // Récupération de la liste des plans concernés
+      Plan [] plans = getPlan(param,2);
+      PlanMoc pMoc = null;
+      ArrayList<Plan> pcats = new ArrayList<Plan>();
+      for( Plan p : plans ) {
+         if( p.pcat!=null ) pcats.add(p);
+         else if( p instanceof PlanMoc ) {
+            if( pMoc!=null ) { printConsole("!!! execCatCmd error: only one MOC is authorized"); return; }
+            else pMoc=(PlanMoc)p;
+         } else { printConsole("!!! execCatCmd error: uncompatible catalog plane ["+p.label+"]"); return; }
+      }
+      plans = new Plan[ pcats.size() ];
+      pcats.toArray(plans);
+      
+      // Simple concaténation
+      if( pMoc==null ) {
+         try { a.calque.newPlanCatalogByCatalogs(plans,uniqTable,label); }
+         catch( Exception e ) {
+            printConsole("!!! execCatCmd error: MocFiltering error");
+            if( a.levelTrace>=3 ) e.printStackTrace();
+         }
+     
+      // Filtrage par Moc
+      } else {
+         
+         // Aucun plan catalogue => donc sur les objets sélectionnés => il faut créer un plan catalogue temporaire
+         if( plans.length==0 ) {
+            PlanCatalog pcat = a.calque.newPlanCatalogBySources( a.view.getSelectedObjet() , null ,uniqTable);
+            plans = new Plan[] { pcat };
+         }
+         
+         if( a.frameMocFiltering==null ) a.frameMocFiltering = new FrameMocFiltering(a);
+         try {
+            PlanCatalog pcat = a.frameMocFiltering.createPlane(label, pMoc, plans, lookIn);
+            
+            // Il faut éventuellement en faire une table unique
+            if( uniqTable && plans.length>1 ) {
+               plans = new Plan[] { pcat };
+               a.calque.newPlanCatalogByCatalogs(plans,uniqTable,label);
+            }
+         } catch( Exception e ) {
+            printConsole("!!! execCatCmd error: MocFiltering error");
+            if( a.levelTrace>=3 ) e.printStackTrace();
+         }
+      }
+      
+      a.calque.repaintAll();
+   }
+   
    /** Execution de la commande "cmoc" pour la création d'un MOC */
    protected String execCmocCmd(String param,String label) {
       try {
          
          int order=-1;
-         int command=0; // 0-union, 1-inter, 2-diff, 3-comp
+         double radius=0;
+         double thresHold=Double.NaN;
+         double pixMin=Double.NaN;
+         double pixMax=Double.NaN;
+         int command=PlanMocAlgo.UNION; 
          
          // Extraction d'un éventuel paramètre -order=nn
          int i = param.indexOf("-order=");
@@ -2134,20 +2240,48 @@ public final class Command implements Runnable {
             param = i==param.length() ? "" : param.substring(i).trim();
          }
          
-         // Extraction d'un éventuel paramètre "commande"
-         // -inter[section], -union, -diff[erence], -comp[lement]
-         i=param.indexOf("-union"); 
-         if( i<0 ) { if( (i=param.indexOf("-inter"))>=0 ) command=1; }
-         if( i<0 ) { if( (i=param.indexOf("-diff"))>=0 ) command=2; }
-         if( i<0 ) { if( (i=param.indexOf("-comp"))>=0 ) command=3; }
+         // Extraction d'un éventuel paramètre -threshold=0.x
+         i = param.indexOf("-threshold=");
          if( i>=0 ) {
-            int j=i;
+            int j=i+12;
             for( ; i<param.length() && !Character.isSpace( param.charAt(i) ); i++ );
+            thresHold = Double.parseDouble( param.substring(j,i));
             param = i==param.length() ? "" : param.substring(i).trim();
          }
-
-//         System.out.println("order="+order+" param=["+param+"]");
          
+         // Extraction d'un éventuel paramètre -radius=xxunit (par défaut en ARCSEC)
+         i = param.indexOf("-radius=");
+         if( i>=0 ) {
+            int j=i+8;
+            for( ; i<param.length() && !Character.isSpace( param.charAt(i) ); i++ );
+            radius = Server.getAngleInArcmin( param.substring(j,i),Server.RADIUSs );
+            param = i==param.length() ? "" : param.substring(i).trim();
+         }
+         
+         // Extraction d'un éventuel paramètre -pixelCut="min max"
+         i = param.indexOf("-pixelCut=");
+         if( i>=0 ) {
+            int j=i+10;
+            for( ; i<param.length() && !Character.isSpace( param.charAt(i) ); i++ );
+            for( ; i<param.length() && Character.isSpace( param.charAt(i) ); i++ );
+            for( ; i<param.length() && !Character.isSpace( param.charAt(i) ); i++ );
+            String c = Tok.unQuote( param.substring(j,i));
+            Tok tok = new Tok( c );
+            try { pixMin =  Double.parseDouble( tok.nextToken() ); } catch(Exception e) {}
+            try { pixMax =  Double.parseDouble( tok.nextToken() ); } catch(Exception e) {}
+            param = i==param.length() ? "" : param.substring(i).trim();
+         }
+         
+         // Extraction d'un éventuel paramètre "-union, -inter ..."
+         i = param.indexOf(' ');
+         if( i<0 ) i=param.length();
+         String opName = param.substring(0,i);
+         if( opName.startsWith("-") ) {
+            command = PlanMocAlgo.getOp(opName);
+            if( command>0 ) param=param.substring(i);
+         }
+         
+         // Récupération des plans concernés
          Plan [] p = getPlan(param,2);
             
          int type = -1;
@@ -2167,13 +2301,23 @@ public final class Command implements Runnable {
             if( label!=null ) pMoc.setLabel(label);
             
          // Pour les MOCs
-         } if( type==Plan.ALLSKYMOC ) {
-            System.out.println("Je dois faire une commande "+command+" sur les plans MOCs passés en paramètre");
+         } else if( type==Plan.ALLSKYMOC ) {
+            boolean flagCheckOrder = order==-1;
+            PlanMoc [] pList = new PlanMoc[p.length];
+            for( int j=0; j<p.length; j++ ) {
+               pList[j] = (PlanMoc)p[j];
+               if( flagCheckOrder && pList[j].getMocOrder()>order ) order=pList[j].getMocOrder();
+            }
+            a.calque.newPlanMoc(label, pList, command, order);
             
+         // Pour les cartes de probabilités
+         } else  if( !Double.isNaN(thresHold) && type==Plan.ALLSKYIMG ) {
+            a.calque.newPlanMoc(label,p,order,0,Double.NaN,Double.NaN,thresHold);
+           
          // Pour des catalogues ou des images
          } else {
             if( order==-1 ) order=13;
-            a.calque.newPlanMoc(label,p,order,0,Double.NaN,Double.NaN);
+            a.calque.newPlanMoc(label,p,order,radius,pixMin,pixMax,Double.NaN);
          }
          a.calque.repaintAll();
          
@@ -2182,6 +2326,22 @@ public final class Command implements Runnable {
          if( a.levelTrace>=3 ) e.printStackTrace();
          return e.getMessage()!=null ? "cmoc error: "+e.getMessage() : "cmoc error";
       }
+   }
+   
+   protected void gotoAnimation(String param) {
+      StringBuffer targetX=new StringBuffer();
+      StringBuffer radiusX=new StringBuffer();
+      
+      String target,radius=null;
+      
+      if( extractRadius(radiusX,targetX,param) ) {
+         target = targetX.toString();
+         radius = radiusX.toString();
+      } else target = param;
+
+      System.out.println("target="+target+" radius="+radius);
+      
+      a.gotoAnimation(target,radius);
    }
 
    /** réduction à une portion de l'image
@@ -2418,7 +2578,7 @@ public final class Command implements Runnable {
          if( Aladin.levelTrace!=0 ) e.printStackTrace();
          return false;
       }
-
+      
       // Determination du plan TOOL, ou creation si necessaire
       // On essaye de reprendre le précédent si possible
       if( oPlan!=null && oPlan.type!=Plan.APERTURE && flagFoV ) oPlan=null; // Il faut passer à un plan FoV
@@ -2472,18 +2632,21 @@ public final class Command implements Runnable {
 
             // Commande phot(x,y,r)
          } else if( fct.equalsIgnoreCase("phot") ) {
-            Repere phot;
+            SourceStat phot;
             ViewSimple v = a.view.getCurrentView();
+           
             try {
                if( drawMode==DRAWRADEC ) {
-                  newobj = phot = new Repere(plan,c);
+                  newobj = phot = new SourceStat(plan,v,c,null);
                   phot.setRadius( p[2] );
                } else {
-                  newobj = phot = new Repere(plan,v,x,y);
+                  newobj = phot = new SourceStat(plan,v,x,y,null);
                   phot.setRayon( v,parseDouble(p[2]) );
                }
+               if( p.length>2 ) phot.setOrder(p[3]);
+               phot.setLocked(true);
             } catch( Exception e ) {
-               printConsole("!!! draw phot error: usage: draw phot(x,y,radius)");
+               printConsole("!!! draw phot error: usage: draw phot(x,y,radius[,order|max])");
                return false;
             }
 
@@ -2491,7 +2654,7 @@ public final class Command implements Runnable {
          } else if( fct.equalsIgnoreCase("circle") ) {
 
             if( drawMode==DRAWRADEC ) {
-               double r = Server.getAngle(p[2],Server.RADIUSd)/60.;
+               double r = Server.getAngleInArcmin(p[2],Server.RADIUSd)/60.;
                newobj = new Cercle(plan,c,r);
             } else {
                double r = parseDouble(p[2]);
@@ -2502,8 +2665,8 @@ public final class Command implements Runnable {
          } else if( fct.equalsIgnoreCase("ellipse") ) {
             double angle   = parseDouble(p[4]);
             if( drawMode==DRAWRADEC ) {
-               double semiMA = Server.getAngle(p[2],Server.RADIUSd)/60.;
-               double semiMI = Server.getAngle(p[3],Server.RADIUSd)/60.;
+               double semiMA = Server.getAngleInArcmin(p[2],Server.RADIUSd)/60.;
+               double semiMI = Server.getAngleInArcmin(p[3],Server.RADIUSd)/60.;
                newobj = new Ellipse(plan,c,semiMA,semiMI,angle);
             } else {
                double semiMA = parseDouble(p[2]);
@@ -2520,8 +2683,8 @@ public final class Command implements Runnable {
             }
             if( label==null ) try { label = p[5]; } catch( Exception e) {};
             if( drawMode==DRAWRADEC ) {
-               double w = Server.getAngle(p[2],Server.RADIUSd)/60.;
-               double h = Server.getAngle(p[3],Server.RADIUSd)/60.;
+               double w = Server.getAngleInArcmin(p[2],Server.RADIUSd)/60.;
+               double h = Server.getAngleInArcmin(p[3],Server.RADIUSd)/60.;
                newobj = new Box(plan,c,w,h,angle,label);
             } else {
                double w = parseDouble(p[2]);
@@ -2533,7 +2696,7 @@ public final class Command implements Runnable {
          } else if( fct.equalsIgnoreCase("vector") ) {
             double angle = parseDouble(p[3]);
             if( drawMode==DRAWRADEC ) {
-               double w = Server.getAngle(p[2],Server.RADIUSd)/60.;
+               double w = Server.getAngleInArcmin(p[2],Server.RADIUSd)/60.;
                newobj = new Vecteur(plan,c,w,angle);
             } else {
                double w = parseDouble(p[2]);
@@ -2545,7 +2708,7 @@ public final class Command implements Runnable {
             double startAngle = parseDouble(p[3]);
             double angle   = parseDouble(p[4]);
             if( drawMode==DRAWRADEC ) {
-               double r = Server.getAngle(p[2],Server.RADIUSd)/60.;
+               double r = Server.getAngleInArcmin(p[2],Server.RADIUSd)/60.;
                newobj = new Arc(plan,c,r,startAngle,angle);
             } else {
                double r = parseDouble(p[2]);
@@ -2557,8 +2720,8 @@ public final class Command implements Runnable {
             double startAngle = parseDouble(p[4]);
             double angle   = parseDouble(p[5]);
             if( drawMode==DRAWRADEC ) {
-               double r1 = Server.getAngle(p[2],Server.RADIUSd)/60.;
-               double r2 = Server.getAngle(p[3],Server.RADIUSd)/60.;
+               double r1 = Server.getAngleInArcmin(p[2],Server.RADIUSd)/60.;
+               double r2 = Server.getAngleInArcmin(p[3],Server.RADIUSd)/60.;
                newobj = new Pickle(plan,c,r1,r2,startAngle,angle);
             } else {
                double r1 = parseDouble(p[2]);
@@ -2696,8 +2859,12 @@ public final class Command implements Runnable {
     * @param verbose true si on baratine
     * @return null si la premiere commande n'est pas trouvee
     */
-   public String execScript(String s) { return execScript(s,true,false); }
+   public String execScript(String s) {
+      return execScript(s,true,false);
+   }
    synchronized public String execScript(String s,boolean verbose,boolean flagOnlyFunction) {
+      
+      
       //      StringTokenizer st = new StringTokenizer(s,";\n\r");
       // thomas, 16/11/06 : permet de ne pas couper la déf. des filtres (pb des ';' dans les UCD !)
       String[] commands = Util.split(s, ";\n\r", '[', ']');
@@ -2778,10 +2945,11 @@ public final class Command implements Runnable {
          });
       }
    }
+   
    protected String exec(String s) { return exec(s,true,false); }
    protected String exec(String s1,boolean verbose,boolean flagOnlyFunction) {
       if( a.isFullScreen() && !a.fullScreen.isVisible() ) a.fullScreen.setVisible(true);
-
+      
       // mémorisation du dernier commentaire pour une éventuelle définition de fonction
       if( s1.trim().charAt(0)=='#' ) {
          if( comment==null ) comment = new StringBuffer(s1.trim().substring(1));
@@ -2925,7 +3093,7 @@ public final class Command implements Runnable {
       else if( cmd.equalsIgnoreCase("tag") )    a.tagselect();
       else if( cmd.equalsIgnoreCase("untag") )  a.untag();
       else if( cmd.equalsIgnoreCase("reloadglu") )  a.glu = new Glu(a);
-      else if( cmd.equalsIgnoreCase("goto") )   goTo(param);
+      else if( cmd.equalsIgnoreCase("goto") )   gotoAnimation(param);
       else if( cmd.equalsIgnoreCase("crop") )   execCropCmd(param,label);
       else if( cmd.equalsIgnoreCase("match") )   execMatchCmd(param);
       else if( cmd.equalsIgnoreCase("stick") )  execViewCmd(param,STICKVIEW);
@@ -2947,7 +3115,8 @@ public final class Command implements Runnable {
       else if( cmd.equalsIgnoreCase("new") )    a.windows();
       else if( cmd.equalsIgnoreCase("search") ) a.search.execute(param);
       else if( cmd.equalsIgnoreCase("createplane") || cmd.equalsIgnoreCase("cplane")
-            || cmd.equalsIgnoreCase("plane") )  a.calque.newPlanCatalogBySelectedObjet(label!=null?label:param,false);
+            || cmd.equalsIgnoreCase("plane") )  execCcatCmd("cplane",param,label);
+      else if( cmd.equalsIgnoreCase("ccat") )    execCcatCmd("ccat",param,label);
       else if( cmd.equalsIgnoreCase("thumbnail")
             || cmd.equalsIgnoreCase("createROI")
             || cmd.equalsIgnoreCase("ROI") )    execROICmd(param);
@@ -3966,17 +4135,6 @@ public final class Command implements Runnable {
       if( robotInfo!=null && infoTxt!=null ) infoTxt.setText("");
    }
 
-   protected void goTo(String param) {
-      StringTokenizer st = new StringTokenizer(param);
-      a.view.gotoThere(param);
-      //      try {
-      //         int x = Integer.parseInt(st.nextToken());
-      //         int y = Integer.parseInt(st.nextToken());
-      //         a.view.getCurrentView().goTo(x,y);
-      //      } catch( Exception e ) { e.printStackTrace(); }
-   }
-
-
    /************************************* Gestion des fonctions *************************************************/
 
    private ArrayList<Function> function=new ArrayList<Function>();
@@ -4694,12 +4852,8 @@ public final class Command implements Runnable {
    }
 
    private void hop() {
-      try {
-        a.calque.stack();
-      } catch (Exception e) {
-         e.printStackTrace();
-      }
-
+//      PlanMoc.PERIMETER = !PlanMoc.PERIMETER;
+//      System.out.println("Tracage perimetre MOC : "+PlanMoc.PERIMETER);
    }
 
 }

@@ -20,12 +20,25 @@
 
 package cds.aladin;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Graphics;
 import java.awt.event.MouseEvent;
-import java.util.*;
+import java.util.Enumeration;
+import java.util.EventObject;
+import java.util.Iterator;
 
-import javax.swing.*;
-import javax.swing.tree.*;
+import javax.swing.AbstractCellEditor;
+import javax.swing.BorderFactory;
+import javax.swing.JPanel;
+import javax.swing.JTree;
+import javax.swing.UIManager;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreeCellEditor;
+import javax.swing.tree.TreeCellRenderer;
+import javax.swing.tree.TreePath;
 
 /**
  * Gestion d'un arbre dynamique
@@ -68,25 +81,6 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
       root = r;
    }
 
-   /** "Mise à jour" de l'arbre en fonction des enregistrements GLU recueillis */
-   synchronized protected void updateTree(Enumeration e1) {
-
-      ArrayList<TreeNode> v = new ArrayList<TreeNode>();
-      for( TreeNode n : this ) v.add(n);
-      freeTree();
-
-      while( e1.hasMoreElements() ) {
-         TreeNode noeud = (TreeNode)e1.nextElement();
-         int i = v.indexOf(noeud);
-         if( i>=0 ) {
-            TreeNode oldNoeud = v.get(i);
-            noeud.setCheckBox( oldNoeud.isCheckBoxSelected() );
-         }
-         createTreeBranch(root,noeud,0);
-      }
-      defaultExpand();
-   }
-
    // Recupération d'un itérator sur tous les noeuds de l'arbre
    public Iterator<TreeNode> iterator() { return new TreeIterator(); }
 
@@ -102,9 +96,32 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
    protected void populateTree(Enumeration e) {
       while( e.hasMoreElements() ) {
          TreeNode noeud = (TreeNode)e.nextElement();
-         createTreeBranch(root,noeud,0);
+         noeud.setHidden(false);
+         createTreeBranch((DefaultTreeModel)getModel(),root,noeud,0);
       }
+      validate();
       defaultExpand();
+   }
+   
+   /** Supprime les feuilles et branches hidden */
+   protected void elagueHidden() {
+      elagueHidden(root, (DefaultTreeModel)getModel() );
+   }
+   
+   private void elagueHidden(DefaultMutableTreeNode node, DefaultTreeModel model ) {
+       
+      for( int i=node.getChildCount()-1; i>=0; i-- ) {
+         elagueHidden( (DefaultMutableTreeNode)node.getChildAt(i), model );
+      }
+
+      if( node.isLeaf() ) {
+         TreeNode fils = (TreeNode) node.getUserObject();
+         if( fils.isHidden() && !node.equals(root)) {
+            fils.treeIndex = node.getParent().getIndex(node);
+            model.removeNodeFromParent(node);
+         }
+         return;
+      }
    }
 
    /** Reset */
@@ -127,6 +144,45 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
 
    /** Appelé en cas de problème lors du submit => à surcharger */
    protected void warning() {}
+   
+
+   //      // EN ATTENDANT QUE CELA SOIT ENLEVE DU GLU
+   //      protected void createTreeBranch(DefaultMutableTreeNode node, TreeNode noeud, int opos) {
+   //         if( noeud.path.startsWith("Progressive catalog")) return;
+   //         super.createTreeBranch(node,noeud, opos);
+   //      }
+
+   /** Activation ou non des branches de l'arbre en fonction de l'activation des feuilles */
+   protected boolean setInTree(DefaultMutableTreeNode node) {
+      TreeNode gSky = (TreeNode) node.getUserObject();
+      if( node.isLeaf() )  return gSky.isIn();
+
+      boolean rep=false;
+      DefaultMutableTreeNode subNode = null;
+      Enumeration e = node.children();
+      while( e.hasMoreElements() ) {
+         subNode = (DefaultMutableTreeNode) e.nextElement();
+         if( setInTree(subNode) ) rep=true;
+      }
+      gSky.setIn(rep);
+      return rep;
+   }
+
+   /** Activation ou non des branches de l'arbre en fonction de l'activation des feuilles */
+   protected boolean setHiddenTree(DefaultMutableTreeNode node) {
+      TreeNode gSky = (TreeNode) node.getUserObject();
+      if( node.isLeaf() )  return gSky.isHidden();
+
+      boolean rep=true;
+      DefaultMutableTreeNode subNode = null;
+      Enumeration e = node.children();
+      while( e.hasMoreElements() ) {
+         subNode = (DefaultMutableTreeNode) e.nextElement();
+         if( !setHiddenTree(subNode) ) rep=false;
+      }
+      gSky.setHidden(rep); 
+      return rep;
+   }
 
    /** Met à jour les couleurs des widgets avant de les tracer => à surcharger */
    protected void updateColor() {}
@@ -140,7 +196,7 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
     *             ex:  Nebulae/PN
     *                          ^   <= valeur de opos
     */
-   protected void createTreeBranch(DefaultMutableTreeNode node, TreeNode noeud, int opos) {
+   protected void createTreeBranch(DefaultTreeModel model, DefaultMutableTreeNode node, TreeNode noeud, int opos) {
       int pos;
 
       // On découpe par "/" mais sans prendre en compte "\/"
@@ -167,9 +223,14 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
 
          if( subNode==null ) {
             subNode = new DefaultMutableTreeNode( pos!=-1? new TreeNode(aladin,"",null,label,"") : noeud );
-            node.add(subNode);
-            if( pos!=-1 ) createTreeBranch(subNode, noeud, pos + 1);
-         } else if( pos!=-1 ) createTreeBranch(subNode, noeud, pos + 1);
+//            node.add(subNode);
+            int i = ((TreeNode)subNode.getUserObject()).treeIndex;
+            int n = node.getChildCount();
+            if( i==-1 || i>n ) i=n;
+            model.insertNodeInto(subNode, node, i);
+         }
+         if( pos!=-1 ) createTreeBranch(model, subNode, noeud, pos + 1);
+
       } catch( Exception e ) {
          e.printStackTrace();
       }
@@ -211,6 +272,7 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
    /** Préparation de l'arbre afin qu'il "pré-ouvre" les branches terminales */
    protected void defaultExpand() {
       expandPath(new TreePath(root));
+      if( true ) return;
       Enumeration e = root.preorderEnumeration();
       while( e.hasMoreElements() ) {
          DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
@@ -238,7 +300,7 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
          //         System.out.println("getTreeCellRendererComponent ["+node.toString()+"] => "+n.isOk());
 
          if( n!=null && n.hasCheckBox() ) {
-            if( n.isOk() ) n.checkbox.setForeground(Color.black);
+            if( n.isIn() ) n.checkbox.setForeground(Color.black);
             else n.checkbox.setForeground(Color.lightGray);
 
             JPanel panel = n.getPanel();
@@ -253,7 +315,8 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
          }
 
          Component c = nonLeafRenderer.getTreeCellRendererComponent(tree, obj, selected, expanded, leaf, row, hasFocus);
-         if( n.isOk() ) c.setForeground( Color.black);
+         if( n.isInStack() ) c.setForeground( Color.red );
+         else if( n.isIn() ) c.setForeground( Color.black);
          else c.setForeground( Color.lightGray );
          return c;
       }
@@ -283,12 +346,12 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
          TreeNode n = (TreeNode)node.getUserObject();
          n1 = n;
          if( n!=null &&  n.hasCheckBox() ) {
-            if( n.isOk() ) n.checkbox.setForeground(Color.black);
+            if( n.isIn() ) n.checkbox.setForeground(Color.black);
             else n.checkbox.setForeground(Color.lightGray);
             return n.getPanel();
          }
          Component c = renderer.getTreeCellRendererComponent(tree, obj, true, expanded, leaf, row, true);
-         if( n.isOk() ) c.setForeground( Color.black);
+         if( n.isIn() ) c.setForeground( Color.black);
          else c.setForeground( Color.lightGray );
          return c;
 
@@ -299,8 +362,10 @@ public class MyTree extends JTree implements Iterable<TreeNode>  {
    }
 
    public void paint(Graphics g) {
-      updateColor();
-      super.paint(g);
+      try {
+         updateColor();
+         super.paint(g);
+      } catch( Exception e ) { }
    }
 
 

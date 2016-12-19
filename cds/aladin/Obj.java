@@ -25,13 +25,9 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Vector;
 
 import javax.swing.JLabel;
@@ -40,7 +36,6 @@ import javax.swing.JTextField;
 import cds.aladin.prop.Prop;
 import cds.aladin.prop.PropAction;
 import cds.aladin.prop.Propable;
-import cds.tools.pixtools.CDSHealpix;
 
 /**
  * Interface pour la manipulation d'un objet graphique affichable dans la vue
@@ -68,6 +63,8 @@ public abstract class Obj implements Propable{
    public static final int SOLIDCIRCLE   = 12;
    public static final int SOLIDRHOMB    = 13;
    public static final int SOLIDTRIANGLE = 14;
+   
+   public static final int RETICULE = 15;
 
    // Les constantes associees a "methode" lors de la creation
    protected static final int XY = 1;
@@ -82,6 +79,7 @@ public abstract class Obj implements Propable{
    static protected final byte WITHLABEL  = 1<<3;
    static protected final byte HIGHLIGHT  = 1<<4;
    static protected final byte WITHSTAT   = 1<<5;
+   static protected final byte LOCKED     = 1<<6;
 
    protected Plan   plan;       // Plan d'appartenance de l'objet
    
@@ -130,7 +128,10 @@ public abstract class Obj implements Propable{
       if( id!=null && id.length()>0 ) {
          final JLabel idL = new JLabel(id);
          PropAction updateId = new PropAction() {
-            public int action() { idL.setText(id); return PropAction.SUCCESS; }
+            public int action() { 
+               idL.setText(id);
+               return PropAction.SUCCESS;
+            }
          };
          propList.add( Prop.propFactory("id","Info","associated information",idL,updateId,null) );
       }
@@ -176,7 +177,7 @@ public abstract class Obj implements Propable{
    
    /** Provide photometric statistics for the area described by the object (only for circle and polygon)
     * @param ad AladinData describing an image with valid pixels
-    * @return { cnt,sum,sigma,surface_in_square_deg }
+    * @return { cnt,sum,sigma,surface_in_square_deg,min,max }
     * @throws Exception
     */
    public double[] getStatistics(AladinData ad) throws Exception {
@@ -347,8 +348,9 @@ public abstract class Obj implements Propable{
 
    // Carré de la distance entre souris et objet
    protected final double mouseDist(ViewSimple v) {
-      double z = v.getZoom();
-      return z>0 ? 2/z : 1+6/z;
+//      double z = v.getZoom();
+//      return z>0 ? 2/z : 1+6/z;
+      return 10;
    }
    
    // Pixel Healpix order max (29)

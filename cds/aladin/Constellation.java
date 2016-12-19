@@ -36,7 +36,8 @@ import java.util.HashMap;
 public class Constellation {
    
    static private final String CONSTELLATION_FILE = "Constellation.txt";
-   static private Color COLOR = new Color(108,171,236);
+// static private Color COLOR = new Color(108,171,236);   //bleu
+   static private Color COLOR = new Color(255,200,68);  // orange
 //   static private Color COLOR = Color.yellow;
    
    private Aladin aladin;
@@ -56,7 +57,7 @@ public class Constellation {
       BufferedReader is = null;
       try {
          is = new BufferedReader(new InputStreamReader(
-                   Aladin.class.getResourceAsStream("/"+CONSTELLATION_FILE)));
+                   aladin.getClass().getResourceAsStream("/"+CONSTELLATION_FILE)));
          
          cstMap = new HashMap<String, ArrayList<Position>>();
          String s,oCst=null;

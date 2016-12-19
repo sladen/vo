@@ -63,11 +63,14 @@ public abstract class Builder {
          case RGB:       return new BuilderRgb(context);
          case TREE:      return new BuilderTree(context);
          case CONCAT:    return new BuilderConcat(context);
+         case APPEND:    return new BuilderAppend(context);
          case CUBE:      return new BuilderCube(context);
          case DETAILS:   return new BuilderDetails(context);
          case MAPTILES:  return new BuilderMapTiles(context);
          case UPDATE:    return new BuilderUpdate(context);
+         case PROP:      return new BuilderProp(context);
          case MIRROR:    return new BuilderMirror(context);
+         case MAP:       return new BuilderMap(context);
          default: break;
       }
       throw new Exception("No builder associated to this action");
@@ -117,8 +120,7 @@ public abstract class Builder {
    // Vérifie que le répertoire Output a été passé en paramètre, sinon essaye de le déduire
    // du répertoire Input en ajoutant le suffixe ALLSKY
    // S'il existe déjà, vérifie qu'il s'agit bien d'un répertoire utilisable
-   protected void validateOutput() throws Exception {
-      if( context.isValidateOutput() ) return;
+   protected void validateOutput() throws Exception { 
       String output = context.getOutputPath();
       if( output==null ) {
          output = context.getInputPath();
@@ -129,13 +131,33 @@ public abstract class Builder {
             int offset = output.lastIndexOf('/',n);
             output = output.substring(offset+1,n);
          } else {
-            output = (output==null?"":output) + Constante.HIPS;
+            
+            String id = context.getHipsId();
+            
+            // Pas d'id => On ajoute simplement le suffixe HiPS au répertoire d'origine
+            if( id==null ) {
+               output = (output==null?"":output) + Constante.HIPS;
+               
+            // Un Id => on l'utilise comme nom de répertoire cible (avec des _ à la place des / et ?)
+            } else {
+               output = context.getInputPath();
+               output = output.replace('\\', '/');
+               int n = output.length();
+               if( output.charAt(n-1)=='/' ) n--;
+               int offset = output.lastIndexOf('/',n);
+               output = output.substring(0,offset+1);
+               id = id.substring(6);
+               id = id.replace('/','_');
+               id = id.replace('?','_');
+               output = output+id;
+            }
+            
          }
          context.setOutputPath(output);
          context.info("the output directory will be "+output);
       }
       File f = new File(output);
-      if( f.exists() && (!f.isDirectory() || !f.canWrite() || !f.canRead())) throw new Exception("Ouput directory not available ["+output+"]");
+      if( f.exists() && (!f.isDirectory()  || !f.canRead())) throw new Exception("Ouput directory not available ["+output+"]");
       context.setValidateOutput(true);
    }
 

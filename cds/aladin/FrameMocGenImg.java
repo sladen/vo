@@ -20,19 +20,18 @@
 
 package cds.aladin;
 
-import java.awt.*;
-import java.util.Vector;
+import java.awt.Color;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
-import javax.swing.JRadioButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 import cds.moc.Healpix;
-import cds.tools.Util;
 import cds.tools.pixtools.CDSHealpix;
 
 /**
@@ -114,6 +113,7 @@ public class FrameMocGenImg extends FrameRGBBlink {
    
    JComboBox mocOrder;
    JTextField minRange,maxRange;
+   JTextField threshold;
    JCheckBox rangeCheckBox;
    
    @Override
@@ -152,6 +152,7 @@ public class FrameMocGenImg extends FrameRGBBlink {
       c.gridwidth=GridBagConstraints.REMAINDER;
       g.setConstraints(pp,c);
       p.add(pp);
+      
    }
    
    static final private int FIRSTORDER=3;
@@ -167,6 +168,7 @@ public class FrameMocGenImg extends FrameRGBBlink {
    }
    
    protected int getOrder() { return mocOrder.getSelectedIndex()+FIRSTORDER; }
+   
    
    private double getMin() throws Exception {
       double min = Double.NaN;
@@ -202,7 +204,13 @@ public class FrameMocGenImg extends FrameRGBBlink {
          int res=getOrder();
          double pixMin=getMin();
          double pixMax=getMax();
-         a.calque.newPlanMoc(ps[0].label+" MOC",ps,res,0,pixMin,pixMax);
+         
+         String pixelCut="";
+         if( !Double.isNaN(pixMin) || !Double.isNaN(pixMax) ) {
+            pixelCut = " -pixelCut=\""+pixMin+" "+pixMax+"\"";
+         }
+         a.console.printCommand("cmoc -order="+res+pixelCut+" "+labelList(ps));
+         a.calque.newPlanMoc(ps[0].label+" MOC",ps,res,0,pixMin,pixMax,Double.NaN);
          hide();
 
       } catch ( Exception e ) {
@@ -211,6 +219,20 @@ public class FrameMocGenImg extends FrameRGBBlink {
       }
 
    }
+   
+   /** Construit une liste de noms de plans, évenutellement quotés afin
+    * de pouvoir afficher la commande script qui va bien
+    * @param ps liste des plans concernés
+    */
+   static protected String labelList(Plan [] ps) {
+      StringBuilder s = null;
+      for( Plan p : ps ) {
+         if( s==null ) s = new StringBuilder( Tok.quote(p.label) );
+         else  s.append(" "+Tok.quote(p.label));
+      }
+      return s.toString();
+   }
+
 
    @Override
    protected void adjustWidgets() { };

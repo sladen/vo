@@ -109,7 +109,7 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
       setLayout( new BorderLayout(0,0) );
       Aladin.makeAdd(this,haut,"North" );
       Aladin.makeAdd(this,mcanvas,"Center");
-      Aladin.makeAdd(this,est,"East");
+      Aladin.makeAdd(this,est,"West");
       Aladin.makeAdd(this,scrollH,"South");
       haut.setVisible(false);
 
@@ -434,7 +434,7 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
       aladin.calque.zoom.zoomView.stopHist();
       aladin.calque.zoom.zoomView.resumeSED();
       aladin.console.setEnabledDumpButton(true);
-      if( s.leg.isSorted() ) { s.leg.clearSort(); mcanvas.reloadHead(); }
+      if( s.leg!=null && s.leg.isSorted() ) { s.leg.clearSort(); mcanvas.reloadHead(); }
       if( mcanvas.triTag!=Field.UNSORT ) mcanvas.triTag=Field.UNSORT;
    }
 
@@ -644,7 +644,7 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
          haut.setVisible(false);
          mcanvas.setSize(mcanvas.getSize().width, previousHeight);
          scrollV.setSize(scrollV.getSize().width, previousHeight);
-         if( !flagReduced ) aladin.splitH.restoreMesureHeight();
+         if( !flagReduced ) aladin.splitMesureHeight.restoreSlit();
       }
       setSize( getPreferredSize());
    }
@@ -666,12 +666,12 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
       flagReduced=flag;
       if( flagReduced ) {
          aladin.search.hideSearch(true);
-         if( aladin.splitH.getBottomComponent()!=null ) aladin.splitH.remove(this);
+         if( aladin.splitMesureHeight.getBottomComponent()!=null ) aladin.splitMesureHeight.remove(this);
       } else {
          aladin.search.hideSearch(false);
-         if( aladin.splitH.getBottomComponent()==null ) aladin.splitH.setBottomComponent(this);
+         if( aladin.splitMesureHeight.getBottomComponent()==null ) aladin.splitMesureHeight.setBottomComponent(this);
          flagDorepaintForScroll=true;
-         aladin.splitH.restoreMesureHeight();
+         aladin.splitMesureHeight.restoreSlit();
       }
    }
 

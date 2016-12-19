@@ -31,6 +31,7 @@ import java.util.Vector;
 import cds.aladin.Aladin;
 import cds.aladin.MyInputStream;
 import cds.aladin.MyProperties;
+import cds.aladin.Tok;
 import cds.allsky.Context.JpegMethod;
 import cds.moc.HealpixMoc;
 import cds.tools.Util;
@@ -45,6 +46,7 @@ public class HipsGen {
    private boolean flagUpdate=false;
    private boolean flagMethod=false;
    private boolean flagRGB=false;
+   private boolean flagMapFits=false;
    private boolean flagAbort=false,flagPause=false,flagResume=false;
    public Context context;
 
@@ -90,6 +92,25 @@ public class HipsGen {
 
       reader.close();
    }
+   
+   
+   /** Retourne le paramètre qui remplace un paramètre devenu obsolète, null sinon */
+   private String obsolete(String s) {
+      if( s.equalsIgnoreCase("ivorn") )      return "id";
+      if( s.equalsIgnoreCase("input") )      return "in";
+      if( s.equalsIgnoreCase("output") )     return "out";
+      if( s.equalsIgnoreCase("pixel") )      return "mode";
+      if( s.equalsIgnoreCase("moc") )        return "region";
+      if( s.equalsIgnoreCase("blocking") )   return "partitioning";
+      if( s.equalsIgnoreCase("cutting") )    return "partitioning";
+      if( s.equalsIgnoreCase("polygon") )    return "fov";
+      if( s.equalsIgnoreCase("jpegMethod") ) return "method";
+      if( s.equalsIgnoreCase("dataCut") )    return "id";
+      if( s.equalsIgnoreCase("ivorn") )      return "pixelRange";
+      if( s.equalsIgnoreCase("histoPercent"))return "skyval";
+      if( s.equalsIgnoreCase("publisher") )  return "creator";
+      return null;
+   }
 
    /**
     * Affecte à un objet Context l'option de configuration donnée
@@ -107,6 +128,9 @@ public class HipsGen {
       val = val.replace("\'", "");
       val = val.replace("\"", "");
       System.out.println("OPTION: "+opt + "=" + val);
+      
+      String alt=obsolete(opt);
+      if( alt!=null ) context.warning("Obsoleted parameter, prefer \""+alt+"\"");
 
       // System.out.println(opt +" === " +val);
       if( opt.equalsIgnoreCase("h")) {
@@ -116,11 +140,13 @@ public class HipsGen {
       } else if (opt.equalsIgnoreCase("order"))      { context.setOrder(Integer.parseInt(val));
       } else if (opt.equalsIgnoreCase("minOrder"))   { context.setMinOrder(Integer.parseInt(val));
       } else if (opt.equalsIgnoreCase("mocOrder"))   { context.setMocOrder(Integer.parseInt(val));
+      } else if (opt.equalsIgnoreCase("nside"))      { context.setMapNside(Integer.parseInt(val));
       } else if (opt.equalsIgnoreCase("tileOrder"))  { context.setTileOrder(Integer.parseInt(val));
       } else if (opt.equalsIgnoreCase("bitpix"))     { context.setBitpix(Integer.parseInt(val));
       } else if (opt.equalsIgnoreCase("frame"))      { context.setFrameName(val);
       } else if (opt.equalsIgnoreCase("maxThread"))  { context.setMaxNbThread(Integer.parseInt(val));
       } else if (opt.equalsIgnoreCase("skyval"))     { context.setSkyval(val);
+      } else if (opt.equalsIgnoreCase("skyvalues"))  { context.setSkyValues(val);
       } else if (opt.equalsIgnoreCase("exptime"))    { context.setExpTime(val);
       } else if (opt.equalsIgnoreCase("fading"))     { context.setFading(val); 
       } else if (opt.equalsIgnoreCase("mixing"))     { context.setMixing(val);
@@ -137,6 +163,7 @@ public class HipsGen {
       } else if (opt.equalsIgnoreCase("target"))     { context.setTarget(val);
       } else if (opt.equalsIgnoreCase("targetRadius")){ context.setTargetRadius(val);
       } else if (opt.equalsIgnoreCase("label"))      { context.setLabel(val);
+      } else if (opt.equalsIgnoreCase("filter"))     { context.setFilter(val);
       } else if (opt.equalsIgnoreCase("hdu"))        { context.setHDU(val);
       } else if (opt.equalsIgnoreCase("publisher") || opt.equalsIgnoreCase("creator"))  {
          context.setCreator(val);
@@ -153,7 +180,6 @@ public class HipsGen {
          context.setOutputPath(val);
 
       } else if (opt.equalsIgnoreCase("mode") || opt.equalsIgnoreCase("pixel")) {
-         if (opt.equalsIgnoreCase("pixel") ) context.warning("Prefer \"mode\" instead of \"pixel\"");
          context.setMode(Mode.valueOf(val.toUpperCase()));
          flagMode=true;
 
@@ -190,7 +216,6 @@ public class HipsGen {
          }
 
       } else if ( opt.equalsIgnoreCase("jpegMethod") || opt.equalsIgnoreCase("method")) {
-         if( opt.equalsIgnoreCase("jpegMethod") ) context.warning("Prefer \"method\" instead of \""+opt+"\"");
          flagMethod=true;
          context.setMethod(val);
 
@@ -198,7 +223,6 @@ public class HipsGen {
       } else if (opt.equalsIgnoreCase("pixelGood")) { context.setPixelGood(val);
       } else if (opt.equalsIgnoreCase("pixelCut")) { context.setPixelCut(val);
       } else if (opt.equalsIgnoreCase("pixelRange") || opt.equalsIgnoreCase("dataCut")) {
-         if (opt.equalsIgnoreCase("dataCut") ) context.warning("Prefer \"pixelRange\" instead of \"dataCut\"");
          context.setDataCut(val);
          //         context.setPixelGood(val);  // A VOIR S'IL FAUT LE LAISSER
       } else throw new Exception("Option unknown [" + opt + "]");
@@ -250,8 +274,9 @@ public class HipsGen {
          }
          
          // Mémorisation de la commande
-         if( context.scriptCommand==null ) context.scriptCommand=arg;
-         else context.scriptCommand+=" "+arg;
+         String q = Tok.quote(arg);
+         if( context.scriptCommand==null ) context.scriptCommand=q;
+         else context.scriptCommand+=" "+q;
 
          // debug
          if (arg.equalsIgnoreCase("-debug") || arg.equalsIgnoreCase("-d")) Context.setVerbose(4);
@@ -294,7 +319,7 @@ public class HipsGen {
                if( a==Action.RESUME ) flagResume=true;  // Bidouillage pour pouvoir remettre en route un skygen en pause
                actions.add(a);
             } catch (Exception e) {
-               context.error("Unknown skygen command ["+arg+"] !");
+               context.error("Unknown parameter ["+arg+"] !");
                return;
             }
          }
@@ -332,7 +357,7 @@ public class HipsGen {
          else {
 
             // S'agirait-il d'une map HEALPix
-            boolean flagMapFits=false;
+            flagMapFits=false;
             File f = new File(context.getInputPath());
             if( !f.isDirectory() && f.exists() ) {
                try {
@@ -395,6 +420,7 @@ public class HipsGen {
                else if( a==Action.MAPTILES ){ actions.add(i, Action.CLEANTILES);   i++; }
                else if( a==Action.JPEG )    { actions.add(i, Action.CLEANJPEG);    i++; }
                else if( a==Action.PNG )     { actions.add(i, Action.CLEANPNG);     i++; }
+               else if( a==Action.RGB )     { actions.add(i, Action.CLEAN);        i++; }
                else if( a==Action.CUBE )    { actions.add(i, Action.CLEAN);        i++; }
             }
          }
@@ -403,10 +429,11 @@ public class HipsGen {
       if( context.fake ) context.warning("NO RUN MODE (option -n), JUST PRINT INFORMATION !!!");
       for( Action a : actions ) {
          context.info("Action => "+a+": "+a.doc());
+         if( !flagMapFits && a==Action.MAPTILES ) flagMapFits=true;
       }
 
       // Positionnement du frame par défaut
-      if( !flagRGB ) setDefaultFrame();
+      if( !flagRGB && !flagMapFits ) setDefaultFrame();
 
       // Positionnement du pubDid
       if( context.hipsId==null && !flagConcat && !flagMirror && !flagUpdate) {
@@ -420,11 +447,14 @@ public class HipsGen {
          new Task(context,actions,true);
          if( context.isTaskAborting() ) context.abort("======================= (aborted after "+Util.getTemps(System.currentTimeMillis()-t)+") =======================");
          else {
-            if( context.getHipsId().startsWith("ivo://UNK.AUT") ) {
-               context.warning("a valid HiPS IVOID identifier is strongly recommended => in the meantime, assuming "+context.getHipsId());
-              
+            if( !flagMirror ) {
+               String id = context.getHipsId();
+               if( id==null || id.startsWith("ivo://UNK.AUT") ) {
+                  context.warning("a valid HiPS IVOID identifier is strongly recommended => in the meantime, assuming "+context.getHipsId());
+
+               }
+               context.info("Tip: Edit the \"properties\" file for describing your HiPS (full description, copyright, ...)");
             }
-            context.info("Tip: Edit the \"properties\" file for describing your HiPS (full description, copyright, ...)");
             context.done("=================== THE END (done in "+Util.getTemps(System.currentTimeMillis()-t)+") =======================");
          }
          
@@ -461,12 +491,12 @@ public class HipsGen {
             if( s!=null && s.length()>0 ) frame=s;
 
             // pas de propriété hips_frame positionnée => galactic
-            else frame="galactic";
+            else frame=force?"equatorial":"galactic";
 
             // Pas trouvé ! si le HiPS existe déjà, alors c'est pas défaut du galactic
             // sinon de l'equatorial
          } else {
-            if( context.isExistingAllskyDir() ) frame="galactic";
+            if( context.isExistingAllskyDir() ) frame=force?"equatorial":"galactic";
             else frame="equatorial";
          }
       } catch( Exception e ) { }
@@ -512,6 +542,7 @@ public class HipsGen {
                   "                      constant)" + "\n" +
                   "   fov=true|x1,y1..   Observed regions by files.fov or global polygon (in FITS convention)." + "\n" +
                   "   verbose=n          Debug information from -1 (nothing) to 4 (a lot)" + "\n"+
+                  "   -live              incremental HiPS (keep weight associated to each HiPS pixel)" + "\n"+
                   "   -f                 clear previous computations\n"+
                   "   -n                 Just print process information, but do not execute it.\n"+
                   "\n"+
@@ -543,9 +574,11 @@ public class HipsGen {
                   "   minOrder=nn        Specifical HEALPix min order (only for DETAILS action)" + "\n" +
                   "   method=m           Method (MEDIAN|MEAN|FIRST) (default MEDIAN) for aggregating colored " + "\n" +
                   "                      compressed tiles (JPEG|PNG)" + "\n" +
+                  "   frame              Target coordinate frame (equatorial|galactic)" + "\n" +
                   "   tileOrder=nn       Specifical tile order - default "+Constante.ORDER + "\n" +
                   "   mocOrder=nn        Specifical HEALPix MOC order (only for MOC action) - by default " + "\n" +
                   "                      auto-adapted to the HiPS" + "\n" +
+                  "   nside=nn           HEALPix map NSIDE (only for MAP action) - by default 2048" + "\n" +
                   "   exptime=key        Fits key to use for adjusting variation of exposition" + "\n" +
                   "   inRed              HiPS red path component (RGB action)\n" +
                   "   inGreen            HiPS green path component (RGB action)\n" +
@@ -553,6 +586,7 @@ public class HipsGen {
                   "   cmRed              Colormap parameters for HiPS red component (min [mid] max [fct])\n" +
                   "   cmGreen            Colormap parameters for HiPS green component (min [mid] max [fct])\n" +
                   "   cmBlue             Colormap parameters for HiPS blue component (min [mid] max [fct])\n" +
+                  "   filter=gauss       Gaussian filter applied on the 3 input HiPS (RGB action)" + "\n" +
                   "   tileTypes          List of tile format to copy (MIRROR action)" + "\n" +
                   "   maxThread=nn       Max number of computing threads" + "\n" +
                   "   target=ra +dec     Default HiPS target (ICRS deg)" + "\n"+
@@ -560,7 +594,6 @@ public class HipsGen {
                   "   -nice              Slow download for avoiding to overload remote http server (dedicated " + "\n" +
                   "                      to MIRROR action)" + "\n"
                   //          "   debug=true|false   to set output display as te most verbose or just statistics" + "\n" +
-                  //                            "   frame           Healpix frame (C or G - default C for ICRS)" + "\n" +
             );
 
       System.out.println("\nSpecifical actions (by default: \"INDEX TILES PNG GZIP DETAILS\"):" + "\n" +
@@ -574,12 +607,14 @@ public class HipsGen {
             "   ALLSKY     "+Action.ALLSKY.doc() + "\n"+
             "   TREE       "+Action.TREE.doc() + "\n"+
             "   MAPTILES   "+Action.MAPTILES.doc() + "\n"+
+            "   APPEND     "+Action.APPEND.doc() + "\n"+
             "   CONCAT     "+Action.CONCAT.doc() + "\n"+
             "   CUBE       "+Action.CUBE.doc() + "\n"+
             "   GZIP       "+Action.GZIP.doc() + "\n"+
             "   CLEANFITS  "+Action.CLEANFITS.doc() + "\n"+
             "   DETAILS    "+Action.DETAILS.doc() + "\n"+
-            "   MIRROR    "+Action.MIRROR.doc() + "\n"
+            "   MIRROR     "+Action.MIRROR.doc() + "\n"+
+            "   MAP        "+Action.MAP.doc() + "\n"
             );
       System.out.println("\nEx: java -jar "+launcher+" in=/MyImages    => Do all the job." +
             "\n    java -jar "+launcher+" in=/MyImages bitpix=16 pixelCut=\"-1 100 log\" => Do all the job" +

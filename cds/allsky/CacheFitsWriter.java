@@ -19,6 +19,7 @@
 
 package cds.allsky;
 
+
 import cds.fits.CacheFits;
 import cds.fits.Fits;
 import cds.tools.Util;

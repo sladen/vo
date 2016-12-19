@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -79,6 +80,7 @@ public class Context {
    public double bZeroOrig=0;                // Valeur BZERO d'origine
    public double bScaleOrig=1;               // Valeur BSCALE d'origine
    protected boolean bscaleBzeroOrigSet=false; // true si on a positionné
+   protected boolean flagNoInitEtalon=false;      // true => bloque la maj du cutOrig par estimation automatique
    protected double[] cutOrig;               // Valeurs cutmin,cutmax, datamin,datamax des images originales (valeurs raw)
    protected double[] pixelRangeCut;         // range et cut passé sur la ligne de commande (valeurs physiques)
    public double[] pixelGood=null;           // Plage des valeurs des pixels conservés (valeurs physiques)
@@ -117,6 +119,7 @@ public class Context {
    protected String redInfo;                 // Information de colormap lors de la génération d'un HIPS RGB (composante red)
    protected String greenInfo;               // Information de colormap lors de la génération d'un HIPS RGB (composante green)
    protected String blueInfo;                // Information de colormap lors de la génération d'un HIPS RGB (composante blue)
+   protected boolean gaussFilter=false;      // Filtrage gaussien lors de la génération d'un HiPS RGB (pour améliorer le rendu du fond)
 
    protected int order = -1;                 // Ordre maximal de la boule HEALPix à générer
    public int minOrder= -1;                  // Ordre minimal de la boule HEALPix à générer (valide uniquement pour les HiPS HpxFinder)
@@ -125,6 +128,7 @@ public class Context {
    protected HealpixMoc mocIndex = null;     // Zone du ciel correspondant à l'index Healpix
    protected HealpixMoc moc = null;          // Intersection du mocArea et du mocIndex => regénérée par setParameters()
    protected int mocOrder=-1;                // order du MOC des tuiles
+   protected int nside=1024;                 //NSIDE pour la génération d'une MAP healpix
    protected int tileOrder=-1;               // Valeur particulière d'un ordre pour les tuiles
    protected CacheFits cacheFits;            // Cache FITS pour optimiser les accès disques à la lecture
    protected Vector<String> keyAddProp=null; // Clés des propriétés additionnelles à mémoriser dans le fichier properties
@@ -161,8 +165,10 @@ public class Context {
       tileTypes = null;
       outputRGB = null;
       redInfo=blueInfo=greenInfo=null;
+      gaussFilter = false;
       plansRGB = new String [3];
       cmsRGB = new String [3];
+      flagNoInitEtalon=false;
    }
 
    // manipulation des chaines désignant le système de coordonnées (syntaxe longue et courte)
@@ -221,6 +227,7 @@ public class Context {
    public boolean isMocDescendant(int order,long npix) { return moc==null || moc.isDescendant(order,npix); }
    public int getMaxNbThread() { return maxNbThread; }
    public int getMocOrder() { return mocOrder; }
+   public long getMapNside() { return nside; }
    public int getMinOrder() { return minOrder; }
    public int getTileOrder() { return tileOrder==-1 ? Constante.ORDER : tileOrder; }
    public int getTileSide() { return (int) CDSHealpix.pow2( getTileOrder() ); }
@@ -246,9 +253,14 @@ public class Context {
    public void setOrder(int order) { this.order = order; }
    public void setMinOrder(int minOrder) { this.minOrder = minOrder; }
    public void setMocOrder(int mocOrder) { this.mocOrder = mocOrder; }
+   public void setMapNside(int nside) { this.nside = nside; }
    public void setTileOrder(int tileOrder) { this.tileOrder = tileOrder; }
    public void setFrame(int frame) { this.frame=frame; }
    public void setFrameName(String frame) { this.frame=getFrameVal(frame); }
+   public void setFilter(String s) throws Exception {
+      if( s.equalsIgnoreCase("gauss") )  gaussFilter=true;
+      else throw new Exception("Unknown filter ["+s+"] (=> only \"gauss\" are presently supported)");
+   }
    public void setSkyValName(String s ) {
       skyvalName=s;
       if( s==null ) return;
@@ -317,7 +329,7 @@ public class Context {
    public String checkHipsId(String s,boolean verbose) {
 
       String auth,id;
-      boolean flagQuestion=true;  // true si l'identificateur utilise un ? après l'authority ID, et non un /
+      boolean flagQuestion=false;  // true si l'identificateur utilise un ? après l'authority ID, et non un /
       
       if( s==null && prop!=null )  s = getIdFromProp(prop);
       
@@ -487,7 +499,8 @@ public class Context {
       if (this.bitpix==-1) this.bitpix = bitpixO;
    }
    public void setBitpix(int bitpix) { this.bitpix = bitpix; }
-   public void setBlankOrig(double x) {  blankOrig = x; hasAlternateBlank=true; }
+   public void setBlankOrig(double x) {  
+      blankOrig = x; hasAlternateBlank=true; }
    public void setColor(String colorMode) {
       if( colorMode.equalsIgnoreCase("false")) return;
       bitpixOrig=0;
@@ -613,6 +626,7 @@ public class Context {
     * @throws Exception s'il y a une erreur à la lecture du fichier
     */
    protected void initFromImgEtalon() throws Exception {
+      
       // Déja fait ,
       if( lastImgEtalon!=null && lastImgEtalon.equals(imgEtalon)) return;
 
@@ -644,7 +658,7 @@ public class Context {
 
       } catch( Exception e ) { setDepth(1); }
 
-      // Il peut s'agit d'un fichier .hhh (sans pixel)
+      // Il peut s'agir d'un fichier .hhh (sans pixel)
       try { initCut(fitsfile); } catch( Exception e ) {
          Aladin.trace(4,"initFromImgEtalon :"+ e.getMessage());
       }
@@ -653,7 +667,9 @@ public class Context {
       // Positionnement initiale du HiPS par défaut
       if( target==null ) {
          Coord c = fitsfile.calib.getImgCenter();
-         setTarget(Util.round(c.al,5)+" "+(c.del>=0?"+":"")+Util.round(c.del,5));
+         String s = Util.round(c.al,5)+" "+(c.del>=0?"+":"")+Util.round(c.del,5);
+         setTarget(s);
+         info("setTarget => "+s);
          if( targetRadius==null ) {
             double r = Math.max( fitsfile.calib.getImgHeight(),fitsfile.calib.getImgWidth());
             setTargetRadius(Util.round(r,5)+"");
@@ -680,18 +696,21 @@ public class Context {
       if (h > 1024) { h = 1024; y=file.height/2 -512; }
       if (d > 1 ) { d = 1;  z=file.depth/2 - 1/2; }
       if( file.getFilename()!=null ) file.loadFITS(file.getFilename(), 0, x, y, z, w, h, d);
+      
+      if( !flagNoInitEtalon ) {
 
-      double[] cutOrig = file.findAutocutRange();
+         double[] cutOrig = file.findAutocutRange();
 
-      //       cutOrig[2]=cutOrig[3]=0;  // ON NE MET PAS LE PIXELRANGE, TROP DANGEREUX... // J'HESITE DE FAIT !!!
+         //       cutOrig[2]=cutOrig[3]=0;  // ON NE MET PAS LE PIXELRANGE, TROP DANGEREUX... // J'HESITE DE FAIT !!!
 
-      // PLUTOT QUE DE NE PAS INITIALISER, ON VA DOUBLER LA TAILLE DE L'INTERVALLE
-      double rangeData   = cutOrig[3] - cutOrig[2];
-      double centerRange = cutOrig[2]/2 + cutOrig[3]/2;
-      if( !Double.isInfinite( centerRange-rangeData ) ) cutOrig[2] = centerRange-rangeData;
-      if( !Double.isInfinite( centerRange+rangeData ) ) cutOrig[3] = centerRange+rangeData;
+         // PLUTOT QUE DE NE PAS INITIALISER, ON VA DOUBLER LA TAILLE DE L'INTERVALLE
+         double rangeData   = cutOrig[3] - cutOrig[2];
+         double centerRange = cutOrig[2]/2 + cutOrig[3]/2;
+         if( !Double.isInfinite( centerRange-rangeData ) ) cutOrig[2] = centerRange-rangeData;
+         if( !Double.isInfinite( centerRange+rangeData ) ) cutOrig[3] = centerRange+rangeData;
 
-      setCutOrig(cutOrig);
+         setCutOrig(cutOrig);
+      }
    }
 
    static private int nbFiles;  // nombre de fichiers scannés
@@ -754,7 +773,21 @@ public class Context {
    }
 
    String justFindImgEtalon(String rootPath) {
-      if( isInputFile ) return rootPath;
+      MyInputStream in = null;
+      
+      if( isInputFile ) {
+         
+//         // Cas particulier d'une image couleur avec un fichier .hhh qui l'accompagne
+//         if( isColor() ) {
+//            String file = rootPath;
+//            int offset = file.lastIndexOf('.');
+//            if( offset!=-1 )  file = file.substring(0,offset);
+//            file += ".hhh";
+//            if( (new File(file).exists()) ) rootPath=file;
+//         }
+         
+         return rootPath;
+      }
 
       File main = new File(rootPath);
       String[] list = main.list();
@@ -774,7 +807,6 @@ public class Context {
 
          // essaye de lire l'entete fits du fichier
          // s'il n'y a pas eu d'erreur ça peut servir d'étalon
-         MyInputStream in = null;
          try {
             // cas particulier d'un survey couleur en JPEG ou PNG avec calibration externe
             if( path.endsWith(".hhh") ) return path;
@@ -826,6 +858,20 @@ public class Context {
       } else {
          this.skyvalName = fieldName.toUpperCase();
       }
+   }
+   
+   /** Postionnement direct des valeurs du skyval, notamment pour un CONCAT
+    * @param s contient les 4 valeurs du cutOrig[]
+    * @throws Exception
+    */
+   public void setSkyValues(String s) throws Exception {
+      Tok tok = new Tok(s);
+      cutOrig = new double[4];
+      for( int i=0; tok.hasMoreTokens(); i++ ) {
+         try { cutOrig[i] = Double.parseDouble( tok.nextToken() );
+         } catch( Exception e) { throw new Exception("hips_skyval_values parsing error ["+s+"]"); }
+      }
+      flagNoInitEtalon=true;
    }
 
    public void setExpTime(String expTime) {
@@ -1025,8 +1071,41 @@ public class Context {
       return true;
    }
 
+   public boolean verifFrame() {
+
+      // Récupération d'un éventuel changement de hips_frame dans les propriétés du HpxFinder
+      InputStream in = null;
+      boolean flagFrameFound=false;
+      try {
+         String propFile = getHpxFinderPath()+Util.FS+Constante.FILE_PROPERTIES;
+         MyProperties prop = new MyProperties();
+         prop.load( in=new FileInputStream( propFile ) );
+         int o=0;
+         String s = prop.getProperty(Constante.KEY_HIPS_FRAME);
+         if( s!=null ) {
+            flagFrameFound=true;
+            o = getFrameVal(s);
+         }
+
+         if( flagFrameFound ) {
+            if( hasFrame() ) {
+               if( o!=getFrame() ) {
+                  warning("Uncompatible coordinate frame="+getFrameName()+" compared to pre-existing survey frame="+getFrameName(o));
+                  return false;
+               }
+            } else {
+               setFrame(o);
+            }
+         }
+      } catch( Exception e ) { }
+      finally { if( in!=null ) { try { in.close(); } catch( Exception e ) {} } }
+
+      return true;
+   }
+
    public boolean verifCoherence() {
 
+      if( !verifFrame() ) return false;
       if( !verifTileOrder() ) return false;
 
       if( mode==Mode.REPLACETILE ) return true;
@@ -1183,15 +1262,16 @@ public class Context {
       String sNbCells = nbCells==-1 ? "" : "/"+nbCells;
       String pourcentNbCells = nbCells==-1 ? "" :
          nbCells==0 ? "-":(Math.round( ( (double)nbLowTile/nbCells )*1000)/10.)+"%";
-      long tempsTotalEstime = nbLowTile==0 ? 0 : nbCells==0 ? 0 : nbCells*(totalTime/nbLowTile)-totalTime;
+      
+      long tempsTotalEstime = nbLowTile==0 ? 0 : nbCells==0 ? 0 :(nbCells*totalTime)/nbLowTile - totalTime;
 
       long nbTilesPerMin = (deltaNbTile*60000L)/deltaTime;
 
-      String s=statNbTile+"+"+statNbEmptyTile+sNbCells+" tiles + "+statNodeTile+" nodes in "+Util.getTemps(totalTime,true)+" ("
-            +pourcentNbCells+(nbTilesPerMin<=0 ? "": " "+nbTilesPerMin+"tiles/mn EndsIn:"+Util.getTemps(tempsTotalEstime,true))+") "
-            +Util.getTemps(statAvgTime)+"/tile ["+Util.getTemps(statMinTime)+" .. "+Util.getTemps(statMaxTime)+"] "
+      String s=statNbTile+(statNbEmptyTile==0?"":"+"+statNbEmptyTile)+sNbCells+" tiles + "+statNodeTile+" nodes in "+Util.getTemps(totalTime,true)+" ("
+            +pourcentNbCells+(nbTilesPerMin<=0 ? "": " "+nbTilesPerMin+" tiles/mn EndsIn:"+Util.getTemps(tempsTotalEstime,true))+") "
+//            +Util.getTemps(statAvgTime)+"/tile ["+Util.getTemps(statMinTime)+" .. "+Util.getTemps(statMaxTime)+"] "
 //            +Util.getTemps(statNodeAvgTime)+"/node"
-            +(statNbThread==0 ? "":" by "+statNbThreadRunning+"/"+statNbThread+" threads")
+            +(statNbThread==0 ? "":"by "+statNbThreadRunning+"/"+statNbThread+" threads")
             //         +" using "+Util.getUnitDisk(usedMem)
             ;
 
@@ -1253,11 +1333,31 @@ public class Context {
 
       stat(s);
    }
+   
+   // Demande d'affichage des stats (dans le TabJpeg)
+   protected void showRGBStat(int statNbFile, long cTime,int statNbThread,int statNbThreadRunning) {
+      long nbLowCells = getNbLowCells();
 
-   // Demande d'affichage des stats (dans le TabRgb)
-   protected void showRgbStat(int statNbFile, long statSize, long totalTime) {
-      if( statNbFile>0 ) showJpgStat(statNbFile, totalTime, 1, 1);
+      double pourcent = nbLowCells<=0 ? 0 : (double)statNbFile/nbLowCells;
+      long totalTime = (long)( cTime/pourcent );
+      long endsIn = totalTime-cTime;
+      String pourcentNbCells = nbLowCells==-1 ? "" :
+         (Math.round( ( (double)statNbFile/nbLowCells )*1000)/10.)+"%) ";
+
+      String s;
+      if( nbLowCells<=0 ) s = s=statNbFile+" tiles in "+Util.getTemps(cTime,true);
+      else s=statNbFile+"/"+nbLowCells+" tiles in "+Util.getTemps(cTime,true)+" ("
+            +pourcentNbCells+" endsIn:"+Util.getTemps(endsIn,true)
+            +(statNbThread==0 ? "":" by "+statNbThreadRunning+"/"+statNbThread+" threads");
+
+      stat(s);
    }
+
+
+//   // Demande d'affichage des stats (dans le TabRgb)
+//   protected void showRgbStat(int statNbFile, long statSize, long totalTime) {
+//      if( statNbFile>0 ) showJpgStat(statNbFile, totalTime, 1, 1);
+//   }
 
    protected Action action=null;      // Action en cours (voir Action)
    protected double progress=-1;       // Niveau de progression de l'action en cours, -1 si non encore active, =progressMax si terminée
@@ -1622,8 +1722,23 @@ public class Context {
 
    }
 
-   /** Création, ou mise à jour du fichier des Properties associées au survey */
-   protected void writePropertiesFile() throws Exception {
+   /** Création, ou mise à jour des fichiers meta associées au survey
+    */
+   protected void writeMetaFile() throws Exception {
+      writePropertiesFile(null);
+      
+      // On en profite pour écrire le fichier index.html
+      writeIndexHtml();
+
+      // Et metadata.fits
+      writeMetadataFits();
+
+    }
+   
+   /** Création, ou mise à jour du fichier des Properties associées au survey
+    * @param stream null pour l'écrire à l'emplacement prévu par défaut
+    */
+   protected void writePropertiesFile(OutputStream stream) throws Exception {
 
 
       // Ajout de l'IVORN si besoin
@@ -1670,7 +1785,7 @@ public class Context {
       setPropriete(Constante.KEY_HIPS_TILE_WIDTH,CDSHealpix.pow2( getTileOrder())+"");
 
       // L'url
-      setPropriete("#"+Constante.KEY_HIPS_SERVICE_URL,"ex: http://yourHipsServer/"+label+"");
+      setPropriete("#"+Constante.KEY_HIPS_MASTER_URL,"ex: http://yourHipsServer/"+label+"");
       setPropriete(Constante.KEY_HIPS_STATUS,"public master clonableOnce");
       
       // le status du HiPS : par defaut "public master clonableOnce"
@@ -1693,15 +1808,11 @@ public class Context {
 
       if( fmt.indexOf("fits")>=0) {
          if( bitpix!=-1 ) setPropriete(Constante.KEY_HIPS_PIXEL_BITPIX,bitpix+"");
-         if( bitpixOrig!=-1 ) setPropriete(Constante.KEY_DATA_PIXEL_BITPIX,bitpixOrig+"");
-         //         setPropriete(Constante.KEY_HIPS_PROCESS_SAMPLING, isMap() ? "none" : "bilinear");
-         //         setPropriete(Constante.KEY_HIPS_PROCESS_SKYVAL,
-         //               skyvalName==null ? "none" : skyvalName.equals("true")?"hips_estimation":"fits_keyword");
       }
       //      setPropriete(Constante.KEY_HIPS_PROCESS_OVERLAY,
       //            isMap() ? "none" : mode==Mode.ADD ? "add" :
       //               fading ? "border_fading" : mixing ? "mean" : "first");
-      setPropriete(Constante.KEY_HIPS_PROCESS_HIERARCHY, "mean");
+//      setPropriete(Constante.KEY_HIPS_PROCESS_HIERARCHY, jpegMethod.toString().toLowerCase());
 
 
       if( cut!=null ) {
@@ -1783,13 +1894,8 @@ public class Context {
          k[i] = keyAddProp.get(i);
          v[i] = valueAddProp.get(i);
       }
-      updateProperties(k,v,true);
+      updateProperties(k,v,true,stream);
 
-      // On en profite pour écrire le fichier index.html
-      writeIndexHtml();
-
-      // Et metadata.fits
-      writeMetadataFits();
    }
 
    /** Ecriture du fichier des propriétés pour le HpxFinder */
@@ -1823,7 +1929,8 @@ public class Context {
       prop.add("#","#____FOR_COMPATIBILITY_WITH_OLD_HIPS_CLIENTS____");
       prop.add(Constante.OLD_OBS_COLLECTION,label);
       prop.add(Constante.OLD_HIPS_FRAME, getFrameCode() );
-      prop.add(Constante.OLD_HIPS_ORDER,getOrder()+"" );
+      prop.add(Constante.OLD_HIPS_ORDER,prop.getProperty(Constante.KEY_HIPS_ORDER) );
+//    prop.add(Constante.OLD_HIPS_ORDER,getOrder()+"" );
       if( minOrder>3 ) prop.add(Constante.OLD_HIPS_ORDER_MIN, minOrder+"");
       prop.add(Constante.KEY_HIPS_TILE_WIDTH,CDSHealpix.pow2( getTileOrder())+"");
 
@@ -1969,6 +2076,7 @@ public class Context {
       }
 
       prop.remove(Constante.OLD_ALADINVERSION);
+      prop.remove("hips_glu_tag");
    }
 
 
@@ -1977,9 +2085,13 @@ public class Context {
     * @param key liste des clés à mettre à jour
     * @param value liste des valuers associées
     * @param overwrite si false, ne peut modifier une clé/valeur déjà existante
+    * @param stream null pour écriture à l'endroit par défaut
     * @throws Exception
     */
    protected void updateProperties(String[] key, String[] value,boolean overwrite) throws Exception {
+      updateProperties(key,value,overwrite,null);
+   }
+   protected void updateProperties(String[] key, String[] value,boolean overwrite,OutputStream stream) throws Exception {
 
       waitingPropertieFile();
       try {
@@ -1989,7 +2101,7 @@ public class Context {
          prop = new MyProperties();
          File f = new File( propFile );
          if( f.exists() ) {
-            if( !f.canRead() || !f.canWrite() ) throw new Exception("Propertie file not available ! ["+propFile+"]");
+            if( !f.canRead() ) throw new Exception("Propertie file not available ! ["+propFile+"]");
             FileInputStream in = new FileInputStream(propFile);
             prop.load(in);
             in.close();
@@ -2046,7 +2158,8 @@ public class Context {
          prop.add("#","#____FOR_COMPATIBILITY_WITH_OLD_HIPS_CLIENTS____");
          prop.add(Constante.OLD_OBS_COLLECTION,getLabel());
          prop.add(Constante.OLD_HIPS_FRAME, getFrameCode() );
-         prop.add(Constante.OLD_HIPS_ORDER,getOrder()+"" );
+         prop.add(Constante.OLD_HIPS_ORDER,prop.getProperty(Constante.KEY_HIPS_ORDER) );
+//         prop.add(Constante.OLD_HIPS_ORDER,getOrder()+"" );
          String fmt = getAvailableTileFormats();
          if( fmt.length()>0 ) prop.add(Constante.OLD_HIPS_TILE_FORMAT,fmt);
          if( fmt.indexOf("fits")>=0 && cut!=null ) {
@@ -2060,21 +2173,24 @@ public class Context {
          }
          
          // Remplacement du précédent fichier
-         String tmp = getOutputPath()+Util.FS+Constante.FILE_PROPERTIES+".tmp";
-         File ftmp = new File(tmp);
-         if( ftmp.exists() ) ftmp.delete();
-         File dir = new File( getOutputPath() );
-         if( !dir.exists() && !dir.mkdir() ) throw new Exception("Cannot create output directory");
-         FileOutputStream out = null;
-         try {
-            out = new FileOutputStream(ftmp);
-            prop.store( out, null);
+         if( stream!=null ) prop.store( stream, null);
+         else {
+            String tmp = getOutputPath()+Util.FS+Constante.FILE_PROPERTIES+".tmp";
+            File ftmp = new File(tmp);
+            if( ftmp.exists() ) ftmp.delete();
+            File dir = new File( getOutputPath() );
+            if( !dir.exists() && !dir.mkdir() ) throw new Exception("Cannot create output directory");
+            FileOutputStream out = null;
+            try {
+               out = new FileOutputStream(ftmp);
+               prop.store( out, null);
 
 
-         } finally {  if( out!=null ) out.close(); }
+            } finally {  if( out!=null ) out.close(); }
 
-         if( f.exists() && !f.delete() ) throw new Exception("Propertie file locked ! (cannot delete)");
-         if( !ftmp.renameTo(new File(propFile)) ) throw new Exception("Propertie file locked ! (cannot rename)");
+            if( f.exists() && !f.delete() ) throw new Exception("Propertie file locked ! (cannot delete)");
+            if( !ftmp.renameTo(new File(propFile)) ) throw new Exception("Propertie file locked ! (cannot rename)");
+         }
 
       }
       finally { releasePropertieFile(); }
@@ -2088,7 +2204,7 @@ public class Context {
          prop = new MyProperties();
          File f = new File( propFile );
          if( f.exists() ) {
-            if( !f.canRead() || !f.canWrite() ) throw new Exception("Propertie file not available ! ["+propFile+"]");
+            if( !f.canRead() ) throw new Exception("Propertie file not available ! ["+propFile+"]");
             FileInputStream in = new FileInputStream(propFile);
             prop.load(in);
             in.close();
@@ -2192,6 +2308,7 @@ public class Context {
    }
    
    protected void updateHeader(Fits fits,int order,long npix) {
+      if( fits.headerFits==null ) return;
       if( creator!=null) fits.headerFits.setKeyValue("ORIGIN", creator);
       fits.headerFits.setKeyValue("CPYRIGHT", "See HiPS properties file");
       fits.headerFits.setKeyValue("COMMENT", "HiPS FITS tile generated by Aladin/Hipsgen "+Aladin.VERSION);

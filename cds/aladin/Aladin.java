@@ -20,12 +20,6 @@
 
 package cds.aladin;
 
-import healpix.essentials.Moc;
-import healpix.essentials.MocQuery;
-//import healpix.essentials.MocUtil;
-import healpix.essentials.Pointing;
-import healpix.essentials.Vec3;
-
 import java.applet.Applet;
 import java.applet.AppletContext;
 import java.awt.BorderLayout;
@@ -122,8 +116,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
-import javax.swing.plaf.basic.BasicSplitPaneDivider;
-import javax.swing.plaf.basic.BasicSplitPaneUI;
 
 import cds.aladin.bookmark.Bookmarks;
 import cds.allsky.Context;
@@ -138,6 +130,11 @@ import cds.tools.VOObserver;
 import cds.tools.pixtools.CDSHealpix;
 import cds.xml.Field;
 import cds.xml.XMLParser;
+import healpix.essentials.Moc;
+import healpix.essentials.MocQuery;
+//import healpix.essentials.MocUtil;
+import healpix.essentials.Pointing;
+import healpix.essentials.Vec3;
 
 /**
  * La classe Aladin est le point d'entree d'Aladin.
@@ -154,10 +151,35 @@ import cds.xml.XMLParser;
  *
  * @beta <B>New features and performance improvements:</B>
  * @beta <UL>
- * @beta    <LI> High Dynamic Range button
+ * @beta    <LI> HiPS Market tree
+ * @beta    <LI> Panel management improvement
+ * @beta    <LI> HiPS mirror sites management improvement
+ * @beta    <LI> MOC perimeter drawing + set drawing=xxx script command
+ * @beta    <LI> Fisheye projection support (ARC) => planetarium usage
+ * @beta    <LI> Fullscreen mode improvements (global menu)
+ * @beta    <LI> New script commands (cmoc, ccat, )
+ * @beta    <LI> MultiCCD FITS image support
+ * @beta    <LI> Tags improvements
+ * @beta    <LI> Probability sky map MOC extraction
+ * @beta    <LI> Planetary HiPS (longitude inversion)
+ * @beta    <LI> Hipsgen improvements: HiPS color multithread code, local MIRROR, APPEND, MAP
+ * @beta    <LI> File dialog window multi-selections
+ * @beta    <LI> Copy-able propertie links
  * @beta </UL>
  * @beta
  * @beta <B>Major fixed bugs:</B>
+ * @beta    <LI> MOC stack bug introduced in v9.039
+ * @beta    <LI> Fix to BLANK wrong value in Hipsgen MAPTILES action
+ * @beta    <LI> Fix to radians unit support for table coordinates
+ * @beta    <LI> Fix to pmra and pmde detection
+ * @beta    <LI> Fix to ZEA and ARC projection in HiPS context
+ * @beta    <LI> Graphical object mouse selection over a HiPS
+ * @beta    <LI> HiPS catalog "ghost" source selection
+ * @beta    <LI> File dialog window directory selection on MacOs and Linux
+ * @beta    <LI> HiPS RGB -f flag
+ * @beta    <LI> GLU watchdog timer (sesame mirrors)
+ * @beta    <LI> Blink initial delay
+ * @beta    <LI> HiPS cache cleaning
  * @beta <UL>
  * @beta </UL>
  *
@@ -181,7 +203,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    static protected final String FULLTITRE   = "Aladin Sky Atlas";
 
    /** Numero de version */
-   static public final    String VERSION = "v9.012";
+   static public final    String VERSION = "v9.501";
    static protected final String AUTHORS = "P.Fernique, T.Boch, A.Oberto, F.Bonnarel";
    static protected final String OUTREACH_VERSION = "    *** UNDERGRADUATE MODE (based on "+VERSION+") ***";
    static protected final String BETA_VERSION     = "    *** BETA VERSION (based on "+VERSION+") ***";
@@ -298,11 +320,11 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
    // Gère le mode particuliers
    static boolean LOG=true;  // false si on inhibe les logs
-   public static boolean BETA   =false;
+   public static boolean BETA  =false;
    public static boolean CDS=false;   // true si on tourne en mode CDS
    public static boolean PROTO=false;	// true si on tourne en mode PROTO (nécessite Proto.jar)
-   static public boolean OUTREACH   =false;
-   static boolean setOUTREACH   =false;
+   static public boolean OUTREACH  =false;
+   static boolean setOUTREACH  =false;
    static int ALIASING=0;            // 0-défaut système, 1-actif, -1-désactivé
 
    static boolean ENABLE_FOOTPRINT_OPACITY=true; // footprints en transparence ?
@@ -323,8 +345,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
    // Limite image en full access
    static final long LIMIT_HUGEFILE = Math.min(Integer.MAX_VALUE,Runtime.getRuntime().maxMemory()/2L);
+//   static final long LIMIT_HUGEFILE =  Runtime.getRuntime().maxMemory()/2L;
 
-   static long MAXMEM = Runtime.getRuntime().maxMemory()/(1024*1024);
+   static long MAXMEM = Runtime.getRuntime().maxMemory()/(1024L*1024L);
 
    // Marge limite en MO pour le chargement des cubes en RAM.
    // Il faut au-moins 500Mo de disponible pour une telle stratégie
@@ -354,7 +377,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    // Le numéro de session d'Aladin
    static private int ALADINSESSION = -1;
    protected int aladinSession=0;
-
+   
    // Les fontes associees a Aladin
    static int  SSIZE,SSSIZE,LSIZE  ;
    static public Font BOLD,PLAIN,ITALIC,SBOLD,SSBOLD,SPLAIN,SSPLAIN,SITALIC,
@@ -374,7 +397,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    public Bookmarks bookmarks;          // Gère les favoris
    View view;                    // Gere la "View frame"
    Status status;                // Gere la ligne de "Status"
-   Match match;                   // Gere le logo pour la grille
+   Match match;                  // Gere le logo pour la grille
    Grid grid;                    // Gere le logo pour la grille
    Oeil oeil;                    // Gere le logo pour l'oeil
    Northup northup;              // Gère le logo pour le Nord en haut
@@ -383,7 +406,11 @@ DropTargetListener, DragSourceListener, DragGestureListener
    Tips urlStatus;               // Gere la ligne de l'info sur les URLs
    MyLabel memStatus;            // Gere la ligne de l'info sur l'usage de la mémoire
    Mesure mesure;                // Gere la "Frame of measurements"
-   MySplitPane splitH;           // Gère la séparation mesure/Vue
+   MySplitPaneMesure splitMesureHeight;     // Gère la séparation mesure/Vue
+   MySplitPane splitZoomHeight;  // Gère la séparation pile/zoom
+   MySplitPane splitZoomWidth;   // Gère la séparation view/pile-zoom
+   MySplitPane splitHiPSWidth;    // Gère la séparation hips/view
+   HipsMarket hipsMarket;        // Gère le "HiPS market"
    Search search;                // Gère le bandeau de recherche dans les mesures
    public ToolBox toolBox;       // Gere la "Tool bar"
    public Calque calque;         // Gere a la fois les plans et le zoom
@@ -402,6 +429,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    FrameMocOperation frameMocOperation;   // Gere la fenetre pour les opérations sur les MOCs
    FrameMocGenImgs frameMocGenImgs; // Gere la fenetre pour la génération d'un MOC à partir d'une collection d'images
    FrameMocGenImg frameMocGenImg;   // Gere la fenetre pour la génération d'un MOC à partir d'images
+   FrameMocGenProba frameMocGenProba;   // Gere la fenetre pour la génération d'un MOC à partir d'un map de proba
    FrameMocGenCat frameMocGenCat;   // Gere la fenetre pour la génération d'un MOC à partir de catalogues
    FrameMocGenRes frameMocGenRes;   // Gere la fenetre pour la génération d'un MOC à partir d'un autre MOC de meilleure résolution
    FrameBitpix frameBitpix;       // Gere la fenetre pour de conversion du bitpix d'une image
@@ -436,6 +464,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    ExtApp extApp = null;         // Application cooperative a Aladin
    String javaVersion;
    static boolean macPlateform = false; // Aladin est-il exécuté sur un Mac ?
+   static boolean winPlateform = false; // Aladin est-il exécuté sur un Windows ?
    private String lastDir=null;  // Le dernier répertoire utilisé
    private final long startTime = System.currentTimeMillis();  // Date de démarrage
    private long sizeCache=0L;    // Taille du cache disque pour les grosses images
@@ -458,21 +487,25 @@ DropTargetListener, DragSourceListener, DragGestureListener
    Rectangle origPos=null;       // Dimension d'origine dans le navigateur
    static public String error;          // La derniere chaine d'erreur (DEVRAIT NE PAS ETRE STATIC)
    protected JMenuBar jBar;      // La barre de menu
+   protected int jbarLastIndex=0; // Index du dernier "vrai" menu dans la jBar
+   protected Component iconFullScreen=null;
+   
    private JButton bDetach;
    private JMenuItem miDetach,miCalImg,miCalCat,miAddCol,miSimbad,miAutoDist,miVizierSED,miXmatch,miROI,/*miTip,*/
    miVOtool,miGluSky,miGluTool,miPref,miPlasReg,miPlasUnreg,miPlasBroadcast,
    miDel,miDelAll,miPixel,miContour,miSave,miPrint,miSaveG,miScreen,miPScreen,miMore,miNext,
-   miLock,miDelLock,miStick,miOne,miNorthUp,
+   miLock,miDelLock,miStick,miOne,miNorthUp,miView,
    miProp,miGrid,miNoGrid,miReticle,miReticleL,miNoReticle,
    miTarget,miOverlay,miConst,miRainbow,miZoomPt,miZoom,miSync,miSyncProj,miCopy1,miPaste,
    /* miPrevPos,miNextPos, */
    miPan,miGlass,miGlassTable,miPanel1,miPanel2c,miPanel2l,miPanel4,miPanel9,miPanel16,
    miImg,miOpen,miCat,miPlugs,miRsamp,miRGB,miMosaic,miBlink,
    miGrey,miFilter,miFilterB,miSelect,miSelectAll,miSelectTag,miTagSelect,miDetag,miSearch,
-   miUnSelect,miCut,miStatSurf,miTransp,miTranspon,miTag,miDist,miDraw,miTexte,miCrop,miCreateHpx,
+   miUnSelect,miCut,miSpect,miStatSurf,miTransp,miTranspon,miTag,miDist,miDraw,miTexte,miCrop,miCreateHpx,miCreateHpxRgb,
    miCopy,miHpxGrid,miHpxDump,
    miTableInfo,miClone,miPlotcat,miConcat,miExport,miExportEPS,miBackup, /* miHistory, */
-   miInFold,miConv,miArithm,miMocHips,miMocPol,miMocGenImg,miMocGenCat,miMocOp,miMocToOrder,miMocFiltering,miMocCrop,
+   miInFold,miConv,miArithm,miMocHips,miMocPol,miMocGenImg,miMocGenProba,miMocGenCat,miMocOp,
+   miMocToOrder,miMocFiltering,miMocCrop,
    miHealpixArithm,miNorm,miBitpix,miPixExtr,miHead,miFlip,
    miSAMPRegister,miSAMPUnregister,miSAMPStartHub,miSAMPStopHub,miLastFile,
    miBroadcastAll,miBroadcastTables,miBroadcastImgs; // Pour pouvoir modifier ces menuItems
@@ -530,13 +563,13 @@ DropTargetListener, DragSourceListener, DragGestureListener
    DELLOCKVIEW,STICKVIEW,FULLINT,NORTHUP,COPIER,COLLER,
    RGB,MOSAIC,BLINK,GREY,SELECT,SELECTTAG,DETAG,TAGSELECT,SELECTALL,UNSELECT,PANEL,
    PANEL1,PANEL2C,PANEL2L,PANEL4,PANEL9,PANEL16,NTOOL,DIST,DRAW,PHOT,TAG,STATSURF,STATSURFCIRC,
-   STATSURFPOLY,CUT,TRANSP,TRANSPON,CROP,COPY,CLONE,CLONE1,CLONE2,PLOTCAT,CONCAT,CONCAT1,CONCAT2,TABLEINFO,
-   SAVEVIEW,EXPORTEPS,EXPORT,BACKUP,FOLD,INFOLD,ARITHM,MOC,MOCGENIMG,MOCGEN,MOCPOL,MOCGENIMGS,MOCGENCAT,
+   STATSURFPOLY,CUT,SPECT,TRANSP,TRANSPON,CROP,COPY,CLONE,CLONE1,CLONE2,PLOTCAT,CONCAT,CONCAT1,CONCAT2,TABLEINFO,
+   SAVEVIEW,EXPORTEPS,EXPORT,BACKUP,FOLD,INFOLD,ARITHM,MOC,MOCGENIMG,MOCGENPROBA,MOCGEN,MOCPOL,MOCGENIMGS,MOCGENCAT,
    MOCM,MOCTOORDER,MOCFILTERING,MOCCROP,MOCHELP,MOCLOAD,MOCHIPS,
    HEALPIXARITHM,/*ADD,SUB,MUL,DIV,*/
    CONV,NORM,BITPIX,PIXEXTR,HEAD,FLIP,TOPBOTTOM,RIGHTLEFT,SEARCH,ALADIN_IMG_SERVER,GLUTOOL,GLUINFO,
    REGISTER,UNREGISTER,BROADCAST,BROADCASTTABLE,BROADCASTIMAGE,SAMPPREFS,STARTINTERNALHUB,STOPINTERNALHUB,
-   HPXCREATE,HPXDUMP,FOVEDITOR,HPXGENERATE,GETOBJ;
+   HPXCREATE,HPXDUMP,FOVEDITOR,HPXGENERATE,HPXGEN,HPXGENMAP,HPXGENRGB,GETOBJ;
    String JUNIT=PROTOPREFIX+"*** Aladin internal code tests ***";
 
    /** Retourne l'objet gérant les chaines */
@@ -613,7 +646,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    public void myInit() {
       if( SCREENSIZE==null ) SCREENSIZE = Toolkit.getDefaultToolkit().getScreenSize();
 
-      setMacProperties();
+      setMacWinLinuxProperties();
 
       // set user-agent (see RFC 2616, User-Agent section)
       try {
@@ -926,6 +959,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       PHOT    = chaine.getString("MPHOT");
       TAG     = chaine.getString("MTAG");
       CUT     = chaine.getString("MCUT");
+      SPECT   = chaine.getString("MSPECT");
       STATSURF= chaine.getString("MSTATSURF");
       STATSURFCIRC= chaine.getString("MSTATSURFCIRC");
       STATSURFPOLY= chaine.getString("MSTATSURFPOLY");
@@ -933,6 +967,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
       TRANSPON= chaine.getString("MTRANSPON");
       CROP    = chaine.getString("VWMCROP1");
       HPXGENERATE = chaine.getString("HPXGENERATE");
+      HPXGEN    = chaine.getString("HPXGEN");
+      HPXGENMAP = chaine.getString("HPXGENMAP");
+      HPXGENRGB = chaine.getString("HPXGENRGB");
       FOVEDITOR = chaine.getString("FOVEDITOR");
       HPXCREATE=chaine.getString("HPXCREATE");
       HPXGRID  =chaine.getString("HPXGRID");
@@ -955,6 +992,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       MOC    =  chaine.getString("MMOC");
       MOCGEN   =chaine.getString("MMOCGEN");
       MOCGENIMG   =chaine.getString("MMOCGENIMG");
+      MOCGENPROBA   =chaine.getString("MMOCGENPROBA");
       MOCPOL =chaine.getString("MMOCGENPOL");
       MOCGENIMGS  =chaine.getString("MMOCGENIMGS");
       MOCGENCAT   =chaine.getString("MMOCGENCAT");
@@ -1139,7 +1177,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
             { {MOVERLAY},
                {CONTOUR},
                //                {MOC,MOCGEN,MOCFILTERING,MOCCROP,MOCM},
-               {},{DIST+"|"+alt+" D"},{PHOT},{DRAW},{TAG},
+               {},{DIST+"|"+alt+" D"},{PHOT},{DRAW},{TAG},{SPECT},
                {},{NTOOL+"|"+alt+" N"},
                {},{"?"+OVERLAY+"|"+alt+" O"},{"?"+RAINBOW+"|"+alt+" R"},{"?"+TARGET+"|"+alt+" T"},{"?"+CONST+"|"+alt+" C"},
 //               {"?"+GRID+"|"+alt+" G"},/*{"?"+HPXGRID+"|"+(macPlateform?"meta shift":"alt")+" W"},*/
@@ -1147,7 +1185,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
                {},{"%"+RETICLE},{"%"+RETICLEL},{"%"+NORETICLE},
             },
             { {MOC},
-               {MOCHIPS},{MOCLOAD}, {MOCGEN, MOCPOL, MOCGENCAT,MOCGENIMG,MOCGENIMGS},
+               {MOCHIPS},{MOCLOAD}, {MOCGEN, MOCPOL, MOCGENCAT,MOCGENIMG,MOCGENIMGS,MOCGENPROBA},
                {},{MOCM},{MOCTOORDER},{},{MOCFILTERING},{MOCCROP},{},{MOCHELP}
             },
             { {MTOOLS},
@@ -1155,7 +1193,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
                {},{"?"+SIMBAD},{"?"+VIZIERSED},{"?"+AUTODIST},/*{"?"+TIP},{"?"+MSCROLL},{CEA_TOOLS},*/
                {}, {ROI}, {MBKM},{CMD+"|F5"},{MACRO},
                {},{VOTOOL,VOINFO}, {GLUTOOL,"-"}, {MPLUGS,PLUGINFO},
-               {},{HPXGENERATE},{HPXCREATE},
+               {},{HPXGEN, HPXGENERATE, HPXGENMAP, HPXCREATE, HPXGENRGB},
                { BETAPREFIX+"HEALPix mouse control","%No mouse NSIDE control","%Mouse NSIDE 2^0","%Mouse NSIDE 2^1","%Mouse NSIDE 2^2","%Mouse NSIDE 2^3","%Mouse NSIDE 2^4","%Mouse NSIDE 2^5","%Mouse NSIDE 2^6",
                   "%Mouse NSIDE 2^7","%Mouse NSIDE 2^8","%Mouse NSIDE 2^9","%Mouse NSIDE 2^10","%Mouse NSIDE 2^11",
                   "%Mouse NSIDE 2^12","%Mouse NSIDE 2^13","%Mouse NSIDE 2^14","%Mouse NSIDE 2^15","%Mouse NSIDE 2^16",
@@ -1425,6 +1463,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
          }
          jBar.add(jm);
       }
+      
+      // Reperage de l'indice du dernier "vrai" menu
+      jbarLastIndex = jBar.getComponentCount();
 
       jBar.add(javax.swing.Box.createGlue());
       JButton b;
@@ -1484,9 +1525,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
          b.addActionListener( new ActionListener() {
             public void actionPerformed(ActionEvent e) {  fullScreen(1); }
          });
-         if( !isApplet() ) jBar.add(b);
+         if( !isApplet() )  jBar.add(b);
 
-         b = new JButton(new ImageIcon(aladin.getImagette("Fullscreen.gif")));
+         iconFullScreen = b = new JButton(new ImageIcon(aladin.getImagette("Fullscreen.gif")));
          b.setMargin(new Insets(0,0,0,0));
          b.setToolTipText(FULLSCREEN);
          b.setBorderPainted(false);
@@ -1693,6 +1734,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       int i;
 
       if( isMenu(m,CALIMG))  miCalImg  = ji;
+      else if( isMenu(m,MVIEW))   miView    = ji;
       else if( isMenu(m,CALCAT))  miCalCat  = ji;
       else if( isMenu(m,MDCH1))   miDetach  = ji;
       else if( isMenu(m,ADDCOL))  miAddCol  = ji;
@@ -1768,6 +1810,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       else if( isMenu(m,SELECTALL) ) miSelectAll = ji;
       else if( isMenu(m,UNSELECT) )  miUnSelect  = ji;
       else if( isMenu(m,CUT) )    miCut     = ji;
+      else if( isMenu(m,SPECT) )    miSpect     = ji;
       else if( isMenu(m,STATSURF) ) miStatSurf     = ji;
       else if( isMenu(m,TRANSP) ) miTransp  = ji;
       else if( isMenu(m,TRANSPON) ) miTranspon  = ji;
@@ -1777,6 +1820,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       else if( isMenu(m,TAG) )  miTexte   = ji;
       else if( isMenu(m,CROP) )   miCrop    = ji;
       else if( isMenu(m,HPXCREATE) ) miCreateHpx = ji;
+      else if( isMenu(m,HPXGENRGB) ) miCreateHpxRgb = ji;
       else if( isMenu(m,HPXDUMP) )   miHpxDump = ji;
       else if( isMenu(m,COPY) )   miCopy    = ji;
       else if( isMenu(m,TABLEINFO) ) miTableInfo = ji;
@@ -1796,6 +1840,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       else if( isMenu(m,MOCFILTERING) )   miMocFiltering  = ji;
       else if( isMenu(m,MOCCROP) )   miMocCrop  = ji;
       else if( isMenu(m,MOCGENIMG) )   miMocGenImg  = ji;
+      else if( isMenu(m,MOCGENPROBA) )   miMocGenProba  = ji;
       else if( isMenu(m,MOCHIPS) )   miMocHips  = ji;
       else if( isMenu(m,MOCPOL) )   miMocPol  = ji;
       else if( isMenu(m,MOCGENCAT) )   miMocGenCat  = ji;
@@ -2066,7 +2111,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       // Creation du menu
       if( !NOGUI ) {
          trace(1,"Creating the Menu");
-         JMenuBar jBar = createJBar( createMenu() );
+         jBar = createJBar( createMenu() );
          // TODO : que faire en mode applet ??
          if( STANDALONE && macPlateform && !isApplet() ) f.setJMenuBar(jBar);
          else setJMenuBar(jBar);
@@ -2082,30 +2127,33 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
       JPanel gauche1 = new JPanel( new BorderLayout(3,0));
       gauche1.add(bigView,BorderLayout.CENTER);
-
+      
       // Désactivation des éléments de menus et des boutons non encore accessible
       setButtonMode();
 
       // Le panel gauche : contient la boite a boutons et les calques
-      final JPanel gauche = new JPanel(new BorderLayout(3,0));
-      gauche.add(calque,BorderLayout.CENTER);
+      final JPanel droite = new JPanel(new BorderLayout(5,0));
+      droite.add(calque,BorderLayout.CENTER);
 
-      JPanel gauche2;
-      gauche2 = new JPanel(new BorderLayout(2,0));
-      gauche2.setBorder( BorderFactory.createEmptyBorder(0, 2, 0, 0));
-      gauche2.add(toolBox,BorderLayout.WEST);
-      gauche2.add(gauche,BorderLayout.CENTER);
+      JPanel droite2;
+      droite2 = new JPanel(new BorderLayout(0,0));
+      droite2.setBorder( BorderFactory.createEmptyBorder(0, 0, 0, 0));
+      droite2.add(toolBox,BorderLayout.WEST);
+      droite2.add(droite,BorderLayout.CENTER);
 
       // Le panel haut1 : contient le menu et le bandeau d'info
-      JPanel haut1 = new JPanel(new BorderLayout(1,1));
+      JPanel haut1 = new JPanel(new BorderLayout(0,0));
       haut1.add(saisie,BorderLayout.NORTH);
       JPanel  panelBookmarks = new JPanel( new BorderLayout(0,0));
+      
+//      bookmarks.setBackground( Color.red );
+
       panelBookmarks.add( bookmarks.getToolBar(), BorderLayout.CENTER);
       haut1.add(panelBookmarks,BorderLayout.SOUTH);
 
       // Le panel haut : contient le logo et le haut1
       JPanel haut = new JPanel(new BorderLayout(0,0));
-      haut.setBorder(BorderFactory.createEmptyBorder(4,0,0,40));
+      haut.setBorder(BorderFactory.createEmptyBorder(4,10,0,40));
       haut.add(haut1,BorderLayout.CENTER);
       haut.add(logo,BorderLayout.EAST);
 
@@ -2123,6 +2171,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       makeAdd(searchPanel,y,"West");
       makeAdd(searchPanel,status,"Center");
       makeAdd(searchPanel,search,"East");
+      search.hideSearch(true);
 
       GridBagLayout g = new GridBagLayout();
       infoPanel = new JPanel(g);
@@ -2163,28 +2212,48 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
       // test thomas (avec un séparateur) + Pierre
       //       final MySplitPane splitV = new MySplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
-      //             gauche1, gauche2);
+      //             gauche1, droite2);
       //       splitV.setBorder(BorderFactory.createEmptyBorder());
       //       splitV.setResizeWeight(1);
-      //       gauche.setMinimumSize(new Dimension(ZoomView.SIZE + ToolBox.W,200));
+      //       droite.setMinimumSize(new Dimension(ZoomView.SIZE + ToolBox.W,200));
       //       gauche1.setMinimumSize(new Dimension(300,300));
 
-      JPanel splitV = new JPanel( new BorderLayout(0,0));
-      splitV.add(gauche1,BorderLayout.CENTER);
-      splitV.add(gauche2,BorderLayout.EAST);
+//      JPanel splitV = new JPanel( new BorderLayout(0,0));
+//      splitV.add(gauche1,BorderLayout.CENTER);
+//      splitV.add(droite2,BorderLayout.EAST);
 
       JPanel bigViewSearch = new JPanel( new BorderLayout(0,0));
-      bigViewSearch.add(splitV,BorderLayout.CENTER);
+      bigViewSearch.add(gauche1 /*splitV*/,BorderLayout.CENTER);
       bigViewSearch.add(searchPanel,BorderLayout.SOUTH);
 
-      splitH = new MySplitPane(JSplitPane.VERTICAL_SPLIT, true,
-            bigViewSearch, mesure);
-      mesure.setPreferredSize(new Dimension(100,150));
+      splitMesureHeight = new MySplitPaneMesure(aladin,JSplitPane.VERTICAL_SPLIT, true, bigViewSearch, mesure);
+      mesure.setPreferredSize(new Dimension(100,getMesureHeight()));
+      bigViewSearch.setPreferredSize(new Dimension(500,500));
       mesure.setMinimumSize(new Dimension(100,0));
-      splitH.remove(mesure);
-      splitH.setBorder(BorderFactory.createEmptyBorder());
+      splitMesureHeight.setResizeWeight(1);
+      splitMesureHeight.remove(mesure);
+      splitMesureHeight.setBorder(BorderFactory.createEmptyBorder());
+      
+      if( PROTO ) {
+         hipsMarket = new HipsMarket(aladin);
+         splitHiPSWidth = new MySplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
+               hipsMarket, splitMesureHeight,0);
+         splitHiPSWidth.setBorder(BorderFactory.createEmptyBorder());
+         hipsMarket.setPreferredSize(new Dimension(getHiPSWidth(),200));
+         hipsMarket.setMinimumSize( new Dimension(0,200));
+      }
+      
+      // test thomas (avec un séparateur) + Pierre
+      final MySplitPane splitV = new MySplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
+            PROTO ? splitHiPSWidth : splitMesureHeight, droite2,1);
+      splitV.setBorder(BorderFactory.createEmptyBorder());
+      splitV.setResizeWeight(1);
+      droite2.setMinimumSize(new Dimension(180,100));
+      droite2.setPreferredSize(new Dimension(getStackWidth(),100));
+      splitZoomWidth = splitV;
+      
       makeAdd(ct,haut,"North");
-      makeAdd(ct,splitH,"Center");
+      makeAdd(ct,splitV,"Center");
       makeAdd(ct,infoPanel,"South");
 
       // Dernier objet a creer et traitement des parametres
@@ -2252,7 +2321,20 @@ DropTargetListener, DragSourceListener, DragGestureListener
          }).start();
       }
    }
-
+   
+   
+   /*  Retourne la largeur en pixels du panel qui contient la pile, mes sliders et le zoomview */
+   protected int getStackWidth() { return configuration.getZoomWidth(); } 
+   
+   /* Retourne la hauteur en pixels du panel qui contient le zoomView */
+   protected int getZoomViewHeight() { return configuration.getZoomHeight(); }
+   
+   /* Retourne la hauteur en pixels du panel qui contient les mesures */
+   protected int getMesureHeight() { return configuration.getWinDivider(); } 
+   
+   /* Retourne la largeur en pixels du panel du HiPS market */
+   protected int getHiPSWidth() { return configuration.getHiPSWinDivider(); } 
+   
    protected void manageDrop() {
       // IL Y A UN GROS BUG SOUS LINUX QUI FAIT QUE LA JVM DU BROWSER SE PLANTE ET
       // PLANTE LE BROWSER LORSQUE L'ON FAIT UN DETACH() SI LA FRAME EST DRAG&DROP
@@ -2265,59 +2347,50 @@ DropTargetListener, DragSourceListener, DragGestureListener
       }
    }
 
-   // Surcharges de classes pour supprimer le trait séparateur du JSplitPane
-   class MySplitPane extends JSplitPane {
-      public MySplitPane(int newOrientation, boolean newContinuousLayout,
-            Component newLeftComponent, Component newRightComponent ) {
-         super(newOrientation,newContinuousLayout,newLeftComponent,newRightComponent);
-         flagMesure = newOrientation==JSplitPane.VERTICAL_SPLIT;
-         setUI(new MyBasicSplitPaneUI());
-      }
-
-      private boolean flagMesure;
-      private int mesureHeight;
-
-      // Repositionne le diviseur à la position mémorisée
-      public void restoreMesureHeight() {
-         setDividerLocation(getHeight()-(mesureHeight<=0 ? 150 : mesureHeight)); }
-
-      // Positionne le diviseur en fonction de la taille de la fenêtre des mesures,
-      // et mémorise cette valeur pour pouvoir y revenir
-      public void setMesureHeight(int h) { mesureHeight=h; }
-
-      // Retourne la taille de la fenêtre des mesures.
-      public int getMesureHeight() { return mesureHeight; }
-
-      // On bride à 55 pixels minimum pour la taille de la fenêtre des mesures
-      public void setDividerLocation(int n) {
-         if( flagMesure ) {
-            int h = getHeight();
-            if( h-n<53 ) return;
-            mesureHeight = h-n;
-         }
-         super.setDividerLocation(n);
-      }
-
-   }
-   class MyBasicSplitPaneUI extends BasicSplitPaneUI {
-      @Override
-      public BasicSplitPaneDivider createDefaultDivider() {
-         return new MySplitPaneDivider(this);
-      }
-   }
-   class MySplitPaneDivider extends BasicSplitPaneDivider {
-      public MySplitPaneDivider(BasicSplitPaneUI ui) { super(ui); }
-      @Override
-      public void paint(Graphics g) {
-         //          g.setColor(Color.gray);
-         //          if( getBasicSplitPaneUI().getOrientation()==JSplitPane.HORIZONTAL_SPLIT ) {
-         //             Util.drawVerticalSplitPaneTriangle(g,0,view.getHeight()-25);
-         //          } else {
-         //             Util.drawHorizontalSplitPaneTriangle(g,view.getWidth()-25,0);
-         //          }
-      }
-   }
-
+//   // Surcharges de classes pour supprimer le trait séparateur du JSplitPane
+//   class MySplitPane extends JSplitPane {
+//      public MySplitPane(int newOrientation, boolean newContinuousLayout,
+//            Component newLeftComponent, Component newRightComponent ) {
+//         super(newOrientation,newContinuousLayout,newLeftComponent,newRightComponent);
+//         flagMesure = newOrientation==JSplitPane.VERTICAL_SPLIT;
+//         setUI(new MyBasicSplitPaneUI());
+//      }
+//
+//      private boolean flagMesure;
+//      private int mesureHeight;
+//
+//      // Repositionne le diviseur à la position mémorisée
+//      public void restoreMesureHeight() {
+//         setDividerLocation(getHeight()-(mesureHeight<=0 ? 150 : mesureHeight)); }
+//
+//      // Positionne le diviseur en fonction de la taille de la fenêtre des mesures,
+//      // et mémorise cette valeur pour pouvoir y revenir
+//      public void setMesureHeight(int h) { mesureHeight=h; }
+//
+//      // Retourne la taille de la fenêtre des mesures.
+//      public int getMesureHeight() { return mesureHeight; }
+//
+//      // On bride à 55 pixels minimum pour la taille de la fenêtre des mesures
+//      public void setDividerLocation(int n) {
+//         if( flagMesure ) {
+//            int h = getHeight();
+//            if( h-n<53 ) return;
+//            mesureHeight = h-n;
+//         }
+//         super.setDividerLocation(n);
+//      }
+//
+//   }
+//   class MyBasicSplitPaneUI extends BasicSplitPaneUI {
+//      public BasicSplitPaneDivider createDefaultDivider() {
+//         return new MySplitPaneDivider(this);
+//      }
+//   }
+//   class MySplitPaneDivider extends BasicSplitPaneDivider {
+//      public MySplitPaneDivider(BasicSplitPaneUI ui) { super(ui); }
+//      public void paint(Graphics g) { }
+//   }
+//
 
    /** Subtilité pour faire de la mise en page une fois que toutes les peer classes
     * aient été correctement initialisées
@@ -2339,6 +2412,11 @@ DropTargetListener, DragSourceListener, DragGestureListener
          detach();
       }
       flagScreen=false;
+   }
+   
+   /** True si on est en mode cinema = planetarium) */
+   public boolean isCinema() {
+      return aladin.isFullScreen() && aladin.fullScreen.getMode()==FrameFullScreen.CINEMA;
    }
 
    /** Positionnement d'un message d'attente */
@@ -2442,6 +2520,11 @@ DropTargetListener, DragSourceListener, DragGestureListener
    /** Mise à jour de la date de modif du répertoire cache afin qu'une autre session
     * ne puisse faire un nettoyage intempestif (toutes les minutes) */
    private void launchCacheUpdater() {
+      
+      // Suppression d'un éventuel vieux fichier "flag" signalant un nettoyage en cours
+      File ft = new File(Cache.getCacheDir()+Util.FS+"ScanRunning.bin");
+      if( ft.exists() ) ft.delete();
+      
       cacheUpdaterRunning=true;
       (updaterCache=new Thread("cacheUpdater"){
          @Override
@@ -2758,17 +2841,16 @@ DropTargetListener, DragSourceListener, DragGestureListener
     *             1-fenêtre preview
     *             2-fenêtre preview mais démarre caché (très utile en mode applet
     *             3-plein écran mode cinéma (exclusif)
+    *             -1-mode normal
     */
    protected void fullScreen(int mode) {
-      if( fullScreen==null ) {
-//         boolean full = mode==0;
-//         boolean startHidden = mode==2;
+      if( mode!=-1 ) {
          
          int m = mode==0 ? FrameFullScreen.FULL : mode==3 ? FrameFullScreen.CINEMA
                : mode==2 ? FrameFullScreen.WINDOW_HIDDEN : FrameFullScreen.WINDOW;
          pan(false);
-//         fullScreen = new FrameFullScreen(this,view.getCurrentView(),full,startHidden);
          fullScreen = new FrameFullScreen(this,view.getCurrentView(),m);
+         
       } else {
          fullScreen.end();
          fullScreen=null;
@@ -3079,8 +3161,8 @@ DropTargetListener, DragSourceListener, DragGestureListener
       } else if( isMenu(s,SELECTALL)){ selectAll();
       } else if( isMenu(s,UNSELECT)) { unSelect();
       } else if( isMenu(s,TABLEINFO))  { tableInfo(null);
-      } else if( isMenu(s,CLONE1))  { cloneObj(false);
-      } else if( isMenu(s,CLONE2))  { cloneObj(true);
+      } else if( isMenu(s,CLONE1))  { cloneObj(true);
+      } else if( isMenu(s,CLONE2))  { cloneObj(false);
       } else if( isMenu(s,PLOTCAT))  { createPlotCat();
       } else if( isMenu(s,CONCAT1)){ concat(true);
       } else if( isMenu(s,CONCAT2)){ concat(false);
@@ -3091,9 +3173,10 @@ DropTargetListener, DragSourceListener, DragGestureListener
       } else if( isMenu(s,TRANSP)) { transparency();
       } else if( isMenu(s,TRANSPON)) { transpon();
       } else if( isMenu(s,CUT))    { view.deSelect(); graphic(ToolBox.DIST);
+      } else if( isMenu(s,SPECT))  { view.deSelect(); graphic(ToolBox.SPECT);
       } else if( isMenu(s,STATSURFCIRC))    { view.deSelect(); graphic(ToolBox.PHOT);
       } else if( isMenu(s,STATSURFPOLY))    { view.deSelect(); graphic(ToolBox.DRAW);
-      } else if( isMenu(s,CUT))    { view.deSelect(); graphic(ToolBox.DIST);
+      } else if( isMenu(s,CUT))    { view.deSelect(); graphic(ToolBox.SPECT);
       } else if( isMenu(s,DIST))   { graphic(ToolBox.DIST);
       } else if( isMenu(s,NTOOL))  { newPlanTool();
       } else if( isMenu(s,DRAW))   { graphic(ToolBox.DRAW);
@@ -3120,6 +3203,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       } else if( isMenu(s,MCLOSE) ){ quit(0);
       } else if( isMenu(s,ARITHM) ){ updateArithm();
       } else if( isMenu(s,MOCGENIMG) ){ updateMocGenImg();
+      } else if( isMenu(s,MOCGENPROBA) ){ updateMocGenProba();
       } else if( isMenu(s,MOCPOL) ){ createMocRegion();
       } else if( isMenu(s,MOCGENIMGS) ){ updateMocGenImgs();
       } else if( isMenu(s,MOCGENCAT) ){ updateMocGenCat();
@@ -3136,7 +3220,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
       } else if( isMenu(s,BITPIX) )  { updateBitpix();
       } else if( isMenu(s,PIXEXTR) )  { new FramePixelExtraction(this);
       } else if( isMenu(s,HEAD) )  { header();
-      } else if( isMenu(s,HPXGENERATE)){ buildAllsky();
+      } else if( isMenu(s,HPXGENERATE)){ buildHiPS();
+      } else if( isMenu(s,HPXGENMAP)){ buildHiPS();
+      } else if( isMenu(s,HPXGENRGB)){ buildHiPSRGB();
       } else if( isMenu(s,FOVEDITOR))  { buildFoV();
       } else if( isMenu(s,TOPBOTTOM) )  { flip(0);
       } else if( isMenu(s,RIGHTLEFT) )  { flip(1);
@@ -3214,8 +3300,14 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
    /** Exécution de l'inversion verticale ou horizontale du plan de base */
    protected void flip(int methode) {
-      try { flip(calque.getFirstSelectedSimpleImage(),methode); }
-      catch( Exception e) { e.printStackTrace(); }
+      try {
+         PlanImage p = calque.getFirstSelectedSimpleImage();
+         if( p==null ) {
+            Plan p1 = calque.getPlanBase();
+            if( p1!=null && p1 instanceof PlanImage ) p=(PlanImage)p1;
+         }
+         flip(p,methode);
+      } catch( Exception e) { e.printStackTrace(); }
    }
 
    /** Exécution de l'inversion verticale ou horizontale */
@@ -3232,10 +3324,8 @@ DropTargetListener, DragSourceListener, DragGestureListener
    /** Affichage du header fits du plan passé en paramètre */
    protected void header(Plan plan) {
       if( plan==null ) return;
-      if( plan instanceof PlanBG )  ((PlanBG)plan).seeHipsProp();
-      else if( plan instanceof PlanImage ) ((PlanImage)plan).headerFits.seeHeaderFits();
-      else if( plan instanceof PlanFolder ) ((PlanFolder)plan).headerFits.seeHeaderFits();
-      else ((PlanCatalog)plan).headerFits.seeHeaderFits();
+      if( plan instanceof PlanBG && !(plan instanceof PlanHealpix || plan instanceof PlanMoc ) )  ((PlanBG)plan).seeHipsProp();
+      else plan.headerFits.seeHeaderFits();
    }
 
    //    /** Exécute une convolution sur le plan de base */
@@ -3302,6 +3392,8 @@ DropTargetListener, DragSourceListener, DragGestureListener
    /** Activation du CLONE des objects depuis la JBar */
    protected void cloneObj(boolean uniqTable) {
       calque.newPlanCatalogBySelectedObjet(uniqTable);
+      console.printCommand("ccat"+(uniqTable?" -uniq ":""));
+
    }
 
    /** Création d'un graphe de nuage de points sur le plan Catalog sélectionné */
@@ -3316,7 +3408,8 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
    /** Activation du CONCAT des objects depuis la JBar */
    protected void concat(boolean uniqTable) {
-      calque.newPlanCatalogByCatalogs(null,uniqTable);
+      String list = calque.newPlanCatalogByCatalogs(null,uniqTable,null);
+      if( list.length()>0 ) console.printCommand("ccat "+(uniqTable?"-uniq ":" ")+list);
    }
 
    /** Activation du COPY depuis la JBar */
@@ -3787,7 +3880,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
     * @param size taille à couvrir (en degrés)
     * @return order HEALPix approprié
     */
-   private int getAppropriateOrder(double size) {
+   static public int getAppropriateOrder(double size) {
       int order = 4;
       if( size==0 ) order=HealpixMoc.MAXORDER;
       else {
@@ -3808,7 +3901,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       for( Obj o : view.vselobj ) {
          
          // Ajout des cercles (Phot ou cercle)
-         if( o instanceof Repere || o instanceof Cercle) {
+         if( o instanceof SourceStat || o instanceof Cercle) {
             try {
                double ra = o.getRa();
                double de = o.getDec();
@@ -3874,54 +3967,55 @@ DropTargetListener, DragSourceListener, DragGestureListener
       Coord c1=null;
       boolean first=true;
 
-      for( int sens=0; sens<2; sens++ ) {
-         ArrayList<Vec3> cooList = new ArrayList<Vec3>();
-         if( sens==1 ) trace(3,"createMocRegion("+o+") trying reverse polygon order...");
-         try {
-            Ligne a = sens==0 ? o.getFirstBout() : o.getLastBout();
-            while( a!=null ) {
+      // ON NE PREND DESORMAIS QUE LE SENS ANTI-HORAIRE
+      ArrayList<Vec3> cooList = new ArrayList<Vec3>();
+      Ligne a = o.getLastBout();
+      while( a!=null ) {
 
-               // Mémorisation de la plus grande diagonale
-               if( first ) { c1 = new Coord(a.raj,a.dej); first=false; }
-               else {
-                  double size = Coord.getDist(c1, new Coord(a.raj,a.dej));
-                  if( size>maxSize ) maxSize=size;
-               }
-
-               double theta = Math.PI/2 - Math.toRadians( a.dej );
-               double phi = Math.toRadians( a.raj );
-               cooList.add(new Vec3(new Pointing(theta,phi)));
-
-               // Prochain sommet ?
-               a = sens==0 ? a.finligne : a.debligne;
-            }
-
-
-            if( sens==0 ) {
-               // L'ordre est déterminé automatiquement par la largeur du polygone
-               if( order==-1 ) order=getAppropriateOrder(maxSize);
-               trace(2,"MocRegion generation:  maxRadius="+maxSize+"deg => order="+order);
-               if( order<10 ) order=10;
-               else if( order>29 ) order=29;
-            }
-
-            Moc m=MocQuery.queryGeneralPolygonInclusive(cooList,order,order+4>29?29:order+4);
-            moc = new HealpixMoc();
-            moc.rangeSet = m.getRangeSet();
-            moc.toHealpixMoc();
-
-            // moins de la moitié du ciel => ca doit être bon
-            if( moc.getCoverage()<0.5 ) break;
-
-            // On va essayer dans l'autre sens avant d'estimer que ça ne fonctionne pas
-         } catch( Throwable e ) {
-            if( sens==1 && e instanceof Exception ) throw (Exception)e;
+         // Mémorisation de la plus grande diagonale
+         if( first ) { c1 = new Coord(a.raj,a.dej); first=false; }
+         else {
+            double size = Coord.getDist(c1, new Coord(a.raj,a.dej));
+            if( size>maxSize ) maxSize=size;
          }
+
+         double theta = Math.PI/2 - Math.toRadians( a.dej );
+         double phi = Math.toRadians( a.raj );
+         cooList.add(new Vec3(new Pointing(theta,phi)));
+
+         // Prochain sommet ?
+         a = a.debligne;
       }
+
+      // L'ordre est déterminé automatiquement par la largeur du polygone
+      if( order==-1 ) order=getAppropriateOrder(maxSize);
+      trace(2,"MocRegion generation:  maxRadius="+maxSize+"deg => order="+order);
+      if( order<10 ) order=10;
+      else if( order>29 ) order=29;
+
+      Moc m=MocQuery.queryGeneralPolygonInclusive(cooList,order,order+4>29?29:order+4);
+      moc = new HealpixMoc();
+      moc.rangeSet = m.getRangeSet();
+      moc.toHealpixMoc();
+
+      // plus de la moitié du ciel => y a un prob
+      // Il faudrait également tester si le résultat donne des zones disjointes => prob
+      if( moc.getCoverage()>0.5 ) throw new Exception("Polygon must be expressed in anti-clockwise direction");
 
 
       return moc;
    }
+
+   /** Mise à jour de la fenêtre pour la génération d'un MOC */
+   protected void updateMocGenProba() {
+      if( frameMocGenProba==null ) {
+         trace(1,"Creating the MocGenImg window");
+         frameMocGenProba = new FrameMocGenProba(aladin);
+      }
+      frameMocGenProba.maj();
+   }
+
+
 
    /** Mise à jour de la fenêtre pour la génération d'un MOC */
    protected void updateMocGenImg() {
@@ -4024,8 +4118,12 @@ DropTargetListener, DragSourceListener, DragGestureListener
    /**
     * Affiche la fenetre pour créer un allsky
     */
-   protected void buildAllsky() {
+   protected void buildHiPS() {
       FrameAllskyTool.display(this);
+   }
+
+   protected void buildHiPSRGB() {
+      FrameAllskyTool.display(this,true);
    }
 
    /**
@@ -4538,6 +4636,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
    static final int STRECHCURSOR  = 9;
    static final int JOINDRECURSOR = 10;
    static final int TAGCURSOR = 11;
+   static final int BLANKCURSOR = 12;
 
    /** Retourne le Frame parent */
    protected Frame getFrame(Component c) {
@@ -4633,29 +4732,51 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
    /** Curseurs pour la rotation des Apertures
     * et pour le déplacement d'un plan */
-   static private Cursor turnCursor=null,planCursor=null,joindreCursor=null,tagCursor=null;
+   static private Cursor turnCursor=null,planCursor=null,joindreCursor=null,tagCursor=null,blankCursor=null;
+
+   static private int BLANKCURSORDEF[][]={
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+         {0,0,0,0,0,0,0,0,0,0},
+      };
 
    static private int TURNCURSORDEF[][]={
-      {0,0,0,0,0,0,0,0,0,0},
-      {2,2,2,2,2,2,2,2,0,0},
-      {2,1,1,1,1,1,1,2,0,0},
-      {2,2,2,2,1,1,1,2,0,0},
-      {0,0,2,1,1,1,1,2,0,0},
-      {0,2,1,1,1,2,1,2,0,0},
-      {0,2,1,1,2,2,1,2,0,0},
-      {2,1,1,2,0,2,1,2,0,0},
-      {2,1,1,2,0,0,2,2,0,0},
-      {2,1,1,2,0,0,0,0,0,0},
-      {2,1,1,2,0,0,0,0,0,0},
-      {2,1,1,2,0,0,0,0,0,0},
-      {0,2,1,1,2,0,0,0,0,0},
-      {0,2,1,1,1,2,0,0,0,0},
-      {0,0,2,1,1,1,2,2,2,2},
-      {0,0,0,2,1,1,1,1,1,1},
-      {0,0,0,0,2,1,1,1,1,1},
-      {0,0,0,0,0,2,2,1,1,1},
-      {0,0,0,0,0,0,0,2,2,2},
-   };
+         {0,0,0,0,0,0,0,0,0,0},
+         {2,2,2,2,2,2,2,2,0,0},
+         {2,1,1,1,1,1,1,2,0,0},
+         {2,2,2,2,1,1,1,2,0,0},
+         {0,0,2,1,1,1,1,2,0,0},
+         {0,2,1,1,1,2,1,2,0,0},
+         {0,2,1,1,2,2,1,2,0,0},
+         {2,1,1,2,0,2,1,2,0,0},
+         {2,1,1,2,0,0,2,2,0,0},
+         {2,1,1,2,0,0,0,0,0,0},
+         {2,1,1,2,0,0,0,0,0,0},
+         {2,1,1,2,0,0,0,0,0,0},
+         {0,2,1,1,2,0,0,0,0,0},
+         {0,2,1,1,1,2,0,0,0,0},
+         {0,0,2,1,1,1,2,2,2,2},
+         {0,0,0,2,1,1,1,1,1,1},
+         {0,0,0,0,2,1,1,1,1,1},
+         {0,0,0,0,0,2,2,1,1,1},
+         {0,0,0,0,0,0,0,2,2,2},
+      };
 
    static private int PLANCURSORDEF[][]={
       {0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,2},
@@ -4758,6 +4879,12 @@ DropTargetListener, DragSourceListener, DragGestureListener
       return tagCursor;
    }
 
+   /** Génération d'un curseur totalement transparent (pour le mode cinema) */
+   static private Cursor getBlankCursor() {
+      if( blankCursor==null ) blankCursor=createCursor(BLANKCURSORDEF);
+      return blankCursor;
+   }
+
    /** Construction d'un curseur sur mesure avec symétrie verticale */
    static private Cursor createCursor(int cursor[][]) {
       Cursor myCursor;
@@ -4814,6 +4941,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
          type==TURNCURSOR ? getTurnCursor() :
             type==JOINDRECURSOR ? getJoindreCursor() :
                type==TAGCURSOR? getTagCursor():
+                  type==BLANKCURSOR? getBlankCursor():
                   Cursor.getPredefinedCursor(
                         type==WAITCURSOR?Cursor.WAIT_CURSOR:
                            type==HANDCURSOR?Cursor.HAND_CURSOR:
@@ -4834,6 +4962,43 @@ DropTargetListener, DragSourceListener, DragGestureListener
       else if( ct instanceof JApplet ) ct = ((JApplet)ct).getContentPane();
       try { ct.add(c,s); } catch( Error e ) { ct.add(s,c); }
    }
+   
+   private long ot=0L;
+   
+   /** Met à jour différents éléments */
+   protected void resumeVariousThinks() {
+
+      long t = System.currentTimeMillis();
+      if( t-300>ot ) {
+         ot=t;
+         SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+
+               // On met a jour la fenetre des proprietes en indiquant
+               // s'il y a ou non des plans en train d'etre charge
+               // afin d'eviter les clignotement de Properties
+               // intempestifs
+               Properties.majProp(calque.select.slideBlink?1:0);
+
+               // On met a jour la fenetre de la table des couleurs
+               if( frameCM!=null ) frameCM.majCM();
+
+               // Activation ou desactivation des boutons du menu principal
+               // associes a la presence d'au moins un plan
+               setButtonMode();
+
+               // On met a jour la fenetre des contours
+               if( frameContour!=null ) frameContour.majContour();
+
+               // On met a jour la fenetre des RGB et des Blinks
+               if( frameRGB!=null )   frameRGB.maj();
+               if( frameBlink!=null ) frameBlink.maj();
+               if( frameArithm!=null && frameArithm.isVisible() ) frameArithm.maj();
+            }
+         });
+      }
+   }
+
 
 
    /** Activation/Desactivation des boutons du menu principal */
@@ -4848,6 +5013,8 @@ DropTargetListener, DragSourceListener, DragGestureListener
          int nbPlanObj = calque.getNbPlanTool();
          int nbPlanImg = calque.getNbPlanImg();
          int nbPlanMoc = calque.getNbPlanMoc();
+         int nbPlanImgBG=  calque.getNbPlanImgBG();
+         int nbPlanHiPS4RGB = calque.getNbPlanImgHiPS4RGB();
          int nbPlanHealpix = calque.getNbPlanByClass(PlanHealpix.class);
          int nbPlanTranspImg = calque.getNbPlanTranspImg();
          int nbPlanImgWithoutBG = calque.getNbPlanImg(false);
@@ -4872,6 +5039,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
          boolean mode1 = nbPlans>1 || nbPlans==1 && !isBG;
 
          //         if( console!=null ) console.clone.setEnabled(hasSelectedSrc);
+         if( miView!=null ) miView.setEnabled( !isFullScreen() );
          if( miROI!=null ) miROI.setEnabled( hasImage && (nbPlanCat>0 || nbPlanObj>0) );
          if( miCalImg!=null ) miCalImg.setEnabled( hasImage && !isBG );
          if( miCalCat!=null ) miCalCat.setEnabled( hasSelectedCat );
@@ -4971,6 +5139,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
          if( miDetag!=null ) miDetag.setEnabled(hasTagSrc);
          if( miUnSelect!=null ) miUnSelect.setEnabled(hasSelectedObj);
          if( miCut!=null ) miCut.setEnabled(nbPlanImgWithoutBG>0);
+         if( miSpect!=null ) miSpect.setEnabled(base!=null && base.type==Plan.IMAGECUBE);
          PlanImage pi = calque.getFirstSelectedPlanImage();
          if( miStatSurf!=null ) miStatSurf.setEnabled(hasPixels && (!isBG || pi instanceof PlanHealpix));
          if( miTransp!=null ) miTransp.setEnabled(pi!=null && calque.canBeTransparent(pi));
@@ -4991,6 +5160,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
          if( miMocHips!=null ) miMocHips.setEnabled( pi instanceof PlanBG && ((PlanBG)pi).hasMoc()
                || base instanceof PlanBG && ((PlanBG)base).hasMoc() );
          if( miMocGenImg!=null ) miMocGenImg.setEnabled( nbPlanImg>0 );
+         if( miMocGenProba!=null ) miMocGenProba.setEnabled( nbPlanImgBG>0 );
          if( miMocGenCat!=null ) miMocGenCat.setEnabled( nbPlanCat>0 );
          if( miMocOp!=null ) miMocOp.setEnabled(nbPlanMoc>0);
          if( miMocToOrder!=null ) miMocToOrder.setEnabled(nbPlanMoc>0);
@@ -5002,7 +5172,8 @@ DropTargetListener, DragSourceListener, DragGestureListener
          if( miBitpix!=null ) miBitpix.setEnabled(hasPixels && !isCube);
          if( miPixExtr!=null ) miPixExtr.setEnabled(hasPixels && !isCube);
          if( miCopy!=null ) miCopy.setEnabled(hasPixels /* && !isCube */);
-         if( miCreateHpx!=null ) miCreateHpx.setEnabled( hasProj );
+         if( miCreateHpx!=null ) miCreateHpx.setEnabled( hasProj && base!=null && (base.isSimpleImage() || base.type==Plan.IMAGERGB) );
+         if( miCreateHpxRgb!=null ) miCreateHpxRgb.setEnabled( nbPlanHiPS4RGB>1 );
          if( miHpxDump!=null ) miHpxDump.setEnabled(v!=null && v.pref!=null && isBG );
          if( miFlip!=null ) miFlip.setEnabled(hasImage && !isCube && !isBG);
          int syncMode=match.getMode();
@@ -5195,7 +5366,12 @@ DropTargetListener, DragSourceListener, DragGestureListener
       Rectangle r = a.configuration.getWinLocation();
       if( r==null || r.x>SCREENSIZE.width || r.y>SCREENSIZE.height ) {
          a.f.setLocation(computeLocation(a.f));
-         a.f.setSize(732,679);
+//         a.f.setSize(732,679);
+         int w = 1024;
+         int h = 800;
+         if( w>SCREENSIZE.width ) w=SCREENSIZE.width-40;
+         if( h>SCREENSIZE.height ) h=SCREENSIZE.height-40;
+         a.f.setSize(w,h);
          a.configuration.setInitWinLoc(a.f.getLocation().x,a.f.getLocation().y,
                a.f.getSize().width,a.f.getSize().height);
       } else {
@@ -5203,8 +5379,9 @@ DropTargetListener, DragSourceListener, DragGestureListener
          if( r.width<0 ) { r.width = Math.abs(r.width); r.height=Math.abs(r.height); }
          a.f.setSize(r.width,r.height);
       }
-      a.splitH.setMesureHeight( a.configuration.getWinDivider() );
+//      a.splitMesure.setMesureHeight( a.configuration.getWinDivider() );
       a.offsetLocation();
+      
       a.f.setVisible(true);
       a.mesure.setReduced(true);
       //      trace(2,"Aladin window size: "+a.getWidth()+"x"+a.getHeight());
@@ -5213,10 +5390,11 @@ DropTargetListener, DragSourceListener, DragGestureListener
    /**
     * Positionne des flags et des propriétés spécifiques au Mac
     */
-   static private void setMacProperties() {
+   static private void setMacWinLinuxProperties() {
       // propriété spécifique à Mac OS permettant de faire apparaitre les éléments de menu tout en haut (selon le L'n'F Mac)
       // (cf.	http://devworld.apple.com/documentation/Java/Conceptual/Java14Development/04-JavaUIToolkits/JavaUIToolkits.html#//apple_ref/doc/uid/TP40001901-209837)
       macPlateform = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
+      winPlateform = System.getProperty("os.name").toLowerCase().indexOf("win") >= 0;
       // we set the property only if it has not been set yet (by -Dprop=value at startup for instance)
       // for an applet, we keep the menu the standard way
       if( macPlateform && System.getProperty("apple.laf.useScreenMenuBar")==null && !isApplet() ) {
@@ -5332,7 +5510,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
       USE_ACR = PROTO;
 
       // Création d'Aladin
-      setMacProperties(); // indispensable d'appeler cette méthode avant la création de l'objet Aladin !
+      setMacWinLinuxProperties(); // indispensable d'appeler cette méthode avant la création de l'objet Aladin !
       aladin = new Aladin();
       aladin.SCREEN = SCREEN;
       aladin.flagScreen = SCREEN!=null;
@@ -5555,6 +5733,10 @@ DropTargetListener, DragSourceListener, DragGestureListener
     */
    public String execCommand(String cmd) {
       waitDialog();
+      
+      // Arrêt de l'animation en cours
+      while( isAnimated() ) stopAnimation();
+
       try { return command.execScript(cmd); }
       catch( Exception e ) {
          aladin.warning("Error: "+e,1);
@@ -5571,6 +5753,10 @@ DropTargetListener, DragSourceListener, DragGestureListener
     */
    public void execAsyncCommand(String cmd) {
       waitDialog();
+      
+      // Arrêt de l'animation en cours
+      while( isAnimated() ) stopAnimation();
+
       console.pushCmd(cmd);
    }
 
@@ -5982,7 +6168,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
       for( int i=0; i<leg.field.length; i++ ) {
          Field f = leg.field[i];
-         if( !f.visible ) continue;
+//         if( !f.visible ) continue;
          writeIndent(s,indent); writeBytes(s, "<FIELD");
          int j=0;
          j=writeAttribute(s,j,3,indent,"ID",f.ID==null?f.name:f.ID);
@@ -6077,7 +6263,7 @@ DropTargetListener, DragSourceListener, DragGestureListener
 
       for( int i=0; st.hasMoreTokens(); i++ ) {
          Words w = new Words(st.nextToken());
-         if( !o.leg.isVisible(i) ) continue;
+//         if( !o.leg.isVisible(i) ) continue;
          if( i%5==0 && i>0 ) { writeBytes(s, "\n"); writeIndent(s,11); }
          writeBytes(s, "<TD>"+xmlEncode(getValue(w.getText()))+"</TD>");
       }
@@ -6760,6 +6946,127 @@ DropTargetListener, DragSourceListener, DragGestureListener
       //      if( p instanceof PlanFov || p instanceof PlanField ) return true;
       //	   return false;
    }
+   
+   private boolean flagGoto=false;
+   
+   /** True if Aladin is moving on a target in animation mode */
+   public boolean isAnimated() { return flagGoto; }
+   
+   public void stopAnimation() { flagGoto=false; }
+   
+   /** Va montrer la position repéree par son identificateur ou sa coordonnée J2000
+    * @param target Identificateur valide, ou coordonnées J2000
+    * @return true si ok
+    */
+   public void gotoAnimation(String target,String radius) {
+      try {
+         ViewSimple v = view.getCurrentView();
+         if( v.locked ) throw new Exception("Animation not authorized on locked view");
+         Coord c1 = v.getCooCentre();
+         double srcZoom = v.zoom;
+         Coord c;
+         if( !View.notCoord(target) ) c = new Coord(target);
+         else c = view.sesame(target);
+         
+         if( radius==null ) radius="30";
+         double trgZoom = calque.zoom.getNearestZoomFromRadius(v,radius );
+         
+         gotoAnimation1(v,c1,srcZoom, c, trgZoom);
+      } catch( Exception e ) {
+         if( levelTrace>=3 ) e.printStackTrace();
+      }
+   }
+   
+   private int DELAI=30;
+   
+   /**
+    * Launch the animation moving
+    * @param from initial position
+    * @param to target position
+    */
+   private void gotoAnimation1(ViewSimple v, Coord from,double srcZoom,Coord to,double trgZoom ) {
+      
+      if( to==null ) to=from;
+      
+      System.out.println("gotoAnimation from "+from+"+/"+srcZoom+" to "+to+"/"+trgZoom+"...");
+      
+      double dist = Coord.getDist(from, to);
+      
+      Coord c = new Coord(from.al,from.del);
+      
+      int n=(int) (dist*1.5);
+      int mode= dist<3/3600. ? 2: 0;
+//      
+      double i=0;
+      boolean encore=true;
+      double fct=0;
+      double z=srcZoom;
+      
+//      int step = n;
+      
+      int m=0;
+      flagGoto=true;
+      int modeReticule = calque.reticleMode;
+      calque.setReticle(0);
+      while( encore && flagGoto ) {
+         if( v.isFree() || v.pref.isFree() ) break;
+
+         switch(mode) {
+            case 0:
+               if( z<0.4 ) { i+=0.5; m++; }
+               if( z>0.08 ) z=z/1.02;
+               else mode=1;
+               break;
+            case 1:
+               if( i>=n ) mode=2;
+               else i++;
+               break;
+            case 2:
+               if( z<trgZoom ) z=z*1.02;
+               if( z>=trgZoom ) {z=trgZoom; encore=false; }
+               break;
+
+         }
+         fct = i/n;
+         c = new Coord( from.al + (to.al-from.al)*fct,
+               from.del + (to.del-from.del)*fct);
+         
+         
+//         double dejaDist = Coord.getDist(from, c);
+//         
+//         if( z>=trgZoom && Coord.getDist(c,to)<1/60. ) break;
+//         
+//         if( mode==0 ) {
+//            if( dejaDist<dist/2 ) z /= 1.02;
+//            else mode=1;
+//         }
+//         if( mode==1) z *= 1.02;
+//         
+//         if( z<0.08 ) z=0.08;
+//         
+//         fct += 0.0001/z;
+//         if( fct>1 ) fct=1;
+//         
+//         c = new Coord( c.al + (to.al-c.al)*fct, c.del + (to.del-c.del)*fct);
+
+         int frameNumber = v.getFrameNumber();
+         long t = System.currentTimeMillis();
+         view.gotoThere(c,z,true);
+         if( isFullScreen() ) fullScreen.toFront();
+         long t1=t;
+         while( flagGoto && (frameNumber==v.getFrameNumber() || (t1=System.currentTimeMillis())-t<DELAI) ) {
+            if( t1-t>3000 ) flagGoto=false;
+            Util.pause(4);
+         }
+//         System.out.println("goto time: z="+z+" i="+i+"/"+n+" => "+(t1-t)+"ms");
+         System.out.println("goto time: z="+z+" => "+(t1-t)+"ms");
+      }
+      calque.setReticle(modeReticule);
+      flagGoto=false;
+      view.gotoThere(to,trgZoom,true);
+   }
+
+
 
    /**
     * Create a new Aladin Image plane by plugin.

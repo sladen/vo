@@ -101,13 +101,14 @@ public final class MyInputStream extends FilterInputStream {
    static final public long AJTOOL  = 1L<<40;
    static final public long TAP     = 1L<<41;
    static final public long OBSTAP  = 1L<<42;
+   static final public long EOF     = 1L<<43;
 
    static final String FORMAT[] = {
       "UNKNOWN","FITS","JPEG","GIF","MRCOMP","HCOMP","GZIP","XML","ASTRORES",
       "VOTABLE","AJ","AJS","IDHA","SIA","CSV","UNAVAIL","AJSx","PNG","XFITS",
       "FOV","FOV_ONLY","CATLIST","RGB","BSV","FITS-TABLE","FITS-BINTABLE","CUBE",
       "SEXTRACTOR","HUGE","AIPSTABLE","IPAC-TBL","BMP","RICE","HEALPIX","GLU","ARGB","PDS",
-      "HPXMOC","DS9REG","SED","BZIP2","AJTOOL","TAP","OBSTAP" };
+      "HPXMOC","DS9REG","SED","BZIP2","AJTOOL","TAP","OBSTAP","EOF" };
 
    // Recherche de signatures particulieres
    static private final int DEFAULT = 0; // Detection de la premiere occurence
@@ -142,10 +143,10 @@ public final class MyInputStream extends FilterInputStream {
       fitsHeadRead=false;
       dejaLu=0L;
 
+      
       this.in= in!=null && withBuffer && !(in instanceof BufferedInputStream ) ?
             new BufferedInputStream(in) : in;
-            NBOPENFILE++;
-
+      NBOPENFILE++;
    }
 
    /** Positionnement du fichier d'origine (pour message d'erreur) */
@@ -269,7 +270,7 @@ public final class MyInputStream extends FilterInputStream {
       if( hasFitsKey("COLORMOD", "ARGB") )  type |= ARGB;
 
       // Détection d'une extension FITS à suivre
-      if( hasFitsKey("EXTEND",null) ) type |= XFITS;
+      if( hasFitsKey("EXTEND",null) || hasFitsKey("NAXIS","0") ) type |= XFITS;
 
       if( hasFitsKey("CTYPE3","RGB")
             /* || (type&CUBE)==CUBE && hasFitsKey("NAXIS3","3")*/ ) type |= RGB;
@@ -547,6 +548,7 @@ public final class MyInputStream extends FilterInputStream {
 
 
       } catch ( EOFException e ) {
+         type |= EOF;
          //System.out.println("getType impossible: EOFException !!");
       }
 
@@ -793,7 +795,7 @@ public final class MyInputStream extends FilterInputStream {
 
       long mode=0x1;
       for( int i=1; i<FORMAT.length; i++ ) {
-         if( (type & mode) !=0 ) s.append(" "+FORMAT[i]);
+         if( (type & mode) !=0 && mode!=EOF ) s.append(" "+FORMAT[i]);
          mode = mode << 1;
       }
 

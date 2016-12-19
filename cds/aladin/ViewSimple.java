@@ -20,8 +20,6 @@
 
 package cds.aladin;
 
-import healpix.essentials.FastMath;
-
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -79,6 +77,7 @@ import cds.astro.AstroMath;
 import cds.moc.Healpix;
 import cds.tools.Util;
 import cds.tools.pixtools.CDSHealpix;
+import healpix.essentials.FastMath;
 
 /**
  * Gestionnaire de la vue. Il s'agit d'afficher les plans acifs (voir
@@ -170,6 +169,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    Rectangle rselect;            // Rectangle de selection multiple (ou zoom)
    //   Rectangle orselect;           // Precedent rectangle de selection multiple (ou zoom)
    boolean flagDrag;             // Vrai si on drague la souris
+   boolean flagMoveDrag;        // Vrai si on a commencé un clic&drag pour un déplacement (et non une rotation)
    boolean quickInfo;             // Vrai si on doit rapidement réafficher les infos pixels et pos
    private boolean flagOnMovableObj; // True si on est en fullScreen et le pointeur sur un élément de FoV (voir mouseDrag)
    private boolean flagOnFirstLine; // True si on est sur un début de polyligne (lors de l'insertion d'une polyligne)
@@ -365,7 +365,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
     * @param sens 1:augmentation, -1:diminution
     * @param coo centre du zoom, null si Repere courant
     */
-   private void syncZoom(int sens,Coord coo,boolean flagPow2) {
+   protected void syncZoom(int sens,Coord coo,boolean flagPow2) {
       if( isFree() ) return;
       double nz = aladin.calque.zoom.getNextValue(zoom,sens,flagPow2);
       //      aladin.trace(4,"ViewSimple.syncZoom("+sens+","+(coo==null?null:aladin.localisation.frameToString(coo.al, coo.del))+") zoom="+zoom+" => nz="+nz);
@@ -1024,7 +1024,8 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
       // Détermination du facteur de zoom le plus adapté pour conserver
       // la même portion de l'image visible
-      double nz = fct==1 ? z : aladin.calque.zoom.getNearestZoomFct(fct*z);
+//      double nz = fct==1 ? z : aladin.calque.zoom.getNearestZoomFct(fct*z);
+      double nz=z;
 
       // Recalcul du zoom avec le nouveau facteur
       // Nécessaire même si nz==z pour éventuellement recentrer l'image
@@ -1066,7 +1067,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       // Rotation libre soit en appuyant CTRL, soit en pivotant la rose des vents
       int W=getNESize();
       boolean inNE = inNE(x,y);
-      if(  inNE || e.isControlDown() && pref instanceof PlanBG ) {
+      if(  !flagMoveDrag /* && (inNE */ || e.isControlDown() && pref instanceof PlanBG /*)*/ ) {
          int xc = inNE ? rv.width-W/2 : rv.width/2;;
          int yc = inNE ? rv.height-W/2 : rv.height/2;
          double a1 = Math.atan2(scrollY-yc,scrollX-xc);
@@ -1100,6 +1101,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
          double deltaDe = cs.del-ct.del;
          //System.out.println("Changement de centre delta="+Coord.getUnit(deltaRa)+","+Coord.getUnit(deltaDe)  );
          proj.deltaProjCenter(deltaRa,deltaDe);
+         
 
          aladin.view.newView(1);
          aladin.view.setRepere(proj.getProjCenter());
@@ -1217,7 +1219,30 @@ DropTargetListener, DragSourceListener, DragGestureListener {
          }
       } catch( Exception e ) {}
    }
-
+   
+   
+   /** true si l'affichage de l'image dans le zoomview est vertical (prend toute la hauteur en laissant
+    * un blanc à droite) */
+   protected boolean isZoomViewVertical() {
+      Dimension d = getPRefDimension();
+      double imgW=d.width;
+      double imgH=d.height;
+      double W = aladin.calque.zoom.zoomView.getWidth();
+      double H = aladin.calque.zoom.zoomView.getHeight();
+      return imgW/imgH < W/H;
+   }
+   
+   /** Ajustement de la position de référence xzoomview,yzoomview après un changement de taille du zoomView.
+    * Si l'image est verticale ou horizontale, cela jouera en ordonnée, resp. en abscisse
+    * @param lastWidth précédente largeur du zoomview
+    * @param width nouvelle largeur du zoomview
+    * @param lastHeight précédente largeur du zoomview
+    * @param height nouvelle largeur du zoomview
+    */
+   protected void adjustZoomView(int lastWidth,int width, int lastHeight, int height ) {
+      double fct = isZoomViewVertical() ? (double)height/lastHeight : (double)width/lastWidth;
+      setZoomXY(zoom,xzoomView*fct,yzoomView*fct);
+   }
 
    /** Calcul et mémorisation éventuelle du zoom courant
     *  @param zoom facteur de zoom
@@ -1245,15 +1270,22 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       Dimension d = getPRefDimension();
       imgW=d.width;
       imgH=d.height;
-      
  
       // Calcul de la proportion (si l'image n'est pas carree)
-      double W,H;
+      double W,H,fct;
+      
       W = aladin.calque.zoom.zoomView.getWidth();
-      H = (W/imgW)*imgH;
-      if( H>W ) {
-         W = W*W /H;
-         H = aladin.calque.zoom.zoomView.getHeight();
+      H = aladin.calque.zoom.zoomView.getHeight();
+      
+      // la hauteur de l'image prendra toute la hauteur du zoom view => marge à droite
+      if( isZoomViewVertical() ) {
+         fct = H/imgH;
+         W = imgW*fct;
+         
+      // la largeur de l'image prendra toute la largeur du zoom view => marge en bas
+      } else {
+         fct = W/imgW;
+         H = imgH*fct;
       }
 
       // On part sur la position centrale
@@ -1261,12 +1293,12 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       if( yc==-1 ) yc=H/2;
 
       // Determination de la taille du rectangle de zoom
-      double dW = ((W/imgW)*rv.width )/zoom;
-      double dH = ((H/imgH)*rv.height )/zoom;
+      double dW = (fct*rv.width )/zoom;
+      double dH = (fct*rv.height )/zoom;
 
       // Memorisation du rectangle du zoom dans les coord. de l'image courante
-      double xzImg = (imgW/W)*xc;
-      double yzImg = (imgH/H)*yc;
+      double xzImg = xc/fct;
+      double yzImg = yc/fct;
       double wzImg = rv.width/zoom;
       double hzImg = rv.height/zoom;
       
@@ -1281,6 +1313,14 @@ DropTargetListener, DragSourceListener, DragGestureListener {
          this.yzoomView=yc;
          this.HView = H;
          this.WView = W;
+         
+//         System.out.println();
+//         System.out.println("Image     "+imgW+"x"+imgH+" zoom="+zoom);
+//         System.out.println("Zoomview  "+aladin.calque.zoom.zoomView.getWidth()+"x"+aladin.calque.zoom.zoomView.getHeight());
+//         System.out.println("View      "+rv.width+"x"+rv.height);
+//         System.out.println("Imagette  "+W+"x"+H+" => "+(isZoomViewVertical()?"verticale":"horizontale"));
+//         System.out.println("rzoom     "+Util.myRound(xzImg)+","+Util.myRound(yzImg)+" => "+rzoom);
+//         System.out.println("rzoomview "+Util.myRound(xc)+","+Util.myRound(yc)+" => "+rzoomView);
 
          return rzoom;
       }
@@ -1636,8 +1676,6 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       if( view.newobj==null ) return;
       calque.setObjet(view.newobj);
       if( view.newobj instanceof Ligne && !(view.newobj instanceof Cote) ) ((Ligne)view.newobj).getFirstBout().bout=0;
-      if( view.newobj instanceof Tag ) {
-      }
       view.extendClip(view.newobj);
       aladin.console.printCommand(view.newobj.getCommand());
       view.setSelectFromView(true);
@@ -1687,7 +1725,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    }
 
    private Position poignee=null;   // poignée d'une rotation en cours (après un mouseDown)
-   private Repere poigneePhot=null;  // poignée d'une extension de repère circulaire en cours (après un mouseDown)
+   private SourceStat poigneePhot=null;  // poignée d'une extension de repère circulaire en cours (après un mouseDown)
    private Tag poigneeTag=null; // poignée d'un changement d'ancrage pour un tag/label (après un mouseDown)
 
    /** teste si dans a liste des objet qui ont été sélectionné par la souris, parmi ceux qui
@@ -1719,14 +1757,14 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    /** Teste si l'objet sous la souris est un Repere circulaire, non seulement sélectionné
     * mais pour lequel la position de la souris se trouve sur une des 4 poignées d'extensions (bas,haut,droite,gauche)
     * Si c'est le cas, mémorise cet objet dans poigneeRepere pour permettre sa manipulation via mouseDrag */
-   private Repere testPhot(ViewSimple vs,double x,double y,boolean withPoignee) {
+   private SourceStat testPhot(ViewSimple vs,double x,double y,boolean withPoignee) {
       Enumeration e = aladin.view.getSelectedObjet().elements();
       while( e.hasMoreElements() ) {
          Obj o = (Obj)e.nextElement();
-         if( !(o instanceof Repere) ) continue;
+         if( !(o instanceof SourceStat) ) continue;
          if( !o.plan.isMovable() ) continue;
          if( o instanceof Position && ((Position)o).plan.type == Plan.APERTURE ) continue;
-         Repere t = (Repere)o;
+         SourceStat t = (SourceStat)o;
          if( !t.isSelected() || !t.hasRayon() ) continue;
          if( withPoignee ) { if( !t.onPoignee(vs, x, y) ) continue; }
          else { if( !t.inside(vs,x,y) ) continue; }
@@ -2006,11 +2044,12 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       }
 
       // Initialisation d'un clic-and-drag de la vue
-      if( tool==ToolBox.PAN
+      if( tool==ToolBox.PAN 
             //            || (fullScreen && !flagOnMovableObj && tool==ToolBox.SELECT) ) {
             ) {
          vs.scrollX=(int)Math.round(x); vs.scrollY=(int)Math.round(y);
          setScrollable(true);
+         flagMoveDrag = !inNE((int)x, (int)y);
          wasScrolling = vs.isScrolling();
          vs.initScroll();
          //         if( !fullScreen ) return;
@@ -2019,7 +2058,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       // Création automatique d'une vue associé au plan Draw ?
       if( isFree() ) {
          Plan pc = aladin.calque.getFirstSelectedPlan();
-         if( !aladin.toolBox.isForTool(tool) || pc==null || pc.type!=Plan.TOOL ) return/* false*/;
+         if( !aladin.toolBox.isForTool(tool) || pc==null || pc.type!=Plan.TOOL ) return;
          //         System.out.println("J'affecte à la vue "+this+" le plan TOOL "+pc);
          aladin.calque.setPlanRef(pc,vs.n);
       }
@@ -2327,11 +2366,12 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       mouseReleased1(e.getX(),e.getY(),e);
       if( createCoteDist() ) repaint();
    }
+   
    public void mouseReleased1(double x, double y,MouseEvent e) {
 
       //      if( Aladin.levelTrace>=3 ) testConvertion(x,y);
 
-      if( pref!=null && pref instanceof PlanBG ) ((PlanBG)pref).resetDrawFastDetection();
+      calque.resetDrawFastDetection();
 
       if( hasCrop() ) {
          view.crop.endDrag(this);
@@ -2492,14 +2532,17 @@ DropTargetListener, DragSourceListener, DragGestureListener {
             }
          }
       }
-
+      
       // Déplacement du repère
-      if( (tool==ToolBox.SELECT
-            || tool==ToolBox.PAN && (!flagClicAndDrag || e.getClickCount()>1) )
+      if( (tool==ToolBox.SELECT || tool==ToolBox.PAN && (!flagClicAndDrag || e.getClickCount()>1) )
             && flagMoveRepere && !isGrabIt() && !e.isShiftDown() && !isPlotView() ) {
          PointD p = vs.getPosition(x,y);
          vs.moveRepere(p.x,p.y,e.getClickCount()>1);
+         
+         // ON en profite pour ne plus afficher un éventuel SED
+         if( aladin.view.zoomview.flagSED ) aladin.view.zoomview.clearSED();
       }
+      
       flagMoveRepere=true;
       flagClicAndDrag=false;
 
@@ -2538,48 +2581,92 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
       // Cas du zoom => Rien a faire
       if( tool==ToolBox.ZOOM ) return;
-
-      // Le repere est insere
-      if( view.newobj instanceof Repere ) {
-
+      
+      // Le Phot est insere
+      if( view.newobj instanceof SourceStat ) {
          flagDrag=false;
-         Point p = getPosition((int)x,(int)y);
-         PointD pp = getPosition(x,y);
 
-         // Extraction d'une source par méthode IQE
-         if( !((Repere)view.newobj).hasRayon() && !(pref instanceof PlanImageBlink || pref instanceof PlanBG) ) {
-            double [] iqe = ((PlanImage)pref).getPixelStats(p);
-            if( iqe!=null ) {
-               pp.x = iqe[0]; pp.y = iqe[2];
-               view.extendClip(view.newobj);
-               view.newobj.setPosition(this,pp.x,pp.y);
-               iqe[2] = ((PlanImage)pref).height - iqe[2];
-               aladin.calque.updatePhotometryPlane( (Repere)view.newobj,iqe);
+         // Insertion d'un repère avec mesure de surface
+         if( ((SourceStat)view.newobj).hasRayon() ) {
+            view.newobj.setSelected(true);
+            addObjSurfMove(view.newobj);
+            
+         } else {
+            
+            Point p = getPosition((int)x,(int)y);
+            PointD pp = getPosition(x,y);
+
+            // Extraction d'une source par méthode IQE
+            if( !(pref instanceof PlanImageBlink || pref instanceof PlanBG) ) {
+               double [] iqe = ((PlanImage)pref).getPixelStats(p);
+               if( iqe!=null ) {
+                  pp.x = iqe[0]; pp.y = iqe[2];
+                  view.extendClip(view.newobj);
+                  view.newobj.setPosition(this,pp.x,pp.y);
+                  iqe[2] = ((PlanImage)pref).height - iqe[2];
+                  aladin.calque.updateToolCatPhotExtract( (SourceStat)view.newobj,iqe);
+               }
+               view.newobj = null;
             }
-            view.newobj = null;
          }
+         
+//         // Insertion d'un repère avec mesure de surface
+//         if( view.newobj!=null ) {
+//
+//            // Juste pour le spectre localisé pour un cube via un repere
+//            if( pref instanceof PlanImageBlink && !view.hasSelectedObj() ) {
+//               aladin.toolBox.setMode(ToolBox.PHOT,Tool.UP);
+//               aladin.toolBox.setMode(ToolBox.SELECT,Tool.DOWN);
+//               view.selectCote(view.newobj);
+//               view.extendClip(view.newobj);
+//            }
+//
+////            if( ((SourcePhot)view.newobj).hasRayon() ) {
+////               view.newobj.setSelected(true);
+////               addObjSurfMove(view.newobj);
+////            }
+//         }
 
-         if( view.newobj!=null ) {
-
-            // Juste pour le spectre localisé pour un cube via un repere
-            if( pref instanceof PlanImageBlink && !view.hasSelectedObj() ) {
-               aladin.toolBox.setMode(ToolBox.PHOT,Tool.UP);
-               aladin.toolBox.setMode(ToolBox.SELECT,Tool.DOWN);
-               view.selectCote(view.newobj);
-               view.extendClip(view.newobj);
-            }
-
-            // Insertion d'un repère avec mesure de surface
-            if( ((Repere)view.newobj).hasRayon() ) {
-               view.newobj.setSelected(true);
-               addObjSurfMove(view.newobj);
-
-            }
-            finNewObjet();
-         }
-
+         finNewObjet();
          view.newobj=null;
       }
+      
+      if( view.newobj instanceof RepereSpectrum && pref instanceof PlanImageBlink && !view.hasSelectedObj() ) {
+         aladin.toolBox.setMode(ToolBox.SPECT,Tool.UP);
+         aladin.toolBox.setMode(ToolBox.SELECT,Tool.DOWN);
+         view.newobj.setSelected(true);
+         view.extendClip(view.newobj);
+         calque.setObjet(view.newobj);
+         view.newobj=null;
+     }
+
+
+//      // Le repere est insere
+//      if( view.newobj!=null && view.newobj instanceof Repere ) {
+//
+//         flagDrag=false;
+//
+//         if( view.newobj!=null ) {
+//
+//            // Juste pour le spectre localisé pour un cube via un repere
+//            if( pref instanceof PlanImageBlink && !view.hasSelectedObj() ) {
+//               aladin.toolBox.setMode(ToolBox.PHOT,Tool.UP);
+//               aladin.toolBox.setMode(ToolBox.SELECT,Tool.DOWN);
+//               view.selectCote(view.newobj);
+//               view.extendClip(view.newobj);
+//            }
+//
+//            // Insertion d'un repère avec mesure de surface
+//            if( ((Repere)view.newobj).hasRayon() ) {
+//               view.newobj.setSelected(true);
+//               addObjSurfMove(view.newobj);
+//
+//            }
+//            finNewObjet();
+//         }
+//
+//         view.newobj=null;
+//      }
 
       // Traitement de la fin d'une selection multiple
       if( rselect!=null ) {
@@ -2675,7 +2762,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
       if(  view.newobj!=null && view.newobj instanceof Tag ) {
          if( ((Tag)view.newobj).isReticle() ) {
-            aladin.calque.updateTagPlane((Tag)view.newobj);
+            aladin.calque.updateToolCatTag((Tag)view.newobj);
             view.newobj=null;
          } else ((Tag)view.newobj).setEditing(true);
       }
@@ -2689,19 +2776,6 @@ DropTargetListener, DragSourceListener, DragGestureListener {
             if( o.plan.type!=Plan.TOOL ) continue;
             ((PlanTool)(o.plan)).sendMesureObserver(o, false);
             aladin.console.printInPad(o.getSexa()+" => "+o.getInfo()+"\n" );
-
-
-            //            System.out.println("Ici c'est parti !");
-            //            ((PlanTool)(o.plan)).updatePhotMan(o);
-            //
-            //            SwingUtilities.invokeLater(new Runnable() {
-            //               public void run() {
-            //                  Util.pause(100);
-            //                  o.setSelected(true);
-            //                  o.plan.updateDedicatedFilter();
-            //                  aladin.calque.repaintAll();
-            //               }
-            //            });
          }
          objSurfMove=null;
       }
@@ -2718,10 +2792,8 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       if( v.size()!=2 ) { view.coteDist=null; return oc!=view.coteDist; }
       Obj a = v.elementAt(0);
       Obj b = v.elementAt(1);
-      if( !(a instanceof Repere || a instanceof Source
-            || (a instanceof Tag && a.hasPhot())) ) return false;
-      if( !(b instanceof Repere || b instanceof Source
-            || (b instanceof Tag && b.hasPhot())) ) return false;
+      if( !(a instanceof Source || (a instanceof Tag && a.hasPhot())) ) return false;
+      if( !(b instanceof Source || (b instanceof Tag && b.hasPhot())) ) return false;
       view.coteDist = new CoteDist(a,b,getProjSyncView());
       aladin.status.setText(view.coteDist.id);
       aladin.console.printInPad(view.coteDist.id+"\n");
@@ -2963,7 +3035,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
          fixe = p;                // pour l'etape suivante
 
          double centerX=0,centerY=0,angle=0;
-
+         
          // S'agit-il d'une rotation => calcul de l'angle et du centre de la rotation
          // C'est assez tordu car dans le cas d'un Pickle ou d'un Arc, le centre de rotation
          // et le centre du cercle inscrit (voir Arc.rotatePosition() ), donc si on ne sélectionne
@@ -3023,7 +3095,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
                      && flagDragField==0 ) o.deltaRaDec(dra,dde);
                else o.deltaPosition(vs,dx,dy);
 
-               if( o instanceof Repere && ((Repere)o).hasRayon() && o.plan.isMovable()) {
+               if( o instanceof SourceStat && ((SourceStat)o).hasRayon() && o.plan.isMovable()) {
                   addObjSurfMove(o);
                }
 
@@ -3051,8 +3123,8 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
       // Extension d'un repère pour avoir une surface circulaire (déjà tracé - poigneePhot!=null,
       // ou en cours de traçage - view.newobj!=null )
-      if( poigneePhot!=null || view.newobj!=null && view.newobj instanceof Repere ) {
-         Repere t = poigneePhot!=null ? poigneePhot : (Repere)view.newobj;
+      if( poigneePhot!=null || view.newobj!=null && view.newobj instanceof SourceStat ) {
+         SourceStat t = poigneePhot!=null ? poigneePhot : (SourceStat)view.newobj;
          view.extendClip(t);
          PointD p = getPosition((double)x,(double)y);
          double rayonView = Math.sqrt( Math.pow(fixev.x-x,2) + Math.pow(fixev.y-y,2) );
@@ -3295,8 +3367,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
             // Pas le même scope
             if( folder!=calque.getMyScopeFolder(allPlans,plan) ) continue;
 
-            boolean testOnMovable = fullScreen && (plan.type==Plan.APERTURE
-                  || plan.type==Plan.TOOL);
+            boolean testOnMovable = fullScreen && (plan.type==Plan.APERTURE || plan.type==Plan.TOOL);
 
 
             // Determination du nombre d'objet sous la souris
@@ -3565,7 +3636,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
             tool==ToolBox.PAN ? Aladin.HANDCURSOR :
                tool==ToolBox.PHOT ? ( isTagCentered(shift) ? Aladin.TAGCURSOR : Aladin.CROSSHAIRCURSOR) :
                   aladin.view.isRecalibrating() && (tool==ToolBox.SELECT || tool==ToolBox.PAN)
-                  || isGrabIt() || tool==ToolBox.ZOOM ? Aladin.CROSSHAIRCURSOR:
+                  || isGrabIt() || tool==ToolBox.ZOOM || tool==ToolBox.SPECT ? Aladin.CROSSHAIRCURSOR:
                      tool==ToolBox.TAG ? Aladin.TEXTCURSOR:Aladin.DEFAULTCURSOR;
 
                Aladin.makeCursor(this,currentCursor);
@@ -3581,7 +3652,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       if( widgetControl!=null && widgetControl.getCursor()!=null ) { setCursor(  widgetControl.getCursor() ); return; }
 
       oc=-1;
-      currentCursor = tool==ToolBox.PHOT ||
+      currentCursor = tool==ToolBox.PHOT || tool==ToolBox.SPECT ||
             aladin.view.isRecalibrating() && tool==ToolBox.SELECT? (isTagCentered(isShift) ? Aladin.TAGCURSOR : Aladin.CROSSHAIRCURSOR) :
                tool==ToolBox.ZOOM ?
                      Aladin.CROSSHAIRCURSOR:(tool==ToolBox.PAN )?
@@ -3599,7 +3670,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
    // Pour pouvoir faire du copier/coller
    private Coord repCoord = new Coord();
-
+   
    /** Déplacement du repere courant dans toutes les vues en fonction
     *  de la position ximg,yimg (position dans l'image) */
    protected void moveRepere(double ximg,double yimg,boolean flagSync) {
@@ -3607,6 +3678,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       try {
          repCoord = new Coord();
          repCoord.x=ximg; repCoord.y=yimg;
+         
          getProj().getCoord(repCoord);
          if( Double.isNaN(repCoord.al) ) return;
          moveRepere(repCoord,flagSync);
@@ -3617,6 +3689,12 @@ DropTargetListener, DragSourceListener, DragGestureListener {
     *  de la coordonnée passée en paramètre */
    protected void moveRepere(Coord repCoord,boolean flagSync) {
       if( isPlotView() ) return;
+      
+      // Si on change de CCD, le flagSync est forcé à true
+      if( pref instanceof PlanMultiCCD ) {
+         flagSync = ((PlanMultiCCD)pref).setRef(repCoord);
+      }
+
       String s = aladin.localisation.J2000ToString(repCoord.al,repCoord.del);
       
       // Affichage dans la console de la position HEALPIX
@@ -4530,6 +4608,14 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    /** Remplissage du fond suivant la bonne couleur */
    protected void drawBackground(Graphics g) {
       if( g==null ) return;
+      
+      
+      if( aladin.isCinema() ) {
+         aladin.makeCursor(this, aladin.BLANKCURSOR );
+         g.setColor(Color.black);
+         g.fillRect(0,0,getWidth(),getHeight());
+         return;
+      }
       try {
          if( pref!=null && pref.colorBackground!=null) {
             g.setColor(pref.colorBackground);
@@ -4553,6 +4639,10 @@ DropTargetListener, DragSourceListener, DragGestureListener {
     * mode 0x1 image, 0x2 overlay
     */
    protected void drawForeGround(Graphics g,int mode, boolean flagBordure) {
+      if( aladin.levelTrace==6 ) return;
+      Rectangle clip = g.getClipBounds();
+      int m = isFullScreen()?0:2;
+      g.setClip(m, m, rv.width-2*m, rv.height-2*m);
       if( flagBordure && pref!=null && pref instanceof PlanBG ) {
          if( (mode&0x1)!=0 && pref.isPixel() || (mode&0x2)!=0 && pref.isOverlay() ) {
             ((PlanBG)pref).drawForeground(g, this);
@@ -4560,6 +4650,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       }
 
       if( (mode&0x2)!=0 && aladin.getOrder()>=0) drawHealpixMouse(g);
+      g.setClip(clip);
 
    }
 
@@ -4799,8 +4890,8 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    public  boolean isAllSky() {
       Projection proj;
       if( pref==null || !Projection.isOk(proj=getProj()) ) return false;
-      return getTailleDE()==proj.getDeMax()
-            || getTailleRA()==proj.getRaMax();
+      return getTailleDE()>=proj.getDeMax() || getTailleRA()>=proj.getRaMax();
+//      return getTailleDE()>=180 || getTailleRA()>=180;
    }
 
    /** Retourne la taille en degrés de la vue courante */
@@ -5104,7 +5195,13 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    // Retourne true si la coordonnée se trouve dans la rose des vents
    private boolean inNE(int x,int y) {
       if( !(pref instanceof PlanBG) ) return false;
-      if( !isFullScreen() && aladin.toolBox.getTool()!=ToolBox.PAN ) return false;
+      
+      if( rselect!=null ) return false;
+      int tool = aladin.toolBox.getTool();
+      if( tool!=ToolBox.PAN && tool!=ToolBox.SELECT ) return false;
+      
+//      if( !isFullScreen() && aladin.toolBox.getTool()!=ToolBox.PAN ) return false;
+      
       int L = (int)(getNESize()*1.5);
       int lX = rv.width-L;
       int lY = rv.height-L;
@@ -5240,36 +5337,40 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       if( !allsky ) {
          if(  seg.iso==Segment.ISODE && (a1*a2<0 || (a1*a2==0 && (a1>0 || a2>0))) ) {
             seg.labelMode=northUpDown?Segment.GAUCHE:Segment.HAUT;
-            seg.label = aladin.localisation.frameToString(seg.al1,seg.del1);
-            int i = seg.label.indexOf(' ');
-            seg.label = zeroSec(seg.label.substring(i+1));
+//            seg.label = aladin.localisation.frameToString(seg.al1,seg.del1);
+//            int i = seg.label.indexOf(' ');
+//            seg.label = zeroSec(seg.label.substring(i+1));
+
+            seg.label = aladin.localisation.getGridLabel(seg.al1,seg.del1,1,getProj().sym);
 
          } else if(  seg.iso==Segment.ISORA && (b1*b2<0 || (b1*b2==0 && (b1>0 || b2>0))) ) {
             seg.labelMode=northUpDown?Segment.HAUT:Segment.GAUCHE;
-            seg.label = aladin.localisation.frameToString(seg.al1,seg.del1);
-            int i = seg.label.indexOf(' ');
-            seg.label = zeroSec(seg.label.substring(0,i));
+//            seg.label = aladin.localisation.frameToString(seg.al1,seg.del1);
+//            int i = seg.label.indexOf(' ');
+//            seg.label = zeroSec(seg.label.substring(0,i));
+            
+            seg.label = aladin.localisation.getGridLabel(seg.al1,seg.del1,0,getProj().sym);
          }
       }
       grille.addElement(seg);
    }
 
-   /** Tronque les centièmes de secondes, voire les secondes afin que les labels
-    * de la grille ne soient pas trop longs */
-   private String zeroSec(String s) {
-      char a[]=s.toCharArray();
-      int flagDecimal=0;
-      int flagZero=0;
-
-      for( int i=a.length-1; i>0 && (a[i]<'1' || a[i]>'9'); i--) {
-         if( a[i]=='.') flagDecimal=i;
-         else if( a[i]=='0' ) flagZero=i;
-         else if( a[i]==':') return s.substring(0,i);
-      }
-      if( flagDecimal>0 ) return s.substring(0,flagDecimal);
-      if( flagZero>0 ) return s.substring(0,flagZero);
-      return s;
-   }
+//   /** Tronque les centièmes de secondes, voire les secondes afin que les labels
+//    * de la grille ne soient pas trop longs */
+//   private String zeroSec(String s) {
+//      char a[]=s.toCharArray();
+//      int flagDecimal=0;
+//      int flagZero=0;
+//
+//      for( int i=a.length-1; i>0 && (a[i]<'1' || a[i]>'9'); i--) {
+//         if( a[i]=='.') flagDecimal=i;
+//         else if( a[i]=='0' ) flagZero=i;
+//         else if( a[i]==':') return s.substring(0,i);
+//      }
+//      if( flagDecimal>0 ) return s.substring(0,flagDecimal);
+//      if( flagZero>0 ) return s.substring(0,flagZero);
+//      return s;
+//   }
 
 
    private Hashtable memoSeg; // Table de hachage de mémorisation des noeuds de la grille
@@ -5346,14 +5447,18 @@ DropTargetListener, DragSourceListener, DragGestureListener {
          if( labelAllSky ) {
             if( seg.al2==rajc && seg.al1==rajc ) {
                seg.labelMode=Segment.MILIEURA;
-               seg.label = aladin.localisation.frameToString(seg.al1,seg.del1);
-               int i = seg.label.indexOf(' ');
-               seg.label = zeroSec(seg.label.substring(i+1));
+//               seg.label = aladin.localisation.frameToString(seg.al1,seg.del1);
+//               int i = seg.label.indexOf(' ');
+//               seg.label = zeroSec(seg.label.substring(i+1));
+               seg.label = aladin.localisation.getGridLabel(seg.al1,seg.del1,1,getProj().sym);
             } else if( seg.del2==dejc && seg.del1==dejc ) {
                seg.labelMode=Segment.MILIEUDE;
-               seg.label = aladin.localisation.frameToString(seg.al1,seg.del1);
-               int i = seg.label.indexOf(' ');
-               seg.label = zeroSec(seg.label.substring(0,i));
+//               seg.label = aladin.localisation.frameToString(seg.al1,seg.del1);
+//               int i = seg.label.indexOf(' ');
+//               seg.label = zeroSec(seg.label.substring(0,i));
+               seg.label = aladin.localisation.getGridLabel(seg.al1,seg.del1,0,getProj().sym);
+
+
             }
          }
 
@@ -5556,24 +5661,30 @@ DropTargetListener, DragSourceListener, DragGestureListener {
          boolean fullScreen = isFullScreen();
 
          // Détermination du pas en RA et en DE en fonction du champ de vue
-         int nb = fullScreen ? 6 : NBCELL[ViewControl.getLevel(aladin.view.getModeView())];
-         double rd = getTailleDE()*60.;
-         if( rd==0. || Double.isNaN(rd) ) rd=60*360.;
-         double pasd = goodPas(rd/nb,PASD)/60.;
-         double ra=getTailleRA()*60.;
-         if( Math.abs(cosd)<0.000001 ) ra=360*60;
-         else ra = rd/cosd;
+         double pasa, pasd;
+         if( isAllSky() ) {
+            pasa=30;
+            pasd=15;
+         } else {
+            int nb = fullScreen ? 6 : NBCELL[ViewControl.getLevel(aladin.view.getModeView())];
+            double rd = getTailleDE()*60.;
+            if( rd==0. || Double.isNaN(rd) ) rd=60*360.;
+            pasd = goodPas(rd/nb,PASD)/60.;
+            double ra=getTailleRA()*60.;
+            if( Math.abs(cosd)<0.000001 ) ra=360*60;
+            else ra = rd/cosd;
 
-         double pasa=0;
-         // Est-ce que un pole est proche du  champ de vue ?
-         c.al = 0; c.del = 90; c = aladin.localisation.frameToICRS(c);
-         boolean in1 = isInView(c.al,c.del,500);
-         c.al = 0; c.del = -90; c = aladin.localisation.frameToICRS(c);
-         boolean in2 = isInView(c.al,c.del,500);
-         if( in1 || in2 )  pasa=30;
-         else {
-            if( ra>360*60. ) ra=360*60.;
-            pasa = goodPas(ra/nb,PASA)/60.;
+            pasa=0;
+            // Est-ce que un pole est proche du  champ de vue ?
+            c.al = 0; c.del = 90; c = aladin.localisation.frameToICRS(c);
+            boolean in1 = isInView(c.al,c.del,500);
+            c.al = 0; c.del = -90; c = aladin.localisation.frameToICRS(c);
+            boolean in2 = isInView(c.al,c.del,500);
+            if( in1 || in2 )  pasa=30;
+            else {
+               if( ra>360*60. ) ra=360*60.;
+               pasa = goodPas(ra/nb,PASA)/60.;
+            }
          }
 
          // Est-ce que le Nord et sur le coté ?
@@ -5702,12 +5813,12 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
       Projection proj = getProj();
 
-      if( proj.t==Calib.SIN || proj.t==Calib.ARC || proj.t==Calib.ZEA ) {
+      if( proj.t==Calib.SIN || proj.t==Calib.ARC || proj.t==Calib.FEYE || proj.t==Calib.ZEA ) {
          Coord c = proj.c.getProjCenter();
          proj.getXYNative(c);
          PointD center = getViewCoordDble(c.x, c.y);
          double signe = c.del<0?1:-1;
-         c.del = c.del + signe*( proj.t==Calib.SIN ? 89.99 : 179.99);
+         c.del = c.del + signe*( proj.t==Calib.SIN || proj.t==Calib.SIN? 89.99 : 179.99);
          proj.getXYNative(c);
          PointD haut = getViewCoordDble(c.x, c.y);
          double deltaY = haut.y-center.y;
@@ -6032,10 +6143,15 @@ DropTargetListener, DragSourceListener, DragGestureListener {
             // Le plan image de référence (le cas allsky est traité après)
             if( p==pref && p.isImage() ) {
                if( p.active ) {
-                  if( northUp || isProjSync() /* || isRolled() */ ) {
+                  
+                  if( p instanceof PlanMultiCCD ) ((PlanImage)p).draw(g,vs,dx,dy,1);
+                 
+                  else if( northUp || isProjSync() /* || isRolled() */ ) {
                      ((PlanImage)p).draw(g,vs,dx,dy,1);
 
                   } else {
+                     
+                     
                      double offsetX = imgDx;
                      double offsetY = imgDy;
                      if( pref.type == Plan.IMAGEHUGE ) {
@@ -6046,6 +6162,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
                         margeX = dx+(int)Math.round(offsetX);
                         margeY = dy+(int)Math.round(offsetY);
                         g.drawImage(imgprep,margeX,margeY,this);
+                        
                      }
                   }
                }
@@ -6162,7 +6279,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
          drawTarget(g,dx,dy);
       }
 
-      if( !vs.isPlotView() )  {
+      if( !vs.isPlotView() && !aladin.isCinema())  {
 
         if( !proj.isXYLinear() && calque.flagOverlay ) {
             int x=vs.drawScale(g,vs,dx,dy);
@@ -6187,26 +6304,26 @@ DropTargetListener, DragSourceListener, DragGestureListener {
             aladin.view.coteDist.draw(g,vs,dx,dy);
          }
 
-         if( aladin.view.getMouseNumView()==n ) {
-            // Tracage du quick Simbad s'il existe
-            if( aladin.view.simRep!=null ) {
-               aladin.view.simRep.projection(vs);
-               aladin.view.simRep.draw(g,vs,dx,dy);
-            }
+         // Tracage du quick Simbad s'il existe et qu'on est dans la bonne vue
+         // ou du repère d'un SED (dans toutes les vues)
+         if( aladin.view.simRep!=null &&
+               (aladin.view.getMouseNumView()==n || aladin.view.simRep.id.startsWith("Phot")) ) {
+            aladin.view.simRep.projection(vs);
+            aladin.view.simRep.draw(g,vs,dx,dy);
          }
+
+         // Tracé du rainbow
+         if( hasRainbow() ) rainbow.draw(g,this,dx,dy);
+         if( rainbowF!=null ) rainbowF.draw(g,this,dx,dy);
+
+
+         // Juste parce que le drawForeGround cache en partie
+         if( dx==0 ) drawBlinkControl(g);
       }
-
-      // Tracé du rainbow
-      if( hasRainbow() ) rainbow.draw(g,this,dx,dy);
-      if( rainbowF!=null ) rainbowF.draw(g,this,dx,dy);
-      
-
-      // Juste parce que le drawForeGround cache en partie
-      if( dx==0 ) drawBlinkControl(g);
 
       return flagDisplay;
    }
-
+   
    /** Affichage de la bordure rouge et des deux petits triangles
     * indiquant que la vue est stickée */
    protected void drawStick(Graphics g) {
@@ -6352,7 +6469,16 @@ g.drawString(s,10,100);
       proj = projLocal!=null ? projLocal : pref.projd;    // projLocal dans le cas d'un planBG
       //      proj = pref.projd;
       if( proj==null ) return null;
-
+      
+//      if( Command.longitude==-1 && !proj.sym ) {
+//         System.out.println("proj.setProjSym(true)");
+//         proj.setProjSym(true);
+//      }
+//      else if( Command.longitude==1 && proj.sym ) {
+//         System.out.println("proj.setProjSym(false)");
+//         proj.setProjSym(false);
+//      }
+      
       if( !northUp ) return proj;
 
       // Pour le cas NorthUP
@@ -6470,9 +6596,22 @@ g.drawString(s,10,100);
       resetClip();
       quickInfo=flagDrag=quickBlink=flagBlinkControl=quickBordure=false;
    }
+   
+   protected int frameNumber=0;
+   
+   private Object lock = new Object();
+   private void incrFrameNumber() {
+      synchronized( lock ) { frameNumber++; }
+   }
+   
+   protected int getFrameNumber() {
+      synchronized( lock ) { return frameNumber; }
+   }
+
 
    // ATTENTION: gr peut être null dans le cas d'un print ou d'un NOGUI
    public void paintComponent(Graphics gr) {
+      
       try { paintComponent1(gr); }
       catch( Exception e ) {
          if( aladin.levelTrace>3 ) e.printStackTrace();
@@ -6485,14 +6624,16 @@ g.drawString(s,10,100);
          }
       }
       finally {
+         incrFrameNumber();
          aladin.command.setSyncNeedRepaint(false);
          resetClip();
          aladin.view.setPaintTimer();
       }
    }
 
+   
    // ATTENTION: gr peut être null dans le cas d'un print ou d'un NOGUI
-   private void paintComponent1(Graphics gr) {
+   protected void paintComponent1(Graphics gr) {
       long t = Util.getTime();
 
       // Pour forcer le réaffichage total (dans le cas d'un save ou d'un print)
@@ -6507,7 +6648,8 @@ g.drawString(s,10,100);
 
       // Sablier d'attente de la cas du fullScreen
       if( fullScreen ) {
-         if( aladin.calque.waitingFirst() )  {
+         if( aladin.calque.waitingFirst() || aladin.isCinema() && aladin.calque.isFree() )  {
+            if( aladin.isCinema() ) drawBackground(gr);
             startSablier();
             drawSablier(gr);
             return;
@@ -6568,7 +6710,16 @@ g.drawString(s,10,100);
       if( !(flagDrag || quickInfo || quickBlink || modeGrabIt || flagBlinkControl || quickBordure ||
             view.newobj!=null && view.newobj instanceof Cote  ) ) {
          drawBackground(gbuf);
-         paintOverlays(gbuf,clip,0,0,false);
+
+         // En mode animation, on force un recalcul juste avant l'affichage
+         if( aladin.isAnimated() )  {
+            synchronized( this ) {
+               newView();
+               paintOverlays(gbuf,clip,0,0,false);
+            }
+         } else 
+
+            paintOverlays(gbuf,clip,0,0,false);
          //System.out.println("paint");
       }
 
@@ -6582,12 +6733,12 @@ g.drawString(s,10,100);
          aladin.fullScreen.drawBlinkInfo(g);
 
          // Gestion d'un message d'accueil
-//         if( aladin.msgOn ) {
-//            aladin.help.setText( aladin.logo.Help());
-//            aladin.help.setSize(aladin.fullScreen.getSize());
-//            aladin.help.paintComponent(g);
-//            return ;
-//         }
+         //         if( aladin.msgOn ) {
+         //            aladin.help.setText( aladin.logo.Help());
+         //            aladin.help.setSize(aladin.fullScreen.getSize());
+         //            aladin.help.paintComponent(g);
+         //            return ;
+         //         }
       }
 
       // Un objet en cours ?
@@ -6627,11 +6778,12 @@ g.drawString(s,10,100);
       if( fullScreen )  {
          //         aladin.fullScreen.drawMesures(g);
          //         aladin.fullScreen.showMesures();
+         aladin.resumeVariousThinks();
          aladin.fullScreen.drawIcons(g);
 
          //         drawOverlayControls(g);
 
-         if( aladin.fullScreen.getMode()!=FrameFullScreen.CINEMA ) {
+         if( !aladin.isCinema() ) {
             widgetInit();
             if( widgetControl!=null ) widgetControl.paint(g);
          }
@@ -6644,10 +6796,7 @@ g.drawString(s,10,100);
       timeForPaint  = (Util.getTime() - t);
       //      System.out.println("ViewSimple paint "+timeForPaint+"ms");
 
-      frameNumber++;
    }
-
-   protected int frameNumber=0;
 
    private void drawHealpixMouse(Graphics g) {
       if( !(pref instanceof PlanBG) ) return;
@@ -6672,9 +6821,10 @@ g.drawString(s,10,100);
       widgetControl.addWidget( aladin.calque.select );
 
       // Le zoomView
-      int x = getWidth()-aladin.calque.zoom.zoomView.SIZE-75;
-      int y = getHeight()-aladin.calque.zoom.zoomView.SIZE-MG;
-      aladin.calque.zoom.zoomView.createWidgetControl(x,y,aladin.calque.zoom.zoomView.SIZE,aladin.calque.zoom.zoomView.SIZE,0.7f,this);
+      int x = getWidth()-aladin.calque.zoom.zoomView.getWidth()-75;
+      int y = getHeight()-aladin.calque.zoom.zoomView.getHeight()-MG;
+      aladin.calque.zoom.zoomView.createWidgetControl(x,y,aladin.calque.zoom.zoomView.getWidth(),
+            aladin.calque.zoom.zoomView.getHeight(),0.7f,this);
       
       widgetControl.addWidget( aladin.calque.zoom.zoomView );
 

@@ -72,12 +72,13 @@ SwingWidgetFinder, Widget {
    static final int RESAMP= 18;
    static final int CROP  = 19;
    static final int PLOT  = 20;
+   static final int SPECT = 21;
 
-   static int NBTOOL = 21;        // Nombre d'outils existants
+   static int NBTOOL = 22;        // Nombre d'outils existants
 
    // Ordre d'apparition des boutons
-   private int [] drawn = {SELECT,PAN,ZOOM,DIST,PHOT,DRAW,TAG,
-         FILTER,/*XMATCH,*/PLOT,RGB,/*BLINK,*/CROP,CONTOUR,HIST,PROP,
+   private int [] drawn = {SELECT,PAN,ZOOM,DIST,PHOT,DRAW,TAG,SPECT,
+         FILTER,XMATCH,PLOT,RGB,BLINK,/* RESAMP,*/CROP,CONTOUR,HIST,PROP,
          DEL };
 
    // Ordre d'apparition des boutons
@@ -87,13 +88,13 @@ SwingWidgetFinder, Widget {
 
 
    // liste des boutons lies au plan tool
-   static int [] to = { CROP,SELECT,DRAW,TAG,PHOT,DIST,PAN,PROP,ZOOM };
+   static int [] to = { CROP,SELECT,DRAW,TAG,PHOT,DIST,PAN,PROP,ZOOM,SPECT };
 
    // liste des boutons exclusifs
-   static int [] exc = { CROP,SELECT,DRAW,TAG,PHOT,DIST,PAN,ZOOM };
+   static int [] exc = { CROP,SELECT,DRAW,TAG,PHOT,DIST,PAN,ZOOM,SPECT };
 
    // liste des boutons permettant la creation automatique d'un plan TOOL
-   static int [] forTool = { DRAW,TAG,PHOT,DIST };
+   static int [] forTool = { DRAW,TAG,PHOT,DIST,SPECT };
 
    // liste des boutons toujours up (simple clic)
    static int [] up = { BNOTE,DEL,PROP,FILTER,PLOT };
@@ -201,9 +202,11 @@ SwingWidgetFinder, Widget {
                firstRepere=false;
                return null;
             }
-            Repere r = new Repere(plan,v,x,y);
-            //            r.setWithLabel(true);
+            SourceStat r = new SourceStat(plan,v,x,y,null);
             return r;
+         case SPECT:
+            RepereSpectrum rep = new RepereSpectrum(plan,v,x,y);
+            return rep;
          case DIST: return new Cote(plan,v,x,y);
          default: return null;
       }
@@ -221,7 +224,7 @@ SwingWidgetFinder, Widget {
    /** Positionne un des boutons d'ajout de graphiques, et remonte tous les autres */
    protected void setGraphicButton(int n) {
       tool[DRAW].mode = tool[TAG].mode = tool[PHOT].mode
-            = tool[DIST].mode = tool[SELECT].mode = Tool.UP;
+            = tool[DIST].mode = tool[SELECT].mode = tool[SPECT].mode =Tool.UP;
       tool[n].mode=Tool.DOWN;
       repaint();
    }
@@ -313,6 +316,11 @@ SwingWidgetFinder, Widget {
       //            && !(v.pref instanceof PlanBG && v.pref.isPixel()) ) {
       if( v==null || v.isFree() || !v.pref.isPixel() ) {
          mode[ToolBox.CONTOUR]=Tool.UNAVAIL;
+      }
+      
+      // Si la vue courante n'est pas sur un cube
+      if( v==null || v.isFree() || v.pref.type!=Plan.IMAGECUBE ) {
+         mode[ToolBox.SPECT]=Tool.UNAVAIL;
       }
 
       // Si le premier plan sélectionné est un MOC, on peut faire un crop
@@ -465,13 +473,6 @@ SwingWidgetFinder, Widget {
             // Suppression des objets selectionnes s'il y en a
             if( aladin.view.isDelSelObjet() ) { aladin.view.delSelObjet(); break; }
 
-            // Suppression de toutes les vues
-            //            else if( e.isShiftDown() && !aladin.view.isFree() && aladin.view.isMultiView() ) {
-            //               aladin.view.freeAll();
-            //               aladin.view.repaintAll();
-            //               aladin.localisation.setTextAffichage("");
-            //             }
-
             // Reset complet
             else if( e.isShiftDown() ) {
                aladin.reset();
@@ -542,11 +543,10 @@ SwingWidgetFinder, Widget {
       repaint();
    }
 
-   protected void newPlanTool() {
-      //      aladin.calque.newPlanTool(DRAWING+" "+(++NUMBERTOOL));
-      aladin.calque.selectPlanTool();
-      toolMode(false);
-   }
+//   protected void newPlanTool() {
+//      aladin.calque.selectPlanTool();
+//      toolMode(false);
+//   }
 
    // Gestion des curseurs
    private int oc=Aladin.DEFAULTCURSOR;
@@ -562,7 +562,7 @@ SwingWidgetFinder, Widget {
       oc=-1;
       int i=getTool();
       showCurrentButton(-1);
-      if( i==ZOOM  ) {
+      if( i==ZOOM  || i==TAG ) {
          setMode(i,Tool.UP);
          setMode(SELECT,Tool.DOWN);
       }

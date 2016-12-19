@@ -26,7 +26,7 @@ import java.util.TimeZone;
 
 public class Constante {
 
-   static final public String HIPS_VERSION  = "1.3";
+   static final public String HIPS_VERSION  = "1.31";
 
 
    // Noms des différents fichiers HiPS
@@ -54,7 +54,7 @@ public class Constante {
    static public final String KEY_HIPS_DATA_RANGE       = "hips_data_range";
    static public final String OLD_HIPS_DATA_RANGE       = "pixelRange";
    static public final String OLD_HIPS_PUBLISHER        = "hips_publisher";
-   static public final String KEY_CREATOR               = "creator";
+   static public final String KEY_CREATOR               = "hips_creator";
    static public final String KEY_PUBLISHER_ID          = "publisher_id";
    static public final String KEY_OBS_ID                = "obs_id";
    static public final String KEY_CLIENT_CATEGORY       = "client_category";
@@ -93,11 +93,13 @@ public class Constante {
    static public final String OLD1_OBS_DESCRIPTION      = "descriptionVerbose";
    static public final String KEY_HIPS_TILE_FORMAT      = "hips_tile_format";
    static public final String KEY_HIPS_SERVICE_URL      = "hips_service_url";
+   static public final String KEY_HIPS_MASTER_URL       = "hips_master_url";
    static public final String KEY_HIPS_PIXEL_BITPIX     = "hips_pixel_bitpix";
    static public final String KEY_DATA_PIXEL_BITPIX     = "data_pixel_bitpix";
    static public final String KEY_HIPS_PROCESS_SAMPLING = "hips_sampling";
    static public final String KEY_HIPS_PROCESS_OVERLAY  = "hips_overlay";
-   static public final String KEY_HIPS_PROCESS_SKYVAL   = "hips_skyval";
+   static public final String KEY_HIPS_SKYVAL           = "hips_skyval_method";
+   static public final String KEY_HIPS_SKYVAL_VALUE     = "hips_skyval_value";
    static public final String KEY_HIPS_PROCESS_HIERARCHY= "hips_hierarchy";
    static public final String KEY_HIPS_ESTSIZE          = "hips_estsize";
    static public final String OLD_HIPS_TILE_FORMAT      = "format";
@@ -134,6 +136,9 @@ public class Constante {
    static public final String KEY_BIB_REFERENCE_URL     = "bib_reference_url";
    static public final String KEY_MOC_SKY_FRACTION      = "moc_sky_fraction";
    static public final String KEY_ADDENDUM_ID           = "addendum_id";
+   static public final String KEY_HIPSGEN_DATE          = "hipsgen_date";
+   static public final String KEY_HIPSGEN_PARAMS        = "hipsgen_params";
+
 
    static public final String KEY_HIPS_RGB_RED          = "hips_rgb_red";
    static public final String OLD_HIPS_RGB_RED          = "red";
@@ -176,7 +181,7 @@ public class Constante {
    static public String SURVEY = HIPS;  // sous répertoire final contenant la hierarchie healpix
 
    static public final int ORDER           = 9;    // Taille des imagettes HEALPix
-   static public final int ORIGCELLWIDTH   = 1024; // Taille des cellules des images originales lors de la Hipselisation
+   static public final int ORIGCELLWIDTH   = 1024;  // Taille des cellules des images originales lors de la Hipselisation
    static public final int GZIPMAXORDER    = 5;    // On gzippe les tiles que jusqu'au niveau 5
    static public final int MAXOVERLAY      = 10;   // Nombre max de recouvrement pris en compte
    static public final int DEFAULTMOCORDER = 8;    // MOC ORDER minimal

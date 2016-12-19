@@ -20,20 +20,13 @@
 
 package cds.aladin;
 
-import java.awt.*;
-import java.util.Vector;
+import java.awt.Color;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 
-import javax.swing.ButtonGroup;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JRadioButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-
-import cds.moc.Healpix;
-import cds.tools.Util;
-import cds.tools.pixtools.CDSHealpix;
 
 /**
  * Gestion de la fenetre associee a la creation d'un MOC à partir d'un catalogue
@@ -72,7 +65,7 @@ public final class FrameMocGenCat extends FrameMocGenImg {
       double x=0;
       try {
          String s = radius.getText().trim();
-         if( s.length()>0 ) x=Server.getAngle(s,Server.RADIUSs);
+         if( s.length()>0 ) x=Server.getAngleInArcmin(s,Server.RADIUSs)/60.;
       } catch( Exception e ) {
          radius.setForeground(Color.red);
          throw e;
@@ -87,16 +80,20 @@ public final class FrameMocGenCat extends FrameMocGenImg {
          Plan [] ps = new Plan[]{ getPlan(ch[0]) };
          int res=getOrder();
          double radius = getRadius();
-         a.calque.newPlanMoc(ps[0].label+" MOC",ps,res,radius,0,0);
+         String sRadius = "";
+         if( radius!=0 ) {
+            sRadius=" -radius="+Coord.getUnit(radius);
+         }
+         a.console.printCommand("cmoc -order="+res+sRadius+" "+labelList(ps));
+         a.calque.newPlanMoc(ps[0].label+" MOC",ps,res,radius,0,0,Double.NaN);
          hide();
 
       } catch ( Exception e ) {
          if( a.levelTrace>=3 ) e.printStackTrace();
          Aladin.warning("MOC generation failed !");
       }
-
    }
-
+   
    @Override
    protected void adjustWidgets() { };
 }

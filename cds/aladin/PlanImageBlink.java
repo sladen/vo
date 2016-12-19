@@ -20,11 +20,16 @@
 
 package cds.aladin;
 
+import java.io.File;
+import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.StringTokenizer;
+import java.util.Vector;
+
 import cds.fits.HeaderFits;
 import cds.tools.Util;
-
-import java.io.*;
-import java.util.*;
 
 /**
  * Gestion d'un plan image Blink
@@ -82,6 +87,8 @@ public class PlanImageBlink extends PlanImage {
          runme.start();
       }
    }
+   
+   protected int getInitDelay() { return initDelay; }
 
    /** Gestion de la pause pour le défilement d'un cube */
    protected void setPause(boolean flag,ViewSimple v) { flagPause = flag; }
@@ -839,9 +846,10 @@ public class PlanImageBlink extends PlanImage {
       PlanImageBlinkItem pbi = vFrames.elementAt(oLastFrame);
       setBufPixels8(pbi.pixels);
       pixelsOrigin=pbi.pixelsOrigin;
+      aladin.view.resumeSourceStatOnCube();
       return true;
    }
-
+   
    /** Rend active la tranche courante des pixels d'origine, soit pour le planBlink lui-même
     * soit pourun planImage désigné (dans le cas d'une extraction d'une frame */
    protected void activePixelsOrigin(ViewSimple v) { activePixelsOrigin(v,this); }
