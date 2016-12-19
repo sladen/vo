@@ -8,8 +8,10 @@ Description: Remove deprecated PLASTIC support
  disabled/dead-codepaths.
 Author: Paul Sladen <debian@paul.sladen.org>
 Last-Updated: 2016-07-07
---- a/build.xml
-+++ b/build.xml
+Index: aladin/build.xml
+===================================================================
+--- aladin.orig/build.xml	2016-12-19 11:59:35.553736450 +0100
++++ aladin/build.xml	2016-12-19 11:59:36.233736436 +0100
 @@ -16,6 +16,7 @@
       <mkdir dir="${bin}"/>
       <javac srcdir="${basedir}/cds" destdir="${bin}" debug="true"
@@ -18,9 +20,11 @@ Last-Updated: 2016-07-07
         <classpath>
            <pathelement path="${java.class.path}/"/>
            <pathelement path="jsamp.jar"/>
---- a/cds/aladin/Aladin.java
-+++ b/cds/aladin/Aladin.java
-@@ -5590,21 +5590,12 @@
+Index: aladin/cds/aladin/Aladin.java
+===================================================================
+--- aladin.orig/cds/aladin/Aladin.java	2016-12-19 11:51:39.493746219 +0100
++++ aladin/cds/aladin/Aladin.java	2016-12-19 11:59:36.237736436 +0100
+@@ -5776,21 +5776,12 @@
           if( USE_SAMP_REQUESTED ) {
              appMessagingMgr = new SAMPManager(this);
           }
