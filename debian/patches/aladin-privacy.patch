@@ -6,9 +6,11 @@ Description: Don't call home for logging
  Note however, that Aladin is an online tool and automatically connects to
  GLU server to retrieve the list of available data sources. This is intended
  behaviour of the program, which would otherwise not function as expected.
---- a/cds/aladin/Configuration.java
-+++ b/cds/aladin/Configuration.java
-@@ -828,7 +828,7 @@
+Index: aladin/cds/aladin/Configuration.java
+===================================================================
+--- aladin.orig/cds/aladin/Configuration.java	2016-12-19 11:51:39.513746219 +0100
++++ aladin/cds/aladin/Configuration.java	2016-12-19 12:01:35.301733992 +0100
+@@ -845,7 +845,7 @@
     /** Retourne true si le mode log est activé */
     protected boolean isLog() {
        String s = get(LOG);
@@ -17,7 +19,7 @@ Description: Don't call home for logging
     }
  
     /** Retourne true s'il faut un slider d'époque */
-@@ -1661,7 +1661,7 @@
+@@ -1736,7 +1736,7 @@
        if( ocache==null || !s1.equals(ocache) ) set(MAXCACHE,s1);
  
        String s = get(LOG);
@@ -26,7 +28,7 @@ Description: Don't call home for logging
  
        s = get(HELP);
        if( s!=null && s.equals(ACTIVATED) ) remove(HELP);
-@@ -1910,14 +1910,12 @@
+@@ -1988,14 +1988,12 @@
        // Pourle log
        if( logChoice!=null ) {
           if( logChoice.getSelectedIndex()==1 ) {
@@ -44,11 +46,13 @@ Description: Don't call home for logging
        }
  
        // Pour l'assistant débutant
---- a/Aladin0.string
-+++ b/Aladin0.string
-@@ -1649,7 +1649,7 @@
+Index: aladin/Aladin0.string
+===================================================================
+--- aladin.orig/Aladin0.string	2016-12-19 11:51:39.485746219 +0100
++++ aladin/Aladin0.string	2016-12-19 12:01:35.305733992 +0100
+@@ -1665,7 +1665,7 @@
  UPCACHE	Permanent disk cache
- UPCACHEH	Aladin requires local disk space for keeping data from one session to the other. More it has, better it runs
+ UPCACHEH	Aladin requires local disk space for keeping data from one session to the other. More it has, better it runs. It is localized in your $HOME/.aladin directory.
  UPLOG CDS log
 -UPLOGH You will help the CDS team to improve Aladin by keeping the log mechanism activated. These "logs" are anonymous and do not transmit any local information (paths, file names,...) just some usage statistics and possibly bug reports. Thanks !
 +UPLOGH You will help the CDS team to improve Aladin by activating the log mechanism. These "logs" are anonymous and do not transmit any local information (paths, file names,...) just some usage statistics and possibly bug reports. Thanks !
