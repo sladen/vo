@@ -38,7 +38,7 @@ def desktop_source_version(soup, branch = 'Official', base_url = None, limit = 1
     heading = official.findNext(['h1', 'h3'])
     font = heading.find('font')
     # version '9.010' did not include the prepended 'v'
-    scraped_version = font.contents[0].split(' ')[0].lstrip('v')
+    scraped_version = font.contents[0].rstrip().split(' ')[0].lstrip('v')
     # validate it's a valid number: but don't convert,
     # otherwise trailing zeros are lost. (eg. 1.230)
     float(scraped_version)
