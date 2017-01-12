@@ -36,12 +36,12 @@ public class PlanBGCube extends PlanBG {
       super(aladin);
    }
 
-   protected PlanBGCube(Aladin aladin, TreeNodeAllsky gluSky,String label, Coord c, double radius,String startingTaskId) {
+   protected PlanBGCube(Aladin aladin, TreeObjDir gluSky,String label, Coord c, double radius,String startingTaskId) {
       super(aladin,gluSky,label, c,radius,startingTaskId);
       aladin.log(Plan.Tp[type],label);
    }
 
-   protected void setSpecificParams(TreeNodeAllsky gluSky) {
+   protected void setSpecificParams(TreeObjDir gluSky) {
       super.setSpecificParams(gluSky);
       //      type = ALLSKYCUBE;    // POUR LE MOMENT AFIN D'EVITER D'AVOIR A FAIRE LE DOUBLE TEST PARTOUT
       depth = gluSky.cubeDepth;
@@ -80,7 +80,7 @@ public class PlanBGCube extends PlanBG {
 
    protected boolean scanCubeProperties() {
       try {
-         java.util.Properties prop = loadPropertieFile();
+         MyProperties prop = loadPropertieFile();
          if( prop==null ) throw new Exception();
 
          String s;
@@ -108,7 +108,7 @@ public class PlanBGCube extends PlanBG {
       return true;
    }
 
-   protected void paramByTreeNode(TreeNodeAllsky gSky, Coord c, double radius) {
+   protected void paramByTreeNode(TreeObjDir gSky, Coord c, double radius) {
       super.paramByTreeNode(gSky,c,radius);
       depth=gSky.cubeDepth;
       z=gSky.cubeFirstFrame;

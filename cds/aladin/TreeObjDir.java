@@ -23,6 +23,9 @@ package cds.aladin;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
@@ -34,13 +37,19 @@ import java.util.StringTokenizer;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
 
 import cds.allsky.Constante;
+import cds.allsky.Context;
 import cds.moc.Healpix;
 import cds.tools.Util;
 
-/** Gère les noeuds de l'arbre du formulaire ServerAllsky */
-public class TreeNodeAllsky extends TreeNode {
+/**
+ * Gère les noeuds de l'arbre des HiPS
+ * @author Pierre Fernique [CDS]
+ * @version 2.0 Janvier 2017 - désormais utilisé pour le HipsStore
+ */
+public class TreeObjDir extends TreeObj {
 
    public String internalId;    // Alternative à l'ID de l'identificateur GLU
    private String url;          // L'url ou le path du survey
@@ -75,10 +84,12 @@ public class TreeNodeAllsky extends TreeNode {
    public double radius=-1;   // Field size for starting display
    public int nside=-1;          // Max NSIDE
    public boolean local=false;   // Il s'agit d'un survey sur disque local
+   
+   protected MyProperties prop=null; // Ensemble des propriétés associées au HiPS (via son fichier de properties ou MocServer)
 
-   /** Construction d'un TreeNodeAllSky à partir des infos qu'il est possible de glaner
+   /** Construction d'un TreeObjHips à partir des infos qu'il est possible de glaner
     * à l'endroit indiqué, soit par exploration du répertoire, soit par le fichier Properties */
-   public TreeNodeAllsky(Aladin aladin,String pathOrUrl) throws Exception {
+   public TreeObjDir(Aladin aladin,String pathOrUrl) throws Exception {
       String s;
       this.aladin = aladin;
       local=!(pathOrUrl.startsWith("http:") || pathOrUrl.startsWith("https:") ||pathOrUrl.startsWith("ftp:"));
@@ -89,7 +100,9 @@ public class TreeNodeAllsky extends TreeNode {
          InputStream in=null;
          if( !local ) in = (new URL(pathOrUrl+"/"+Constante.FILE_PROPERTIES)).openStream();
          else in = new FileInputStream(new File(pathOrUrl+Util.FS+Constante.FILE_PROPERTIES));
-         if( in!=null ) { prop.load(in); in.close(); }
+         if( in!=null ) { 
+            try { prop.load(in); } finally { in.close(); }
+         }
       } catch( Exception e ) { aladin.trace(3,"No properties file found => auto discovery..."); }
 
 
@@ -254,44 +267,135 @@ public class TreeNodeAllsky extends TreeNode {
 
    }
 
-   private boolean getIsColorByPath(String path,boolean local) {
-      String ext = inPNG ? ".png" : ".jpg";
-      MyInputStream in = null;
-      try {
-         if( local ) return Util.isJPEGColored(path+Util.FS+"Norder3"+Util.FS+"Allsky"+ext);
-         in = new MyInputStream( Util.openStream(path+"/Norder3/Allsky"+ext) );
-         byte [] buf = in.readFully();
-         return Util.isColoredImage(buf);
-      } catch( Exception e) {
-         aladin.trace(3,"Allsky"+ext+" not found => assume B&W survey");
-         return false;
+   /** Génération d'un label à partir de l'ID ex: CDS/P/DSS2/color => DSS2 color */
+   private String createLabel(String id,boolean cat) {
+      String label=id;
+      int p1 = id.indexOf('/');
+      int p2 = id.indexOf('/',p1+1);
+      if( cat ) { if( p1>0 ) label = id.substring(p1+1); }
+      else if( p2>0 ) label = id.substring(p2+1);
+      return label.replace('/',' ');
+   }
+
+   /** Création à partir d'un fichier de properties (ne supporte que HiPS 1.3 car dédié
+    * principalement à des enregistrements issues du MocServer */
+   public TreeObjDir(Aladin aladin, String id,boolean isLocal,MyProperties prop) {
+      String s;
+
+      this.aladin = aladin;
+      this.id = internalId = id;
+      this.local = isLocal;
+      this.prop = prop;
+      
+      // Type de HiPS
+      s=prop.getProperty(Constante.KEY_DATAPRODUCT_TYPE);
+      if( s!=null ) {
+         if( s.indexOf("catalog")>=0 ) cat=true;
+         else if( s.indexOf("cube")>=0 ) cube=true;
+         else if( s.indexOf("progen")>=0 ) progen=true;
       }
-      finally { try { if( in!=null ) in.close(); } catch( Exception e1 ) {} }
-   }
 
-   private boolean getFormatByPath(String path,boolean local,int fmt) {
-      String ext = fmt==0 ? ".fits" : fmt==1 ? ".jpg" : fmt==3 ? ".png" : ".xml";
-      return local && (new File(path+Util.FS+"Norder3"+Util.FS+"Allsky"+ext)).exists() ||
-            !local && Util.isUrlResponding(path+"/Norder3/Allsky"+ext);
-   }
+      // Référence spatiale
+      s=prop.getProperty(Constante.KEY_HIPS_FRAME);
+      if( s!=null ) frame = Context.getFrameVal(s);
+      else frame = cat ? Localisation.ICRS : Localisation.GAL;
 
-   private int getMaxOrderByPath(String urlOrPath,boolean local) {
-      for( int n=25; n>=1; n--) {
-         if( local && new File(urlOrPath+Util.FS+"Norder"+n).isDirectory()
-               || !local && Util.isUrlResponding(urlOrPath+"/Norder"+n)) return n;
+      // le label est construit à partir de l'ID
+//      aladinLabel = label = createLabel(id,cat);
+      
+      // ou le label construit à partir du obs_title et/ou obs_collection
+      s=prop.getProperty( cat ? Constante.KEY_OBS_TITLE : Constante.KEY_OBS_COLLECTION );
+      if( s==null ) s=prop.getProperty( !cat ? Constante.KEY_OBS_TITLE : Constante.KEY_OBS_COLLECTION );
+      aladinLabel = label = s!=null ? s : createLabel(id,cat);
+      
+      // Le path de l'arbre
+      s=prop.getProperty(Constante.KEY_CLIENT_CATEGORY);
+      if( s==null ) s="Others";
+      path = s+"/"+label.replace("/","\\/");
+      
+      // l'ordre de tri
+      ordre=prop.getProperty(Constante.KEY_CLIENT_SORT_KEY);
+      if( ordre==null ) ordre="Z";
+
+      // Divers champs de descriptions
+      description = prop.getProperty(Constante.KEY_OBS_TITLE);
+      verboseDescr = prop.getProperty(Constante.KEY_OBS_DESCRIPTION);
+      copyright = prop.getProperty(Constante.KEY_OBS_COPYRIGHT);
+      copyrightUrl = prop.getProperty(Constante.KEY_OBS_COPYRIGHT_URL);
+      skyFraction = prop.getProperty(Constante.KEY_MOC_SKY_FRACTION);
+
+      // Le champ initial
+      s = prop.getProperty(Constante.KEY_HIPS_INITIAL_RA);
+      if( s!=null) {
+         String s1 = prop.getProperty(Constante.KEY_HIPS_INITIAL_DEC);
+         if( s1!=null ) s = s+" "+s1;
+         else s=null;
       }
-      return -1;
+      if( s==null ) target=null;
+      else {
+         try { target = new Coord(s); }
+         catch( Exception e) { aladin.trace(3,"target error!"); target=null; }
+      }
+      double div2=2;
+      s = prop.getProperty(Constante.KEY_HIPS_INITIAL_FOV);
+      if( s==null ) radius=-1;
+      else {
+         try { radius=(Server.getAngleInArcmin(s, Server.RADIUSd)/60.)/div2; }
+         catch( Exception e) { aladin.trace(3,"radius error!"); radius=-1; }
+      }
 
-      //      int maxOrder=-1;
-      //      for( int n=3; n<100; n++ ) {
-      //         if( local && !(new File(urlOrPath+Util.FS+"Norder"+n).isDirectory()) ||
-      //            !local && !Util.isUrlResponding(urlOrPath+"/Norder"+n)) break;
-      //         maxOrder=n;
-      //      }
-      //      return maxOrder;
+      // La taille de la tuile Hips
+      s = prop.getProperty(Constante.KEY_HIPS_TILE_WIDTH);
+      if( s!=null ) try { nside = Integer.parseInt(s); } catch( Exception e) {
+         aladin.trace(3,"NSIDE number not parsable !");
+         nside=-1;
+      }
+
+      // Le maxOrder
+      s = prop.getProperty(Constante.KEY_HIPS_ORDER);
+      try { maxOrder = new Integer(s); }
+      catch( Exception e ) {
+         maxOrder=11;
+      }
+
+      // Les paramètres liés aux cubes
+      if( cube ) {
+         s = prop.getProperty(Constante.KEY_CUBE_DEPTH);
+         if( s!=null ) {
+            try { cubeDepth = Integer.parseInt(s); }
+            catch( Exception e ) { cubeDepth=-1; }
+         }
+         s = prop.getProperty(Constante.KEY_CUBE_FIRSTFRAME);
+         if( s!=null ) {
+            try { cubeFirstFrame = Integer.parseInt(s); }
+            catch( Exception e ) { cubeFirstFrame=-1; }
+         }
+      }
+
+      // Détermination du format des cellules dans le cas d'un survey pixels
+      s = prop.getProperty(Constante.KEY_DATAPRODUCT_SUBTYPE);
+      if( s==null ) s = prop.getProperty(Constante.OLD_ISCOLOR);
+      if( s!=null ) color = s.indexOf("color")>=0;
+
+      if( !cat && !progen ) {
+         String format = prop.getProperty(Constante.KEY_HIPS_TILE_FORMAT);
+         if( format!=null ) {
+            int a,b;
+            inFits = (a=Util.indexOfIgnoreCase(format, "fit"))>=0;
+            inJPEG = (b=Util.indexOfIgnoreCase(format, "jpeg"))>=0
+                  || (b=Util.indexOfIgnoreCase(format, "jpg"))>=0;
+                  inPNG  = (b=Util.indexOfIgnoreCase(format, "png"))>=0;
+                  truePixels = inFits && a<b;                         // On démarre dans le premier format indiqué
+         }
+         if( color ) truePixels=false;
+      }
+
+      if( color && !inJPEG && !inPNG) inJPEG=true;
+//      aladin.trace(4,toString1());
    }
 
-   public TreeNodeAllsky(Aladin aladin,String actionName,String id,String aladinMenuNumber, String url,String aladinLabel,
+   /** Création à partir d'un enregistrement GLU */
+   public TreeObjDir(Aladin aladin,String actionName,String id,String aladinMenuNumber, String url,String aladinLabel,
          String description,String verboseDescr,String ack,String aladinProfile,String copyright,String copyrightUrl,String path,
          String aladinHpxParam,String skyFraction) {
       super(aladin,actionName,aladinMenuNumber,aladinLabel,path);
@@ -367,8 +471,87 @@ public class TreeNodeAllsky extends TreeNode {
          if( copyright!=null || copyrightUrl!=null ) setCopyright(copyright);
          setMoc();
       }
+   }
+   
+   protected boolean isHiPS() {
+      if( prop==null ) return true;   // S'il n'y a pas de prop, ça ne peut être qu'un HiPS
+      return prop.getProperty(Constante.KEY_HIPS_SERVICE_URL)!=null;
+   }
+   
+   /** Retourne l'URL d'accès aux progénitors, null sinon */
+   protected String getProgenitorsUrl() {
+      if( prop==null ) return null;
+      return prop.getProperty(Constante.KEY_HIPS_PROGENITOR_URL);
+   }
+   
+   /** Retourne l'URL d'accès au MOC, null sinon */
+   protected String getMocUrl() {
+      if( prop==null || isHiPS() ) return getUrl()+"/Moc.fits";
+      return prop.getProperty(Constante.KEY_MOC_ACCESS_URL);
+   }
+   
+   protected String getProperty(String key) {
+      if( prop==null ) return null;
+      return prop.getProperty(key);
+   }
+   
+   private boolean getIsColorByPath(String path,boolean local) {
+      String ext = inPNG ? ".png" : ".jpg";
+      MyInputStream in = null;
+      try {
+         if( local ) return Util.isJPEGColored(path+Util.FS+"Norder3"+Util.FS+"Allsky"+ext);
+         in = new MyInputStream( Util.openStream(path+"/Norder3/Allsky"+ext) );
+         byte [] buf = in.readFully();
+         return Util.isColoredImage(buf);
+      } catch( Exception e) {
+         aladin.trace(3,"Allsky"+ext+" not found => assume B&W survey");
+         return false;
+      }
+      finally { try { if( in!=null ) in.close(); } catch( Exception e1 ) {} }
+   }
 
-      //      Aladin.trace(3,this.toString1());
+   private boolean getFormatByPath(String path,boolean local,int fmt) {
+      String ext = fmt==0 ? ".fits" : fmt==1 ? ".jpg" : fmt==3 ? ".png" : ".xml";
+      return local && (new File(path+Util.FS+"Norder3"+Util.FS+"Allsky"+ext)).exists() ||
+            !local && Util.isUrlResponding(path+"/Norder3/Allsky"+ext);
+   }
+
+   private int getMaxOrderByPath(String urlOrPath,boolean local) {
+      for( int n=25; n>=1; n--) {
+         if( local && new File(urlOrPath+Util.FS+"Norder"+n).isDirectory()
+               || !local && Util.isUrlResponding(urlOrPath+"/Norder"+n)) return n;
+      }
+      return -1;
+
+      //      int maxOrder=-1;
+      //      for( int n=3; n<100; n++ ) {
+      //         if( local && !(new File(urlOrPath+Util.FS+"Norder"+n).isDirectory()) ||
+      //            !local && !Util.isUrlResponding(urlOrPath+"/Norder"+n)) break;
+      //         maxOrder=n;
+      //      }
+      //      return maxOrder;
+   }
+   
+   protected JPanel createPanel() {
+      
+      if( !Aladin.PROTO ) return super.createPanel(); 
+      
+      JLabel lab = new JLabel(label);
+      lab.setBackground( background );
+      
+      gc = new GridBagConstraints();
+      gc.fill = GridBagConstraints.VERTICAL;
+      gc.anchor = GridBagConstraints.CENTER;
+      gc.gridx = GridBagConstraints.RELATIVE;
+      //      gc.insets = new Insets(2,0,4,5);
+      gc.insets = new Insets(0,0,0,5);
+      gb = new GridBagLayout();
+      JPanel panel = new JPanel(gb);
+//      panel.setOpaque(true);
+      panel.setBackground( background );
+      gb.setConstraints(lab,gc);
+      panel.add(lab);
+      return panel;
    }
 
    public String toString1() {
@@ -401,6 +584,12 @@ public class TreeNodeAllsky extends TreeNode {
 
    /** Retourne true s'il s'agit d'un catalogue hiérarchique */
    protected boolean isCatalog() { return cat; }
+
+   /** Retourne true s'il s'agit d'un catalogue hiérarchique */
+   protected boolean isCDSCatalog() { return cat && internalId.startsWith("CDS/"); }
+   
+   /** Retourne l'URL d'un Cone search ou null si aucun */
+   protected String getCSUrl() { return prop==null ? null : prop.get("cs_service_url"); }
 
    /** Retourne true s'il s'agit d'un catalogue hiérarchique pour des progéniteurs */
    protected boolean isProgen() { return progen; }
@@ -499,12 +688,50 @@ public class TreeNodeAllsky extends TreeNode {
       s.append(Util.CR);
       return s.toString();
    }
+   
+   /** Chargement par défaut à effectuer (suite à un double-clic sur le noeud de l'arbre) */
+   protected void load() {
+      if( getUrl()==null && isCatalog() )loadCS();
+      else loadHips();
+   }
 
-   protected void submit() {
+   protected void loadHips() {
       String mode = isTruePixels() ? ",fits":"";
-      aladin.console.printCommand("get allsky("+Tok.quote(label)+mode+")");
-
+      aladin.console.printCommand("get hips("+Tok.quote(internalId!=null?internalId:label)+mode+")");
       aladin.allsky(this);
+   }
+   
+   protected void loadCS() {
+      try {
+         int i = internalId.indexOf('/');
+         String cat = internalId.substring(i+1);
+         double rad = aladin.view.getCurrentView().getTaille();
+         if( rad>1 ) rad=1;
+         String trg = aladin.view.getCurrentView().getCentre();
+         
+         // On passe par VizieR via la commande script
+         if( isCDSCatalog() ) {
+            String cmd = internalId+" = get VizieR("+cat+") "+trg+" "+Util.myRound(rad)+"deg";
+            aladin.execAsyncCommand(cmd);
+            
+         // On utilise une URL directe en CS
+         } else {
+            String csUrl = getCSUrl();
+            Coord c = aladin.view.getCurrentView().getCooCentre();
+            String cmd = internalId+" = load "+csUrl+"RA="+c.al+"&DEC="+c.del+"&SR="+Util.myRound(rad)+"&VERB=2";
+            aladin.execAsyncCommand(cmd);
+            // RA=$1&DEC=$2&SR=$3&VERB=2
+         }
+      } catch( Exception e ) {
+         aladin.warning(e.getMessage()==null?"Cone search error":e.getMessage());
+      }
+   }
+
+   protected void loadAll() {
+      int i = internalId.indexOf('/');
+      String cat = internalId.substring(i+1);
+      String cmd = "get VizieRX("+cat+")";
+      aladin.execAsyncCommand(cmd);
    }
 
    void loadCopyright() { aladin.glu.showDocument(copyrightUrl); }
@@ -537,14 +764,60 @@ public class TreeNodeAllsky extends TreeNode {
    }
 
    void loadMoc() {
-      MyInputStream mis = null;
-      try {
-         mis = Util.openAnyStream( getUrl()+"/Moc.fits" );
-         aladin.calque.newPlanMOC(mis,label+" MOC");
-      }
-      catch( Exception e) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
+//      MyInputStream mis = null;
+//      try {
+//         mis = Util.openAnyStream( getUrl()+"/Moc.fits" );
+//         aladin.calque.newPlanMOC(mis,label+" MOC");
+//      }
+//      catch( Exception e) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
+      
+      String u = getMocUrl();
+      aladin.execAsyncCommand("'MOC "+label+"'=load "+u);
    }
-
+   
+   void loadProgenitors() {
+      String progen = getProgenitorsUrl();
+      if( progen==null ) progen = url+"/"+Constante.FILE_HPXFINDER;
+      aladin.execAsyncCommand("'PROG "+label+"'=load "+progen);
+   }
+   
+   void loadDensityMap() {
+      int off1 = internalId.indexOf('/');
+      int off2 = internalId.lastIndexOf('/');
+      String catId = internalId.substring(off1+1, off2);
+      String url = aladin.glu.gluResolver("getDMap",catId,false);
+      aladin.execAsyncCommand("'DM "+label+"'=load "+url);
+   }
+   
+   void queryByMoc() {
+      ServerMocQuery serverMoc = new ServerMocQuery(aladin);
+      
+      // Détermination du PlanMoc
+      PlanMoc planMoc=null;
+      for( Object p : aladin.calque.getSelectedPlanes() ) {
+         if( p instanceof PlanMoc ) { planMoc=(PlanMoc)p; break; }
+      }
+      if( planMoc==null ) {
+         aladin.warning("You need to select a MOC plane in the stack");
+         return;
+      }
+      serverMoc.setPlanMoc(planMoc);
+      
+      // Positionnement de l'identificateur du catalog
+      int i = internalId.indexOf('/');
+      String catName = internalId.substring(i+1);
+      serverMoc.setCatName(catName);
+      
+      // Postionnement du label du plan à créer
+      serverMoc.setPlanName(internalId);
+      
+      // Pas de limitation
+//      serverMoc.setLimit("unlimited");
+      serverMoc.setLimit("5000000");
+      
+      // Et c'est parti
+      serverMoc.submit();
+   }
 
    void setUrl(String url) { this.url=url; }
    void setCopyright(String copyright) {

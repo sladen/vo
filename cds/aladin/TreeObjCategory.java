@@ -29,17 +29,17 @@ import javax.swing.JButton;
 
 
 /** Gère les noeuds de l'arbre des catégories (formulaire ServerCategory) */
-public class TreeNodeCategory extends TreeNode {
+public class TreeObjCategory extends TreeObj {
    String url;
    String docUser;
    String exampleUrl;
    String origin;
 
-   TreeNodeCategory(Aladin aladin, String ID, String nom, String path) {
+   TreeObjCategory(Aladin aladin, String ID, String nom, String path) {
       this(aladin,ID,nom,path,null,null,null);
    }
 
-   TreeNodeCategory(Aladin aladin,String actionName,String description,String path,
+   TreeObjCategory(Aladin aladin,String actionName,String description,String path,
          String url,String docUser,String aladinUrlDemo) {
       super(aladin,actionName,null,description,path);
       this.url=url;
@@ -47,8 +47,11 @@ public class TreeNodeCategory extends TreeNode {
       if( aladinUrlDemo!=null ) setExUrl(aladinUrlDemo);
    }
 
-   @Override
-   protected void submit() {
+//   @Override
+//   protected void loadHips() {
+//      aladin.calque.newPlan(aladin.glu.getURL(id)+"",label,origin);
+//   }
+   protected void submit() { 
       aladin.calque.newPlan(aladin.glu.getURL(id)+"",label,origin);
    }
 
