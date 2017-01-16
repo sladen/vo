@@ -20,17 +20,14 @@
 
 package cds.moc;
 
-import healpix.essentials.HealpixBase;
-import healpix.essentials.Pointing;
-import healpix.essentials.RangeSet;
-import healpix.essentials.Scheme;
+import healpix.essentials.*;
 
 /** HEALPix CDS wrapper
  * Encapsulate the usage of the official HEALPix GAIA package
  *
  * The HEALPix ordering is always NESTED
  *
- * @author Pierre Fernique  [CDS]
+ * @author Pierre Fernique [CDS]
  * @version 1.3 May 2014 - NPIX => UNIQ fits keyword
  * @version 1.2 Jan 2012 - Thread safe implementation
  * @version 1.1 Oct 2011 - direct HealpixBase use

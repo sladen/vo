@@ -24,7 +24,7 @@ import java.util.Iterator;
 /**
  * Fast array : see ShortArray, IntArray and LongArray classes
  * @version 1.0 - oct 2011
- * @author P.Fernique  [CDS]
+ * @author P.Fernique [CDS]
  */
 public abstract class Array implements Iterable<Long>,Cloneable {
    

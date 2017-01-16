@@ -70,6 +70,7 @@ public final class CreatObj implements Runnable {
 //      trace(1,"Creating Status object");
 
       a.match = new Match(a);
+      a.look = new Look(a);
       a.grid = new Grid(a);
       a.oeil = new Oeil(a);
       a.northup = new Northup(a);
@@ -101,6 +102,9 @@ public final class CreatObj implements Runnable {
 
       a.localisation = new Localisation(a);
       trace(1,"Creating Localisation widget");
+      
+      a.projSelector = new ProjSelector(a);
+      trace(1,"Creating projSelector widget");
 
 //      a.pixel = new Pixel(a);
 //      trace(1,"Creating Pixel widget");
