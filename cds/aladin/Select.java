@@ -172,7 +172,7 @@ Runnable, SwingWidgetFinder, Widget {
       addMouseListener(this);
       addMouseWheelListener(this);
 
-      setBackground( a.toolBox.getBackground() );
+      setBackground( aladin.getBackground() );
 
       // Calcule des tailles
       hs=Aladin.LSCREEN?291:200;   // Hauteur du canvas
@@ -1597,7 +1597,6 @@ Runnable, SwingWidgetFinder, Widget {
 
       lastYMax = y;
       if( a.configuration.isHelp() && beginnerHelp && nbPlanVisible<=4 ) drawBeginnerHelp( g, nbPlanVisible, y);
-      
       
       a.resumeVariousThinks();
 

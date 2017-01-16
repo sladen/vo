@@ -264,7 +264,7 @@ public final class Command implements Runnable {
       //      // Contournement Bug Windows JAVA 1.1.8 sur le read bloquant après available()==1
       //      if( Aladin.BUGPARAD118 ) { execScript(a.pad.popCmd()); return; }
 
-      if( sleepFlag )thread.interrupt();
+      if( sleepFlag ) thread.interrupt();
    }
 
    synchronized private void setFlagSleep(boolean flag) { sleepFlag=flag; }
@@ -1204,7 +1204,7 @@ public final class Command implements Runnable {
          if( server.equalsIgnoreCase("VizierX") ) server="VizieR";   // Pour charger tout un catalogue sans poser un problème de compatibilité
 
          if( Aladin.PROTO && server.equalsIgnoreCase("hips") ) {
-            int n=a.hipsMarket.createPlane(target,radius,criteria,label,null);
+            int n=a.directory.createPlane(target,radius,criteria,label,null);
             if( n!=-1 ) {
                a.calque.getPlan(n).setBookmarkCode("get "+server+(criteria.length()>0?"("+criteria+")":"")+" $TARGET $RADIUS");
             }
@@ -2864,7 +2864,6 @@ public final class Command implements Runnable {
    }
    synchronized public String execScript(String s,boolean verbose,boolean flagOnlyFunction) {
       
-      
       //      StringTokenizer st = new StringTokenizer(s,";\n\r");
       // thomas, 16/11/06 : permet de ne pas couper la déf. des filtres (pb des ';' dans les UCD !)
       String[] commands = Util.split(s, ";\n\r", '[', ']');
@@ -4352,7 +4351,7 @@ public final class Command implements Runnable {
 
    /**************************************  Test de non régression du code **************************************/
 
-   private String TEST =
+   protected String TEST =
          "info Aladin test script in progress...;" +
                "reset;" +
                "setconf frame=ICRS;" +

@@ -20,8 +20,6 @@
 
 package cds.moc;
 
-import healpix.essentials.RangeSet;
-
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Date;
@@ -29,11 +27,14 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.StringTokenizer;
 
+import healpix.essentials.RangeSet;
+
 /** HEALPix Multi Order Coverage Map (MOC)
  * This object provides read, write and process methods to manipulate an HEALPix Multi Order Coverage Map (MOC)
  * A MOC is used to define a sky region by using HEALPix sky tesselation
  *
  * @authors Pierre Fernique [CDS], Martin Reinecke [Max Plank]
+ * @version 4.7 Dec 2016 - Undeprecated new HealpicMoc(Inputstream in, int mode) + isAscendant(int order, Array a) bug fix
  * @version 4.6 Apr 2016 - MocLint - IVOA 1.0 MOC recommendation compatibility checker
  * @version 4.5 Nov 2015 - JSON #MOCORDER patch
  * @version 4.4 Jun 2015 - Empty MOC FITS bug fix
@@ -56,7 +57,7 @@ import java.util.StringTokenizer;
 public class HealpixMoc implements Iterable<MocCell>,Cloneable,Comparable {
 
    /** Healpix MOC API version number */
-   static public final String VERSION = "4.6";
+   static public final String VERSION = "4.7";
 
    /** FITS encoding format (IVOA REC 1.0 compliante) */
    static public final int FITS  = 0;
@@ -132,10 +133,9 @@ public class HealpixMoc implements Iterable<MocCell>,Cloneable,Comparable {
    }
 
    /** HEALPix Multi Order Coverage Map (MOC) creation and initialisation
-    * via a stream, either in ASCII encoded format or in FITS encoded format
+    * via a stream, either in JSON encoded format , ASCII encoded format or in FITS encoded format
     * @param in input stream
-    * @param mode ASCII - ASCII encoded format, FITS - Fits encoded format
-    * @deprecated see HealpixMoc(InputStream)
+    * @param mode ASCII - ASCII encoded format, JSON encoded format, FITS - Fits encoded format
     */
    public HealpixMoc(InputStream in, int mode) throws Exception {
       this();
@@ -1299,7 +1299,7 @@ public class HealpixMoc implements Iterable<MocCell>,Cloneable,Comparable {
          Array a2=a;
          int size2 = a2.getSize();
          int size1 = a1.getSize();
-         if( !a1.intersectRange( a2.get(0)*range, a2.get(size2-1)*range ) ) continue;
+         if( !a1.intersectRange( a2.get(0)*range, (a2.get(size2-1)+1)*range -1 ) ) continue;
          switch( strategie(size1,size2) ) {
             case 0: break;
             case 1:

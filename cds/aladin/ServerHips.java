@@ -33,7 +33,6 @@ import javax.swing.ButtonGroup;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
-import javax.swing.tree.DefaultMutableTreeNode;
 
 import cds.aladin.MyTree.NoeudEditor;
 import cds.tools.Util;
@@ -122,13 +121,13 @@ public class ServerHips extends ServerTree  {
          }
       }
 
-      int j = aladin.glu.findGluSky(survey,2);
+      int j = aladin.glu.findHips(survey,2);
       if( j<0 ) {
          Aladin.warning(this,"Progressive survey (HiPS) unknown ["+survey+"]",1);
          return -1;
       }
 
-      TreeNodeAllsky gSky = aladin.glu.getGluSky(j);
+      TreeObjDir gSky = aladin.glu.getHips(j);
 
       try {
          if( defaultMode!=PlanBG.UNKNOWN ) gSky.setDefaultMode(defaultMode);
@@ -160,7 +159,7 @@ public class ServerHips extends ServerTree  {
 //            if( v.isFree() ) return;
 
             if( v.isFree() || v.isAllSky() || !Projection.isOk(v.getProj()) ) {
-               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) gSky.isIn=true;
+               for( TreeObjDir gSky : aladin.glu.vHips ) gSky.isIn=0;
 
             } else {
                String params;
@@ -194,11 +193,11 @@ public class ServerHips extends ServerTree  {
                while( (s=in.readLine())!=null ) set.add( getId(s) );
 
                // Nettoyage préalable de l'arbre
-               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) gSky.isIn=false;
+               for( TreeObjDir gSky : aladin.glu.vHips ) gSky.isIn=-1;
 
                // Positionnement des datasets dans le champ
-               for( TreeNodeAllsky gSky : aladin.glu.vGluSky ) {
-                  gSky.isIn = set.contains(gSky.internalId);
+               for( TreeObjDir gSky : aladin.glu.vHips ) {
+                  gSky.isIn = set.contains(gSky.internalId) ? 1 : 0;
 //                  if( !gSky.ok ) System.out.println(gSky.internalId+" is out");
                }
             }
@@ -207,7 +206,7 @@ public class ServerHips extends ServerTree  {
             try {
                NoeudEditor c = (NoeudEditor)tree.getCellEditor();
                if( c!=null ) {
-                  TreeNode n = (TreeNode)c.getCellEditorValue();
+                  TreeObj n = (TreeObj)c.getCellEditorValue();
                   if( n!=null &&  n.hasCheckBox() ) {
                      if( n.isIn() ) n.checkbox.setForeground(Color.black);
                      else n.checkbox.setForeground(Color.lightGray);
@@ -218,8 +217,7 @@ public class ServerHips extends ServerTree  {
             }
 
             // Mise à jour des branches de l'arbre
-            DefaultMutableTreeNode root = tree.getRoot();
-            tree.setInTree(root);
+            tree.populateFlagIn();
             validate();
             repaint();
 
@@ -243,10 +241,10 @@ public class ServerHips extends ServerTree  {
 
    public void submit() {
       String mode = fitsRadio!=null && fitsRadio.isSelected() ? ",fits":"";
-      for( TreeNode n : tree ) {
-         if( !(n instanceof TreeNodeAllsky) ) continue;
+      for( TreeObj n : tree ) {
+         if( !(n instanceof TreeObjDir) ) continue;
          if( !n.isCheckBoxSelected() ) continue;
-         TreeNodeAllsky ta = (TreeNodeAllsky) n;
+         TreeObjDir ta = (TreeObjDir) n;
          String target = getTarget(false);
          String radius = getRadius(false);
          String cible = target==null || target.trim().length()==0 ? "" : (" "+target+( radius==null ? "" : " "+radius));
@@ -267,8 +265,8 @@ public class ServerHips extends ServerTree  {
       (new Thread("initTree") {
          public void run() {
             loadRemoteTree();
-            tree.populateTree(aladin.glu.vGluSky.elements());
-            aladin.gluSkyReload();
+            tree.populateTree(aladin.glu.vHips.elements());
+            aladin.hipsReload();
          }
       }).start();
    }

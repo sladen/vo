@@ -33,7 +33,6 @@ import java.util.Iterator;
 import java.util.StringTokenizer;
 import java.util.Vector;
 
-import javax.swing.BorderFactory;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 import javax.swing.SwingUtilities;
@@ -205,6 +204,7 @@ public class Calque extends JPanel implements Runnable {
       haut = new JPanel( new BorderLayout(10,10) );
       haut.add(select,BorderLayout.CENTER);
       haut.add(slider,BorderLayout.SOUTH);
+      haut.setBackground( aladin.getBackground());
       
 //      Dataset dataset = new Dataset(aladin);
 //      final MySplitPane gauche1 = new MySplitPane(JSplitPane.VERTICAL_SPLIT, true,
@@ -217,6 +217,7 @@ public class Calque extends JPanel implements Runnable {
 
       
       JPanel bas = new JPanel(new BorderLayout(10,10));
+      bas.setBackground( aladin.getBackground());
       bas.add(zoom,BorderLayout.CENTER);
       
      // Panel principal : contient le selecteur de plans et le zoom
@@ -224,13 +225,13 @@ public class Calque extends JPanel implements Runnable {
 //      add(haut,BorderLayout.CENTER);
 //      add(bas,BorderLayout.SOUTH);
       
-      MySplitPane splitH = new MySplitPane(JSplitPane.VERTICAL_SPLIT, true, /* gauche1 */ haut, bas,1);
+      MySplitPane splitH = new MySplitPane(aladin,JSplitPane.VERTICAL_SPLIT, /* gauche1 */ haut, bas,1);
       bas.setMinimumSize(new Dimension(100,100));
       bas.setPreferredSize(new Dimension(100,aladin.getZoomViewHeight()));
       splitH.setResizeWeight(1);
-      splitH.setBorder(BorderFactory.createEmptyBorder());
       aladin.splitZoomHeight = splitH;
       
+      setBackground( aladin.getBackground());
       add(splitH,BorderLayout.CENTER);
 
 
@@ -1511,9 +1512,7 @@ public class Calque extends JPanel implements Runnable {
          if( !(plan[i] instanceof PlanBG )  ) continue;
          if( ((PlanBG)plan[i]).id==null ) continue;
          
-         // le hipsId ne contient pas l'origine en premier mot
-         // ex: CDS/P/DSS2/color => hipsID = P/DSS2/color
-         if( ((PlanBG)plan[i]).id.endsWith("/"+hipsId) ) return true;
+         if( ((PlanBG)plan[i]).id.equals(hipsId) ) return true;
       }
       return false;
    }
@@ -3381,7 +3380,7 @@ public class Calque extends JPanel implements Runnable {
    //   }
 
    // Détermination du target de démarrage pour un plan BG
-   private Coord getTargetBG(String target,TreeNodeAllsky gSky) {
+   private Coord getTargetBG(String target,TreeObjDir gSky) {
       Coord c=null;
       if( target!=null && target.length()>0) {
          try {
@@ -3399,7 +3398,7 @@ public class Calque extends JPanel implements Runnable {
    }
 
    // Détermination du radius de démarrage pour un plan BG
-   private double getRadiusBG(String target,String radius,TreeNodeAllsky gSky) {
+   private double getRadiusBG(String target,String radius,TreeObjDir gSky) {
       double rad=-1;
       if( radius!=null && radius.length()>0 ) {
          try {
@@ -3441,11 +3440,11 @@ public class Calque extends JPanel implements Runnable {
 
    /** Création d'un plan BG */
    public int newPlanBG(String path, String label, String target,String radius) { return newPlanBG(null,path,null,label,target,radius); }
-   public int newPlanBG(TreeNodeAllsky gSky, String label, String target,String radius) { return newPlanBG(gSky,null,null,label,target,radius); }
+   public int newPlanBG(TreeObjDir gSky, String label, String target,String radius) { return newPlanBG(gSky,null,null,label,target,radius); }
    public int newPlanBG(URL url, String label, String target,String radius) { return newPlanBG(null,null,url,label,target,radius); }
 
 
-   public int newPlanBG(TreeNodeAllsky gSky,String path,URL url, String label, String target,String radius) {
+   public int newPlanBG(TreeObjDir gSky,String path,URL url, String label, String target,String radius) {
       int n=getStackIndex(label);
       label = prepareLabel(label);
       Coord c=getTargetBG(target,gSky);
@@ -3750,6 +3749,16 @@ public class Calque extends JPanel implements Runnable {
       }
    }
 
+   /** Change pour toute la pile la projection */
+   protected void modifyProjection(String proj) {
+      Plan [] plan = getPlans();
+      for( int i=0; i<plan.length; i++ ) {
+         if( !(plan[i] instanceof PlanBG) ) continue;
+         plan[i].modifyProj(proj);
+      }
+      aladin.view.newView();
+      aladin.calque.repaintAll();
+   }
 
    /** Change pour tous les plans sélectionnés le niveau d'opacité */
    protected void setOpacityLevel(float opacity) {

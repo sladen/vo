@@ -1,5 +1,5 @@
-aladin (9.501+dfsg-0sladen1) UNRELEASED; urgency=low
+aladin (9.504+dfsg-0sladen1) UNRELEASED; urgency=low
 
   * Initial release. (Closes: #818373)
 
- -- Paul Sladen <debian@paul.sladen.org>  Mon, 19 Dec 2016 12:34:56 +0100
+ -- Paul Sladen <debian@paul.sladen.org>  Mon, 16 Jan 2017 11:30:24 +0100
