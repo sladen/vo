@@ -21,3 +21,16 @@ get-orig-source:
 	rm -rf AladinSrc ; \
 	mv -f AladinSrc.jar AladinSrc-$$VERSION.jar ; \
 	xz aladin_$$VERSION+dfsg.orig.tar )
+
+get-orig-beta-source:
+	wget http://aladin.unistra.fr/java/download/AladinBetaSrc.jar
+	( mkdir AladinBetaSrc ; \
+	cd AladinBetaSrc ; \
+	unzip ../AladinBetaSrc.jar ;\
+	rm -f *.jar ; \
+	VERSION=`fgrep "String VERSION" cds/aladin/Aladin.java | sed 's/.*"v\(.*\)".*/\1/'` ; \
+	tar cf ../aladin_$$VERSION+dfsg.orig.tar . ; \
+	cd .. ; \
+	rm -rf AladinBetaSrc ; \
+	mv -f AladinBetaSrc.jar AladinBetaSrc-$$VERSION.jar ; \
+	gzip aladin_$$VERSION+dfsg.orig.tar )
