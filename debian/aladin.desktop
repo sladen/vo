@@ -9,6 +9,7 @@ Comment=Astronomical Sky Atlas and star catalogue for astronomical images and da
 Exec=/usr/bin/aladin %F
 Icon=aladin
 Terminal=false
+StartupWMClass=cds-aladin-Aladin
 Categories=Science;Astronomy;Application;DataVisualization;Java;Education;Viewer;
 # https://www.ietf.org/rfc/rfc4047.txt since 2005
 MimeType=application/x-votable+xml;application/fits;image/fits
