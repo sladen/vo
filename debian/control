@@ -25,7 +25,7 @@ Vcs-Browser: https://anonscm.debian.org/cgit/debian-astro/packages/aladin.git
 Package: aladin
 Section: science
 Architecture: all
-Depends: ${java:Depends}, ${misc:Depends}
+Depends: ${java:Depends}, ${misc:Depends}, default-jre
 Description: Interactive sky atlas for astronomical images and datasets
  Aladin is an interactive software sky atlas allowing the user to
  visualise digitised astronomical images, to superimpose entries from
