@@ -23,6 +23,7 @@ Vcs-Git: https://anonscm.debian.org/cgit/debian-astro/packages/aladin.git
 Vcs-Browser: https://anonscm.debian.org/cgit/debian-astro/packages/aladin.git
 
 Package: aladin
+Section: science
 Architecture: all
 Depends: ${java:Depends}, ${misc:Depends}
 Description: Interactive sky atlas for astronomical images and datasets
