@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -103,26 +104,26 @@ public class MyTree extends JTree implements Iterable<TreeObj>  {
       defaultExpand();
    }
    
-   /** Supprime les feuilles et branches hidden */
-   protected void elagueHidden() {
-      elagueHidden(root, (DefaultTreeModel)getModel() );
-   }
+//   /** Supprime les feuilles et branches hidden */
+//   protected void elagueHidden() {
+//      elagueHidden(root, (DefaultTreeModel)getModel() );
+//   }
    
-   private void elagueHidden(DefaultMutableTreeNode node, DefaultTreeModel model ) {
-       
-      for( int i=node.getChildCount()-1; i>=0; i-- ) {
-         elagueHidden( (DefaultMutableTreeNode)node.getChildAt(i), model );
-      }
-
-      if( node.isLeaf() ) {
-         TreeObj fils = (TreeObj) node.getUserObject();
-         if( fils.isHidden() && !node.equals(root)) {
-            fils.treeIndex = node.getParent().getIndex(node);
-            model.removeNodeFromParent(node);
-         }
-         return;
-      }
-   }
+//   private void elagueHidden(DefaultMutableTreeNode node, DefaultTreeModel model ) {
+//       
+//      for( int i=node.getChildCount()-1; i>=0; i-- ) {
+//         elagueHidden( (DefaultMutableTreeNode)node.getChildAt(i), model );
+//      }
+//
+//      if( node.isLeaf() ) {
+//         TreeObj fils = (TreeObj) node.getUserObject();
+//         if( fils.isHidden() && !node.equals(root)) {
+//            fils.treeIndex = node.getParent().getIndex(node);
+//            model.removeNodeFromParent(node);
+//         }
+//         return;
+//      }
+//   }
 
    /** Reset */
    public void reset() {
@@ -220,7 +221,8 @@ public class MyTree extends JTree implements Iterable<TreeObj>  {
          if( subNode==null ) {
             subNode = new DefaultMutableTreeNode( pos!=-1? new TreeObj(aladin,"",null,label,"") : noeud );
 //            node.add(subNode);
-            int i = ((TreeObj)subNode.getUserObject()).treeIndex;
+//            int i = ((TreeObj)subNode.getUserObject()).treeIndex;
+            int i=-1;
             int n = node.getChildCount();
             if( i==-1 || i>n ) i=n;
             model.insertNodeInto(subNode, node, i);
@@ -270,13 +272,13 @@ public class MyTree extends JTree implements Iterable<TreeObj>  {
 
       NoeudRenderer() {
          selectionForeground = UIManager.getColor("Tree.selectionForeground");
-//         selectionBackground = UIManager.getColor("Tree.selectionBackground");
-         selectionBackground = aladin.getBackground();
+         selectionBackground = UIManager.getColor("Tree.selectionBackground");
+//         selectionBackground = aladin.getBackground();
          textForeground = UIManager.getColor("Tree.textForeground");
-//         textBackground = UIManager.getColor("Tree.textBackground");
-         textBackground = aladin.getBackground();
+         textBackground = UIManager.getColor("Tree.textBackground");
+//         textBackground = aladin.getBackground();
          
-         nonLeafRenderer.setBackgroundNonSelectionColor( aladin.getBackground() );
+//         nonLeafRenderer.setBackgroundNonSelectionColor( aladin.getBackground() );
       }
 
       public Component getTreeCellRendererComponent(JTree tree, Object obj, boolean selected, boolean expanded,

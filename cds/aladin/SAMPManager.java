@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -62,12 +63,17 @@ import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 
-import org.apache.xmlrpc.WebServer;
-import org.apache.xmlrpc.XmlRpcClient;
-import org.apache.xmlrpc.XmlRpcException;
-import org.apache.xmlrpc.XmlRpcHandler;
+//import org.apache.xmlrpc.WebServer;
+//import org.apache.xmlrpc.XmlRpcClient;
+//import org.apache.xmlrpc.XmlRpcException;
+//import org.apache.xmlrpc.XmlRpcHandler;
 import org.astrogrid.samp.hub.Hub;
 import org.astrogrid.samp.hub.HubServiceMode;
+import org.astrogrid.samp.xmlrpc.SampXmlRpcClient;
+import org.astrogrid.samp.xmlrpc.SampXmlRpcHandler;
+import org.astrogrid.samp.xmlrpc.SampXmlRpcServer;
+import org.astrogrid.samp.xmlrpc.internal.InternalClient;
+import org.astrogrid.samp.xmlrpc.internal.InternalServer;
 
 import cds.tools.Util;
 
@@ -121,12 +127,15 @@ import cds.tools.Util;
  * @author Thomas Boch [CDS]
  *
  * @version 0.1  Creation, Sept 2008
+ * @version 0.2  Suppression support PLASTIC, et utilisation directe jsamp.jar (PF Mai 2017 - quick&dirty à vérifier par TB dès qu'il peut)
  *
  * @see <a href="http://www.ivoa.net/cgi-bin/twiki/bin/view/IVOA/SampProgress">SAMP page on the IVOA web site</a>
  *
  */
-public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneLoadListener {
+public class SAMPManager implements AppMessagingInterface, SampXmlRpcHandler, PlaneLoadListener {
 
+   // PF Mai 2017 : remplacement interface XmlRpcHandler par SampXmlRpcHandler
+   
     static final protected String NOTIFY = "samp.hub.notify";
     static final protected String NOTIFY_ALL = "samp.hub.notifyAll";
 
@@ -243,9 +252,11 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
     private String hubUrl;
     private String sampSecret;
     // handle to contact the hub
-    private XmlRpcClient hubClient;
+//    private XmlRpcClient hubClient;  //PF Mai 2017 - Remplacement par SampXmlRpcClient
+    private SampXmlRpcClient hubClient;
     // Aladin's XML-RPC Server to be reached by other apps
-    private WebServer aladinXmlRpcServer;
+//    private WebServer aladinXmlRpcServer; //PF Mai 2017 - Remplacement par SampXmlRpcServer
+    private SampXmlRpcServer aladinXmlRpcServer;
 
 
     // ###SAMP
@@ -306,7 +317,9 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         params.add(sampSecret);
         Object result;
         try {
-            Map resultMap = (Map)hubClient.execute(HUB_MSG_REGISTER, params);
+            // PF Mai 2017 - Tous les execute(...) ont été remplacés par callAndWait(...)
+//           Map resultMap = (Map)hubClient.execute(HUB_MSG_REGISTER, params);
+            Map resultMap = (Map)hubClient.callAndWait(HUB_MSG_REGISTER, params);
             // TODO : se prévenir contre les pbs de cast incorrect et de clé absentes !!
             myPrivateKey = resultMap.get(KEY_PRIVATE_KEY).toString();
             selfId = resultMap.get(KEY_SELF_ID).toString();
@@ -337,21 +350,33 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         params.add(myPrivateKey);
         params.add(map);
         try {
-            result = hubClient.execute(HUB_MSG_DECLARE_METADATA, params);
+           // PF Mai 2017 - execute(...) -> callAndWait(...)
+            result = hubClient.callAndWait(HUB_MSG_DECLARE_METADATA, params);
         }
         catch(Exception e) {
             e.printStackTrace();
         }
 
-
+        // PF Mai 2017 - Utilisation du InternalServer()
         // start XML-RPC server
-        int xmlRpcPort = findFreePort();
-        aladinXmlRpcServer = new WebServer(xmlRpcPort);
-        aladinXmlRpcServer.start();
-        String callbackAddress = "http://"+getLocalhost()+":"+xmlRpcPort+"/";
+//        int xmlRpcPort = findFreePort();
+//        aladinXmlRpcServer = new WebServer(xmlRpcPort);
+//        aladinXmlRpcServer.start();
+//        String callbackAddress = "http://"+getLocalhost()+":"+xmlRpcPort+"/";
+        
 
-        trace(" Aladin callback address is: "+callbackAddress);
-        aladinXmlRpcServer.addHandler("samp.client", this);
+//        trace(" Aladin callback address is: "+callbackAddress);
+//        aladinXmlRpcServer.addHandler("samp.client", this);
+        
+        try {
+           aladinXmlRpcServer = new InternalServer();
+             aladinXmlRpcServer.addHandler(this);
+        } catch( IOException e1 ) {
+           // TODO Auto-generated catch block
+           e1.printStackTrace();
+        }
+
+        String callbackAddress = aladinXmlRpcServer.getEndpoint().toString();
 
         // set XML-RPC callback
         params = new Vector();
@@ -359,7 +384,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         params.add(callbackAddress);
         try {
             trace("setting Aladin XMLRPC callback : "+callbackAddress);
-            result = hubClient.execute("samp.hub.setXmlrpcCallback", params);
+            result = hubClient.callAndWait("samp.hub.setXmlrpcCallback", params);
         }
         catch(Exception e) {
             e.printStackTrace();
@@ -376,7 +401,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         }
         params.add(subscriptionMap);
         try {
-            result = hubClient.execute(HUB_MSG_DECLARE_SUBSCRIPTIONS, params);
+            result = hubClient.callAndWait(HUB_MSG_DECLARE_SUBSCRIPTIONS, params);
         }
         catch(Exception e) {
             e.printStackTrace();
@@ -389,7 +414,8 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
     }
 
     // TODO : faut il la synchronizer ??? SAMP4IDL ne fonctionnait plus bien avec les commandes script
-    public synchronized Object execute(String method, Vector params) throws XmlRpcException {
+    // PF Mai 2017 - Suppression du throws XmlRpcException
+    public synchronized Object execute(String method, Vector params) {
         trace("Receiving XML request :\nmethod="+method+"\nparams="+params);
 
 
@@ -802,7 +828,9 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
 
                 // arrêt serveur XMLRPC
                 if( aladinXmlRpcServer!=null ) {
-                    aladinXmlRpcServer.shutdown();
+                   // PF Mai 2017
+                   ((InternalServer)aladinXmlRpcServer).getHttpServer().stop();
+//                    aladinXmlRpcServer.shutdown();
                 }
 
                 if( widget!=null ) widget.animateWidgetReceive(true, false);
@@ -814,7 +842,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         Vector params = new Vector();
         params.add(myPrivateKey);
         try {
-            hubClient.execute(HUB_MSG_UNREGISTER, params);
+            hubClient.callAndWait(HUB_MSG_UNREGISTER, params);
 
         }
         catch( Exception e) {
@@ -830,7 +858,8 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
 
         // arrêt serveur XMLRPC
         if( aladinXmlRpcServer!=null ) {
-            aladinXmlRpcServer.shutdown();
+           ((InternalServer)aladinXmlRpcServer).getHttpServer().stop();
+//            aladinXmlRpcServer.shutdown();
         }
 
         if( widget!=null ) widget.animateWidgetReceive(true, false);
@@ -895,7 +924,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
             if( ! Aladin.confirmation(widget, CONFIRM_STOP_HUB) ) return;
         }
 
-        Aladin.trace(1, "Stopping internal PlasKit hub");
+        Aladin.trace(1, "Stopping internal SAMP hub");
 
         internalHub.shutdown();
         internalHub = null;
@@ -988,54 +1017,51 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         try  {
             // testing if the hub is alive (by pinging it)
             URL url = new URL(hubUrl);
-            hubClient = new XmlRpcClient(url);
+//            hubClient = new XmlRpcClient(url);
+            hubClient = new InternalClient(url);
 
             try {
-                hubClient.execute(HUB_MSG_PING, new Vector());
+                hubClient.callAndWait(HUB_MSG_PING, new Vector());
             }
             catch(ConnectException xre) {
-                Aladin.trace(3, "Unable to connect to the hub, deleting the .samp file");
-                // on efface le fichier ".samp" qui, apparemment, pointe vers un hub ne tournant plus
-                try {
-                    if( confFile.delete() ) {
-                        updateState();
-                        return getHubListener(silent, launchHubIfNeeded);
-                    }
-                    else {
-                        if( !silent ) Aladin.warning(CANT_CONNECT);
-                        return false;
-                    }
-                }
-                catch(Exception e) {return false;}
+               Aladin.trace(3, "ConnectException: Unable to connect to the hub, deleting the .samp file");
+               // on efface le fichier ".samp" qui, apparemment, pointe vers un hub ne tournant plus
+               try {
+                  if( confFile.delete() ) {
+                     updateState();
+                     return getHubListener(silent, launchHubIfNeeded);
+                  }
+                  else {
+                     if( !silent ) Aladin.warning(CANT_CONNECT);
+                     return false;
+                  }
+               }
+               catch(Exception e) {
+                  e.printStackTrace();
+                  return false;
+               }
             }
-            // TODO : effacer .samp si le hub ne répond pas
-
-//            System.out.println(result);
-
-
-
         }
         catch(java.rmi.ConnectException ce) {
-            Aladin.trace(3, "Unable to connect to the hub, deleting the .samp file");
-            // on efface le fichier ".plastic" qui, apparemment, pointe vers un hub ne tournant plus
-            try {
-                if( confFile.delete() ) {
-                    updateState();
-                    return getHubListener(silent, launchHubIfNeeded);
-                }
-                else {
-                    if( !silent ) Aladin.warning(CANT_CONNECT);
-                    return false;
-                }
-            }
-            catch(Exception e) {return false;}
+           Aladin.trace(3, "rmi.ConnectException: Unable to connect to the hub, deleting the .samp file");
+           // on efface le fichier ".plastic" qui, apparemment, pointe vers un hub ne tournant plus
+           try {
+              if( confFile.delete() ) {
+                 updateState();
+                 return getHubListener(silent, launchHubIfNeeded);
+              }
+              else {
+                 if( !silent ) Aladin.warning(CANT_CONNECT);
+                 return false;
+              }
+           }
+           catch(Exception e) {return false;}
         }
         catch(Exception e) {
-            e.printStackTrace();
-            trace("Unable to create the PlasticHubListener object");
+           trace("Unable to create the HubListener object");
 
-            if( !silent ) Aladin.warning(CANT_CONNECT);
-            return false;
+           //            if( !silent ) Aladin.warning(CANT_CONNECT);
+           return false;
         }
 
         return true;
@@ -1216,7 +1242,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         params.add(message);
         Map appsMap;
         try {
-            appsMap = (Map)hubClient.execute(HUB_MSG_GET_SUBSCRIBED_CLIENTS, params);
+            appsMap = (Map)hubClient.callAndWait(HUB_MSG_GET_SUBSCRIBED_CLIENTS, params);
         }
         catch(Exception e) {
             e.printStackTrace();
@@ -1594,7 +1620,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
             Vector params = new Vector();
             params.add(myPrivateKey);
             params.add(appId);
-            return (Map)hubClient.execute(HUB_MSG_GET_METADATA, params);
+            return (Map)hubClient.callAndWait(HUB_MSG_GET_METADATA, params);
         }
         catch(Exception e) {
             return null;
@@ -1625,7 +1651,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
             params.add(myPrivateKey);
             params.add(message);
             try {
-                hubClient.execute(NOTIFY_ALL, params);
+                hubClient.callAndWait(NOTIFY_ALL, params);
             }
             catch(Exception e) {
                 System.err.println("Problem when sending message "+message);
@@ -1640,7 +1666,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
                 params.add(recipients[i]);
                 params.add(message);
                 try {
-                    hubClient.execute(NOTIFY, params);
+                    hubClient.callAndWait(NOTIFY, params);
                 }
                 catch(Exception e) {
                     System.err.println("Problem when sending message "+message);
@@ -1676,7 +1702,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         new Thread("AladinSampSendTable") {
             public void run() {
                 if( a.save==null ) a.save = new Save(a);
-                a.save.saveCatVOTable(tmpFile, pc, false);
+                a.save.saveCatVOTable(tmpFile, pc, false,false);
                 URL url = SAMPUtil.getURLForFile(tmpFile);
                 String urlStr = url.toString();
                 String id = pc.getPlasticID();
@@ -1923,7 +1949,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         // TODO : rendre tout cela thread-safe
 
         public void actionPerformed(ActionEvent e) {
-           if( true || ! Aladin.PROTO ) return;
+           if( ! Aladin.PROTO ) return;
 
            String s = e.getActionCommand();
 
@@ -2232,7 +2258,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         try {
             Vector params = new Vector();
             params.add(myPrivateKey);
-            Iterator it = ((Vector)hubClient.execute(HUB_MSG_GET_REGISTERED_CLIENTS, params)).iterator();
+            Iterator it = ((Vector)hubClient.callAndWait(HUB_MSG_GET_REGISTERED_CLIENTS, params)).iterator();
 
             String curId;
             while( it.hasNext() ) {
@@ -2343,7 +2369,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         }
 
         try {
-            hubClient.execute(HUB_MSG_PING, new Vector());
+            hubClient.callAndWait(HUB_MSG_PING, new Vector());
         }
         catch(Exception e) {
             unregister(true);
@@ -2387,7 +2413,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         new Thread() {
             public void run() {
                 try {
-                    hubClient.execute(HUB_MSG_REPLY, params);
+                    hubClient.callAndWait(HUB_MSG_REPLY, params);
                 }
                 catch(Exception e) {
                     e.printStackTrace();
@@ -2409,6 +2435,7 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
 
 
     private boolean sampTrace = false;
+    
     // mode "trace" pour débugging PLASTIC
     public void trace(String s) {
         if( !sampTrace ) return;
@@ -2456,5 +2483,17 @@ public class SAMPManager implements AppMessagingInterface, XmlRpcHandler, PlaneL
         planesToMsgIds.remove(ple.plane);
 
     }
+
+   @Override
+   // PF 25 mai 2017
+   public boolean canHandleCall(String arg0) {
+      return true;
+   }
+
+   @Override
+   // PF 25 mai 2017
+   public Object handleCall(String arg0, List arg1, Object arg2) throws Exception {
+      return execute(arg0, new Vector(arg1) );
+   }
 
 }

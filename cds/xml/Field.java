@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,11 +19,12 @@
 //    along with Aladin.
 //
 
-
 package cds.xml;
 
 import java.util.Hashtable;
 
+import cds.aladin.Aladin;
+import cds.tools.ConfigurationReader;
 import cds.tools.Util;
 
 /** Field description according to the Astrores XML standard.
@@ -101,7 +104,8 @@ final public class Field {
    /** Positional field signature */
    static public final int RA=1,DE=2,PMRA=3,PMDE=4,X=5,Y=6;
    static public final String [] COOSIGN = { "", "RA","DE","PMRA","PMDE","X","Y" };
-   public int coo;
+   public int cooPossibleSignature;    // Role probable de ce champ dans le système de coordonnées
+   public int coo;                     // Role définitif de ce champ dans le systeme de coordonnées
 
    static public final int FREQ=1,FLUX=2,FLUXERR=3,SEDID=4;
    static public final String SEDLABEL[] = { "","SED_FREQ","SED_FLUX","SED_FLUXERR","SED_SEDID" };
@@ -310,8 +314,7 @@ final public class Field {
 //      return "E";
       return "A";
    }
-
-
+	
    public String toString() {
       return  (ID==null?       "":" ID="+ID)
             +(name==null?     "":" name="+name)

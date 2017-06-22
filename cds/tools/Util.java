@@ -1,62 +1,29 @@
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
+// The Aladin program is distributed under the terms
+// of the GNU General Public License version 3.
 //
-//Copyright 1999-2005 - Universite Louis Pasteur / Centre National de la
-//Recherche Scientifique
+//This file is part of Aladin.
 //
-//------
+//    Aladin is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation, version 3 of the License.
 //
-//Address: Centre de Donnees astronomiques de Strasbourg
-//       11 rue de l'Universite
-//       67000 STRASBOURG
-//       FRANCE
-//Email:   cds-question@unistra.fr
+//    Aladin is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
 //
-//-------
+//    The GNU General Public License is available in COPYING file
+//    along with Aladin.
 //
-//In accordance with the international conventions about intellectual
-//property rights this software and associated documentation files
-//(the "Software") is protected. The rightholder authorizes :
-//the reproduction and representation as a private copy or for educational
-//and research purposes outside any lucrative use,
-//subject to the following conditions:
-//
-//The above copyright notice shall be included.
-//
-//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-//EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-//OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON INFRINGEMENT,
-//LOSS OF DATA, LOSS OF PROFIT, LOSS OF BARGAIN OR IMPOSSIBILITY
-//TO USE SUCH SOFWARE. IN NO EVENT SHALL THE RIGHTHOLDER BE LIABLE
-//FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-//TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
-//THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-//
-//For any other exploitation contact the rightholder.
-//
-//                     -----------
-//
-//Conformement aux conventions internationales relatives aux droits de
-//propriete intellectuelle ce logiciel et sa documentation sont proteges.
-//Le titulaire des droits autorise :
-//la reproduction et la representation a titre de copie privee ou des fins
-//d'enseignement et de recherche et en dehors de toute utilisation lucrative.
-//Cette autorisation est faite sous les conditions suivantes :
-//
-//La mention du copyright portee ci-dessus devra etre clairement indiquee.
-//
-//LE LOGICIEL EST LIVRE "EN L'ETAT", SANS GARANTIE D'AUCUNE SORTE.
-//LE TITULAIRE DES DROITS NE SAURAIT, EN AUCUN CAS ETRE TENU CONTRACTUELLEMENT
-//OU DELICTUELLEMENT POUR RESPONSABLE DES DOMMAGES DIRECTS OU INDIRECTS
-//(Y COMPRIS ET A TITRE PUREMENT ILLUSTRATIF ET NON LIMITATIF,
-//LA PRIVATION DE JOUISSANCE DU LOGICIEL, LA PERTE DE DONNEES,
-//LE MANQUE A GAGNER OU AUGMENTATION DE COUTS ET DEPENSES, LES PERTES
-//D'EXPLOITATION,LES PERTES DE MARCHES OU TOUTES ACTIONS EN CONTREFACON)
-//POUVANT RESULTER DE L'UTILISATION, DE LA MAUVAISE UTILISATION
-//OU DE L'IMPOSSIBILITE D'UTILISER LE LOGICIEL, ALORS MEME
-//QU'IL AURAIT ETE AVISE DE LA POSSIBILITE DE SURVENANCE DE TELS DOMMAGES.
-//
-//Pour toute autre utilisation contactez le titulaire des droits.
-//
+
 package cds.tools;
+
+import static cds.aladin.Constants.DATE_FORMATS;
+import static cds.aladin.Constants.LISTE_CARACTERE_STRING;
+import static cds.aladin.Constants.RESULTS_RESOURCE_NAME;
 
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
@@ -95,19 +62,28 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.text.DateFormat;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.StringTokenizer;
+import java.util.TimeZone;
 import java.util.Vector;
 
 import javax.net.ssl.HostnameVerifier;
@@ -127,10 +103,15 @@ import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import cds.aladin.Aladin;
+import cds.aladin.Coord;
 import cds.aladin.Forme;
 import cds.aladin.MyInputStream;
+import cds.aladin.Plan;
 import cds.aladin.Tok;
 import cds.image.EPSGraphics;
+import cds.savot.model.ResourceSet;
+import cds.savot.model.SavotResource;
+import cds.savot.pull.SavotPullParser;
 import healpix.essentials.FastMath;
 
 /**
@@ -171,6 +152,7 @@ public final class Util {
       if( conn instanceof HttpURLConnection ) {
          HttpURLConnection http = (HttpURLConnection)conn;
          http.setRequestProperty("http.agent", "Aladin/"+Aladin.VERSION);
+         http.setRequestProperty("Accept-Encoding", "gzip");
       }
 
       MyInputStream mis = new MyInputStream(openConnectionCheckRedirects(conn,timeOut));
@@ -414,6 +396,25 @@ public final class Util {
       if( len>=0 ) return s+x.substring(len);
       return s;
 
+   }
+   
+   /** Retourne la sous-chaine d'un path délimité par des /
+    * Rq: le / initial présent ou absent n'a pas d'incidence
+    * @param path le path
+    * @param deb l'indice de l'élément (commence à 0)
+    * @param num le nombre d'éléments (par défaut 1)
+    * @return ex: CDS/P/DSS2/color,2,2  => DSS2/color
+    */
+   static public String getSubpath(String path,int deb ) { return getSubpath(path,deb,1); }
+   static public String getSubpath(String path,int deb, int num ) {
+      if( path==null ) return null;
+      int j=-1;
+      int posDeb=-1;
+      for( int i=0, pos=0; pos!=-1; pos=path.indexOf('/',pos+1), i++ ) {
+         if( i==deb ) { posDeb=pos+ (path.charAt(pos)=='/'? 1:0); j=i; }
+         if( j!=-1 && i-j==num ) return path.substring(posDeb,pos);
+      }
+      return (j>=0 || num==-1 ) && posDeb>=0 ? path.substring(posDeb) : null;
    }
 
    /**
@@ -922,6 +923,17 @@ public final class Util {
       }
       gr.setColor(c);
    }
+   
+   static public void drawRect(Graphics g,int x,int y,int w, int h, Color ch, Color cb) {
+      int r=0;
+      g.setColor(ch);
+      g.drawLine(x+r,y, x+w-r,y);
+      g.drawLine(x,y+r, x,y+h-r);
+
+      g.setColor(cb);
+      g.drawLine(x+r,y+h,x+w-r,y+h);
+      g.drawLine(x+w,y+r,x+w,y+h-r);
+   }
 
    static public void drawRoundRect(Graphics g,int x,int y,int w, int h,int r, Color ch, Color cb) {
       g.setColor(ch);
@@ -940,7 +952,8 @@ public final class Util {
    }
 
    /**Tracage d'une petite étoile */
-   static public void drawStar(Graphics g,int x, int y) {
+   static public void drawStar(Graphics g,int x, int y,Color c) {
+      g.setColor(c);
       g.drawLine(x,y-3,x,y-2);
       g.drawLine(x-1,y-1,x+1,y-1);
       g.drawLine(x-3,y,x+3,y);
@@ -949,6 +962,26 @@ public final class Util {
       g.drawLine(x-2,y+3,x-2,y+3);
       g.drawLine(x+2,y+3,x+2,y+3);
    }
+   
+   /** Dessin d'un triangle "warning" */
+   static public void drawWarning(Graphics g,int x,int y, Color bg, Color fg) {
+      int h=6;
+      int w=5;
+      int w2 = 1+ w/2;
+      
+      // Le triangle
+      g.setColor( bg );
+      Polygon p = new Polygon( new int[]{ x+w2, x+w+1, x }, new int[] {y, y+h, y+h}, 3);
+      g.fillPolygon(p);
+      g.drawPolygon(p);
+      
+      // Le !
+      g.setColor( fg );
+      g.drawLine( x+w2, y+2, x+w2, y+h-2);
+      g.drawLine( x+w2, y+h, x+w2, y+h);
+   }
+   
+
 
    /**
     * Dessin d'un bouton radio
@@ -994,6 +1027,8 @@ public final class Util {
       new Color(221,232,243),new Color(215,228,241),
       new Color(210,224,239),new Color(205,221,237)
    };
+   
+   static private boolean first = true;
 
    /**
     * Dessin d'une checkbox
@@ -1017,6 +1052,10 @@ public final class Util {
 
          // Couleur de fond par défaut
       } else {
+         if( first && Aladin.DARK_THEME ) {
+            for( int i=0; i<CINT.length; i++ ) CINT[i] = CINT[i].darker();
+            first=false;
+         }
          for( int i=0; i<CINT.length; i++ ) {
             g.setColor(CINT[i]);
             g.drawLine(x+1,y+1+i,x+CINT.length,y+1+i);
@@ -1025,12 +1064,20 @@ public final class Util {
 
       // La petite coche de sélection
       if( selected ) {
-         g.setColor(colorCoche==null?Color.black:colorCoche);
-         g.fillRect(x+3, y+4, 2, 5);
-         for( int i=0; i<4; i++ ){
-            g.drawLine(x+5+i,y+6-i,x+5+i,y+7-i);
-         }
+         drawCheck(g,x,y,colorCoche==null?Color.black:colorCoche);
+//         g.setColor(colorCoche==null?Color.black:colorCoche);
+//         g.fillRect(x+3, y+4, 2, 5);
+//         for( int i=0; i<4; i++ ){
+//            g.drawLine(x+5+i,y+6-i,x+5+i,y+7-i);
+//         }
       }
+   }
+   
+   static public void drawCheck(Graphics g, int x, int y, Color c) {
+      g.setColor(c);
+      g.fillRect(x+3, y+4, 2, 5);
+      for( int i=0; i<4; i++ ) g.drawLine(x+5+i,y+6-i,x+5+i,y+7-i);
+     
    }
 
    //    static public void drawVerticalSplitPaneTriangle(Graphics g,int x, int y) {
@@ -1418,7 +1465,7 @@ public final class Util {
 
    /** Retourne un bouton avec une icone en forme de point d'interrogation */
    static public JButton getHelpButton(final Component f, final String help) {
-      JButton h = new JButton(new ImageIcon(Aladin.aladin.getImagette("Help.gif")));
+      JButton h = new JButton(new ImageIcon(Aladin.aladin.getImagette("Help.png")));
       h.setMargin(new Insets(0,0,0,0));
       h.setBorderPainted(false);
       h.setContentAreaFilled(false);
@@ -1445,7 +1492,7 @@ public final class Util {
          int code = conn.getResponseCode();
 //                   System.out.println(url+" => ["+code+"]");
 //                   if( code/100 == 4 ) return false;
-         return code/100 == 2;
+         return code/100 == 2 || code==403;
       } catch( Exception e ) { }
       return false;
    }
@@ -1863,6 +1910,21 @@ public final class Util {
          runme.setPriority(ref.getPriority()-2);
       } catch( Exception e ) {}
    }
+   
+   static final String ISO_FORMAT = "yyyy-MM-dd'T'HH:mm";
+   static final SimpleDateFormat sdf = new SimpleDateFormat(ISO_FORMAT);
+   static {
+      TimeZone utc = TimeZone.getTimeZone("UTC");
+      sdf.setTimeZone(utc);
+   }
+   
+   /** Retourne le temps Unix à partir d'une DATE ISO UTC */
+   public static long getTimeFromISO(String date_iso) throws Exception {
+      if( date_iso.indexOf('T')<0) date_iso += "T00:00";
+      if( date_iso.charAt(date_iso.length()-1)=='Z' ) date_iso=date_iso.substring(0,date_iso.length()-1);
+      Date date = sdf.parse(date_iso);
+      return date.getTime();
+   }
 
    /** retourne une date ISO 8601 (YYYY-MM-DD) à partir d'une valeur MJD */
    static public String getDateFromMJD(String mjd) {
@@ -1964,17 +2026,36 @@ public final class Util {
    //       }
    //    }
 
+   
+   /** Affiche dans une unité cohérente le chiffre peut être suivi d'une autre unité
+    * par défaut il s'agit de BYTES. ex; 1024m => 1g */
+   static final public String getUnitDisk(String val) throws Exception {
+      int i=0;
+      int unit;
+      long size;
+      for( i=0; i<val.length() && Character.isDigit(val.charAt(i)); i++);
+      if( i==val.length() ) {
+         size = (long)Double.parseDouble(val.trim());
+         unit=0;
+      } else {
+         String s = val.substring(i).trim();
+         unit = Util.indexInArrayOf(s, unites, false);
+         if( unit==-1 ) throw new Exception("Unit unknown !");
+         size = (long)Double.parseDouble( val.substring(0,i));
+      }
+      return getUnitDisk(size,unit,2);
+   }
+
    /**
     * Affiche le chiffre donné avec une unité de volume disque (K M T)
     * @param val taille en octets
+    * @param unit l'unité de départ (par défaut le byte)
+    * @param format le nombre de décimals après la virgule (par défaut 2)
     * @return le volume disque dans une unite coherente + l'unite utilisee
     */
    static final public String unites[] = {"B","KB","MB","GB","TB","PB","EB","ZB"};
-   static final public String getUnitDisk(long val) {
-      return getUnitDisk(val, 2);
-   }
-   static final public String getUnitDisk(long val, int format) {
-      int unit = 0;
+   static final public String getUnitDisk(long val) { return getUnitDisk(val, 0, 2); }
+   static final public String getUnitDisk(long val, int unit, int format) {
       long div,rest=0;
       boolean neg=false;
       if( val<0 ) { neg=true; val=-val; }
@@ -2175,6 +2256,181 @@ public final class Util {
       return s1.toString();
    }
 
+   /**
+	 * Method to parse date given in natural language.
+	 * Parses date in the below formats only: the delimiters could include "-" or "/" or " "
+	 * <ol><li>dd-MM-yyyy</li>
+	 * <li>dd-MMM-yyyy</li>
+	 * <li>yyyy-MM-dd</li>
+	 * <li>yyyy-MMM-dd</li>
+	 * </ol>
+	 * 
+	 * Including the combination resulting with time provided in <b>HH:mm</b> or <b>HH:mm:ss</b> formats.
+	 * 
+	 * @param input
+	 * @return 
+	 * @throws ParseException 
+	 */
+	public static Date parseDate(String input) throws ParseException {
+		String dateFormat = null;
+		Date date = null;
+		input = input.trim();
+	    
+		if(input.contains(" ") || input.contains("/") || input.contains("-")){
+			input = input.replaceAll("[\\s/-]+", "-");
+			SimpleEntry<String, String> timeFormat = null;
+
+			int hourMinDelimiter = input.indexOf(":");
+			if (hourMinDelimiter != -1) {
+				if (input.indexOf(":", hourMinDelimiter + 1)==-1) {
+					timeFormat = new SimpleEntry<String, String>("-\\d{1,2}:\\d{1,2}$", "-HH:mm");
+				} else {
+					timeFormat = new SimpleEntry<String, String>("-\\d{1,2}:\\d{1,2}:\\d{1,2}$", "-HH:mm:ss");
+				}
+			}
+			
+			StringBuffer completeRegEx = null;
+			for (String regExp : DATE_FORMATS.keySet()) {
+				if (timeFormat != null) {
+					completeRegEx = new StringBuffer(regExp).append(timeFormat.getKey());
+					 if (input.matches(completeRegEx.toString())) {
+						 dateFormat = DATE_FORMATS.get(regExp) + timeFormat.getValue();
+						 break;
+					}
+				} else if(input.matches(regExp)){
+					dateFormat = DATE_FORMATS.get(regExp);
+					break;
+				}
+			}
+		}
+		
+		if (dateFormat!=null && !dateFormat.isEmpty()) {
+			DateFormat dateformat = new SimpleDateFormat(dateFormat);
+			dateformat.setTimeZone(TimeZone.getTimeZone("UTC"));
+		    try {
+				date =  dateformat.parse(input);
+				System.out.println(date);
+			} catch (ParseException pe) {
+				throw pe;
+			} 
+		} 
+		
+		return date;
+	}
+	
+	/**
+	 * Method to convert date to MJD.
+	 * @param date
+	 * @return dateinMJD
+	 */
+	public static double ISOToMJD(Date date) {
+		double result = 0.0d;
+		Calendar cal = Calendar.getInstance();
+		cal.setTime(date);
+		result = Astrodate.dateToJD(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH)+1, cal.get(Calendar.DAY_OF_MONTH),
+				cal.get(Calendar.HOUR), cal.get(Calendar.MINUTE), cal.get(Calendar.SECOND));
+		System.out.println(cal.get(Calendar.YEAR)+" " +cal.get(Calendar.MONTH)+1+" " +cal.get(Calendar.DAY_OF_MONTH)+" " +
+				cal.get(Calendar.HOUR_OF_DAY)+" " +cal.get(Calendar.MINUTE)+" " +cal.get(Calendar.SECOND));
+		result = Astrodate.JDToMJD(result);
+		return result;
+	}
+	
+	public static List<Coord> getRectangleVertices(double ra, double dec, double width, double height) {
+		List<Coord> rectVertices = new ArrayList<Coord>();
+		width = width/2;
+		height = height/2;
+		rectVertices.add(new Coord(ra-width, dec-height));
+		rectVertices.add(new Coord(ra+width, dec-height));
+		rectVertices.add(new Coord(ra+width, dec+height));
+		rectVertices.add(new Coord(ra-width, dec+height));
+		
+		return rectVertices;
+		
+	}
+	
+	/**
+	 * Method to extract resource of type="results"
+	 * @param resourceSet
+	 * @return results typed SavotResource
+	 */
+	public static SavotResource populateResultsResource(SavotPullParser savotParser) {
+		ResourceSet resourceSet = savotParser.getAllResources().getResources();
+		SavotResource resultsResource = null;
+		if (resourceSet!=null && resourceSet.getItemCount()>0) {
+			for (int i = 0; i < resourceSet.getItemCount(); i++) {
+				SavotResource resource= resourceSet.getItemAt(i);
+				if (resource.getType().equalsIgnoreCase(RESULTS_RESOURCE_NAME)) {
+					resultsResource = resource;
+				}
+			}
+		}
+		return resultsResource;
+	}
+	
+	/**
+	 * Methode statique qui dit si une expression est une chaine de caractÃ¨re ou non
+	 * @param str La chaine a parser
+	 * @return vrai ou faux
+	 * @author Mallory Marcot
+	 */
+	public static boolean isString(String str) {
+		
+		String str_upper = new String(str.toUpperCase());
+		for(int i=0; i<str_upper.length(); i++) {
+			if( LISTE_CARACTERE_STRING.contains(str_upper.charAt(i) + ""))
+				return true;
+		}
+		
+		return false;
+	}
+	
+	/**
+	 * Methode qui juge si il faut entourer l'expression de simple quote ou non
+	 * @param str Expression Ã  parser
+	 * @return La chaine correctement formattÃ©e
+	 * @author Mallory Marcot
+	 */
+	public static String formatterPourRequete(String str) {
+		if(isString(str) && !str.toLowerCase().equals("null") && !dejaQuote(str))
+			str = "'" + str + "'";
+		
+		return " "+ str;
+	}
+	
+	
+	/**
+	 * Permet de savoir si une chaine de caractÃ¨re est entourÃ©e de simple quote
+	 * ou non
+	 * @param str La chaine Ã  tester
+	 * @return oui ou non
+	 * @author Mallory Marcot
+	 */
+	public static boolean dejaQuote(String str) {
+		boolean ret = false;
+		
+		if(str.charAt(0) == '\'' && str.charAt(str.length()-1) == '\'')
+			ret = true;
+		
+		return ret;
+	}
+	
+	public static Plan getPlanByLabel(Plan[] plans, String aladinFileName) {
+		Plan plan = null;
+		for (int i = 0; i < plans.length; i++) {
+			if (plans[i].label!=null && plans[i].label.equalsIgnoreCase(aladinFileName)) {
+				plan = plans[i];
+			}
+		}
+		return plan;
+	}
+	
+	public static String getDomainNameFromUrl(String url) throws URISyntaxException {
+		String result = url;
+	    URI uri = new URI(url);
+	    String domain = uri.getHost();
+	    result =  domain.startsWith("www.") ? domain.substring(4) : domain;
+	    return result;
+	}
 
    // PAS ENCORE TESTE
    //    /** Extrait le premier nombre entier qui se trouve dans la chaine à partir
@@ -2197,6 +2453,17 @@ public final class Util {
    //
    //       return val;
    //    }
+	
+//	static public void main(String [] a) {
+//       try {
+//         System.out.println("==>"+ getUnitDisk(1024*1024*1024));
+//         System.out.println("==>"+ getUnitDisk((1024*1024)+"KB"));
+//         System.out.println("==>"+ getUnitDisk((1024)+"MB"));
+//      } catch( Exception e ) {
+//         // TODO Auto-generated catch block
+//         e.printStackTrace();
+//      }
+//	}
 
 
 }

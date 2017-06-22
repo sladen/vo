@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -147,11 +148,14 @@ public final class Logo extends JComponent implements MouseListener {
    * @Return : La chaine du Help (String)
    */
    protected String Help() {
-
-      return (Aladin.OUTREACH|Aladin.BETA|Aladin.PROTO? 
+      
+      return Aladin.PROTO ?
+            "!"+Aladin.FULLTITRE+" - prototype based on "+Aladin.getReleaseNumber()+"\n"
+            +aladin.chaine.getString("PUBPROTO") :
+            
+            (Aladin.OUTREACH|Aladin.BETA? 
          "!"+Aladin.FULLTITRE+" - "+Aladin.getReleaseNumber()+"\n"
-            +aladin.chaine.getString(Aladin.OUTREACH?"PUBOUTREACH":
-               Aladin.PROTO?"PUBPROTO":"PUBBETA") :
+            +aladin.chaine.getString(Aladin.OUTREACH?"PUBOUTREACH":"PUBBETA") :
 
          "! \n!"+Aladin.FULLTITRE+" - "+Aladin.getReleaseNumber()+"\n"
          	+aladin.chaine.getString("PUB"))+"\n*"+Aladin.COPYRIGHT;

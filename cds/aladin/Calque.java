@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,7 +19,6 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
 import java.awt.BorderLayout;
@@ -26,6 +27,7 @@ import java.awt.Dimension;
 import java.awt.Scrollbar;
 import java.io.EOFException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -368,8 +370,13 @@ public class Calque extends JPanel implements Runnable {
    /** Activation ou desactivation de tous les plans d'un folder */
    protected void setActiveFolder(Plan f,boolean flag) {
       Plan p[] = getFolderPlan(f);
-      for( int i=0; i<p.length; i++ ) p[i].setActivated(flag);
-      f.active=flag;
+//      for( int i=0; i<p.length; i++ ) p[i].setActivated(flag);
+//      f.active=flag;
+      for( int i=p.length-1; i>=0; i-- ) {
+         p[i].setActivated(flag);
+//         if( p[i].isCatalog() && p[i].active)  PlanFilter.updatePlan(p[i]);
+      }
+      f.setActivated(flag);
       repaintAll();
    }
 
@@ -1290,6 +1297,21 @@ public class Calque extends JPanel implements Runnable {
       }
       select.showSelectedPlan();
    }
+   
+   /** Sélectionne un plan dans la pile en indiquant son id */
+   protected void selectPlan(String id) {
+      for( Plan p : plan ) {
+         if( p.isFree() ) continue;
+         if( id.equals(p.id) || id.startsWith(p.label)) {
+            unSelectAllPlan();
+            p.selected=true;
+            p.setActivated(true);
+            select.showSelectedPlan();
+            aladin.calque.repaintAll();
+            return;
+         }
+      }
+   }
 
    /** Spécifie le plan sous la souris */
    protected void selectPlanUnderMouse(Plan p) {
@@ -1337,6 +1359,8 @@ public class Calque extends JPanel implements Runnable {
       if( select.canBeNewRef(p) ) {
          if( setPlanRef(p) ) aladin.view.newView();
       } else if( !aladin.view.tryToShow(p) ) p.setActivated(true);
+      
+//      if( p.isCatalog() && p.active)  PlanFilter.updatePlan(p);
       if( flagPaint ) repaintAll();
    }
 
@@ -1432,6 +1456,13 @@ public class Calque extends JPanel implements Runnable {
     */
    protected int getIndexPlan(String mask) { return getIndexPlan(mask,0); }
    protected int getIndexPlan(String mask,int mode) {
+      
+      // Premier tout avec les identificateurs techniques "asId"
+      for( int i=0; i<plan.length; i++ ) {
+         if( plan[i].asId!=null && plan[i].asId.equals(mask) ) return i;
+      }
+      
+      // Deuxième tour sur les labels
       for( int i=0; i<plan.length; i++ ) {
          if( mode==0 && Util.matchMask(mask,plan[i].label)
                || mode==1 && mask.equals(plan[i].label)  ) return i;
@@ -1505,16 +1536,16 @@ public class Calque extends JPanel implements Runnable {
       }
    }
    
-   /** Retourne true si le plan HiPS indiqué est déjà chargée dans la pile */
-   public boolean isLoaded(String hipsId) {
+   /** Retourne la couleur du plan si le plan HiPS indiqué est déjà chargée dans la pile, sinon null */
+   public Color isLoaded(String hipsId) {
       for( int i=0; i<plan.length; i++ ) {
          if( plan[i].isFree() ) continue;
-         if( !(plan[i] instanceof PlanBG )  ) continue;
-         if( ((PlanBG)plan[i]).id==null ) continue;
          
-         if( ((PlanBG)plan[i]).id.equals(hipsId) ) return true;
+         if( plan[i].id!=null && plan[i].id.startsWith(hipsId) ) return plan[i].c;
+         if( plan[i].label!=null && plan[i].label.startsWith(hipsId) ) return plan[i].c;
+         if( plan[i].id!=null && ("CDS/"+plan[i].id).startsWith(hipsId) ) return plan[i].c;
       }
-      return false;
+      return null;
    }
 
    /**
@@ -1773,9 +1804,9 @@ public class Calque extends JPanel implements Runnable {
    static final String  DMAPGLU = "getDMap";
 
    /** Chargement de la carte de densité associée à un catalogue */
-   protected int newPlanDMap(String catID) throws Exception {
+   protected int newPlanDMap(String internalId, String catID) throws Exception {
       String u = ""+aladin.glu.getURL(DMAPGLU,aladin.glu.quote(catID));
-      String label = "DMAP "+catID;
+      String label = internalId+" DMAP";
       int n=getStackIndex(label);
       try {
          plan[n] = new PlanHealpixDMap(aladin,u, label);
@@ -2119,15 +2150,19 @@ public class Calque extends JPanel implements Runnable {
       Plan [] plan = getPlans();
       Plan p = plan[n];
       int folder = p.folder;
-
+      
       // Les plans BG se mettent tjs en bas de la pile
       // juste au dessous du dernier plan qui n'est pas BG
-      if( plan[n].type==Plan.ALLSKYIMG ) {
+      if( plan[n].type==Plan.ALLSKYIMG && !plan[n].isOverlay()) {
+         
          for( i=plan.length-1; i>=0; i-- ) {
             if( plan[i].type!=Plan.ALLSKYIMG ) break;
          }
          if( i+1==n ) return n; // inutile, c'est moi-même
-         if( i!=n ) permute(plan[n],plan[i]);
+         if( i!=n ) {
+            folder = plan[i].folder;
+            permute(plan[n],plan[i]);
+         }
          p.folder=folder;
          return i;
       }
@@ -3233,6 +3268,14 @@ public class Calque extends JPanel implements Runnable {
       return n;
    }
 
+   protected int newPlanCatalog(HttpURLConnection in,String label) {
+      int n=getStackIndex(label);
+      label = prepareLabel(label);
+      plan[n] = new PlanCatalog(aladin,in,label);
+      suiteNew(plan[n]);
+      return n;
+   }
+
    /** Subtilité. Si le nom du plan désigne commence par =, Aladin
     * doit réutiliser une case de la pile.
     * Si le plan désigné est un numéro (=@nn), je retourne le label du plan
@@ -3241,6 +3284,7 @@ public class Calque extends JPanel implements Runnable {
     * simplement le "=" pour qu'Aladin en crée un nouveau
     */
    protected String prepareLabel(String label) {
+      
       if( !isNewPlan(label) ) {
          if( label.charAt(1)=='@' ) {
             int n;
@@ -3380,7 +3424,7 @@ public class Calque extends JPanel implements Runnable {
    //   }
 
    // Détermination du target de démarrage pour un plan BG
-   private Coord getTargetBG(String target,TreeObjDir gSky) {
+   protected Coord getTargetBG(String target,TreeObjDir gSky) {
       Coord c=null;
       if( target!=null && target.length()>0) {
          try {
@@ -3398,7 +3442,7 @@ public class Calque extends JPanel implements Runnable {
    }
 
    // Détermination du radius de démarrage pour un plan BG
-   private double getRadiusBG(String target,String radius,TreeObjDir gSky) {
+   protected double getRadiusBG(String target,String radius,TreeObjDir gSky) {
       double rad=-1;
       if( radius!=null && radius.length()>0 ) {
          try {
@@ -3508,7 +3552,9 @@ public class Calque extends JPanel implements Runnable {
       return newPlan(filename,label,origin,null,null);
    }
    protected int newPlan(String filename,String label,String origin,String target,String radius) {
-      return ((ServerFile)aladin.dialog.localServer).creatLocalPlane(filename,label,origin,null,null,null,null,target,radius);
+      ServerFile f = (ServerFile)aladin.dialog.localServer;
+      label = prepareLabel(label);
+      return f.creatLocalPlane(filename,label,origin,null,null,null,null,target,radius);
    }
 
    /** Creation d'un plan à partir d'un stream ouvert */
@@ -3782,45 +3828,50 @@ public class Calque extends JPanel implements Runnable {
    }
 
    /** Détermine si le plan doit être activé comme un plan de référence ou simplement afficher en overlay */
-   protected boolean mustBeSetPlanRef(Plan p) {
-      boolean setRef=false;
-
-      // prochaine vue à utiliser
-      ViewSimple v = aladin.view.viewSimple[ aladin.view.getLastNumView(p) ];
-
-      // Juste pour du débuging
-      String sDebug=null;
-
-      // La pile est vide => ref
-      if( aladin.calque.isFreeX(p) ) { setRef=true; sDebug="Stack Vide"; }
-
-      // Il s'agit d'un simple remplacement de plan => activate
-      else if( p.isOldPlan ) { setRef=false; sDebug="Flag IsOldPlan=true"; }
-
-      // Dans une case vide sans être un simple overlay => ref
-      else if( v.isFree() && !p.isOverlay() ) { setRef=true; sDebug="Image dans la prochaine view vide"; }
-
-      // Le plan de ref est une image normal et on charge une autre image => ref
-      else if( v.pref!=null && v.pref.isImage() && p.isImage() ) { setRef=true; sDebug="Image sur image"; }
-
-      // Le plan de ref est catalogue normal  et on charge image ou un plan allsky => ref
-      else if( v.pref!=null && (v.pref.isSimpleCatalog() && (p.isImage() || p instanceof PlanBG)) ) { setRef=true; sDebug="Image ou Allsky sur catalogue"; }
-
-      // Le plan de ref n'est pas allsky et le catalogue n'est pas visible
-      else if( v.pref!=null && !(v.pref instanceof PlanBG) && p.isSimpleCatalog() && !p.isViewable() ) { setRef=true; sDebug="Catalogue non visible autrement"; }
-
-      // Dans le cas d'un multiview on priviligiera la création du plan
-      else if( aladin.view.isMultiView() && p.isImage() ) { setRef=true; sDebug="Image sur multivue"; }
-
-      aladin.trace(4,"Calque.mustBeSetPlanRef("+p.label+") => "+setRef+(sDebug!=null?" ("+sDebug+")":""));
-      return setRef;
-   }
+//   protected boolean mustBeSetPlanRef(Plan p) {
+//      boolean setRef=false;
+//
+//      // prochaine vue à utiliser
+//      ViewSimple v = aladin.view.viewSimple[ aladin.view.getLastNumView(p) ];
+//
+//      // Juste pour du débuging
+//      String sDebug=null;
+//
+//      // La pile est vide => ref
+//      if( aladin.calque.isFreeX(p) ) { setRef=true; sDebug="Stack Vide"; }
+//
+//      // Il s'agit d'un simple remplacement de plan => activate
+//      else if( p.isOldPlan ) { setRef=false; sDebug="Flag IsOldPlan=true"; }
+//
+//      // Dans une case vide sans être un simple overlay => ref
+//      else if( v.isFree() && !p.isOverlay() ) { setRef=true; sDebug="Image dans la prochaine view vide"; }
+//
+//      // Le plan de ref est une image normal et on charge une autre image => ref
+//      else if( v.pref!=null && v.pref.isImage() && p.isImage() ) { setRef=true; sDebug="Image sur image"; }
+//
+//      // Le plan de ref est catalogue normal  et on charge image ou un plan allsky => ref
+//      else if( v.pref!=null && (v.pref.isSimpleCatalog() && (p.isImage() || p instanceof PlanBG)) ) { setRef=true; sDebug="Image ou Allsky sur catalogue"; }
+//
+//      // Le plan de ref n'est pas allsky et le catalogue n'est pas visible
+//      else if( v.pref!=null && !(v.pref instanceof PlanBG) && p.isSimpleCatalog() && !p.isViewable() ) { setRef=true; sDebug="Catalogue non visible autrement"; }
+//
+//      // Dans le cas d'un multiview on priviligiera la création du plan
+//      else if( aladin.view.isMultiView() && p.isImage() ) { setRef=true; sDebug="Image sur multivue"; }
+//
+//      aladin.trace(4,"Calque.mustBeSetPlanRef("+p.label+") => "+setRef+(sDebug!=null?" ("+sDebug+")":""));
+//      return setRef;
+//   }
 
 
    /** Retourne true si le plan passé en paramètre peut être transparent
     *  Vérifie que la compatibilité des projections
     */
    protected boolean canBeTransparent(Plan p) {
+      if( Aladin.SLIDERTEST ) {
+         if (p!=null ) p.setDebugFlag(Plan.CANBETRANSP,true);
+         return true;
+      }
+      
       boolean isRefForVisibleView = p!=null && p.isRefForVisibleView();
       if( p==null || p.type==Plan.FILTER || !isFree() && isRefForVisibleView && !p.isOverlay() ) {
          if (p!=null ) p.setDebugFlag(Plan.CANBETRANSP,false);
@@ -3932,6 +3983,7 @@ public class Calque extends JPanel implements Runnable {
          zoom.zoomSliderReset();
          zoom.zoomView.repaint();
          aladin.view.repaintAll();
+         if( Aladin.BETA ) aladin.directory.repaint();
          aladin.toolBox.toolMode();
       }
    }

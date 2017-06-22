@@ -1,4 +1,27 @@
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
+// The Aladin program is distributed under the terms
+// of the GNU General Public License version 3.
+//
+//This file is part of Aladin.
+//
+//    Aladin is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation, version 3 of the License.
+//
+//    Aladin is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
+//
+//    The GNU General Public License is available in COPYING file
+//    along with Aladin.
+//
+
 package cds.mocmulti;
+
+import java.io.BufferedInputStream;
 
 // Copyright 2011 - UDS/CNRS
 // The MOC API project is distributed under the terms
@@ -23,7 +46,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
-import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,15 +84,15 @@ public class MultiMoc implements Iterable<MocItem> {
    
    final private String COORDSYS ="C";   // Coordinate system (HEALPix convention => G=galactic, C=Equatorial, E=Ecliptic)
    
-   private HashMap<String, MocItem> map; // Liste des MocItem repéré par leur ID (ex: CDS/P/2MASS/J)
+   protected HashMap<String, MocItem> map; // Liste des MocItem repéré par leur ID (ex: CDS/P/2MASS/J)
    private ArrayList<String> tri;        // Liste des IDs afin de pouvoir les parcourirs en ordre alphanumérique
-   private int mocOrder=-1;              // Better MOC order
+   protected int mocOrder=-1;              // Better MOC order
    private ArrayList<MyProperties> except = null;   // List of exceptions and associating rewriting rules
    private MyProperties example = null;  // List of existing properties with examples
    
    public MultiMoc() {
-      map = new HashMap<String, MocItem>(20000);
-      tri = new ArrayList<String>(20000);
+      map = new HashMap<String, MocItem>(30000);
+      tri = new ArrayList<String>(30000);
    }
    
    /** MultiMoc creation from a binary dump file
@@ -186,7 +209,7 @@ public class MultiMoc implements Iterable<MocItem> {
       
       // Ajout de propriétés propres au MOC
       if( moc!=null ) {
-         prop.replaceValue("moc_sky_fraction", moc.getCoverage()+"" );
+         prop.replaceValue("moc_sky_fraction", Unite.myRound( moc.getCoverage() )+"" );
 
          s = moc.getProperty("MOCORDER");
 
@@ -336,10 +359,9 @@ public class MultiMoc implements Iterable<MocItem> {
                boolean flagCreation=true;
                
                if( oMM!=null && (mi=oMM.getItem(mocId))!=null ) {
-                  if( dateMoc!=mi.dateMoc ) break;
                   
                   // Pas de changement ? => on le réutilise
-                  if( prop!=null && mi.prop!=null && prop.equals(mi.prop) ) {
+                  if( dateMoc==mi.dateMoc && prop!=null && mi.prop!=null && prop.equals(mi.prop) ) {
                      add(mi);
                      flagCreation=false;
                      nbReused++;
@@ -614,11 +636,11 @@ public class MultiMoc implements Iterable<MocItem> {
       if( !f.exists() ) return null;
       
       // Chargement des propriétés
-      InputStream in=null;
+      InputStreamReader in=null;
       MyProperties prop = null;
       try {
          prop = new MyProperties();
-         in = new FileInputStream(f);
+         in = new InputStreamReader( new BufferedInputStream( new FileInputStream(f) ));
          prop.load( in );
       } 
       catch( Exception e) {}
@@ -673,7 +695,7 @@ public class MultiMoc implements Iterable<MocItem> {
    
    
    // Détermination de l'ID, soit par le creator_did, ou le publisher_did sinon creator_id?obs_id ou publisher_id?obs_id
-   // et encore sinon, avec le filename passé en paramètre, enfin un numéro aléatoire.
+   // et encore sinon, avec le filename passé en paramètre, enfin null si rien à faire
    // sans le préfixe ivo://
    static public String getID(MyProperties prop) { return getID(prop,null); }
    
@@ -693,7 +715,10 @@ public class MultiMoc implements Iterable<MocItem> {
             if( o==null ) o="id"+(System.currentTimeMillis()/1000);
             String p = prop.get("creator_id");
             if( p==null ) p = prop.get("publisher_id");
-            if( p==null ) p = "ivo://UNK.AUT";
+            if( p==null ) {
+               return null;
+//               p = "ivo://UNK.AUT";
+            }
             id = p+"/"+o;
          }
       }
@@ -741,7 +766,7 @@ public class MultiMoc implements Iterable<MocItem> {
             while( tok.hasMoreTokens() ) {
                String key = tok.nextToken();
                rep1 |= matchKey(mi,mapFilter,listKey,key,casesens,internalAndLogic);
-               if( !internalAndLogic && rep1 ) {
+               if( !andLogic && !internalAndLogic && rep1 ) {
                   if( DEBUGMATCH) System.out.println("   => matchKey("+key+",...)==true (orLogic) => return true)");
                   return true;
                }
@@ -753,7 +778,9 @@ public class MultiMoc implements Iterable<MocItem> {
             rep1 =  matchKey(mi,mapFilter,listKey,listKey,casesens,internalAndLogic);
          }
          
-         if( !internalAndLogic && rep1 ) return true;
+         // Si que des OU et que c'est ok, on peut conclure que c'est bon
+         if( !andLogic && !internalAndLogic && rep1 ) return true;
+         
          
          if( andLogic ) {
             rep &= rep1;
@@ -1070,6 +1097,8 @@ public class MultiMoc implements Iterable<MocItem> {
    private String getExpr(char a[], int deb) { return getExpr(a,deb,a.length); }
    
    
+   static private enum MgetOp { DEBUT, AVANT, DEDANS_PREF, DEDANS_QUOTE, SLASH, DEDANS, FIN }
+   
    /**
     * Extrait la prochaine opérande dans une expression ensembliste logique
     * @param op  paramètre de retour: contient l'opérande et l'opérateur qui suit
@@ -1079,17 +1108,45 @@ public class MultiMoc implements Iterable<MocItem> {
     */
    private int getOp(Op op, char [] a, int pos) {
       int i;
+      MgetOp mode = MgetOp.DEBUT;
+      char quote=' ';
       int par=0;
       op.terminal=true;
-      for( i=pos; i<a.length; i++ ) {
+      for( i=pos; i<a.length && mode!=MgetOp.FIN; i++ ) {
          char c = a[i];
-         if( c=='(' ) par++;
-         else if( c==')' ) par--;
-         if( par>0 ) op.terminal=false;
-         if( par==0 && i>0 
-               && (a[i-1]=='|' && c=='|' 
+         
+         switch(mode) {
+            case DEBUT:
+               if( !Character.isWhitespace(c) ) {
+                  if( c=='(' ) { par++; op.terminal=false; }
+                  else mode=MgetOp.AVANT; 
+               }
+               break;
+            case DEDANS_PREF:
+               if( !Character.isWhitespace(c) ) {
+                  if( c=='"' || c=='\'' ) { quote=c; mode= MgetOp.DEDANS_QUOTE; }
+                  else mode = MgetOp.DEDANS;
+               }
+               break;
+            case DEDANS_QUOTE:
+               if( c=='\\' ) mode = MgetOp.SLASH;
+               else if( c==quote ) mode = MgetOp.DEDANS;
+               break;
+            case SLASH:
+               mode =  MgetOp.DEDANS_QUOTE;
+               break;
+            case AVANT:
+               if( c=='=' ) { mode = MgetOp.DEDANS_PREF; break; }
+            case DEDANS:
+               if( c==')' ) par--;
+               if( i>0 && (a[i-1]=='|' && c=='|' 
                 || a[i-1]=='&' && c=='&' 
-                || a[i-1]=='&' && c=='!' ) ) break;
+                      || a[i-1]=='&' && c=='!' ) ) {
+                  if( par==0 ) { mode = MgetOp.FIN; i--; }
+                  else mode = MgetOp.AVANT;
+               }
+               break;
+         }
       }
       
       // Fin de la chaine ?
@@ -1105,6 +1162,43 @@ public class MultiMoc implements Iterable<MocItem> {
       
       return i+1;
    }
+   
+// METHODE BASIQUE - SANS POSSIBILITE D'AVOIR DES PARENTHESES OU DES &&, ||, &! DANS LE TEXTE DES CONTRAINTES
+//   /**
+//    * Extrait la prochaine opérande dans une expression ensembliste logique
+//    * @param op  paramètre de retour: contient l'opérande et l'opérateur qui suit
+//    * @param a   la chaine à traiter
+//    * @param pos la position de début de chaine à traiter
+//    * @return    la prochaine position à traiter, -1 si fin de chaine atteind
+//    */
+//   private int getOp(Op op, char [] a, int pos) {
+//      int i;
+//      int par=0;
+//      op.terminal=true;
+//      for( i=pos; i<a.length; i++ ) {
+//         char c = a[i];
+//         if( c=='(' ) par++;
+//         else if( c==')' ) par--;
+//         if( par>0 ) op.terminal=false;
+//         if( par==0 && i>0 
+//               && (a[i-1]=='|' && c=='|' 
+//               || a[i-1]=='&' && c=='&' 
+//               || a[i-1]=='&' && c=='!' ) ) break;
+//      }
+//
+//      // Fin de la chaine ?
+//      if( i>=a.length ) {
+//         op.expr = getExpr(a,pos);
+//         op.logic=-1;   // => il n'y a pas d'opérateur qui suit
+//         return -1;
+//      } 
+//
+//      // Extraction de l'expression (suppression des blancs et d'un niveau de parenthèse éventuel
+//      op.expr = getExpr(a,pos,i-1);
+//      op.logic =  a[i]=='!' ? 2 : a[i]=='|' ? 0 : 1;
+//
+//      return i+1;
+//   }
    
    // Pour débogage (calcul d'un préfixe d'indentation)
    private String indent(int niv) { 
@@ -1123,6 +1217,9 @@ public class MultiMoc implements Iterable<MocItem> {
     */
    private String adjustExpr(String s) {
       if( s==null || s.length()==0 ) return s;
+      
+      //Unquote éventuelle de la valeur
+      s = unQuote(s);
       
       // Traitement de key!=val1,val2  =>  key=!val1,!val2
       int pos = s.indexOf('!');
@@ -1147,6 +1244,18 @@ public class MultiMoc implements Iterable<MocItem> {
       if( pos>0 && (pos1==-1 || pos1>pos) ) return s.substring(0,pos)+"=<"+s.substring(pos+1);
       
       return s;
+   }
+
+   /**
+    * suppression des cotes éventuelles sur la valeur
+    * cle="xxx" => cle=xxx
+    * cle!="xxx" => cle!=xxx
+    */
+   private String unQuote(String s) {
+      int i = s.indexOf('=');
+      if( i<0 ) return s;
+      if( s.indexOf('"',i)<0 && s.indexOf('\'')<0 ) return s;
+      return s.substring(0,i+1) + Tok.unQuote( s.substring(i+1) );
    }
 
    /**
@@ -1185,6 +1294,9 @@ public class MultiMoc implements Iterable<MocItem> {
     * @throws Exception en cas d'erreur de syntaxe et autres
     */
    private Op calculExpr( int niv, Stack<Op>stack, String s, boolean casesens) throws Exception {
+      
+      if( niv>20 ) throw new Exception("Expression syntax error");
+      
       char [] a = s.toCharArray();
       int stLimit = stack.size();  // taille actuelle de la pile
       
@@ -1193,7 +1305,7 @@ public class MultiMoc implements Iterable<MocItem> {
       int pos=getOp(op,a,0);
       
       if( pos==-1 ) {
-         if( !op.terminal ) op = calculExpr(niv+3, stack, op.expr, casesens);
+         if( !op.terminal ) op = calculExpr(niv+1, stack, op.expr, casesens);
          else {
 //            System.out.println(indent(niv)+"Init "+op.expr);
             initScanItem(op,casesens);
@@ -1202,7 +1314,7 @@ public class MultiMoc implements Iterable<MocItem> {
       }
       
       int logic = op.logic;
-      op = calculExpr(niv+3,stack,op.expr, casesens);
+      op = calculExpr(niv+1,stack,op.expr, casesens);
       op.logic=logic;
       
 //      System.out.println(indent(niv)+"Je lis op1: "+op);
@@ -1419,7 +1531,8 @@ public class MultiMoc implements Iterable<MocItem> {
 //         String s2 = "client_application=* &! data*type=catalog";
 //         String s2 = "obs_title,ID=!CDS/B/denis/denis,!CDS/C/CALIFA/V500/DR2";
 //         String s2 = "CDS/P/DSS2/Color || CDS/B/denis/Denis";
-         String s2 = "nb_rows=<100";
+//         String s2 = "obs_title!=\"*(*\" && ID=ESA*";
+         String s2 = "(ID=ESA* || ID=*arche* || ID=\"toto(titi*\") && (client_application=* || ID=*25*)";
         
          System.out.println("calculer: "+s2);
          

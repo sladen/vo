@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,12 +19,18 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.net.*;
-import java.io.*;
-import java.util.*;
+import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.util.StringTokenizer;
 
 import cds.tools.Util;
 
@@ -259,7 +267,7 @@ aladin.trace(2,"Sending plane ["+planID+"] to "+sk.getInetAddress().getHostAddre
          (aladin.save).saveImageFITS(out,(PlanImage)p);
       } else if( p.isSimpleCatalog() && p.flagOk ) {
          sendString(out,"HTTP/1.0 200 OK\r\nContent-type: text/xml\r\n\r\n");
-         aladin.writePlaneInVOTable((PlanCatalog)p, out, false);
+         aladin.writePlaneInVOTable(p, out, false,false);
       } else sendError(out,"Plan ["+planID+"] is not a valid Aladin plane");
    }
 

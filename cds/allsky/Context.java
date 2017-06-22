@@ -1,4 +1,6 @@
-// Copyright 2012 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -20,11 +22,12 @@
 package cds.allsky;
 
 import java.awt.Polygon;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -46,6 +49,7 @@ import cds.astro.ICRS;
 import cds.fits.CacheFits;
 import cds.fits.Fits;
 import cds.fits.HeaderFits;
+import cds.moc.Healpix;
 import cds.moc.HealpixMoc;
 import cds.tools.Util;
 import cds.tools.pixtools.CDSHealpix;
@@ -103,7 +107,8 @@ public class Context {
    protected ArrayList<String> fitsKeys=null;// Liste des mots clés dont la valeur devra être mémorisée dans les fichiers d'index JSON
    protected int typicalImgWidth=-1;         // Taille typique d'une image d'origine
    protected int mirrorDelay=0;              // délais entre deux récupérartion de fichier lors d'un MIRROR (0 = sans délai)
-
+   protected boolean notouch=false;          // true si on ne doit pas modifier la date du hips_release_date
+   
    protected int bitpix = -1;                // BITPIX de sortie
    protected double blank = Double.NaN;      // Valeur du BLANK en sortie
    protected double bzero=0;                 // Valeur BZERO de la boule Healpix à générer
@@ -786,7 +791,7 @@ public class Context {
       return false;
    }
 
-   String justFindImgEtalon(String rootPath) {
+   String justFindImgEtalon(String rootPath) throws MyInputStreamCachedException {
       MyInputStream in = null;
       
       if( isInputFile ) {
@@ -825,12 +830,19 @@ public class Context {
             // cas particulier d'un survey couleur en JPEG ou PNG avec calibration externe
             if( path.endsWith(".hhh") ) return path;
 
-            in = (new MyInputStream( new FileInputStream(path)) ).startRead();
+//            in = (new MyInputStream( new FileInputStream(path)) ).startRead();
+            in = (new MyInputStreamCached(path) ).startRead();
+            
             long type = in.getType();
             if( (type&MyInputStream.FITS) != MyInputStream.FITS && !in.hasCommentCalib() ) continue;
             return path + (hdu==null || hdu.length>0 && hdu[0]==-1 ? "":"["+hdu[0]+"]");
 
-         }  catch( Exception e) { Aladin.trace(4, "justFindImgEtalon : " +e.getMessage()); continue; }
+         }  
+         catch( MyInputStreamCachedException e) { taskAbort(); throw e; }
+         catch( Exception e) {
+            Aladin.trace(4, "justFindImgEtalon : " +e.getMessage());
+            continue;
+         }
          finally { if( in!=null ) try { in.close(); } catch( Exception e1 ) {} }
       }
 
@@ -1047,12 +1059,12 @@ public class Context {
    public boolean verifTileOrder() {
 
       // Récupération d'un éventuel changement de TileOrder dans les propriétés du HpxFinder
-      InputStream in = null;
+      InputStreamReader in = null;
       boolean flagTileOrderFound=false;
       try {
          String propFile = getHpxFinderPath()+Util.FS+Constante.FILE_PROPERTIES;
          MyProperties prop = new MyProperties();
-         prop.load( in=new FileInputStream( propFile ) );
+         prop.load( in=new InputStreamReader( new FileInputStream( propFile )) );
          int o;
          String s = prop.getProperty(Constante.KEY_HIPS_TILE_WIDTH);
          if( s!=null ) o = (int)CDSHealpix.log2( Integer.parseInt(s));
@@ -1088,12 +1100,12 @@ public class Context {
    public boolean verifFrame() {
 
       // Récupération d'un éventuel changement de hips_frame dans les propriétés du HpxFinder
-      InputStream in = null;
+      InputStreamReader in = null;
       boolean flagFrameFound=false;
       try {
          String propFile = getHpxFinderPath()+Util.FS+Constante.FILE_PROPERTIES;
          MyProperties prop = new MyProperties();
-         prop.load( in=new FileInputStream( propFile ) );
+         prop.load( in=new InputStreamReader( new FileInputStream( propFile )) );
          int o=0;
          String s = prop.getProperty(Constante.KEY_HIPS_FRAME);
          if( s!=null ) {
@@ -1535,8 +1547,19 @@ public class Context {
    // Insère un NL si nécessaire
    private void nl() { if( flagNL ) System.out.println(); flagNL=false; }
    //   private void nl() { if( flagNL ) System.out.print("\b"); flagNL=false; }
+   
+   // Retourne la chaine indiquée encadrée par deux traits
+   // ex: ------------------- toto -------------------
+   static public String getTitle(String s ) { return getTitle(s,'-'); }
+   static public String getTitle(String s, char c ) { return getTitle(s,c,102); }
+   static public String getTitle(String s, char c, int len) {
+      int m = (len - 2 - s.length() )/2;
+      StringBuilder s1 = new StringBuilder();
+      for( int i=0; i<m; i++ ) s1.append(c);
+      return s1+" "+s+" "+(s.length()%2==0?"":" ")+s1;
+   }
 
-   public void running(String s)  { nl(); System.out.println("RUN   : ================================ "+s+" ==============================="); }
+   public void running(String s)  { nl(); System.out.println("RUN   : "+getTitle(s,'=')); }
    public void done(String r)     { nl(); System.out.println("DONE  : "+r); }
    public void abort(String r)    { nl(); System.out.println("ABORT : "+r); }
    public void info(String s)     { nl(); System.out.println("INFO  : "+s); }
@@ -1752,7 +1775,7 @@ public class Context {
    /** Création, ou mise à jour du fichier des Properties associées au survey
     * @param stream null pour l'écrire à l'emplacement prévu par défaut
     */
-   protected void writePropertiesFile(OutputStream stream) throws Exception {
+   protected void writePropertiesFile(OutputStreamWriter stream) throws Exception {
 
 
       // Ajout de l'IVORN si besoin
@@ -1773,7 +1796,7 @@ public class Context {
       
       if( addendum_id!=null ) setPropriete(Constante.KEY_ADDENDUM_ID,addendum_id);
       setPropriete(Constante.KEY_OBS_COLLECTION,getLabel());
-      setPropriete("#"+Constante.KEY_OBS_TITLE,"Dataset text title");
+      setPropriete("#"+Constante.KEY_OBS_COLLECTION,"Dataset collection name");
       setPropriete("#"+Constante.KEY_OBS_DESCRIPTION,"Dataset text description");
       setPropriete("#"+Constante.KEY_OBS_ACK,"Acknowledgement mention");
       setPropriete("#"+Constante.KEY_PROV_PROGENITOR,"Provenance of the original data (free text)");
@@ -1792,14 +1815,14 @@ public class Context {
 
       setPropriete(Constante.KEY_HIPS_BUILDER,"Aladin/HipsGen "+Aladin.VERSION);
       setPropriete(Constante.KEY_HIPS_VERSION, Constante.HIPS_VERSION);
-      setPropriete(Constante.KEY_HIPS_RELEASE_DATE,getNow());
+      if( !notouch ) setPropriete(Constante.KEY_HIPS_RELEASE_DATE,getNow());
 
       setPropriete(Constante.KEY_HIPS_FRAME, getFrameName());
       setPropriete(Constante.KEY_HIPS_ORDER,order+"");
       setPropriete(Constante.KEY_HIPS_TILE_WIDTH,CDSHealpix.pow2( getTileOrder())+"");
 
       // L'url
-      setPropriete("#"+Constante.KEY_HIPS_MASTER_URL,"ex: http://yourHipsServer/"+label+"");
+      setPropriete("#"+Constante.KEY_HIPS_SERVICE_URL,"ex: http://yourHipsServer/"+label+"");
       setPropriete(Constante.KEY_HIPS_STATUS,"public master clonableOnce");
       
       // le status du HiPS : par defaut "public master clonableOnce"
@@ -1940,7 +1963,7 @@ public class Context {
       prop.setProperty(Constante.KEY_HIPS_FRAME, getFrameName());
       prop.setProperty(Constante.KEY_HIPS_ORDER, getOrder()+"");
       if( minOrder>3 ) prop.setProperty(Constante.KEY_HIPS_ORDER_MIN, minOrder+"");
-      prop.setProperty(Constante.KEY_HIPS_RELEASE_DATE, getNow());
+      if( !notouch ) prop.setProperty(Constante.KEY_HIPS_RELEASE_DATE, getNow());
       prop.setProperty(Constante.KEY_HIPS_VERSION, Constante.HIPS_VERSION);
       prop.setProperty(Constante.KEY_HIPS_BUILDER, "Aladin/HipsGen "+Aladin.VERSION);
 
@@ -1958,9 +1981,9 @@ public class Context {
       String propFile = getHpxFinderPath()+Util.FS+Constante.FILE_PROPERTIES;
       File f = new File(propFile);
       if( f.exists() ) f.delete();
-      FileOutputStream out = null;
+      OutputStreamWriter out = null;
       try {
-         out = new FileOutputStream(f);
+         out = new OutputStreamWriter( new FileOutputStream(f), "UTF-8");
          prop.store( out, null);
       } finally {  if( out!=null ) out.close(); }
    }
@@ -1985,7 +2008,7 @@ public class Context {
    private void replaceKeys(MyProperties prop) {
       replaceKey(prop,Constante.OLD_HIPS_PUBLISHER,Constante.KEY_CREATOR);
       replaceKey(prop,Constante.OLD_HIPS_BUILDER,Constante.KEY_HIPS_BUILDER);
-      replaceKey(prop,Constante.OLD_OBS_COLLECTION,Constante.KEY_OBS_COLLECTION);
+      replaceKey(prop,Constante.OLD_OBS_COLLECTION,Constante.KEY_OBS_TITLE);
       replaceKey(prop,Constante.OLD_OBS_TITLE,Constante.KEY_OBS_TITLE);
       replaceKey(prop,Constante.OLD_OBS_DESCRIPTION,Constante.KEY_OBS_DESCRIPTION);
       replaceKey(prop,Constante.OLD1_OBS_DESCRIPTION,Constante.KEY_OBS_DESCRIPTION);
@@ -2055,7 +2078,7 @@ public class Context {
          try {
             String v = Constante.sdf.format( HipsGen.SDF.parse(s) )+"Z";
             prop.replaceKey(Constante.OLD_HIPS_RELEASE_DATE, Constante.KEY_HIPS_RELEASE_DATE);
-            prop.replaceValue(Constante.KEY_HIPS_RELEASE_DATE, v);
+            if( !notouch ) prop.replaceValue(Constante.KEY_HIPS_RELEASE_DATE, v);
          } catch( ParseException e ) { }
       }
 
@@ -2077,6 +2100,7 @@ public class Context {
       // Certains champs sont remplacés sous une autre forme, à moins qu'ils n'aient été
       // déjà mis à jour
       s = prop.getProperty(Constante.OLD_ISCOLOR);
+      if( s==null ) s = prop.getProperty("isColor");
       if( s!=null ) {
          if( s.equals("true")
                && prop.getProperty(Constante.KEY_DATAPRODUCT_SUBTYPE)==null) prop.setProperty(Constante.KEY_DATAPRODUCT_SUBTYPE, "color");
@@ -2111,7 +2135,7 @@ public class Context {
    protected void updateProperties(String[] key, String[] value,boolean overwrite) throws Exception {
       updateProperties(key,value,overwrite,null);
    }
-   protected void updateProperties(String[] key, String[] value,boolean overwrite,OutputStream stream) throws Exception {
+   protected void updateProperties(String[] key, String[] value,boolean overwrite,OutputStreamWriter stream) throws Exception {
 
       waitingPropertieFile();
       try {
@@ -2122,19 +2146,56 @@ public class Context {
          File f = new File( propFile );
          if( f.exists() ) {
             if( !f.canRead() ) throw new Exception("Propertie file not available ! ["+propFile+"]");
-            FileInputStream in = new FileInputStream(propFile);
+            InputStreamReader in = new InputStreamReader( new FileInputStream(propFile), "UTF-8" );
             prop.load(in);
             in.close();
          }
 
          // Changement éventuel de vocabulaire
          replaceKeys(prop);
+         
+         // S'il n'y a pas d'indication hips_initial... on les indique manu-militari
+         String ra  = prop.get( Constante.KEY_HIPS_INITIAL_RA );
+         String dec = prop.get( Constante.KEY_HIPS_INITIAL_DEC );
+         String fov = prop.get( Constante.KEY_HIPS_INITIAL_FOV );
+         if( ra==null || dec==null || fov==null ) {
+            if( fov==null ) {
+
+               // On va préférer prendre le moc_order indiqué dans les properties
+               // pour éviter de récupérer le bug sur le MocOrder
+               try {
+                  int n = Integer.parseInt( prop.get("moc_order"));
+                  HealpixMoc mm = new HealpixMoc();
+                  mm.setMocOrder(n);
+                  fov =  mm.getAngularRes()+"";
+               } catch( Exception e) {
+                  fov = moc.getAngularRes()+"";
+               }
+               prop.replaceValue( Constante.KEY_HIPS_INITIAL_FOV,fov);
+            }
+            if( ra==null || dec==null ) {
+               Healpix hpx = new Healpix();
+               if( moc.isAllSky() ) { ra="0"; dec="+0"; }
+               else {
+                  try {
+                     int o = moc.getMocOrder();
+                     long pix = moc.pixelIterator().next();
+                     double coo[] = hpx.pix2ang(o,pix);
+                     ra = coo[0]+"";
+                     dec = coo[1]+"";
+                  } catch( Exception e ) { }
+               }
+               prop.replaceValue( Constante.KEY_HIPS_INITIAL_RA,ra);
+               prop.replaceValue( Constante.KEY_HIPS_INITIAL_DEC,dec);
+            }
+         }
+
 
          String v;
          // Mise à jour des propriétés
          for( int i=0; i<key.length; i++ ) {
  
-            if( key[i].equals(Constante.KEY_HIPS_RELEASE_DATE) ) {
+            if( !notouch && key[i].equals(Constante.KEY_HIPS_RELEASE_DATE) ) {
                // Conservation de la première date de processing si nécessaire
                if( prop.getProperty(Constante.KEY_HIPS_CREATION_DATE)==null
                      && (v=prop.getProperty(Constante.KEY_HIPS_RELEASE_DATE))!=null) {
@@ -2200,9 +2261,9 @@ public class Context {
             if( ftmp.exists() ) ftmp.delete();
             File dir = new File( getOutputPath() );
             if( !dir.exists() && !dir.mkdir() ) throw new Exception("Cannot create output directory");
-            FileOutputStream out = null;
+            OutputStreamWriter out = null;
             try {
-               out = new FileOutputStream(ftmp);
+               out = new OutputStreamWriter( new FileOutputStream(ftmp), "UTF-8");
                prop.store( out, null);
 
 
@@ -2225,7 +2286,7 @@ public class Context {
          File f = new File( propFile );
          if( f.exists() ) {
             if( !f.canRead() ) throw new Exception("Propertie file not available ! ["+propFile+"]");
-            FileInputStream in = new FileInputStream(propFile);
+            InputStreamReader in = new InputStreamReader( new BufferedInputStream( new FileInputStream(propFile) ), "UTF-8");
             prop.load(in);
             in.close();
 

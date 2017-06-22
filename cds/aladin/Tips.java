@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,15 +19,15 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.image.*;
-import java.net.*;
-import java.io.*;
-import java.util.*;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Label;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.util.Random;
+import java.util.Vector;
 
 
 /**
@@ -81,7 +83,6 @@ public final class Tips extends MyLabel implements MouseListener {
    }
    
    public void setText(String text) {
-      text = pubNews(text);
       super.setText(text);
    }
 
@@ -92,7 +93,7 @@ public final class Tips extends MyLabel implements MouseListener {
    
    /** Changement de la couleur si c'est un TIPS */
    public Color getForeground() {
-      if( cTips!=null ) return Aladin.GREEN;
+      if( cTips!=null ) return Color.green;
       return super.getForeground();
    }
    

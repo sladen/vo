@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -260,7 +261,7 @@ public class MyButton extends JComponent implements MouseListener {
       super.add(pm);
    }
 
-   public void mouseEntered(MouseEvent e) { if( mode==UP && mouseOverChange ) { color=Aladin.GREEN; repaint(); } }
+   public void mouseEntered(MouseEvent e) { if( mode==UP && mouseOverChange ) { color=Aladin.COLOR_GREEN; repaint(); } }
    public void mouseExited(MouseEvent e) { color=Color.black; repaint(); }
 
    /** Remet en mode normal le bouton (la souris n'est plus dessus) */
@@ -440,7 +441,7 @@ public class MyButton extends JComponent implements MouseListener {
          if( isNormal() ) drawFond(g, Aladin.MAXBLUE,Color.black,Color.white);
          else drawFond(g, Aladin.BLUE,Color.black,Color.black);
          
-      } else if( color==Aladin.GREEN ) {
+      } else if( color==Aladin.COLOR_GREEN ) {
          if( isNormal() ) drawFond(g,Aladin.MYBLUE,Color.white,Color.black);
          else drawFond(g,Aladin.MYBLUE,Color.gray,Color.gray);
          
@@ -495,7 +496,7 @@ public class MyButton extends JComponent implements MouseListener {
          g.setColor(Color.gray);
       } else {
          g.setFont( f );
-         g.setColor( color==Aladin.GREEN && image==null && mode==UP ? Color.white : getForeground());
+         g.setColor( color==Aladin.COLOR_GREEN && image==null && mode==UP ? Color.white : getForeground());
       }
 
       // Le texte

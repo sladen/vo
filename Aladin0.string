@@ -89,7 +89,7 @@ MBACKUP	Backup the stack...
 MARITHM	Arithmetic operation...
 MMOC Coverage
 MMOCHIPS Load the coverage (MOC) of the current survey
-MMOCLOAD Load a specifical catalog MOC...
+MMOCLOAD Load a specifical MOC...
 MMOCGEN Generate a MOC based on...
 MMOCGENIMG The current image...
 MMOCGENPROBA The current probability skymap...
@@ -201,7 +201,7 @@ MEXPORT.fr	Exporter des plans (FITS,VOTable,...)...
 MBACKUP.fr	Sauvegarder la pile...
 MMOC.fr Couverture
 MMOCHIPS.fr	Chargement de la couverture (MOC) du relevé courant
-MMOCLOAD.fr Chargement pour un catalogue spécifique...
+MMOCLOAD.fr Chargement pour d'un MOC spécifique...
 MMOCGEN.fr Génération d'un MOC à partir de...
 MMOCGENIMG.fr	L'image courante...
 MMOCGENPROBA.fr	La carte courante de probabilités...
@@ -274,6 +274,7 @@ PLUGINFO	Plugin controller...
 VOTOOLINFO	VO tool controller...
 NEWS	What's new in this Aladin release ?...
 ABOUT	About Aladin...
+ACCESSTAP Access TAP
 
 CMD.fr	Console de commandes...
 XMATCH.fr	Corréler des catalogues...
@@ -308,6 +309,7 @@ PLUGINFO.fr	Gestionnaire de Plugins...
 VOTOOLINFO.fr	Gestionnaire des applications VO...
 NEWS.fr	Quoi de neuf dans cette version d'Aladin ?...
 ABOUT.fr	A propos d'Aladin...
+ACCESSTAP.fr Access TAP
 
 # Aladin.java - One line menu help
 HLOAD	Access to the images, catalogs, FoV
@@ -360,8 +362,8 @@ RESTART	You have to restart Aladin to validate this configuration modification
 RESTART.fr	Vous devez redémarrer Aladin pour que cette modification de configuration soit prise en compte
 UNSIGNED	Unsigned applet not supported for this HTTP Aladin site\n => redirection in progress...
 UNSIGNED.fr	Le mode applet non signé n'est pas supporté par ce site Aladin HTTP\n => Redirection automatique en cours...
-BANNER	Aladin is developed by Pierre Fernique, Thomas Boch, Anaïs Oberto and François Bonnarel 
-BANNER.fr	Aladin est développé par Pierre Fernique, Thomas Boch, Anaïs Oberto et François Bonnarel
+BANNER	Aladin is developed by Pierre Fernique, Thomas Boch, Anaïs Oberto, François Bonnarel and Chaitra
+BANNER.fr	Aladin est développé par Pierre Fernique, Thomas Boch, Anaïs Oberto, François Bonnarel et Chaitra
 STARTING	is starting
 STARTING.fr	en cours de lancement
 YOURJVM	Your JVM release is java
@@ -398,16 +400,16 @@ STOPDEMO	Do you want to stop the demonstration ?\nClick NO to resume
 STOPDEMO.fr	Désirez-vous interrompre la démonstration ?\nCliquez NON pour poursuivre
 MB	Mb
 MB.fr	Mo
-PUB	*ALADIN is an interactive software sky atlas.\n* It allows one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n!Quick start...\n*Just type your target in the text field above\n*(ex: M1  or  13:29:53 +47:11:48)\n \n*%CDSLogo.png\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch,  Anaïs Oberto and François Bonnarel.
-PUB.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe\n*quelle partie du ciel, d'y superposer des objets issus de catalogues\n*astronomiques, et, interactivement, d'accéder aux informations relatives.\n \n!Démarrage rapide...\n*Saisissez simplement votre cible dans le champ de saisie ci-dessus.\n*(ex: M1  ou  13:29:53 +47:11:48)\n \n*%CDSLogo.png\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto et François Bonnarel.
+PUB	*ALADIN is an interactive software sky atlas.\n* It allows one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n!Quick start...\n*Just type your target in the text field above\n*(ex: M1  or  13:29:53 +47:11:48)\n \n*%CDSLogo.png\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch,  Anaïs Oberto, François Bonnarel and Chaitra.
+PUB.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe\n*quelle partie du ciel, d'y superposer des objets issus de catalogues\n*astronomiques, et, interactivement, d'accéder aux informations relatives.\n \n!Démarrage rapide...\n*Saisissez simplement votre cible dans le champ de saisie ci-dessus.\n*(ex: M1  ou  13:29:53 +47:11:48)\n \n*%CDSLogo.png\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto, François Bonnarel et Chaitra.
 PUBBETA	*ALADIN is an interactive software sky atlas\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!WARNING: THIS VERSION IS A BETA RELEASE\n*Send bug report and comments to cds-question@unistra.fr\n*Or take the official version for a real usage\n*(from http://aladin.u-strasbg.fr).\n \n*%CDSLogo.png\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, Anaïs Oberto and François Bonnarel.
-PUBBETA.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!CETTE VERSION EST EN BETA TEST\n*Envoyez vos commentaires et bogues à cds-question@unistra.fr\n*Ou télécharger la dernière version officielle pour un usage réel\n*(à partir de http://aladin.u-strasbg.fr).\n \n*%CDSLogo.png\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto et François Bonnarel.
-PUBPROTO	ALADIN is an interactive software sky atlas developed by the CDS,\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!WARNING: THIS VERSION IS A PROTOTYPE RELEASE\n*SOME FEATURES HAVE BEEN ADDED FOR DEMONSTRATION PURPOSES.\n*USE IT AT YOUR OWN RISKS\n \n*Or take the official version for a real usage\n*(from http://aladin.u-strasbg.fr).\n \n*%CDSLogo.png\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, Anaïs Oberto and François Bonnarel.
-PUBPROTO.fr	ALADIN est un atlas du ciel interactif développé par le CDS.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!CETTE MISE-A-JOUR EST UNE VERSION PROTOTYPE\n*CERTAINES FONCTIONNALITES QUI ONT ETE AJOUTEES\n*EN DEMONSTRATION SONT SANS GARANTIE\n \n*Vous pouvez télécharger la dernière version officielle pour un usage réel\n*(à partir de http://aladin.u-strasbg.fr).\n \n*%CDSLogo.png\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto et François Bonnarel.\n
-PUBOUTREACH	*ALADIN is an interactive software sky atlas\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!You are running ALADIN in UNDERGRADUATE mode\n \n*%EuroVOAIDA.jpg\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, François Bonnarel and Anaïs Oberto.\n \n*The "undergraduate" Aladin extension has been developed\nin the framework of the AIDA European project.
-PUBOUTREACH.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!Vous utilisez actuellement ALADIN en mode SCOLAIRE\n \n*%EuroVOAIDA.jpg\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, François Bonnarel et Anaïs Oberto.\n \n*L'extension "scolaire" d'Aladin a été développée\ndans le cadre du projet européen AIDA.
-PUBINPROG	*ALADIN is an interactive software sky atlas developed by the CDS,\n*allowing one to visualize digitized images of any part of\n*the sky, to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n \n!YOUR DATA ARE BEING DOWNLOADED...\n!Please wait...\n \n*%CDSLogo.png\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, Anaïs Oberto and François Bonnarel.
-PUBINPROG.fr	*ALADIN est un atlas du ciel interactif développé par le CDS.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n \n!VOS DONNEES SONT EN COURS DE CHARGEMENT\n!Veuillez patienter...\n \n*%CDSLogo.png\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto et François Bonnarel.
+PUBBETA.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!CETTE VERSION EST EN BETA TEST\n*Envoyez vos commentaires et bogues à cds-question@unistra.fr\n*Ou télécharger la dernière version officielle pour un usage réel\n*(à partir de http://aladin.u-strasbg.fr).\n \n*%CDSLogo.png\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto, François Bonnarel et Chaitra.
+PUBPROTO	ALADIN is an interactive software sky atlas developed by the CDS,\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!WARNING: THIS VERSION IS A PROTOTYPE RELEASE\n*SOME FEATURES HAVE BEEN ADDED FOR DEMONSTRATION PURPOSES.\n*USE IT AT YOUR OWN RISKS\n \n*Or take the official version for a real usage\n*(from http://aladin.u-strasbg.fr).\n \n*%CDSLogo.png\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, Anaïs Oberto, François Bonnarel and Chaitra.
+PUBPROTO.fr	ALADIN est un atlas du ciel interactif développé par le CDS.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!CETTE MISE-A-JOUR EST UNE VERSION PROTOTYPE\n*CERTAINES FONCTIONNALITES QUI ONT ETE AJOUTEES\n*EN DEMONSTRATION SONT SANS GARANTIE\n \n*Vous pouvez télécharger la dernière version officielle pour un usage réel\n*(à partir de http://aladin.u-strasbg.fr).\n \n*%CDSLogo.png\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto, François Bonnarel et Chaitra.\n
+PUBOUTREACH	*ALADIN is an interactive software sky atlas\n*allowing one to visualize digitized images of any part of the sky,\n*to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n!You are running ALADIN in UNDERGRADUATE mode\n \n*%EuroVOAIDA.jpg\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, Anaïs Oberto, François Bonnarel and Chaitra.\n \n*The "undergraduate" Aladin extension has been developed\nin the framework of the AIDA European project.
+PUBOUTREACH.fr	*ALADIN est un atlas du ciel interactif.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n!Vous utilisez actuellement ALADIN en mode SCOLAIRE\n \n*%EuroVOAIDA.jpg\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto, François Bonnarel et Chaitra.\n \n*L'extension "scolaire" d'Aladin a été développée\ndans le cadre du projet européen AIDA.
+PUBINPROG	*ALADIN is an interactive software sky atlas developed by the CDS,\n*allowing one to visualize digitized images of any part of\n*the sky, to superimpose entries from astronomical catalogs,\n*and to interactively access related data and information.\n \n \n \n!YOUR DATA ARE BEING DOWNLOADED...\n!Please wait...\n \n*%CDSLogo.png\n \n*Aladin is developed by Pierre Fernique,\n*Thomas Boch, Anaïs Oberto, François Bonnarel and Chaitra.
+PUBINPROG.fr	*ALADIN est un atlas du ciel interactif développé par le CDS.\n*Il permet de visualiser des images digitalisées de n'importe quelle\n*partie du ciel, d'y superposer des objets issus de catalogues astronomiques,\n*et, interactivement, d'accéder aux informations associées.\n \n \n \n!VOS DONNEES SONT EN COURS DE CHARGEMENT\n!Veuillez patienter...\n \n*%CDSLogo.png\n \n*Aladin est développé par Pierre Fernique,\n*Thomas Boch, Anaïs Oberto, François Bonnarel et Chaitra.
 MVIEWDESC	Split the main window into 2, 4, 9 or 16 panels
 MVIEWDESC.fr	Découpe la fenêtre principale en 2, 4, 9 ou 16 écrans
 MVIEWSYNC	Match views (unify scale / orientation)
@@ -457,13 +459,14 @@ RGB	rgb
 CONT	cont
 FILTER	filter
 SYNC	match
-LOOK	look
+LOOK	study
 NORTHUP	north
 BLINK	assoc
 RSAMP	rsamp
 CROP	crop
 PLOT	x-y
 SPECT   spect
+MOC     moc
 
 SELECT.fr	select
 DRAW.fr	dessin
@@ -489,6 +492,7 @@ RSAMP.fr	rsamp
 CROP.fr	coupe
 PLOT.fr	x-y
 SPECT.fr   spect
+MOC.fr     moc
 
 #Zoom
 ZINFO	Adjust the visible area (clic&drag + mouse wheel)
@@ -521,10 +525,16 @@ EXPAND	exp
 EXPAND.fr	dév
 COLLAPSETIP	Expand/collapse the HiPS tree
 COLLAPSETIP.fr	Développe/réduit l'arbre des HiPS
-PRUNE	prune
-PRUNE.fr	élague
-PRUNETIP	Hide/show the HiPS without any observation in the current view
-PRUNETIP.fr	Cache/montre les HiPS n'ayant\naucune observation dans le champ courant
+INSIDE	inside
+INSIDE.fr	dedans
+INSIDETIP	Hide/show the collections without any observation in the current view
+INSIDETIP.fr	Cache/montre les collections n'ayant\naucune observation dans le champ courant
+SCAN	scan
+SCAN.fr	scan
+STOP	stop
+STOP.fr	stop
+SCANTIP	Scan the selected collections to know\nwhich of them contain result in the current field of view
+SCANTIP.fr	Interroge les collections sélectionnées\nafin de déterminer lesquelles ont des résultats dans le champ de vue courant
 
 # Tool.java - One line tool help
 HSELECT	View and object selector - click and drag with or without the Shift key
@@ -550,6 +560,7 @@ HXMATCH	Cross match two catalogue sources
 HCROP	Image cropping
 HPLOT	Scatter plot for catalog sources
 HSPECT  Spectrum extractor for cubes
+HMOC    Multi-Order Coverage map operations
 
 HSELECT.fr	Sélecteur de vues ou d'objets - cliquer/étendre avec ou sans la touche MAJ
 HDRAW.fr	Dessin - cliquer en continue, ou point à point pour ajouter des lignes
@@ -574,6 +585,7 @@ HXMATCH.fr	Corrèle les sources de 2 catalogues
 HCROP.fr	Copie une portion de l'image
 HPLOT.fr	Trace un diagramme de dispersion pour des sources de catalogues
 HSPECT.fr   Génère un spectre associé à un cube
+HMOC.fr     Opérations sur les Multi-Order Coverage
 
 # ToolBox.java strings
 TBBAR	Change the screen area proportions (drag it)
@@ -1329,6 +1341,7 @@ VWMSTICKON	Sticked panel
 VWMLABELOFF	Unlabel the selected objects
 VWMLABELON	Label the selected objects
 VWMCOPY     Copy the reticle location in the clipboard
+VWMLOOK     Astronomical object exploration (Simbad & VizieR)
 VWMCOPYIMG  Copy the current view in the clipboard
 VWMOREVIEWS	Create one view per image
 VWONEVIEW	Delete other views
@@ -1369,6 +1382,7 @@ VWMSTICKON.fr	Panneau scotché
 VWMLABELON.fr	Afficher l'identificateur des objets sélectionnés
 VWMLABELOFF.fr	Cacher l'identificateur des objets sélectionnés
 VWMCOPY.fr     Copier la position du réticule dans le presse-papier
+VWMLOOK.fr	Exploration de l'objet astronomique (Simbad & VizieR)
 VWMCOPYIMG.fr     Copier la vue courante dans le presse-papier
 VWMOREVIEWS.fr	Créer une vue par image
 VWONEVIEW.fr	Supprimer les autres vues
@@ -1410,7 +1424,7 @@ CMCLOSE	Close
 #CMHELP	Help
 CMNOCUT	All values
 CMNOCUTTIP Display the whole range of pixel values
-CMAPPLYALL	Apply on other images
+CMAPPLYALL	Apply on all selected images
 CMAPPLYCCD Apply on all CCDs
 CMAPPLYALLTIP	Apply this pixel mapping on all other compatible images selected in the stack
 CMAPPLYCCDTIP	Apply this pixel mapping on all other CCDs
@@ -1445,7 +1459,7 @@ CMLOCALCUTTIP.fr Seuillage automatique basé sur la portion de l'image actuelleme
 CMCLOSE.fr	Fermer
 CMNOCUT.fr	Toutes les valeurs
 CMNOCUTTIP.fr Affiche la totalité des valeurs des pixels
-CMAPPLYALL.fr	Appliquer aux autres images
+CMAPPLYALL.fr	Appliquer aux images sélectionnées
 CMAPPLYCCD.fr	Appliquer aux autres CCD
 CMAPPLYALLTIP.fr	Applique cet dynamique de pixel à toutes les images compatibles sélectionnées dans la pile.
 CMAPPLYCCDTIP.fr	Applique cet dynamique de pixel à tous les CCD.
@@ -1696,6 +1710,10 @@ FILEDIALOG.fr Style de fenêtres
 FILEDIALOGHELP.fr Rendu (Look&feel) des fenêtres de dialogue de sélection des fichiers et des répertoires.
 FILEDIALOGJAVA.fr Library Java
 FILEDIALOGNATIVE.fr Système d'exploitation
+THEME	Interface theme
+THEMEHELP	Graphical interface theme. Required to restart.
+THEME.fr	Thème de l'interface
+THEMEHELP.fr	Thème de l'interface graphique. Nécessite un redémarrage.
 
 
 UPTITLE.fr	Préférences utilisateur
@@ -2050,6 +2068,13 @@ FSCHECKUNCHECK	Check/uncheck the servers concerned by the ALL VO discovery mode
 FSIMGSRV	Image servers
 FSCATSRC	Catalog servers
 FSSPECSRV	Spectra servers
+FSLOAD LOAD
+FSSELECTTAP	Select a tap server or job
+TIPLOAD Load tap server
+FSRELOAD RELOAD
+TIPRELOAD Reload tap server
+#TIPNORELOAD Cannot reload this server as it is loaded from configuration file
+
 
 FSTITLE.fr	Liste des serveurs
 FSCHECK.fr	Les sélectionne tous
@@ -2061,6 +2086,11 @@ FSCHECKUNCHECK.fr	Sélectionne/désélectionne les serveurs concernés par le mode e
 FSIMGSRV.fr	Serveurs d'images
 FSCATSRC.fr	Serveurs de catalogues
 FSSPECSRV.fr	Serveurs de spectres
+FSLOAD.fr CHARGER
+TIPLOAD.fr CHARGER TAP serveur
+FSRELOAD.fr Recharger
+TIPRELOAD.fr Rechargez serveur sélectionné
+
 
 # Mesure.java strings
 MFASCSORT	Ascending sort
@@ -2151,6 +2181,7 @@ SFCANNOT1	=>save aborted
 SFINFOIMG	Aladin saves images\nby keeping original pixels if possible, otherwise\nin 8 bits per pixel (for instance with the JPEG images).\n \nFor images with modified astrometrical reductions,\nthe original WCS FITS keywords have been replaced with\na new WCS definition.
 SFSAVEIN	Save catalogs in:
 SFSAVERGBIN	Save images in:
+SFSAVEMOCIN	Save MOCs in:
 SFJPEGENCODER	Image encoder not available in your Java configuration, use BMP default format.
 SFCH1	Backup\nthe\nstack
 SFCH2	Export\nsome\nplanes
@@ -2912,3 +2943,85 @@ BEGIN2.fr	Imaginez votre oeil regardant à travers une pile de calques.\n \nChaqu
 BEGIN3.fr	Contrôle de la pile:\n \n*le logo: montre/cache le plan\n*taille: change la taille des objets\n*zoom: modifie l'agrandissement\n*opacité: ajuste la transparence.\n \nLa vue est dessinée en fonction de la projection d'un plan de référence.\n \nPour changer de plan de référence, cliquer sur sa coche.
 BEGIN4.fr	Contrôle par la souris:\n \n*Gauche: sélection des sources.\n*Milieu: déplacement du champ.\n*Droite: ajustement du contraste.\n*Molette: zoom sur le réticule.\n*Simple-clic: déplace le réticule\n*Double-clic: recentre la vue.\n \nPour découvrir les informations Simbad sur un objet, laissez dessus qq secondes le pointeur.
 BEGIN5.fr	Contrôle de base:\n \n- Saisissez un nom d'objet, des coordonnées pour vous déplacez dessus.\n \n- Sélectionnez des sources de catalogues afin de visualiser les mesures associées.\n \n- Visualiser simultanément plusieurs vues via le contrôle du"multivue".
+
+
+#For datalink pop-ups- default texts
+DATALINK_THISDATASET This dataset
+DATALINK_SERVICE Proc service
+DATALINK_CUTOUT Get cutout
+DATALINK_IMAGE Image
+DATALINK_METADATA Metadata
+DATALINK_MOREINFO More Info
+DATALINK_HIPS Hips
+
+#For SIAv2 simple readable column labels
+t_min Observation Starttime
+t_max Observation Endtime
+em_min Spectral coordinate start
+em_max Spectral coordinate end
+
+#glu error messages
+DATEFORMATINCORRECT Please specify date in a correct format: MJD or dd/mm/yyy HH:mm:ss. \nMultiple values are comma separated.
+PARSEMJDFIELDHINT Please enter comma separated Ex:Date1, Date2
+BANDFORMATINCORRECT Please enter band in correct format. Example: 1.5E-5  or 1.5M
+TARGETOUTOFBOUNDSMESSAGE Your target is outside bounds. Please verify.
+
+#tap menu configurations
+TAPFORMNAME	TAP1
+TAPFORMTITLE	Tap client
+TAPFORMINFO	Construct your query, verify and execute.
+SELECTSERVERTOOLTIP List of tap server that can be loaded...
+TAPFORMDESC	Access TAP servers via Aladin by filling the "Server selector" form. \nYou can write your tap query in the large white text area at the bottom of the panel\nor use the gui to generate the desired query: \nFirst, select the table you want from the "Table" dropdown at the top. \nSelect the columns to be displayed from the select list on the left.\nClick on "Add new" button to add column constraints.\n   The new contraint will be populated right next to the columns list. \nSet constraint value and click on "Refresh query" button (above the large white text area).\nFor position constraints:In case there is no default ra and dec columns, then no position contraint gui will appear. In this case (or to set other ra,dec): click on the "Set ra,dec" button(next to the tables dropdown).To add position constraints click on "Add" button.\nNew position contraints are also populated right next to the columns list. You can set values or delete constraints with the "X" button. \nOnce you are ready, click the "Refresh query" button to generate the query. You can then verify the query for correctness with the "Check" button and then on "Submit"(at the bottom) to get the results.\n\nThe metadata from the tap schema of the server is shown in this panel(Server status report). In case the metainfo of a particular table is unavailable, select the particular table on the gui in the "Table" dropdown. The new info will be refreshed here.
+TARGETERROR Please check target co-ordinates!
+SELECTSERVERLABEL Select server
+SELECTASYNCPANELLABEL Async jobs
+
+TAPTABLEJOINTIP Join table
+TAPTABLEJOINTIP.fr Join table --configure message
+TAPTABLEUPLOADPARSETIP Load this data on the gui. 
+TAPTABLEUPLOADTIP Upload table. 
+TAPTABLENOUPLOADTIP No table uploads are available for this server
+TAPTABLEUPLOADTIP.fr Upload table.  --configure message
+TAPTABLENOUPLOADTIP.fr No table uploads are available for this server	--configure message
+TIPCLICKTOADD Click to add
+TIPCLICKTOADD.fr Click to add --configure message
+TAPNOFILELOAD Please select a tapserver to load!
+TAPNOFILERELOAD Please select a tapserver to reload!
+ADDFILE Add file:
+GENERICERROR Error. Please try again later
+REFRESHQUERYTOOLTIP Regenerate query from above form.
+CHECKQUERYTOOLTIP Click to check the query below for syntax
+SYNCASYNCTOOLTIP You can choose how tap response is obtained by Aladin: synchronously or asynchronously. Choose ASYNC for jobs you know take longer to run.
+SHOWASYNCTOOLTIP Click to see the asynchronous job panel
+CHECKQUERY_SUCCESS Your constructed query has valid syntax!
+CHECKQUERY_ISBLANK Please generate/write a query
+NOTAPSERVERSCONFIGUREDMESSAGE No tap servers configured.
+TAPRETRY Retry
+TAPTIPRETRY Click to retry loading the tap services on this server
+TAPURLCLIENTFIELDLABEL Provide a TAP server URL
+TAPURLCLIENTFILTERLABEL Or choose from below servers. 
+TAPGLUGENTOGGLEBUTTONTOOLTIP Toggle between generic and glu tap forms
+CHANGESERVERTOOLTIP Choose a different tap server
+
+# FrameUploadServer.java strings
+UPTITLE	Upload tables
+UPFILEINFO Choose either your local system file or an already loaded file in Aladin.
+UPTITLE.fr	Upload serveur
+DISCARD	Discard table
+DISCARDALL Discard all
+DISCARDTIP Click to discard the parsed table currently selected in the tables dropdown
+DISCARDALLTIP Click to discard all of the parsed tables
+NOTABLELOADEDMESSAGE Load new table to populate the gui!
+ALLDISCARDEDINFOMESSAGE All that were loaded are now discarded.
+
+#UWS
+JOBERRORTOOLTIP Error in query execution, please check job summary for more details
+JOBNOTFOUNDMESSAGE Unable to continue execution because job is no longer found on server. please try again
+SELECTASYNCPANELTOOLTIP See all async jobs or load your old tap jobs
+UWSNOJOBMESSAGE No jobs from the active session. \nThis panel will show the queries submitted from the TAP form with an "ASYNC" option selected.
+CANTSTARTJOB Unable to start the job. please try again later.
+STANDARDRESULTSLOAD Load Results
+STANDARDRESULTSLOADTIP Loads results from "/results/result" path
+UWSASKLOADDEFAULTRESULTS Unable to parse results url. Try to download from the tap results path?
+CANTABORTJOB Unable to abort the job. please try again later.
+UWSJOBRADIOTOOLTIP Click to load job details

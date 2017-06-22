@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -160,7 +161,7 @@ public class PlanImageAlgo extends PlanImage {
          Util.pause(500);
          Aladin.trace(4,"PlanImageAlgo.normalise:  waiting "+p+"...");
       }
-      return (PlanImage)p1;
+      return p1;
    }
    
        
@@ -264,7 +265,6 @@ public class PlanImageAlgo extends PlanImage {
             if( y % 100 == 0 ) {
                if( type==NO ) break;  // En cas de suppression inopinée du plan
                pourcent=x*y * 100 / p1.getBufPixels8().length;
-               if( Aladin.isSlow ) Util.pause(10);
             }
          }
          bZero=pMin-minCoding;
@@ -336,7 +336,6 @@ public class PlanImageAlgo extends PlanImage {
                if( y % 100 == 0 ) {
                   if( type==NO ) break;  // En cas de suppression inopinée du plan
                   pourcent=x*y * 100 / p1.getBufPixels8().length;
-                  if( Aladin.isSlow ) Util.pause(10);
                }
             }
          }
@@ -443,7 +442,6 @@ public class PlanImageAlgo extends PlanImage {
             if( y % 100 == 0 ) {
                if( type==NO ) break;  // En cas de suppression inopinée du plan
                pourcent=x*y * 100 / p1.getBufPixels8().length;
-               if( Aladin.isSlow ) Util.pause(10);
             }
          }
       }
@@ -498,7 +496,6 @@ public class PlanImageAlgo extends PlanImage {
          if( y % 100 == 0 ) {
             if( type==NO ) break;  // En cas de suppression inopinée du plan
             pourcent= (gap+(y*width)/2) * 100 / inPixels.length;
-            if( Aladin.isSlow ) Util.pause(10);
          }
       }
    }

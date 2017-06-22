@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,11 +19,11 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Image;
@@ -531,7 +533,7 @@ Runnable, SwingWidgetFinder, Widget {
 
       // Recherche du plan clique
       if( (currentPlan = getPlan(y))==null ) return;
-
+      
       // Par defaut, memorisation de la position
       this.x=x; this.y=y;
       oldy=y; oldx=x;
@@ -808,7 +810,7 @@ Runnable, SwingWidgetFinder, Widget {
          }
 
          // thomas
-         if( p.isCatalog() && p.active)  PlanFilter.updatePlan(p);
+//         if( p.isCatalog() && p.active)  PlanFilter.updatePlan(p);
       }
       return true;
    }
@@ -907,6 +909,9 @@ Runnable, SwingWidgetFinder, Widget {
 
       // Recherche du plan clique
       currentPlan = p;
+      
+      // On montre la branche associée si c'est possible
+      if( s.inLabel(x) ) a.directory.showTreeObj( currentPlan.id );
 
       Plan [] allPlan = a.calque.getPlans();
 
@@ -1272,7 +1277,7 @@ Runnable, SwingWidgetFinder, Widget {
       String s = BEGIN[begin];
       lastBegin=begin;
       if( s==null ) return;
-      int y= drawBeginnerHelp1(g,s,Aladin.MYBLUE,yMax);
+      int y= drawBeginnerHelp1(g,s,Aladin.COLOR_LABEL,yMax);
       //      drawControlHelp(g,y);
    }
 
@@ -1313,11 +1318,14 @@ Runnable, SwingWidgetFinder, Widget {
 
 
    private int drawBeginnerHelp1(Graphics g,String s,Color c,int yMax) {
-      int xMax=getWidth();
+      int x=10;
+      int xMax=getWidth()-x;
+      Font FI = Help.FI.deriveFont(Help.FI.getSize2D()-2);
+      Font FG = Help.FG.deriveFont(Help.FG.getSize2D()-2);
       g.setColor(c);
-      g.setFont(Aladin.BOLD);
-      FontMetrics fm = g.getFontMetrics();
-      int h=fm.getHeight();
+      g.setFont(FG);//Aladin.BOLD);
+      FontMetrics fm = g.getFontMetrics(FI);
+      int h=fm.getHeight()+1;
       boolean first=true;
       StringBuffer line = new StringBuffer();
       int w=0;
@@ -1325,38 +1333,41 @@ Runnable, SwingWidgetFinder, Widget {
       int y,y0 = 30;
       for( y=y0 ; y+3*h<yMax && st.hasMoreTokens(); y+=h ) {
          StringTokenizer st1 = new StringTokenizer(st.nextToken()," ");
+         boolean newLine=true;
          for( ; y<yMax && st1.hasMoreTokens(); ) {
             String s1 = st1.nextToken().trim();
+            if( s1.length()>0 ) newLine=false;
             int w1 = fm.stringWidth(" "+s1);
             if( w1+w>xMax ) {
-               drawString(g,line.toString(),5,y);
+               drawString(g,line.toString(),x,y);
                y+=h;
                line = new StringBuffer(s1);
                w=0;
-               if( first ) { first=false; g.setFont(Aladin.PLAIN); }
+               if( first ) { first=false; g.setFont(FI); }
             } else line.append( (line.length()>0 ? " ":"")+s1);
             w+=w1;
          }
          if( y<yMax && line.length()>0 ) {
-            drawString(g,line.toString(),5,y);
+            drawString(g,line.toString(),x,y);
             line = new StringBuffer();
             w=0;
          }
-         if( first ) { first=false; g.setFont(Aladin.PLAIN); }
+         if( first ) { first=false; g.setFont(FI); }
+         if( newLine ) y-=h/2;
       }
 
       // Bordure en marge gauche si on a écrit au-moins une ligne
-      if( !first ) {
-         g.setColor( Color.lightGray );
-         g.drawLine(2,y0-10,2,y);
-      }
+//      if( !first ) {
+//         g.setColor( Color.lightGray );
+//         g.drawLine(2,y0-10,2,y);
+//      }
 
       return y;
    }
 
    private void drawString(Graphics g,String s,int x, int y) {
       if( s.length()==0 ) return;
-      if( s.charAt(0)=='*' ) { Util.drawCircle5(g, x+2, y-4); g.drawString(s.substring(1),x+7,y); }
+      if( s.charAt(0)=='*' ) { Util.fillCircle5(g, x+2, y-4); g.drawString(s.substring(1),x+7,y); }
       else g.drawString(s,x,y);
    }
 
@@ -1555,7 +1566,7 @@ Runnable, SwingWidgetFinder, Widget {
       g.clipRect(2,2,ws-3,hs-3);
 
       // AntiAliasing
-      a.setAliasing(g);
+      a.setAliasing(g,Aladin.ALIASING);
 
       Plan [] plan = a.calque.getPlans();
       // Determination du premier plan image (opaque)

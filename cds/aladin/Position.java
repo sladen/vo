@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -44,8 +45,8 @@ public class Position extends Obj {
    // Les autres constantes
    static final int DS  = 4;         // Taille des poignees de selection
    static final int DDS = DS*2;      // Decalage du aux poignees de selection
-   static final int HF  = Aladin.SSIZE;
-   static final Font DF = Aladin.SBOLD;
+   static final int HF  = Aladin.SIZE;
+   static final Font DF = Aladin.BOLD;
 
    protected double x,y;        // Position initiale de l'objet en X,Y (soit catalogue sans coordonnée, soit graphique sans calib)
    protected double xv[],yv[];   // Position de l'objet pour chaque vue
@@ -600,10 +601,15 @@ public class Position extends Obj {
       
       if( zoom>2 ) {
          Point p = v.getViewCoord(x+0.5,y+0.5);
-        if( Double.isNaN(pix) ) g.setColor(Color.orange);
-         else g.setColor(Color.red);
-         if( zoom>4 ) Util.fillCircle5(g, p.x, p.y);
-         else Util.fillCircle2(g, p.x, p.y);
+         if( !Double.isNaN(pix) ) {
+            g.setColor( col );
+            if( zoom>4 ) Util.fillCircle5(g, p.x, p.y);
+            else Util.fillCircle2(g, p.x, p.y);
+         }
+//         if( Double.isNaN(pix) ) g.setColor(Color.orange);
+//         else g.setColor(Color.red);
+//         if( zoom>4 ) Util.fillCircle5(g, p.x, p.y);
+//         else Util.fillCircle2(g, p.x, p.y);
       }
       g.setColor(col);
       
@@ -636,10 +642,15 @@ public class Position extends Obj {
       
       if( pixelSize>4 ) {
          Point p = v.getViewCoord(coo.x,coo.y);
-         if( Double.isNaN(pix) ) g.setColor(Color.orange);
-         else g.setColor(Color.red);
-         if( pixelSize>8 ) Util.fillCircle5(g, p.x, p.y);
-         else Util.fillCircle2(g, p.x, p.y);
+         if( !Double.isNaN(pix) ) {
+            g.setColor( col );
+            if( pixelSize>8 ) Util.fillCircle5(g, p.x, p.y);
+            else Util.fillCircle2(g, p.x, p.y);
+         }
+//         if( Double.isNaN(pix) ) g.setColor(Color.orange);
+//         else g.setColor(Color.red);
+//         if( pixelSize>8 ) Util.fillCircle5(g, p.x, p.y);
+//         else Util.fillCircle2(g, p.x, p.y);
       }
       g.setColor(col);
       

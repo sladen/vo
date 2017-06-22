@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -70,7 +71,7 @@ public final class ServerFolder extends Server implements
       menu = new Vector();
       menu.addElement(NOTHING);
       m = Toolkit.getDefaultToolkit().getFontMetrics(Aladin.PLAIN);
-      backGround =Aladin.LBLUE;
+      backGround =Aladin.COLOR_CONTROL_BACKGROUND;
       
       addMouseMotionListener(this);
       addMouseListener(this);
@@ -150,7 +151,7 @@ public final class ServerFolder extends Server implements
       int yc=y+MARGE;
       g.setColor(Aladin.BLUE);
       g.fillRect(0,0,getWidth(),getHeight());
-      g.setColor(Aladin.LBLUE);
+      g.setColor(Aladin.COLOR_CONTROL_BACKGROUND);
       g.fillRect(x,y,W,H);
       for( int i=0; e.hasMoreElements(); i++ ) {
          if( i==choix ) {

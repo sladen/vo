@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -87,8 +89,11 @@ public class PlanImage extends Plan {
    // Type de table des couleurs supportees
    static final public int CMGRAY = 0;
    static final public int CMBB   = 1;
-   static final public int CMA    = 2;
-   static final public int CMSTERN= 3;
+   static final public int CMRED  = 2;
+   static final public int CMGREEN= 3;
+   static final public int CMBLUE = 4;
+   static final public int CMA    = 5;
+   static final public int CMSTERN= 6;
 
    // modes video possibles
    public static final int VIDEO_NORMAL  = 0;  // Video mode normal
@@ -147,7 +152,7 @@ public class PlanImage extends Plan {
    protected double dataMaxFits=0.;   // La valeur DATAMAX indiquée dans l'enête FITS (si elle existe)
    protected double dataMin,dataMax;  // Plus grande et plus petite valeur de pixel effectivement trouvée
    // (après suppression des pixels erronés) - sans prendre en compte BSACLE et BZERO
-   protected double pixelMin,pixelMax;// Les min et max des cuts - sans prendre en compte BSACLE et BZERO
+   protected double pixelMin,pixelMax;// Les min et max des cuts - sans prendre en compte BSCALE et BZERO
    protected boolean isBlank=false;   // True s'il y a une valeur consideree comme BLANK
    protected double blank;            // La valeur BLANK si elle existe
    public double bZero;            // La valeur BZERO si elle existe
@@ -480,7 +485,7 @@ public class PlanImage extends Plan {
       return true;
    }
 
-   static int id=0;
+//   static int id=0;
 
    /** Duplication du Plan (et de ses paramètres)
     * @param p1 le plan à copier
@@ -2413,7 +2418,7 @@ public class PlanImage extends Plan {
    }
 
    /** retourne la description du mode graphique */
-   protected String getPixModeInfo() { return PIX_MODE[ pixMode ]; }
+   protected String getPixModeInfo() { return pixMode<0 ? "" : PIX_MODE[ pixMode ]; }
 
    /** Retourne la chaine d'explication de la taille et du codage de l'image
     * d'origine */

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -21,6 +23,7 @@ package cds.fits;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -28,8 +31,10 @@ import java.util.Hashtable;
 import java.util.Map;
 
 import cds.aladin.Aladin;
+import cds.allsky.CacheFitsWriter;
 import cds.allsky.Constante;
 import cds.allsky.Context;
+import cds.allsky.MyInputStreamCachedException;
 import cds.tools.Util;
 
 
@@ -147,8 +152,8 @@ public class CacheFits {
     * @return l'objet Fits
     * @throws Exception
     */
-   public Fits getFits(String fileName) throws Exception { return getFits(fileName,FITS,true,true); }
-   public Fits getFits(String fileName,int mode,boolean flagLoad,boolean keepHeader) throws Exception {
+   public Fits getFits(String fileName) throws Exception,MyInputStreamCachedException { return getFits(fileName,FITS,true,true); }
+   public Fits getFits(String fileName,int mode,boolean flagLoad,boolean keepHeader) throws Exception,MyInputStreamCachedException {
       if( cacheOutOfMem )  return open(fileName,mode,flagLoad,keepHeader).fits;
 
 //      synchronized( lockObj  ) {
@@ -193,7 +198,7 @@ public class CacheFits {
    }
 
    // Ajoute un fichier Fits au cache. Celui-ci est totalement chargé en mémoire
-   private FitsFile add(String name,int mode,boolean flagLoad,boolean keepHeader) throws Exception {
+   private FitsFile add(String name,int mode,boolean flagLoad,boolean keepHeader) throws Exception,MyInputStreamCachedException {
       FitsFile f = open(name,mode,flagLoad,keepHeader);
       map.put(name, f);
       return f;
@@ -207,7 +212,7 @@ public class CacheFits {
    private boolean firstChangeOrig=true;
 
    // Ouvre un fichier
-   private FitsFile open(String fileName,int mode,boolean flagLoad,boolean keepHeader) throws Exception {
+   private FitsFile open(String fileName,int mode,boolean flagLoad,boolean keepHeader) throws Exception,MyInputStreamCachedException {
       boolean flagChangeOrig=false;
 
       // Le fichier existe-t-il ? (suppression d'une éventuelle extension [x,y-wxh]
@@ -385,6 +390,12 @@ public class CacheFits {
                   FitsFile f = map.get(key);
                   map1.put(key,f);
                }
+               
+               // Obligatoire d'appeler le remove dans le cas d'un cacheFitsWriter
+               if( this instanceof CacheFitsWriter ) {
+                  for( String key: libere.keySet() ) try { remove(key); } catch( Exception e ) {}
+               }
+               
                map=map1;
 
                //         Enumeration<String> e = map.keys();
@@ -413,7 +424,7 @@ public class CacheFits {
          String s1 = i>1 ? "s":"";
          long freeRam = getFreeMem();
          if( context!=null ) {
-            context.stat("Cache: freeRAM="+Util.getUnitDisk(freeMem)+" => "+nb+" files removed ("+Util.getUnitDisk(totMem)+") in "+i+" step"+s1+" in "+Util.getTemps(duree)
+            context.stat("Cache: freeRAM="+Util.getUnitDisk(freeMem)+" => "+nb+" files released ("+Util.getUnitDisk(totMem)+") in "+i+" step"+s1+" in "+Util.getTemps(duree)
             +" => freeRAM="+Util.getUnitDisk(freeRam));
          }
       }
@@ -422,12 +433,15 @@ public class CacheFits {
    // Reset totalement le cache
    public void reset() {
       statNbFree+=map.size();
-      map.clear();
-//      Enumeration<String> e = map.keys();
-//      while( e.hasMoreElements() ) {
-//         String key = e.nextElement();
-//         try { remove(key); } catch( Exception e1 ) { }
-//      }
+      
+      if( this instanceof CacheFitsWriter ) {
+         ArrayList<String> a = new ArrayList<String>(map.size());
+         for( String key: map.keySet() ) a.add(key);
+         for( String key: a ) {
+            try { remove(key); } catch( Exception e1 ) { }
+         }
+         
+      } else map.clear();
 
       gc();
    }
@@ -690,7 +704,7 @@ public class CacheFits {
             +" using "+Util.getUnitDisk(getMem())
             +(maxMem>0 ? "/"+Util.getUnitDisk(maxMem):"["+Util.getUnitDisk(maxMem)+"]")
             +" freeRAM="+Util.getUnitDisk(getFreeMem())
-            +" (open="+statNbOpen+" find="+statNbFind+" remove="+statNbFree+")";
+            +" (opened="+statNbOpen+" found="+statNbFind+" released="+statNbFree+")";
    }
 
    // retourne le nombre de fichier dans le cache dont le bloc mémoire pixel[]
@@ -761,7 +775,7 @@ public class CacheFits {
    static long lastMem=0;
 
    /** Retourne le nombre d'octets disponibles en RAM */
-   public long getFreeMem() {
+  static public long getFreeMem() {
       //      long t1 = System.nanoTime();
       //      if( t1-lastTimeMem<100000 ) return lastMem;
       lastMem = Runtime.getRuntime().maxMemory()-

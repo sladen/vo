@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -826,9 +827,6 @@ public class UCDFilter {
 
 			for (int i = sources.length - 1; i >= 0; i--) {
 
-				// Pour laisser la main aux autres threads
-				if (Aladin.isSlow && i % 50 == 0) Util.pause(10);
-
 				if (verifyValueConstraints(sources[i], curBlock)) {
 
 					sources[i].setSelect(true);
@@ -909,7 +907,6 @@ public class UCDFilter {
 				// maj du pourcentage
 				pf.setPourcent(100.0*((double)(nbSources-i)/(double)(nbSources)));
 				//System.out.println(pf.pourcent);
-				if( Aladin.isSlow ) Util.pause(10);
 			}
 
             // should we stop the processing

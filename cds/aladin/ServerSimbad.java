@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,16 +19,13 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.image.*;
-import java.net.*;
-import java.io.*;
-import java.util.*;
+import java.awt.Dimension;
+import java.net.URL;
 
-import javax.swing.*;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
 
 import cds.aladin.prop.Filet;
 
@@ -306,7 +305,8 @@ public class ServerSimbad extends Server  {
       
       String s = Glu.quote(target)+" "+Glu.quote(radius);
 
-      if( label==null ) label=getNom();
+//      if( label==null ) label=getNom();
+      label = getDefaultLabelIfRequired(label,"CDS/Simbad");
 
       if( (u=aladin.glu.getURL(getTagGlu(),s))==null ) {
          ball.setMode(Ball.HS);

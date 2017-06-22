@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -223,7 +224,7 @@ public final class Search extends JPanel implements MouseListener {
          public void run() {
             for( int i=0; i<3; i++ ) {
                text.setBackground(Color.green);
-               text.setForeground(Color.black);
+               text.setForeground(Aladin.COLOR_CONTROL_FOREGROUND);
                Util.pause(200);
                text.setBackground(def);
                text.setForeground(deff);
@@ -253,7 +254,7 @@ public final class Search extends JPanel implements MouseListener {
       oEnable=flag;
       text.setEnabled(flag);
       setColor( flag ? DEFAULT : DISABLE);
-      label.setForeground(flag?Aladin.DARKBLUE:Color.lightGray);
+      label.setForeground(flag?Aladin.COLOR_LABEL:Color.lightGray);
       if(aladin.mesure!=null ) flag=aladin.mesure.nbSrc>0;
       right.setEnabled(flag);
       left.setEnabled(flag);
@@ -268,8 +269,8 @@ public final class Search extends JPanel implements MouseListener {
 
    protected void setColor(int mode) {
       switch(mode) {
-         case IN:  text.setBackground( Color.white);
-         text.setForeground( Color.magenta);
+         case IN:  text.setBackground( Aladin.COLOR_BUTTON_BACKGROUND );
+         text.setForeground( Aladin.COLOR_BUTTON_FOREGROUND );
          break;
          case NO: text.setBackground( Color.red);
          text.setForeground( Color.white);
@@ -280,8 +281,8 @@ public final class Search extends JPanel implements MouseListener {
          case DISABLE: text.setBackground( getBackground() );
          text.setForeground( getBackground() );
          break;
-         default: text.setBackground( Color.white);
-         text.setForeground( Color.magenta);
+         default: text.setBackground( Aladin.COLOR_BUTTON_BACKGROUND );
+         text.setForeground( Aladin.COLOR_BUTTON_FOREGROUND );
       }
    }
 

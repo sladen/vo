@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -270,7 +271,7 @@ public class Chaine {
           atValue.addAttribute(StyleConstants.CharacterConstants.Foreground,Color.black);
           atValue.addAttribute(StyleConstants.CharacterConstants.Background,Color.white);
           atCom = new SimpleAttributeSet();
-          atCom.addAttribute(StyleConstants.CharacterConstants.Foreground,Aladin.GREEN);
+          atCom.addAttribute(StyleConstants.CharacterConstants.Foreground,Aladin.COLOR_GREEN);
           atCom.addAttribute(StyleConstants.CharacterConstants.Background,Color.white);
           atLang = new SimpleAttributeSet();
           atLang.addAttribute(StyleConstants.CharacterConstants.Foreground,new Color(127,0,85));

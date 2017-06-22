@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -314,7 +316,8 @@ public class ServerVizieRMission extends Server  {
       criteria = specialUnQuoteCriteria(criteria);
 
       String catalogs=criteria;	// EN PREMIERE APPOCHE...
-      if( label==null ) label=catalogs;
+//      if( label==null ) label=catalogs;
+      label = getDefaultLabelIfRequired(label,catalogs);
       return creatArchivePlane(target,radius,catalogs,label,origin,cbGetAll.isSelected());
    }
 
@@ -510,7 +513,7 @@ public class ServerVizieRMission extends Server  {
                    aladin.execAsyncCommand("'"+cata+" MOC'=get File("+u+")");
                 
                 // Chargement de la carte de densité
-                } else if( action.equals(CATDMAP) ) aladin.calque.newPlanDMap(cata);
+                } else if( action.equals(CATDMAP) ) aladin.calque.newPlanDMap(cata,cata);
                 
                 defaultCursor();
                 return;

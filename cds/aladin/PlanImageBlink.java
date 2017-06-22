@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -442,7 +443,6 @@ public class PlanImageBlink extends PlanImage {
                // et pouvoir afficher le changement de pourcentage
                if( (i * p.length) % 10000 == 0 ) {
                   setPourcent(i * 100 / taille);
-                  if( Aladin.isSlow ) Util.pause(10);
                }
             }
          }

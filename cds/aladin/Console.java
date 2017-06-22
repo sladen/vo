@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -513,7 +514,7 @@ public final class Console extends JFrame implements ActionListener,KeyListener,
          Command c = cmdHistory.elementAt(row);
          Color color = Color.red;
          if( c.type==CMD ) color=Color.black;
-         else if( c.type==INFO ) color=Aladin.GREEN;
+         else if( c.type==INFO ) color=Aladin.COLOR_GREEN;
          
          cell.setForeground(color);
          cell.setFont(cell.getFont().deriveFont( col==DESC ? Font.BOLD : Font.PLAIN) );

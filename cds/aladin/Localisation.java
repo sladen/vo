@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -180,7 +181,7 @@ public class Localisation extends MyBox  {
 
       text.requestFocusInWindow();
    }
-
+   
    boolean first=true;
    int posHist=-1;
 
@@ -330,11 +331,11 @@ public class Localisation extends MyBox  {
          Color deff = text.getForeground();
          public void run() {
             flagReadyToClear=true;
-            text.setBackground(Color.white);
+            text.setBackground( Aladin.COLOR_TEXT_BACKGROUND );
             for( int i=0; i<3 && aladin.calque.isFree() && !flagStopInfo ; i++ ) {
                if( !flagStopInfo ) {
                   text.setText("");
-                  text.setForeground(Color.gray);
+                  text.setForeground( Color.black );
                   myPause(100);
                }
                if( !flagStopInfo ) {
@@ -348,6 +349,7 @@ public class Localisation extends MyBox  {
             }
             text.setText("");
             text.setForeground(deff);
+            text.setBackground(def);
             text.setFont(text.getFont().deriveFont(Font.BOLD));
             text.requestFocusInWindow();
          }
@@ -370,13 +372,13 @@ public class Localisation extends MyBox  {
          }
       });
       c.setPrototypeDisplayValue(new Integer(100000));
+      c.setMaximumRowCount(REPERE.length);
       c.setFont(F);
       int n = Aladin.BETA ? REPERE.length : REPERE.length-2;
       for( int i=0; i<n; i++ ) c.addItem(REPERE[i]);
       //      else for( int i=0; i<REPERE.length-1; i++ ) c.addItem(REPERE[i]);
       c.setSelectedIndex(ICRS);
       previousFrame=ICRS;
-      c.setMaximumRowCount(REPERE.length);
       return c;
    }
 
@@ -529,6 +531,7 @@ public class Localisation extends MyBox  {
    private String lastPosition="";
    protected String getLastPosition() { return lastPosition; }
    protected Coord getLastCoord() { return coo; }
+   protected Coord getLastCoordInCurrentFrame() { return ICRSToFrame(coo); }
    protected void setLastCoord(double ra,double dec) { coo=new Coord(ra,dec); }
 
    static final Astroframe AF_FK4 = new FK4();
@@ -573,6 +576,17 @@ public class Localisation extends MyBox  {
       c.del= cTmp.getLat();
       return c;
    }
+   
+//   public static void main( String []s ) {
+//      Coord c = new Coord();
+//      c.al  = 189.9976249999999;
+//      c.del = -11.62305555555556;
+//      System.out.println("ICRS => "+c);
+//      c = frameToFrame(c,Localisation.ICRS, Localisation.GAL);
+//      System.out.println("GAL => "+c);
+//      c = frameToFrame(c,Localisation.GAL, Localisation.ICRS);
+//      System.out.println("ICRS => "+c);
+//   }
 
    protected Coord ICRSToFrame(Coord c) {
       if( frame==ICRS || frame==ICRSD ) return c;
@@ -623,13 +637,13 @@ public class Localisation extends MyBox  {
                || frameTarget==ECLIPTIC || frameTarget==GAL || frameTarget==SGAL )?
                      aft.toString("2d"):aft.toString("2s");
 
-                     //if( frameSource!=frameTarget ) {
-                     //   System.out.println("convert ["+coo+"]/"+Localisation.REPERE[frameSource]+"  => ["+s+"]/"+Localisation.REPERE[frameTarget]);
-                     ////try { throw new Exception("convert"); } catch(Exception e) { e.printStackTrace(); }
-                     //}
+//        if( frameSource!=frameTarget ) {
+//           System.out.println("convert ["+coo+"]/"+Localisation.REPERE[frameSource]+"  => ["+s+"]/"+Localisation.REPERE[frameTarget]);
+//        }
 
-                     if( s.indexOf("--")>=0 ) return "";
-                     return s;
+        if( s.indexOf("--")>=0 ) return "";
+        return s;
+        
       } catch( Exception e ) { return coo; }
    }
 

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -69,7 +71,7 @@ public class MetaDataTree extends BasicTree implements SwingWidgetFinder, KeyLis
 	// chaines nécessaires
 	static String NOLOC,NOIMG,IMAGE,NOSPEC,NOSPEC1,BADURL,ERRSPEC, OPENWITH, PLASTICAPPS;
 
-	protected static final Color[] LABEL_COL = {Aladin.BKGD, new Color(249,188,97), new Color(208,160,224), new Color(192,229,107), new Color(255,124,116), new Color(127,183,255)};
+	protected static final Color[] LABEL_COL = {Aladin.COLOR_BUTTON_BACKGROUND, new Color(249,188,97), new Color(208,160,224), new Color(192,229,107), new Color(255,124,116), new Color(127,183,255)};
 
 	protected static Color[] LABEL_COL1;
 	protected static Color[] LABEL_COL2;
@@ -347,7 +349,7 @@ public class MetaDataTree extends BasicTree implements SwingWidgetFinder, KeyLis
 		drawPreCheckBox(h,node.x-XSPACE, node.y, node, true);
 
 		int lineLength = h.getFontMetrics().stringWidth(getName(node));
-		h.setColor(Aladin.LBLUE);
+		h.setColor(Aladin.COLOR_CONTROL_BACKGROUND);
 		h.fillRect( node.x-1,(node.y/YSPACE)*YSPACE,
 		            lineLength+2,YSPACE);
 		if( node.equals(lastInfoNode) ) h.setFont(boldNameFont);

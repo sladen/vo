@@ -1,26 +1,32 @@
-// Copyright 2011 - UDS/CNRS
-// The MOC API project is distributed under the terms
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
+// The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
-//This file is part of MOC API java project.
+//This file is part of Aladin.
 //
-//    MOC API java project is free software: you can redistribute it and/or modify
+//    Aladin is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU General Public License as published by
 //    the Free Software Foundation, version 3 of the License.
 //
-//    MOC API java project is distributed in the hope that it will be useful,
+//    Aladin is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU General Public License for more details.
 //
 //    The GNU General Public License is available in COPYING file
-//    along with MOC API java project.
+//    along with Aladin.
 //
+
 package cds.mocmulti;
 
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 import java.util.TimeZone;
 
 public class Unite {
@@ -72,6 +78,41 @@ public class Unite {
       double x = val+rest/1024.;
       return (neg?"-":"")+nf.format(x)+unites[unit];
    }
+
+   static DecimalFormat DF;
+   static {
+      DF = new DecimalFormat();
+      DF.setDecimalFormatSymbols(new DecimalFormatSymbols(Locale.US));
+      DF.setGroupingSize(0);
+   }
+
+   /** Arrondi intelligemment */
+   static final public String myRound(double x) {
+
+      // cas particulier de la notation scientifique
+      String s = x+"";
+      int posV; // position de la virgule
+      int posE; // position de l'exposant
+      if( (posE=s.indexOf('E'))>0 ) {
+         if( (posV=s.indexOf('.'))>0) {
+            if( posV+4>posE ) return s;   // déjà pas bcp de décimales
+            return s.substring(0,posV+4)+s.substring(posE);
+         }
+      }
+
+      // cas général
+      double y = Math.abs(x);
+      if( y>1000 ) DF.setMaximumFractionDigits(0);
+      else if( y>100 ) DF.setMaximumFractionDigits(1);
+      else if( y>10 ) DF.setMaximumFractionDigits(2);
+      else if( y>1 ) DF.setMaximumFractionDigits(3);
+      else if( y>0.1 ) DF.setMaximumFractionDigits(4);
+      else if( y>0.01 ) DF.setMaximumFractionDigits(5);
+      else DF.setMaximumFractionDigits(6);
+
+      return DF.format(x);
+   }
+
 
 
 }

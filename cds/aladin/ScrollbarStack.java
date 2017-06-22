@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,7 +19,6 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
 /**
@@ -35,8 +36,10 @@ public final class ScrollbarStack extends MyScrollbar {
    ScrollbarStack(Aladin aladin,int orientation,int value,int visible,int min,int max) {
       super(orientation,value,visible,min,max);
       this.aladin=aladin;
-   }
       
+      if( Aladin.DARK_THEME ) setUI(new MyScrollBarUI());
+   }
+   
    /** Retourne le numéro de plan qui correspond à la scrollbar vertical (en bas) */
    protected int getLastVisiblePlan() {  
       if( calque==null ) {

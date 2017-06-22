@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -552,12 +553,12 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
 
       // Affichage de l'etat
       if( !plan.flagOk ) {
-         JLabel l = new JLabel();
+         MyAnchor l;
          String titre;
+         if( plan.error!=null ) { titre = ERROR; l = new MyAnchor(aladin,null,40,plan.error,null); }
+         else { titre = STATE; l = new MyAnchor(aladin,null,40,UNDER,null); }
          l.setForeground( Color.red );
          l.setFont(l.getFont().deriveFont(Font.BOLD));
-         if( plan.error!=null ) { titre = ERROR; l.setText(plan.error); }
-         else { titre = STATE; l.setText(UNDER); }
          PropPanel.addCouple(p,titre, l, g,c );
       }
 
@@ -913,12 +914,14 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
                PropPanel.addFilet(p, g, c);
                PropPanel.addCouple(p, CURRENTFIELD, new JLabel(ph.tfieldNames[ph.idxTFormToRead]), g, c);
             }
+            
+            boolean hasPolarisationData = ph.hasPolarisationData();
 
-            if( ph.hasPolarisationData() || ph.tfieldNames.length>1 ) {
+            if( hasPolarisationData || ph.tfieldNames.length>1 ) {
                PropPanel.addFilet(p, g, c);
             }
             // bouton pour demander affichage de la polarisation
-            if (ph.hasPolarisationData()) {
+            if (hasPolarisationData) {
                JPanel pPola = new JPanel(new GridLayout(0, 1));
                btnDisplayPola = new JButton(DISPLAYPOLA);
                btnDisplayPola.addActionListener(this);
@@ -1684,7 +1687,7 @@ public class Properties extends JFrame implements ActionListener, ChangeListener
          param.append("$RADIUS");
       }
       String param1 = param.length()>0 ? param.toString() : null;
-      fb.createNewBookmark(name,param1,"Load "+plan.label+(param1!=null?"":" on current position"), code);
+      fb.createNewBookmark(name,param1,"Load "+plan.label+(param1!=null?"":" on the view"), code);
    }
 
    private void apply() {

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,23 +19,38 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
+import static cds.aladin.Constants.ACCESSFORMAT_UCD;
+import static cds.aladin.Constants.ACCESSURL;
+import static cds.aladin.Constants.CONTENTTYPE;
+import static cds.aladin.Constants.CONTENT_TYPE_TEXTHTML;
+import static cds.aladin.Constants.DATATYPE_DATALINK;
+import static cds.aladin.Constants.SEMANTICS;
+import static cds.aladin.Constants.SEMANTIC_ACCESS;
+import static cds.aladin.Constants.SEMANTIC_CUTOUT;
+import static cds.aladin.Constants.SEMANTIC_PROC;
 
 import java.awt.BorderLayout;
 import java.awt.Graphics;
 import java.awt.Scrollbar;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.Vector;
 
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 
 import cds.tools.Util;
 import cds.xml.Field;
@@ -64,14 +81,23 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
    static private int MAXBLOC = 100000;
    protected Source src[] = new Source[DEFAULTBLOC];   // Sources gérées
    protected int nbSrc=0;                            // Nb de sources gérées
-   protected FrameMesureAjeter f=null;
+   protected FrameMesure f=null;
 
    // Mémorisation des WordLines qui ont été affichées dans MCanvas afin
    // d'éviter de les regénérer à chaque fois et de perdre du coup
    // les paramètres associées au tracé (position, hauteur et largeur)
    private Hashtable memoWL = new Hashtable(DEFAULTBLOC);
    private JButton cross;
-
+   
+   protected DatalinkManager datalinkManager;
+   public Words activeDataLinkWord = null;
+   public Source activeDataLinkSource = null;
+   public  SimpleData activeDataLinkGlu;
+   
+   JPopupMenu additionalServiceMenu;
+   int datalinkshowX = -1;
+   int datalinkshowY= -1;
+   
    /** Creation du JPanel des mesures.
     * Il s'agit de creer MCanvas et la scrollV associee
     * @param aladin Reference
@@ -84,14 +110,20 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
       scrollV.addAdjustmentListener(mcanvas);
       scrollH.addAdjustmentListener(mcanvas);
       status = new Status(aladin,"");
+      status.setBackground( aladin.getBackground());
       flagSplit=false;
 
-      haut = new JPanel();
-      haut.setLayout( new BorderLayout(2,2) );
-      Aladin.makeAdd(haut,status,"Center");
       search = new Search(aladin,false); search.setEnabled(true);
+      search.setBackground( aladin.getBackground() );
+      haut = new JPanel();
+      haut.setBackground( aladin.getBackground() );
+      haut.setLayout( new BorderLayout(2,2) );
+      haut.add(status,BorderLayout.CENTER);
+//      Aladin.makeAdd(haut,status,"Center");
       JPanel x = new JPanel(); x.add(search);
-      Aladin.makeAdd(haut,x,"East");
+      x.setBackground( aladin.getBackground() );
+//      Aladin.makeAdd(haut,x,"East");
+      haut.add(x,BorderLayout.EAST);
 
       //       cross = new JButton(new ImageIcon(aladin.getImagette("Out.gif")));
       //       cross.setMargin(new Insets(0,0,0,0));
@@ -106,21 +138,113 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
 //      est.add(scrollV,BorderLayout.CENTER);
 
       setLayout( new BorderLayout(0,0) );
-      Aladin.makeAdd(this,haut,"North" );
-      Aladin.makeAdd(this,mcanvas,"Center");
-      Aladin.makeAdd(this,scrollV/* est*/,"East");
-      Aladin.makeAdd(this,scrollH,"South");
+      setBackground( aladin.getBackground() );
+      add(haut,BorderLayout.NORTH);
+      add(mcanvas,BorderLayout.CENTER);
+      add(scrollV,BorderLayout.EAST);
+      add(scrollH,BorderLayout.SOUTH);
+      
       haut.setVisible(false);
 
       MFSEARCH=aladin.chaine.getString("MFSEARCH");
       //       MFSEARCHINFO=aladin.chaine.getString("MFSEARCHINFO");
       MFSEARCHO=aladin.chaine.getString("MFSEARCHO");
       MFSEARCHBAD=aladin.chaine.getString("MFSEARCHBAD");
+      
+      this.datalinkManager = new DatalinkManager();
    }
+   
+   /**
+	* Method to display a datalink pop-up for the particular dataset user hovers on
+	* @param datalinksInfo
+	*/
+   public void datalinkPopupShow(List<SimpleData> datalinksInfo) {
+	   
+		if (Aladin.BETA && aladin.mesure.isEnabledDatalinkPopUp) {//TODO tintinproto
+
+			if (datalinksInfo != null && !datalinksInfo.isEmpty()) {
+				aladin.makeCursor(mcanvas, Aladin.DEFAULTCURSOR);
+				createAdditionalServiceMenu(datalinksInfo);
+				additionalServiceMenu.show(this, this.datalinkshowX, this.datalinkshowY);
+				//this.datalinkshowX = -1;
+				//this.datalinkshowY = -1;
+				aladin.mesure.isEnabledDatalinkPopUp = false;
+			}
+		}
+      
+   }
+   
+   /**
+    * Method to show datalink pop-up
+    * @param datalinksInfo
+    */
+   private void createAdditionalServiceMenu(List<SimpleData> datalinksInfo) {
+	      additionalServiceMenu = new JPopupMenu();
+	      additionalServiceMenu.setLightWeightPopupEnabled(false);
+	      JMenuItem j;
+	      
+	      for (int i = 0; i < datalinksInfo.size(); i++) {
+	    	SimpleData datalinkInfo = datalinksInfo.get(i);
+			additionalServiceMenu.add(j = new JMenuItem(datalinkInfo.getDisplayString()), i);
+			j.setActionCommand(String.valueOf(i));
+			j.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent clickEvent) {
+					clickEvent.getSource();
+					int menuIndex = Integer.parseInt(clickEvent.getActionCommand());
+					aladin.mesure.getFormInfo(menuIndex);
+					
+				}
+			});
+		}
+		add(additionalServiceMenu);
+	 }
+   
+   protected boolean isEnabledDatalinkPopUp;
+   
+   /**
+    * Method to handle datasets which are linked to a datalink
+    * Images,cutout,html/text,tables are handled.
+    * @param menuIndex
+    */
+   public void getFormInfo(int menuIndex) {
+		activeDataLinkGlu = this.activeDataLinkWord.datalinksInfo.get(menuIndex);
+		try {
+			String accessUrl = activeDataLinkGlu.getParams().get(ACCESSURL);
+			
+			if (activeDataLinkGlu != null) {
+				Map<String,String> params = activeDataLinkGlu.getParams();
+				if (params!=null) {
+					String semantics = activeDataLinkGlu.getParams().get(SEMANTICS);
+					String contentType = activeDataLinkGlu.getParams().get(CONTENTTYPE);
+					
+					if (semantics.equalsIgnoreCase(SEMANTIC_CUTOUT) || semantics.equalsIgnoreCase(SEMANTIC_ACCESS)
+							|| semantics.equalsIgnoreCase(SEMANTIC_PROC)) {//TODO:: remove access semantic. added to facilitate testing.
+						aladin.datalinkGlu = new DataLinkGlu(aladin);
+						aladin.datalinkGlu.createDLGlu(this.datalinkManager.resultsResource, this.activeDataLinkSource, activeDataLinkGlu);
+					} else if (contentType != null && accessUrl != null
+							&& contentType.equalsIgnoreCase(CONTENT_TYPE_TEXTHTML)) {
+						aladin.glu.showDocument("Http", accessUrl, true);
+					} else if (contentType!=null && accessUrl!=null && contentType.contains(DATATYPE_DATALINK)) {
+						aladin.mesure.isEnabledDatalinkPopUp = true;
+						aladin.makeCursor(mcanvas, Aladin.WAITCURSOR);
+						this.activeDataLinkWord.callArchive(aladin, activeDataLinkSource, true);
+					} else if (accessUrl!=null && !accessUrl.isEmpty()) {
+						aladin.calque.newPlan(activeDataLinkGlu.getParams().get(ACCESSURL), null, null);//TODO::change to access
+					} else {
+						Aladin.warning("Error in loading datalink",1);
+					}
+				}
+			} 
+		} catch (Exception e) {
+			Aladin.warning("Error in loading datalink",1);
+		}
+		
+	}
+   
 
    protected void split() {
       if( f==null ) {
-         f = new FrameMesureAjeter(aladin);
+         f = new FrameMesure(aladin);
       } else { f.close(); f=null; }
    }
 
@@ -578,17 +702,29 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
          if( !leg.isVisible(i) ) continue;
          Words w = new Words(leg.field[i].name,null,o.leg.getWidth(i),o.leg.getPrecision(i),
                Words.CENTER,o.leg.computed.length==0?false:o.leg.computed[i],
-                     leg.field[i].sort,-1);
+                     leg.field[i].sort,-1,false);
          w.pin = i==0;
          wordLine.addElement(w);
       }
       return wordLine;
    }
 
+   // Liste des liens qui ont déjà été cliqué (on mémorise le hashcode de l'obj et l'index
+   // de la colonne concernée
+   private HashSet<String> haspushedSet = new HashSet<String>();
+   protected void setHaspushed(Obj o, int numField) {
+      String key = o.hashCode()+"/"+numField;
+      haspushedSet.add( key );
+   }
+   private boolean hasBeenPushed(Obj o, int numField) {
+      String key = o.hashCode()+"/"+numField;
+      return haspushedSet.contains( key );
+   }
 
    /** Génération de la WordLine associée à la source passée en paramètre */
    protected Vector getWordLine(Source o,int num) {
       if( o==null ) return null;
+      
       Vector wordLine;
       String s =(o.info!=null)?o.info:o.id; // Faute de grive...
 
@@ -598,7 +734,10 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
 
       int indexFootPrint = o.getIdxFootprint(); // position d'un Fov, -1 si aucun
 
-      for( int i=0; st.hasMoreTokens(); i++ ) {
+      boolean isDatalink= isValueOfSpecifiedUcdField(o, ACCESSFORMAT_UCD, DATATYPE_DATALINK);
+
+      for (int i = 0; st.hasMoreTokens(); i++) {
+
          String tag = st.nextToken();
          Words w;
          if( i==0 ) w = new Words(tag,num);	// Le triangle n'a pas de taille
@@ -616,10 +755,11 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
             // Creation du nouveau mot
             else {
                if( o.leg.isNullValue(tag, i-1) ) tag="";
-               w = new Words(tag,o.leg.getRefText(i-1),o.leg.getWidth(i-1),o.leg.getPrecision(i-1),align,o.leg.computed.length==0?false:o.leg.computed[i-1],Field.UNSORT,num);
+               w = new Words(tag,o.leg.getRefText(i-1),o.leg.getWidth(i-1),o.leg.getPrecision(i-1),align,o.leg.computed.length==0?false:o.leg.computed[i-1],Field.UNSORT,num,isDatalink);
             }
          }
          w.show= (o==mcanvas.objSelect || o==mcanvas.objShow );
+         w.haspushed = hasBeenPushed(o, i);
          wordLine.addElement(w);
          if( w.glu && w.size<tag.length() ) {
             tag = tag.substring(w.size+1,tag.length());
@@ -628,6 +768,34 @@ public final class Mesure extends JPanel implements Runnable,Iterable<Source>,Wi
       }
       return wordLine;
    }
+   
+   
+	/**
+	 * Method to check the value of a specified column. 
+	 * Column specification is with ucd
+	 * 
+	 * @param source
+	 * @param ucd
+	 * @param expectedValue
+	 * @return result
+	 */
+	public static boolean isValueOfSpecifiedUcdField(Source source, String ucd, String expectedValue) {
+		boolean result = false;
+		int formatIndex = source.findUtype("obscore:Access.Format");
+		if (formatIndex!=-1) {
+			String value = source.getValue(formatIndex);
+			if (value.contains(expectedValue)) {
+				result = true;
+			}
+			/*if (expectedValue.equalsIgnoreCase(value)) {
+				result = true;
+			}*/
+		}
+		return result;
+	}
+	
+	/** retourne true si les mesures sont dans une fenêtre indépendantes */
+	protected boolean isSplitted() { return flagSplit; }
 
    /** Ajustement du panel pour une visualisation dans une fenetre independante */
    protected void split(boolean flagSplit) {

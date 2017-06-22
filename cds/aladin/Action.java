@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -19,7 +21,14 @@
 
 package cds.aladin;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Toolkit;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.text.ParseException;
@@ -1232,9 +1241,6 @@ public class Action {
         for( int i=sources.length-1; i>=0; i-- ) {
             s = sources[i];
 
-            // Pour laisser la main aux autres threads
-            if( Aladin.isSlow && i%50==0 ) Util.pause(10);
-
             if( ! setAllVariables(sizeParser, s, false) ) continue;
             value = sizeParser.eval();
             // reserved value in FITS to indicate a problem
@@ -1316,9 +1322,6 @@ public class Action {
                if( !(o instanceof Source) ) continue;
                Source s = (Source)o;
 
-                // Pour laisser la main aux autres threads
-                if( Aladin.isSlow && j%50==0 ) Util.pause(10);
-
                 if( s!=null) {
 
                     if( !setAllVariables(saturationParser, s, false)  ) {
@@ -1362,9 +1365,6 @@ public class Action {
     	         if( !(o instanceof Source) ) continue;
     	         Source s = (Source)o;
 
-                // Pour laisser la main aux autres threads
-                if( Aladin.isSlow && j%50==0 ) Util.pause(10);
-
     	   	    if( s!=null) {
 
 					if( !setAllVariables(rainbowParser, s, false)  ) {
@@ -1406,10 +1406,6 @@ public class Action {
     	         Obj o = it.next();
     	         if( !(o instanceof Source) ) continue;
     	         Source s = (Source)o;
-
-                // Pour laisser la main aux autres threads
-                if( Aladin.isSlow && j%50==0 ) Util.pause(10);
-
 
     	        if( s!=null) {
 

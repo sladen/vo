@@ -1,4 +1,6 @@
-// Copyright 2012 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -19,9 +21,11 @@
 
 package cds.allsky;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 
 import cds.aladin.HealpixProgen;
 import cds.aladin.MyProperties;
@@ -240,13 +244,13 @@ public class BuilderConcat extends BuilderTiles {
    
    /** Charge les propriétés d'un fichier properties, retourne null si problème */
    protected MyProperties loadProperties(String path) {
-      FileInputStream in = null;
+      InputStreamReader in = null;
       try {
          String propFile = path+Util.FS+Constante.FILE_PROPERTIES;
          MyProperties prop = new MyProperties();
          File f = new File( propFile );
          if( f.exists() ) {
-            in = new FileInputStream(propFile);
+            in = new InputStreamReader( new BufferedInputStream( new FileInputStream(propFile) ), "UTF-8");
             prop.load(in);
             in.close();
             in=null;

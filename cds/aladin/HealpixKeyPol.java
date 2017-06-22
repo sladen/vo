@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -99,6 +100,7 @@ class HealpixKeyPol extends HealpixKey {
       if( pixelsOrigin2!=null ) { pixelsOrigin2=null; rep=1; }
       return rep;
    }
+   
 
    final private double getPixVal(byte[]t ,int bitpix,int i) {
       switch(bitpix) {
@@ -115,14 +117,11 @@ class HealpixKeyPol extends HealpixKey {
       }
       return 0;
    }
+   
 
 
-   /** Chargement du losange sous forme de FITS. Si le BITPIX n'est pas à 8, il y a conversions des pixels
-    * en 8 bits en fonction des valeurs PIXELMIN et PIXELMAX indiquées dans l'entête. Si ces valeurs
-    * sont absentes ou égales (par exemple 0,0), Aladin effectue un autocut
-    * @return le nombre de bytes du flux FITS */
-   @Override
-protected int loadFits(String filename) throws Exception {
+   /** Chargement de la tuile FITS contenant pixU et pixQ en deux extensions HDU */
+   protected int loadFits(String filename) throws Exception {
 
       byte [] buf = loadStream(filename);
 
@@ -141,6 +140,7 @@ protected int loadFits(String filename) throws Exception {
       System.arraycopy(buf, 2880, in, 0, taille);
       pixelsOrigin = new byte[in.length];
       invLine(in,pixelsOrigin,bitpix);
+
 
       // Allocation puis lecture du deuxième HDU pour Q
       int pos = 2880+taille;
@@ -163,7 +163,6 @@ protected int loadFits(String filename) throws Exception {
          }
       }
 
-      in=null;
       return pos;
    }
 
@@ -184,6 +183,8 @@ protected int loadFits(String filename) throws Exception {
    }
 
    static final private int MAXPOLARSIZE=15;
+   
+//   static private boolean bingo=true;
 
    /** Trace les segments de polarisation décrits dans ce losange Healpix */
    protected int drawPolarisation(Graphics g,ViewSimple v) { return drawPolarisation(g,v,0); }
@@ -238,6 +239,11 @@ protected int loadFits(String filename) throws Exception {
 
                double polaQ = getPixVal(pix1,bitpix,offset);
                double polaU = getPixVal(pix2,bitpix2,offset);
+               
+               if( planBG.isSegmentIAUConv() ) {
+//                  if( bingo ) { System.out.println("bingo IAU"); bingo=false; }
+                  polaU= -polaU;
+               }
 
                // TODO : angle si GAL, ICRS, etc (voir rose vents : ViewSimple.drawNE )
                
@@ -245,7 +251,6 @@ protected int loadFits(String filename) throws Exception {
                // TODO : traitement des valeurs blanks ou invalides
                double angle = Math.toDegrees(0.5 * Math.atan2(polaU, polaQ));
                double norme = Math.sqrt(polaU * polaU + polaQ * polaQ);
-
 
 //               double angle = getMoyenne(pix,8,X-gap/2,Y-gap/2,gap,gap);
 //               double norme = getMoyenne(pix2,bitpix2,X-gap/2,Y-gap/2,gap,gap);

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -1067,7 +1069,7 @@ public class FrameCDSXMatch extends JFrame implements Runnable, ActionListener {
     	   // Dessin du bouton
    void draw(Graphics g) {
       // Dessin du fond
-      if( getColor()==Aladin.GREEN && !hl ) {
+      if( getColor()==Aladin.COLOR_GREEN && !hl ) {
         g.setColor(Aladin.MYBLUE);
         g.fillRect(1,1,W-2,H-2);
       } else {
@@ -1109,7 +1111,7 @@ public class FrameCDSXMatch extends JFrame implements Runnable, ActionListener {
 //         g.drawLine(x,y,x+SZ,y);
 //         g.drawLine(x,y+TRI*2,x+SZ,y+TRI*2);
 
-      } else if( !modeMenu || modeMenu && getColor()==Aladin.GREEN ){
+      } else if( !modeMenu || modeMenu && getColor()==Aladin.COLOR_GREEN ){
          g.setColor( (mode!=DOWN)?Color.white:Color.darkGray);
          g.drawLine(1,1,W-2,1);
          g.drawLine(1,1,1,  H-2);

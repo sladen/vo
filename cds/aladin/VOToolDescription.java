@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -104,7 +105,7 @@ public class VOToolDescription extends JPanel {
       p.add(m = name = new MyLabel(listener), c);
       m.setFont(m.getFont().deriveFont(Font.BOLD,
             m.getFont().getSize2D() + 3));
-      m.setForeground(Aladin.GREEN);
+      m.setForeground(Aladin.COLOR_GREEN);
       c.insets.top -= 5;
       c.insets.bottom -= 10;
 
@@ -325,7 +326,7 @@ public class VOToolDescription extends JPanel {
             else {
                if( vo.canBeRun() ) {
                   s= getInfo(vo.releaseNumber+(mode==GluApp.WEBSTART || mode==GluApp.APPLET ? "":" installed"));
-                  version.setForeground(Aladin.GREEN);
+                  version.setForeground(Aladin.COLOR_GREEN);
                   if( vo.nextNumber!=null ) {
                      s=s+" - new available version: "+vo.nextNumber;
                      version.setForeground(Color.orange.darker());

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,16 +19,14 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
-import java.awt.image.*;
-import java.net.*;
-import java.io.*;
-import java.util.*;
 
 import javax.swing.JComponent;
 
@@ -77,7 +77,7 @@ public class Status extends JComponent implements MouseListener {
       if( s.length()>0 && s.charAt(0)=='!' ) {
          foreGround=Color.red;
          s = s.substring(1);
-      } else foreGround=Color.blue;
+      } else foreGround=aladin.COLOR_BLUE;
       
       if( lastText!=null && lastText.equals(s) ) return;
       if( s.length()==0 &&  aladin.dialog!=null && !aladin.command.isSync() ) s=aladin.chaine.getString("SEESTACK"); 
@@ -87,10 +87,12 @@ public class Status extends JComponent implements MouseListener {
    
    public Dimension getPreferredSize() { return new Dimension(W,H); }
    
-   private Color foreGround = Color.blue;
+   private Color foreGround = Aladin.COLOR_BLUE;
    
    public void paintComponent(Graphics g) {
+      
       super.paintComponent(g);
+      
       aladin.setAliasing(g);
       g.setColor( getBackground() );
       g.fillRect(0,0,W,H);

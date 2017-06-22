@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -18,10 +20,6 @@
 //
 
 package cds.aladin;
-
-import java.util.Hashtable;
-import java.util.Vector;
-import java.awt.*;
 
 import cds.tools.Util;
 
@@ -288,7 +286,7 @@ Aladin.trace(3,"Mosaic bounding box pos="+box.x+","+box.y+" size="+box.width+"x"
                     // est nulle, je passe
                     if( !firstMosaic && p2==this && p2.getBufPixels8()[y* p2.width + x]==0 ) continue;
                                         
-                    c+=0xFF & (int)p2.getBufPixels8()[y* p2.width + x];
+                    c+=0xFF & p2.getBufPixels8()[y* p2.width + x];
                     j++;
                  }
               }
@@ -297,7 +295,6 @@ Aladin.trace(3,"Mosaic bounding box pos="+box.x+","+box.y+" size="+box.width+"x"
               // et pouvoir afficher le changement de pourcentage
               if( (i * p.length) % 10000 == 0 ) {
                  setPourcent(i * 100 / newPixel.length);
-                 if( Aladin.isSlow ) Util.pause(10);
               }
            }
            if( j!=0 ) newPixel[i]=(byte)(c/j & 0xFF);  

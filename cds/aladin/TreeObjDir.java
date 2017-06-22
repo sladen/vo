@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,7 +19,6 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
 import java.awt.Color;
@@ -25,13 +26,15 @@ import java.awt.Component;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Image;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.Iterator;
 import java.util.StringTokenizer;
 
 import javax.swing.BorderFactory;
@@ -42,6 +45,8 @@ import javax.swing.JPanel;
 import cds.allsky.Constante;
 import cds.allsky.Context;
 import cds.moc.Healpix;
+import cds.moc.HealpixMoc;
+import cds.mocmulti.MocItem2;
 import cds.tools.Util;
 
 /**
@@ -84,6 +89,8 @@ public class TreeObjDir extends TreeObj {
    public double radius=-1;   // Field size for starting display
    public int nside=-1;          // Max NSIDE
    public boolean local=false;   // Il s'agit d'un survey sur disque local
+   public Image imPreview=null;  // Image preview
+   public boolean previewError=false; // true s'il y a eu un problème lors du chargement du preview
    
    protected MyProperties prop=null; // Ensemble des propriétés associées au HiPS (via son fichier de properties ou MocServer)
 
@@ -97,12 +104,10 @@ public class TreeObjDir extends TreeObj {
 
       // Par http ou ftp ?
       try {
-         InputStream in=null;
-         if( !local ) in = (new URL(pathOrUrl+"/"+Constante.FILE_PROPERTIES)).openStream();
-         else in = new FileInputStream(new File(pathOrUrl+Util.FS+Constante.FILE_PROPERTIES));
-         if( in!=null ) { 
-            try { prop.load(in); } finally { in.close(); }
-         }
+         InputStreamReader in=null;
+         if( !local ) in = new InputStreamReader( (new URL(pathOrUrl+"/"+Constante.FILE_PROPERTIES)).openStream(), "UTF-8" );
+         else in = new InputStreamReader( new FileInputStream(new File(pathOrUrl+Util.FS+Constante.FILE_PROPERTIES)), "UTF-8" );
+         try { prop.load(in); } finally { in.close(); }
       } catch( Exception e ) { aladin.trace(3,"No properties file found => auto discovery..."); }
 
 
@@ -236,6 +241,7 @@ public class TreeObjDir extends TreeObj {
       // Pour compatibilité avec l'ancien vocabulaire
       else {
          keyColor = prop.getProperty(Constante.OLD_ISCOLOR);
+         if( keyColor==null ) keyColor = prop.getProperty("isColor");
          if( keyColor!=null ) color = new Boolean(keyColor);
       }
 
@@ -279,20 +285,22 @@ public class TreeObjDir extends TreeObj {
 
    /** Création à partir d'un fichier de properties (ne supporte que HiPS 1.3 car dédié
     * principalement à des enregistrements issues du MocServer */
-   public TreeObjDir(Aladin aladin, String id,boolean isLocal,MyProperties prop) {
+   public TreeObjDir(Aladin aladin, String id, MyProperties prop) {
       String s;
 
       this.aladin = aladin;
       this.id = internalId = id;
-      this.local = isLocal;
+//      this.local = isLocal;
       this.prop = prop;
       
-      // Type de HiPS
+      // Type de Collection
       s=prop.getProperty(Constante.KEY_DATAPRODUCT_TYPE);
       if( s!=null ) {
          if( s.indexOf("catalog")>=0 ) cat=true;
          else if( s.indexOf("cube")>=0 ) cube=true;
          else if( s.indexOf("progen")>=0 ) progen=true;
+      } else {
+         cat = prop.getProperty("cs_service_url")!=null;
       }
 
       // Référence spatiale
@@ -304,8 +312,10 @@ public class TreeObjDir extends TreeObj {
 //      aladinLabel = label = createLabel(id,cat);
       
       // ou le label construit à partir du obs_title et/ou obs_collection
-      s=prop.getProperty( cat ? Constante.KEY_OBS_TITLE : Constante.KEY_OBS_COLLECTION );
-      if( s==null ) s=prop.getProperty( !cat ? Constante.KEY_OBS_TITLE : Constante.KEY_OBS_COLLECTION );
+//      s=prop.getProperty( cat ? Constante.KEY_OBS_TITLE : Constante.KEY_OBS_COLLECTION );
+//      if( s==null ) s=prop.getProperty( !cat ? Constante.KEY_OBS_TITLE : Constante.KEY_OBS_COLLECTION );
+      s=prop.getProperty( Constante.KEY_OBS_TITLE );
+      if( s==null ) s=prop.getProperty( Constante.KEY_OBS_COLLECTION );
       aladinLabel = label = s!=null ? s : createLabel(id,cat);
       
       // Le path de l'arbre
@@ -374,7 +384,11 @@ public class TreeObjDir extends TreeObj {
 
       // Détermination du format des cellules dans le cas d'un survey pixels
       s = prop.getProperty(Constante.KEY_DATAPRODUCT_SUBTYPE);
-      if( s==null ) s = prop.getProperty(Constante.OLD_ISCOLOR);
+      if( s==null ) {
+         s = prop.getProperty(Constante.OLD_ISCOLOR);
+         if( s==null ) s = prop.getProperty("isColor");
+         if( s!=null ) s="color";
+      }
       if( s!=null ) color = s.indexOf("color")>=0;
 
       if( !cat && !progen ) {
@@ -467,7 +481,7 @@ public class TreeObjDir extends TreeObj {
 
       if( color && !inJPEG && !inPNG ) inJPEG=true;
       
-      if( !Aladin.PROTO ) {
+      if( !Aladin.BETA ) {
          if( copyright!=null || copyrightUrl!=null ) setCopyright(copyright);
          setMoc();
       }
@@ -486,8 +500,20 @@ public class TreeObjDir extends TreeObj {
    
    /** Retourne l'URL d'accès au MOC, null sinon */
    protected String getMocUrl() {
-      if( prop==null || isHiPS() ) return getUrl()+"/Moc.fits";
-      return prop.getProperty(Constante.KEY_MOC_ACCESS_URL);
+      String u=null;
+      
+      // On dispose du MOC directement dans le MOC server qui a fourni les propriétés ?
+      if( hasMocByMocServer() ) {
+         String params = internalId+"&get=moc";
+         u = aladin.glu.getURL("MocServer",params,true).toString();
+         
+      // Serait-il explicitement mentionné ?
+      } else if( prop!=null ) u = prop.getProperty("moc_access_url");
+      
+      // Pour un HiPS on peut y accéder directement
+      else if( isHiPS() ) return getUrl()+"/Moc.fits";
+      
+      return u;
    }
    
    protected String getProperty(String key) {
@@ -534,7 +560,7 @@ public class TreeObjDir extends TreeObj {
    
    protected JPanel createPanel() {
       
-      if( !Aladin.PROTO ) return super.createPanel(); 
+      if( !Aladin.BETA ) return super.createPanel(); 
       
       JLabel lab = new JLabel(label);
       lab.setBackground( background );
@@ -588,8 +614,123 @@ public class TreeObjDir extends TreeObj {
    /** Retourne true s'il s'agit d'un catalogue hiérarchique */
    protected boolean isCDSCatalog() { return cat && internalId.startsWith("CDS/"); }
    
+   /** Retourne true s'il existe un accès SIA  ou SIA2 (par URL directe ou via GLU tag */
+   protected boolean hasSIA() { return hasSIAv1() || hasSIAv2(); }
+   
+   /** Retourne true s'il existe un accès SIA v1 (par URL directe ou via GLU tag */
+   protected boolean hasSIAv1() {
+      return prop!=null && (prop.get("sia_service_url")!=null || prop.get("sia_glutag")!=null );
+   }
+   
+   /** Retourne true s'il existe un accès SIA v2 (par URL directe ou via GLU tag */
+   protected boolean hasSIAv2() {
+      return prop!=null && (prop.get("sia2_service_url")!=null || prop.get("sia2_glutag")!=null);
+   }
+   
+   /** Retourne true s'il existe un accès SSA (par URL direct ou via GLU tag */
+   protected boolean hasSSA() {
+      return prop!=null && (prop.get("ssa_service_url")!=null || prop.get("ssa_glutag")!=null);
+   }
+   
+   /** Retourne true si la collection dispose d'un HiPS */
+   protected boolean hasHips() { return prop!=null && 
+         (prop.get("hips_service_url")!=null || prop.get("hips_service_path")!=null); }
+   
+   /** Retourne true si la collection dispose d'un accès TAP */
+   protected boolean hasTAP() {
+      if( prop==null ) return false;
+      return prop.get("tap_glutag")!=null || prop.get("tap_service_url")!=null;
+   }
+   
+   /** Retourne true si la collection dispose d'un accès cone search */
+   protected boolean hasCS() {
+      return isCDSCatalog() || prop!=null && prop.get("cs_service_url")!=null;
+   }
+   
+   /** Retourne true si la collection dispose d'une URL donnant accès à un preview */
+   protected boolean hasPreview() {
+      return (isCDSCatalog() || isHiPS());
+   }
+   
+   /** Retourne l'URL du preview
+    * ex: http://alasky.u-strasbg.fr/footprints/tables/vizier/B_denis_denis/densityMap?format=png&size=small
+    */
+   protected String getPreviewUrl() {
+      if( isCDSCatalog() ) {
+         String s;
+         if( internalId.startsWith("CDS/Simbad") ) s="simbad";
+         else {
+            s = Util.getSubpath(internalId, 1, -1);
+            s = "vizier/"+ s.replace("/","_");
+         }
+//         return "http://alasky.u-strasbg.fr/footprints/tables/"+s+"/densityMap?format=png&size=small";
+         return aladin.glu.getURL("Vignettes.CDS", s)+"";
+      }
+      
+      if( isHiPS() ) return getUrl()+"/preview.jpg";
+      
+      return null;
+   }
+   
+   /** Retourne true si la collection dispose d'une URL donnant des infos supplémentaires */
+   protected boolean hasInfo() {
+      return prop!=null && (prop.get("web_access_url")!=null || prop.get("obs_description_url")!=null);
+   }
+   
+   /** Retourne true si la collection a été créée/maj récemment */
+   protected boolean isNew() {
+      return isNewHips() || isNewObsRelease();
+   }
+   
+   /** Retourne true si la collection (hors HiPS) a été créée/maj récemment */
+   protected boolean isNewObsRelease() {
+      if( prop==null ) return false;
+      return lastDays( prop.getProperty("obs_release_date"),90 );
+   }
+   
+   /** Retourne true si le HiPS associée à la collection a été créé/maj récemment */
+   protected boolean isNewHips() {
+      if( prop==null ) return false;
+      String date = prop.getProperty("hips_creation_date");
+      if( date==null ) date = prop.getProperty("hips_release_date");
+      return lastDays(date,90);
+   }
+   
+   private boolean lastDays(String date,int days ) {
+      if( date==null ) return false;
+      try {
+         long t = Util.getTimeFromISO(date);
+         long now = System.currentTimeMillis();
+         return now-t < 86400L*days*1000L;    
+      } catch( Exception e ) {}
+      return false;
+   }
+
+   
+   /** Retourne true si la collection dispose d'un MOC */
+   protected  boolean hasMoc() {
+      return hasMocByMocServer() || prop!=null && prop.getProperty("moc_access_url")!=null || isHiPS();
+   }
+   
+   /** Retourne true si la collection dispose d'un MOC via le MocServer
+    * (=> celui-ci ayant ajouté le mot clé moc_sky_fraction) */
+   private boolean hasMocByMocServer() { return prop!=null && prop.get("moc_sky_fraction")!=null; }
+   
    /** Retourne l'URL d'un Cone search ou null si aucun */
-   protected String getCSUrl() { return prop==null ? null : prop.get("cs_service_url"); }
+   protected String getCSUrl() {
+      if( prop==null ) return null;
+      String u = prop.get("cs_service_url");
+      if( u!=null && !(u.endsWith("?") || u.endsWith("&")) ) u+='?';
+      return u;
+   }
+   
+   /** Retourne l'URL donnant des informations supplémentaires sur la collection */
+   protected String getInfoUrl() {
+      if( prop==null ) return null;
+      String url = prop.get("obs_description_url");
+      if( url==null ) url = prop.get("web_access_url");
+      return url;
+   }
 
    /** Retourne true s'il s'agit d'un catalogue hiérarchique pour des progéniteurs */
    protected boolean isProgen() { return progen; }
@@ -622,7 +763,7 @@ public class TreeObjDir extends TreeObj {
    }
    
    /** true si déjà chargé dans la pile */
-   protected boolean isInStack() { return aladin.calque.isLoaded(internalId); }
+   protected Color isInStack() { return aladin.calque.isLoaded(internalId); }
 
    protected boolean isLocal() { return local; }
 
@@ -647,6 +788,13 @@ public class TreeObjDir extends TreeObj {
 
    /** retourne l'URL de base pour accéder au serveur HTTP */
    protected String getUrl() {
+      
+      // HiPS local ?
+      if( prop!=null ) {
+         String path = prop.getProperty("hips_service_path");
+         if( path!=null ) return path;
+      }
+      
       try {
          if( id!=null && aladin.glu.aladinDic.get(id)!=null) {
             return aladin.glu.getURL(id,"",false,false,1)+"";
@@ -691,49 +839,330 @@ public class TreeObjDir extends TreeObj {
    
    /** Chargement par défaut à effectuer (suite à un double-clic sur le noeud de l'arbre) */
    protected void load() {
-      if( getUrl()==null && isCatalog() )loadCS();
+      if( hasSIA() ) loadSIA();
+      else if( hasSSA() ) loadSSA();
+      else if( getUrl()==null && isCatalog() ) loadCS();
       else loadHips();
    }
+   
+   void queryByXmatch() {
+      ServerXmatch serverXmatch = new ServerXmatch(aladin);
 
-   protected void loadHips() {
-      String mode = isTruePixels() ? ",fits":"";
-      aladin.console.printCommand("get hips("+Tok.quote(internalId!=null?internalId:label)+mode+")");
-      aladin.allsky(this);
+      // Détermination du PlanCatalogue
+      Plan plan=null;
+      for( Object p : aladin.calque.getSelectedPlanes() ) {
+         if( ((Plan)p).isSimpleCatalog() && ((Plan)p).flagOk) { plan=(Plan)p; break; }
+      }
+      if( plan==null ) {
+         for( Object p : aladin.calque.getPlans() ) {
+            if( ((Plan)p).isSimpleCatalog() && ((Plan) p).flagOk) { plan=(Plan)p; break; }
+         }
+      }
+      if( plan==null ) {
+         aladin.warning("You need to select or have a catalog plane in the stack");
+         return;
+      }
+      serverXmatch.setPlan(plan);
+      serverXmatch.setCatName(internalId);
+      serverXmatch.setPlanName(internalId);
+
+      // Pas de limitation
+      serverXmatch.setLimit("5000000");
+
+      // Et c'est parti
+      serverXmatch.submit();
+   }
+
+   /** Open the TAP form associated to this collection => Chaitra */
+   void queryByTap() {
+      // GLU TAP tag
+      String gluTag = prop.get("tap_glutag");
+      
+      // Generation of simplified TAP form by GLU definition 
+     /* if( gluTag==null ) {
+         aladin.info("Simplified TAP form based on GLU definition "+gluTag+"\n(Not yet implemented)");
+         // Chaitra ...
+         return;
+      } */
+      
+      // If there is no TAP glu definition, we will use base TAP url
+      String url = prop.get("tap_service_url");
+      String id = prop.get("ID");
+      if( id!=null && url!=null ) {
+    	  try {
+			TapManager.getInstance(aladin).loadTapServerForSimpleFrame(id, url, null);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			aladin.warning("Error unable to load "+url+"\n"+e.getMessage());
+		}
+//         aladin.info("Generic TAP form for "+url+"\n(Not yet implemented)");
+//         // Chaitra ...
+//         return;
+      } else {
+    	  aladin.warning("Error! No TAP form configured for "+gluTag);
+      }
+      
+      //TODO:: tintin remove the below just for demo
+     /* String url1 = "http://tapvizier.u-strasbg.fr/TAPVizieR/tap";
+      String id1 = "GAIA_VIZIER";
+      url1 = "http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/tap2";
+      id1 = "TAPCADC98";
+      if( id1!=null && url1!=null ) {
+    	  TapManager tapManager = TapManager.getInstance(aladin);
+          tapManager.loadTapServerForSimpleFrame(id1, url1);
+//         aladin.info("Generic TAP form for "+url+"\n(Not yet implemented)");
+//         // Chaitra ...
+//         return;
+      }*/
+   }
+ 
+   /** Génération et exécution de la requête script correspondant au protocole SSA */
+   protected void loadSSA() { aladin.execAsyncCommand( getSSACmd()+" "+getDefaultTarget()+" "+getDefaultRadius(1) ); }
+   protected String getSSABkm() { return getSSACmd()+" $TARGET $RADIUS"; }
+   protected String getSSACmd() {
+      // Glu tags spécifiques ?
+      String gluTag = prop.get("ssa_glutag");
+      
+      // URL de base ?
+      // On passe tout de même par le ID afin d'avoir une commande script clean
+      // => voir GluServer pour la résolution internalId => Url de base
+      if( gluTag==null && prop.get("ssa_service_url")!=null )  gluTag = "SSA("+internalId+")";
+
+      return "get "+gluTag;
    }
    
-   protected void loadCS() {
-      try {
+   
+   /** Génération et exécution de la requête script correspondant au protocole SIA ou SIA2 */
+   protected void loadSIA() { aladin.execAsyncCommand( getSIACmd()+" "+getDefaultTarget()+" "+getDefaultRadius(1) ); }
+   protected String getSIABkm() { return getSIACmd()+" $TARGET $RADIUS"; }
+   private String getSIACmd() {
+      // Glu tags spécifiques ?
+      String gluTag = prop.get("sia_glutag");
+      if( gluTag==null ) gluTag = prop.get("sia2_glutag");
+      
+      // URL de base ?
+      // On passe tout de même par le ID afin d'avoir une commande script clean
+      // => voir GluServer pour la résolution internalId => Url de base
+      if( gluTag==null && prop.get("sia2_service_url")!=null ) gluTag = "SIA2("+internalId+")";
+      if( gluTag==null && prop.get("sia_service_url")!=null )  gluTag = "SIA("+internalId+")";
+      
+      return "get "+gluTag;
+   }
+   
+   protected void loadCS(Coord c,double radius) {
+      aladin.execAsyncCommand( getCSCmd()+" "+aladin.localisation.ICRSToFrame( c ).getDeg()+" "+Coord.getUnit( radius ));
+   }
+   /** Génération et exécution de la requête script correspondant au protocole CS ou assimilé ASU */
+   protected void loadCS() { aladin.execAsyncCommand( getCSCmd()+" "+getDefaultTarget()+" "+getDefaultRadius(15)); }
+   protected String getCSBkm() { return getCSCmd()+" $TARGET $RADIUS"; }
+   private String getCSCmd() {
+      String cmd = null;
+
+      // On passe par VizieR/Simbad via la commande script adaptée
+      if( isCDSCatalog() ) {
          int i = internalId.indexOf('/');
          String cat = internalId.substring(i+1);
-         double rad = aladin.view.getCurrentView().getTaille();
-         if( rad>1 ) rad=1;
-         String trg = aladin.view.getCurrentView().getCentre();
-         
-         // On passe par VizieR via la commande script
-         if( isCDSCatalog() ) {
-            String cmd = internalId+" = get VizieR("+cat+") "+trg+" "+Util.myRound(rad)+"deg";
-            aladin.execAsyncCommand(cmd);
-            
-         // On utilise une URL directe en CS
-         } else {
-            String csUrl = getCSUrl();
-            Coord c = aladin.view.getCurrentView().getCooCentre();
-            String cmd = internalId+" = load "+csUrl+"RA="+c.al+"&DEC="+c.del+"&SR="+Util.myRound(rad)+"&VERB=2";
-            aladin.execAsyncCommand(cmd);
-            // RA=$1&DEC=$2&SR=$3&VERB=2
-         }
-      } catch( Exception e ) {
-         aladin.warning(e.getMessage()==null?"Cone search error":e.getMessage());
-      }
+         if( internalId.startsWith("CDS/Simbad") ) cmd = "get Simbad";
+         else cmd = "get VizieR("+cat+",allcolumns)";
+
+      // Accès direct CS
+      } else if( prop!=null && (prop.get("cs_service_url")!=null) ) cmd = "get CS("+internalId+")";
+
+      return cmd;
+   }
+   
+   /** Génération et exécution de la requête script correspondant au protocole MOC */
+   protected void loadMoc( ) { aladin.execAsyncCommand( getMocCmd() ); }
+   protected String getMocBkm() { return getMocCmd(); }
+   private String getMocCmd() { return "get MOC("+Tok.quote(internalId)+")"; }
+
+   /** Génération et exécution de la requête script correspondant au protocole HiPS */
+   protected void loadHips() {
+      String trg = getDefaultTarget();
+      String s = trg==null ? "" : " "+trg+" "+getDefaultRadius();
+      aladin.execAsyncCommand( getHipsCmd()+s );
+   }
+   protected String getHipsBkm() { return getHipsCmd()+" $TARGET $RADIUS"; }
+   protected String getHipsCmd() {
+      String id = Tok.quote(internalId!=null?internalId:label);
+      String mode = !isCatalog() && isTruePixels() ? ",fits":"";
+      String cmd = "get HiPS("+id+mode+")";
+      return cmd;
+   }
+   
+   /** Génération et exécution de la requête script correspondant à l'accès aux progéniteurs */
+   protected void loadProgenitors() { aladin.execAsyncCommand( getProgenitorsCmd() ); }
+   protected String getProgenitorsBkm() { return getProgenitorsCmd(); }
+   private String getProgenitorsCmd() {
+      String progen = getProgenitorsUrl();
+      if( progen==null ) progen = url+"/"+Constante.FILE_HPXFINDER;
+      return Tok.quote(internalId+" PNG")+"=load "+progen;
    }
 
-   protected void loadAll() {
+   /** Génération et exécution de la requête script permettant le chargement de la totalité d'un catalogue VizieR */
+   protected void loadAll() { aladin.execAsyncCommand( getLoadAllCmd() ); }
+   protected String getAllBkm() { return getLoadAllCmd(); }
+   private String getLoadAllCmd() {
       int i = internalId.indexOf('/');
       String cat = internalId.substring(i+1);
-      String cmd = "get VizieRX("+cat+")";
-      aladin.execAsyncCommand(cmd);
+      return "get VizieR("+cat+",allsky,allcolumns)";
    }
+   
+   private String getDefaultTarget() {
+      Coord coo;
+      if( aladin.view.isFree() || !Projection.isOk( aladin.view.getCurrentView().getProj()) ) {
+         String s = aladin.localisation.getTextSaisie();
+         if( s.length()!=0 ) return s;
+         coo = getTarget();
+         s = coo==null ? null : coo.toString();
+         if( s!=null ) return s;
+         return null;
+//         aladin.info("Pas encore implanté, il faudrait demander Target+Radius");
+      }
+      coo = aladin.view.getCurrentView().getCooCentre();
+      coo = aladin.localisation.ICRSToFrame( coo );
+      return coo.getDeg();
+   }
+   
+//   private double getDefaultRadiusInDeg() {
+//      if( aladin.view.isFree() || !Projection.isOk( aladin.view.getCurrentView().getProj()) ) {
+//         return 14./60;
+//      }
+//      return  aladin.view.getCurrentView().getTaille();
+//   }
+//   
+   private String getDefaultRadius() { return getDefaultRadius(-1); }
+   private String getDefaultRadius(double maxRad) {
+      if( aladin.view.isFree() || !Projection.isOk( aladin.view.getCurrentView().getProj()) ) {
+         return "14'";
+      }
+      double radius = aladin.view.getCurrentView().getTaille();
+      if( maxRad>=0 && radius>maxRad ) radius=maxRad;
+      return Coord.getUnit( radius );
+   }
+   
+  
+   private boolean scanning=false;
+   synchronized void setScanning(boolean flag) { scanning = flag; }
+   synchronized boolean isScanning() { return scanning; }
+   
+   /** Génération du MOC qui correspond aux sources CS ou SIA ou SSA du champ courant */
+   protected void scan( MocItem2 mo ) {
+      setScanning(true);
+      try { scan1(mo); }
+      finally { setScanning(false); }
+   }
+   
+   protected void scan1( MocItem2 mo ) {
+      String url=null;
+      Coord c = aladin.view.getCurrentView().getCooCentre();
+      double rad = aladin.view.getCurrentView().getTaille();
+      if( rad>1 ) rad=1;
+      String radius = Util.myRound( rad );
 
+      
+      if( hasCS() ) {
+         url = getCSUrl();
+         if( !url.endsWith("?") && !url.endsWith("&") ) url+="?";
+         url += "RA="+c.al+"&DEC="+c.del+"&SR="+radius+"&VERB=2";
+         
+      } else if( hasSIA() ) {
+         url = prop.get("sia_service_url");
+         if( url!=null ) {
+            if( !url.endsWith("?") && !url.endsWith("&") ) url+="?";
+            url+="POS="+c.al+","+c.del+"&SIZE="+radius+"&FORMAT=image/fits";
+         } else {
+            url = prop.get("sia2_service_url");
+            if( url!=null ) {
+               if( !url.endsWith("?") && !url.endsWith("&") ) url+="?";
+               url+="REQUEST=query&POS=CIRCLE="+c.al+" "+c.del+" "+radius+"&FORMAT=image/fits";
+            }
+         }
+
+      } else if( hasSSA() ) {
+         url = prop.get("ssa_service_url");
+         if( !url.endsWith("?") && !url.endsWith("&") ) url+="?";
+         url+="REQUEST=queryData&POS="+c.al+","+c.del+"&SIZE="+radius;
+      }
+      
+      if( url==null ) return;
+      
+      // Mémorisation du résultat
+      HealpixMoc moc;
+      try { 
+         moc = scan(url); 
+         if( mo.moc==null ) mo.moc=moc;
+         else mo.moc.add(moc);
+      } catch( Exception e ) { if( aladin.levelTrace>=3 )  e.printStackTrace();  }
+      
+      // Mémorisation de la surface couverte
+      try {
+         int order=11;
+         Healpix hpx = new Healpix();
+         moc = new HealpixMoc(order);
+         int i=0;
+         moc.setCheckConsistencyFlag(false);
+         for( long n : hpx.queryDisc(order, c.al, c.del,  rad) ) {
+            moc.add(order, n);
+            if( (++i)%1000==0 )  moc.checkAndFix();
+         }
+         moc.setCheckConsistencyFlag(true);
+         
+         if( mo.mocRef==null ) mo.mocRef=moc;
+         else mo.mocRef.add(moc);
+        
+         
+      } catch( Exception e ) { if( aladin.levelTrace>=3 )  e.printStackTrace(); }
+      
+   }
+   
+   
+   private MyInputStream inScan=null;
+   
+   protected void abortScan() { 
+      try { if( inScan!=null ) { inScan.close(); inScan=null; }  } catch( Exception e ) {}
+   }
+   
+   /**  Génération d'un Moc à partir du catalogue retournée par l'URL
+    * passée en paramètre */
+   private HealpixMoc scan( String url) {
+      Pcat pcat = new Pcat(aladin);
+      pcat.plan = new PlanCatalog(aladin);
+      pcat.plan.label="test";
+      HealpixMoc moc=null;
+      int order=11;
+      
+      try {
+         moc = new HealpixMoc(order);
+         inScan=new MyInputStream( Util.openStream(url,false,30000) );
+         pcat.tableParsing(inScan,null);
+         
+         Iterator<Obj> it = pcat.iterator();
+         Healpix hpx = new Healpix();
+         int n=0;
+         while( it.hasNext() ) {
+//            if( n%100==0 && aladin.directory.isAbortingScan() ) throw new Exception("Aborted");
+            Obj o = it.next();
+            if( !(o instanceof Position) ) continue;
+            if( Double.isNaN( ((Position)o).raj ) ) continue;
+            try {
+               long pix = hpx.ang2pix(order, ((Position)o).raj, ((Position)o).dej);
+               moc.add(order,pix);
+               n++;
+               if( n>10000 ) { moc.checkAndFix(); n=0; }
+            } catch( Exception e ) {
+               if( aladin.levelTrace>=3 ) e.printStackTrace();
+            }
+         }
+         moc.setCheckConsistencyFlag(true);
+          
+      } catch( Exception e ) { if( aladin.levelTrace>=3 )  e.printStackTrace();
+      } finally { if( inScan!=null ) try { inScan.close(); inScan=null; } catch( Exception e) {} }
+      
+      return moc;
+   }
+   
    void loadCopyright() { aladin.glu.showDocument(copyrightUrl); }
 
    void setDefaultMode(int mode) {
@@ -763,45 +1192,20 @@ public class TreeObjDir extends TreeObj {
       getPanel().add(b);
    }
 
-   void loadMoc() {
-//      MyInputStream mis = null;
-//      try {
-//         mis = Util.openAnyStream( getUrl()+"/Moc.fits" );
-//         aladin.calque.newPlanMOC(mis,label+" MOC");
-//      }
-//      catch( Exception e) { if( aladin.levelTrace>=3 ) e.printStackTrace(); }
-      
-      String u = getMocUrl();
-      aladin.execAsyncCommand("'MOC "+label+"'=load "+u);
-   }
-   
-   void loadProgenitors() {
-      String progen = getProgenitorsUrl();
-      if( progen==null ) progen = url+"/"+Constante.FILE_HPXFINDER;
-      aladin.execAsyncCommand("'PROG "+label+"'=load "+progen);
-   }
-   
    void loadDensityMap() {
       int off1 = internalId.indexOf('/');
       int off2 = internalId.lastIndexOf('/');
       String catId = internalId.substring(off1+1, off2);
-      String url = aladin.glu.gluResolver("getDMap",catId,false);
-      aladin.execAsyncCommand("'DM "+label+"'=load "+url);
+      
+      try {  aladin.calque.newPlanDMap(internalId,catId);
+      } catch( Exception e ) { }
+//      String url = aladin.glu.gluResolver("getDMap",catId,false);
+//      aladin.execAsyncCommand("'DM "+internalId+"'=load "+url);
    }
    
-   void queryByMoc() {
+   void queryByMoc(PlanMoc planMoc) {
       ServerMocQuery serverMoc = new ServerMocQuery(aladin);
-      
-      // Détermination du PlanMoc
-      PlanMoc planMoc=null;
-      for( Object p : aladin.calque.getSelectedPlanes() ) {
-         if( p instanceof PlanMoc ) { planMoc=(PlanMoc)p; break; }
-      }
-      if( planMoc==null ) {
-         aladin.warning("You need to select a MOC plane in the stack");
-         return;
-      }
-      serverMoc.setPlanMoc(planMoc);
+      serverMoc.setPlan(planMoc);
       
       // Positionnement de l'identificateur du catalog
       int i = internalId.indexOf('/');

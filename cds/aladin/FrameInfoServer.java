@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -19,11 +21,29 @@
 
 package cds.aladin;
 
-import cds.tools.*;
+import static cds.aladin.Constants.INFOGUI;
 
-import java.awt.*;
-import java.awt.event.*;
-import javax.swing.*;
+import java.awt.AWTEvent;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTextArea;
+
+import cds.tools.Util;
 
 /**
  * Gestion de la fenêtre d'affichage des infos sur un serveur ainsi que le status
@@ -41,6 +61,10 @@ public class FrameInfoServer extends JFrame implements ActionListener {
 	private JButton btInfo/*,btTest*/;
 	private Aladin aladin;
 	private Server server;
+	private Future<JPanel> additionalComponent;
+	private MySplitPane centerPanel;
+	private int flagUpdate;// if 1- then it needs update
+	private int guiType; //0- simple, 1 for ServerTap with metadata table
 
 	protected void createChaine() {
 	   TITLE = aladin.chaine.getString("ISTITLE");
@@ -60,6 +84,7 @@ public class FrameInfoServer extends JFrame implements ActionListener {
 	protected FrameInfoServer(Aladin aladin) {
 	   super();
 	   this.aladin = aladin;
+	   this.guiType = 0;
        Aladin.setIcon(this);
        JButton b;
 
@@ -77,7 +102,7 @@ public class FrameInfoServer extends JFrame implements ActionListener {
 	   JPanel tnom = new JPanel(new FlowLayout(FlowLayout.CENTER));
 	   nom = new JLabel(TITLE);
 	   nom.setFont(Aladin.LLITALIC);
-	   nom.setForeground(Aladin.GREEN);
+	   nom.setForeground(Aladin.COLOR_GREEN);
 	   tnom.add(nom);
 
 	   JPanel submit = new JPanel();
@@ -90,6 +115,100 @@ public class FrameInfoServer extends JFrame implements ActionListener {
        getContentPane().add(submit,"South");
 
        setLocation(aladin.computeLocation(this));
+	}
+	
+	/**
+	 * @wbp.parser.constructor
+	 */
+	protected FrameInfoServer(Aladin aladin, Future<JPanel> infoPanel) {
+		super();
+		this.aladin = aladin;
+		this.guiType = 1;
+		Aladin.setIcon(this);
+		JButton b;
+
+		enableEvents(AWTEvent.WINDOW_EVENT_MASK);
+		Util.setCloseShortcut(this, false, aladin);
+
+		createChaine();
+		setTitle(TITLE);
+		ta = new JTextArea(20, 85);
+		ta.setFont(Aladin.COURIER);
+		ta.setBackground(Color.white);
+		ta.setEditable(false);
+		JScrollPane js = new JScrollPane(ta);
+//		js.setBounds(10, 10, 800, 200);
+//		js.setSize(new Dimension(800, 200));
+
+		this.additionalComponent = infoPanel;
+	    //this.additionalComponent.setBounds(10, 50, 800, 600);
+		JScrollPane mainScrollPane;
+		try {
+			mainScrollPane = new JScrollPane(this.additionalComponent.get());
+			mainScrollPane.setName(INFOGUI);
+//			mainScrollPane.setSize(new Dimension(800, 300));
+//			mainScrollPane.setBounds(10, 60, 800, 300);
+			mainScrollPane.getVerticalScrollBar().setUnitIncrement(4);
+			
+			this.centerPanel = new MySplitPane(aladin, JSplitPane.VERTICAL_SPLIT, js, mainScrollPane, 1);
+			js.setMinimumSize(new Dimension(800, 200));
+			js.setPreferredSize(new Dimension(800, 300));
+        } catch (InterruptedException e) {
+        	//TODO::
+           e.printStackTrace();
+       } catch (ExecutionException e) {
+    	   //TODO::
+           e.printStackTrace();
+		}
+		
+
+		JPanel tnom = new JPanel(new FlowLayout(FlowLayout.CENTER));
+		nom = new JLabel(TITLE);
+		nom.setFont(Aladin.LLITALIC);
+		nom.setForeground(Aladin.COLOR_GREEN);
+		tnom.add(nom);
+	    
+		JPanel submit = new JPanel();
+		submit.add(btInfo = b = new JButton(INFO));
+		b.addActionListener(this);
+		// submit.add( btTest=b= new Jutton(TEST)); b.addActionListener(this);
+		submit.add(b = new JButton(CLOSE));
+		b.addActionListener(this);
+
+		getContentPane().add(tnom,"North");
+	    getContentPane().add(this.centerPanel,"Center");
+	    getContentPane().add(submit,"South");
+	    
+		setLocation(aladin.computeLocation(this));
+	}
+	
+	
+	/**
+	 * Updates the info panel gui
+	 * @throws Exception 
+	 */
+	public void updateInfoPanel() throws Exception {
+		Component[] components = this.centerPanel.getComponents();
+		for (Component component : components) {
+			if (component.getName() != null && component.getName().equals(INFOGUI)) {
+				JScrollPane oldScrollPane = (JScrollPane) component;
+				try {
+					JScrollPane  mainScrollPane= new JScrollPane(this.additionalComponent.get());
+					mainScrollPane.setName(INFOGUI);
+					mainScrollPane.setBounds(10, 10, 800, 600);
+					mainScrollPane.getVerticalScrollBar().setUnitIncrement(4);
+					this.getContentPane().remove(this.centerPanel);
+					this.centerPanel.remove(oldScrollPane);
+					this.centerPanel.add(mainScrollPane);
+					this.getContentPane().add(this.centerPanel,"Center");
+					break;
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					throw e;
+				}
+			}
+		}
 	}
 
 	private String A(String s) { return Util.align(s,14)+": "; }
@@ -132,5 +251,46 @@ public class FrameInfoServer extends JFrame implements ActionListener {
 //	   else if( what.equals(TEST) ) aladin.glu.showDocument("Http",server.statusUrl,true);
 	   else if( what.equals(INFO) ) aladin.glu.showDocument("Http",server.docUser,true);
 	}
+
+	public Future<JPanel> getAdditionalComponent() {
+		return additionalComponent;
+	}
+
+	public void setAdditionalComponent(Future<JPanel> additionalComponent) {
+		this.additionalComponent = additionalComponent;
+	}
+
+	public int isFlagUpdate() {
+		return flagUpdate;
+	}
+
+	public void setFlagUpdate(int flagUpdate) {
+		this.flagUpdate = flagUpdate;
+	}
+
+	public int getGuiType() {
+		return guiType;
+	}
+
+	public void setGuiType(int guiType) {
+		this.guiType = guiType;
+	}
+	
+	public boolean isOfTapServerType() {
+		boolean typeIsTap = false;
+		if (this.guiType == 1) {
+			typeIsTap = true;
+		}
+		return typeIsTap;
+	}
+
+	public Server getServer() {
+		return server;
+	}
+
+	public void setServer(Server server) {
+		this.server = server;
+	}
+
 
 }

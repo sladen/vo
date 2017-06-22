@@ -1,8 +1,31 @@
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
+// The Aladin program is distributed under the terms
+// of the GNU General Public License version 3.
+//
+//This file is part of Aladin.
+//
+//    Aladin is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation, version 3 of the License.
+//
+//    Aladin is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
+//
+//    The GNU General Public License is available in COPYING file
+//    along with Aladin.
+//
+
 package cds.allsky;
 
 import java.awt.image.IndexColorModel;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.InputStreamReader;
 
 import cds.aladin.CanvasColorMap;
 import cds.aladin.KernelList;
@@ -279,7 +302,7 @@ public class BuilderRgb extends BuilderTiles {
       File f = new File( propFile );
       if( f.exists() ) {
          if( !f.canRead() ) throw new Exception("Propertie file not available ! ["+propFile+"]");
-         FileInputStream in = new FileInputStream(propFile);
+         InputStreamReader in = new InputStreamReader( new BufferedInputStream( new FileInputStream(propFile) ), "UTF-8");
          prop.load(in);
          in.close();
       }

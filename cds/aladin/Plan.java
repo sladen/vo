@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -100,6 +102,8 @@ public class Plan implements Runnable {
       "MOC","CubeColor","HipsFinder","HipsCube"
    };
 
+   protected String id=null;     // Identification unique (ex: CDS/I/231...)
+   protected String asId=null;   // Identification technique (cf. prepareLabel()
    protected int type;           // Type de plan: NO, IMAGE, CATALOG, TOOL, APERTURE,...
    protected int folder;	     // niveau du folder, 0 si aucun
    protected Slide slide=null;   // Slide pour la pile
@@ -213,6 +217,7 @@ public class Plan implements Runnable {
 
    /** Duplication du Plan */
    protected void copy(Plan p) {
+      p.id=id;
       p.type=type;
       p.folder=folder;
       p.collapse=collapse;
@@ -663,10 +668,12 @@ public class Plan implements Runnable {
                      mu1.setValue(s.getValue(npmra));
                   } catch( Exception e1 ) { e1.printStackTrace(); }
                   Unit mu2 = new Unit();
+                  
                   try {
                      mu2.setUnit(s.getUnit(npmde));
                      mu2.setValue(s.getValue(npmde));
                   } catch( Exception e1 ) { e1.printStackTrace();  }
+                  
                   if( mu1.getValue()!=0 || mu2.getValue()!=0 ) {
                      try {
                         mu1.convertTo(new Unit("mas/yr"));
@@ -891,6 +898,17 @@ public class Plan implements Runnable {
          SwingUtilities.invokeLater(new Runnable() {
             public void run() { aladin.dialog.resume(); }
          });
+      
+      if( aladin.additionalServiceDialog!=null )
+          SwingUtilities.invokeLater(new Runnable() {
+             public void run() { aladin.additionalServiceDialog.resume(); }
+          });
+      
+      if (aladin.grabUtilInstance!=null) {
+    	  SwingUtilities.invokeLater(new Runnable() {
+              public void run() { aladin.grabUtilInstance.resetAllGrabIts(aladin); }
+           });
+      }
 
       // Suppression de la fenetre des proprietes associee au plan si necessaire
       final Plan [] param1 = new Plan[1];
@@ -1454,30 +1472,35 @@ public class Plan implements Runnable {
 
    // Peut être sous un plan Background ?
    private boolean setUnderBackGroundFlag(ViewSimple v) {
+      
+      // ON A CHANGE D'AVIS. ON PEUT ACTIVER UN PLAN SOUS LE PLAN DE REFERENCE, MEME CACHE
+      // NOTAMMENT POUR POUVOIR SELECTION DES SOURCES
       boolean under=false;
-
-      // Si l'on force l'affichage des overlays qq soit leur position dans la pile
-      // on peut simplifier comme suit
-      if( ViewSimple.OVERLAYFORCEDISPLAY && !isPixel() ) {
-         setDebugFlag(UNDERBKGD, under);
-         return !under;
-      }
-
-      Plan [] allPlan = aladin.calque.getPlans();
-      int n = aladin.calque.getIndex(allPlan,this);
-      for( int i=n-1; i>=0; i-- ) {
-         Plan p=allPlan[i];
-         if( p.type==ALLSKYIMG && p.active
-               && (p.getOpacityLevel()==1 || p.isRefForVisibleView())
-               && !((PlanImage)p).isTransparent() ) {
-            under=true;
-            break;
-         }
-      }
-      if( under && aladin.view.isMultiView() ) under=false;
-
       setDebugFlag(UNDERBKGD, under);
       return !under;
+
+//      // Si l'on force l'affichage des overlays qq soit leur position dans la pile
+//      // on peut simplifier comme suit
+//      if( ViewSimple.OVERLAYFORCEDISPLAY && !isPixel() ) {
+//         setDebugFlag(UNDERBKGD, under);
+//         return !under;
+//      }
+//
+//      Plan [] allPlan = aladin.calque.getPlans();
+//      int n = aladin.calque.getIndex(allPlan,this);
+//      for( int i=n-1; i>=0; i-- ) {
+//         Plan p=allPlan[i];
+//         if( p.type==ALLSKYIMG && p.active
+//               && (p.getOpacityLevel()==1 || p.isRefForVisibleView())
+//               && !((PlanImage)p).isTransparent() ) {
+//            under=true;
+//            break;
+//         }
+//      }
+//      if( under && aladin.view.isMultiView() ) under=false;
+//
+//      setDebugFlag(UNDERBKGD, under);
+//      return !under;
 
    }
 
@@ -1715,13 +1738,15 @@ public class Plan implements Runnable {
 
    /** Enregistrement du label du plan (ce qui apparaitra a cote du logo
     * du plan) en le modifiant éventuellement pour qu'il soit unique
+    * Mémorise également un éventuelle identificateur technique fourni
+    * en suffixe sous la forme " as xxx"
     */
    protected void setLabel(String label) {
       String x = getUniqueLabel(label);
       if( x==null ) return;
       this.label = x;
    }
-
+   
    /**
     * Retourne un label pour qu'il soit unique dans la pile
     * Change tous les \n en ' ' et les '/' en '.'
@@ -1930,6 +1955,9 @@ public class Plan implements Runnable {
       //   	  if( active && getOpacityLevel()<0.1f && !ref ) setOpacityLevel(1f);
       if( !active ) aladin.view.deSelect(this);
       else aladin.view.addTaggedSource(this);
+      
+      // Activation le cas échéant d'un filtre qui serait associé
+      if( isCatalog() && active)  PlanFilter.updatePlan(this);
 
       // Activation automatique du SED associé au plan (le cas échéant)
       if( active && isSED() ) {
@@ -2105,7 +2133,6 @@ public class Plan implements Runnable {
             || (trois=isSimpleCatalog() && !isViewable() && !aladin.calque.isBackGround() ) ) {
          aladin.calque.setPlanRef(this);
          if( !isOverlay() )  setOpacityLevel(0f);
-         //         setOpacityLevel( isOverlay()?1f : 0f);
       } else {
          if( !isViewable() ) aladin.view.syncPlan(this);
          setActivated(true);
@@ -2128,6 +2155,10 @@ public class Plan implements Runnable {
 
          // Mise à jour des formulaires serveurs (gratit et Choice input)
          if( aladin.dialog!=null ) aladin.dialog.resume();
+         if( aladin.additionalServiceDialog!=null ) aladin.additionalServiceDialog.resume();
+         if (aladin.grabUtilInstance!=null) {
+        	 aladin.grabUtilInstance.resetAllGrabIts(aladin);
+		}
       }
 
       // Libération de l'attente possible sur le target (voir Command.waitingPlanInProgress)

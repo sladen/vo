@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -63,6 +65,7 @@ public class Slider extends JComponent {
     * @param nbSteps
     */
    public Slider(double begin, int nbSteps) {
+      setOpaque(true);
       this.begin = begin;
       this.nbSteps = nbSteps;
       W = nbSteps + mX + margeDroite;

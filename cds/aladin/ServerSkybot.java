@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -49,7 +51,7 @@ public class ServerSkybot extends ServerGlu {
          String [] PD, String [] PK, String [] PV, String R, String MI,
 		 String [] AF, String AL,StringBuffer record) {
 
-      super(aladin,A,D,MV,MP,ML,LP,PP,FU,PD,PK,PV,R,MI,AF,AL,null,null,record,null);
+      super(aladin,A,D,MV,MP,ML,LP,PP,FU,PD,PK,PV,null, R,MI,AF,AL,null,null,record,null,null, null, null);
       aladinLogo = "SkyBotLogo.gif";
 
       // Resolver d'astéroid

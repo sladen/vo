@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,10 +19,10 @@
 //    along with Aladin.
 //
 
-
 package cds.xml;
 
 import java.io.EOFException;
+import java.nio.charset.Charset;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Vector;
@@ -289,21 +291,21 @@ final public class TableParser implements XMLConsumer {
 
             prec[i]=6;
             try { prec[i] = Integer.parseInt(f.precision); } catch( Exception e ) { prec[i]=6; }
-            //System.out.println("Field "+i+" type="+type[i]+" pos="+pos[i]+" len="+len[i]+" prec="+prec[i]);
+//            System.out.println("Field "+i+" type="+type[i]+" pos="+pos[i]+" len="+len[i]+" prec="+prec[i]);
          }
          pos[0]=0;
          memoField=null;    // va permettre de répérer un appel ultérieur à parseBin en continuation
-         //System.out.println("length="+length+" sizeRecord="+sizeRecord);
+         System.out.println("length="+length+" sizeRecord="+sizeRecord);
       }
 
-      //System.out.println("\nparseBin position="+offset+" length="+length+" nRecord="+nRecord+" nField="+nField);
+//      System.out.println("\nparseBin position="+offset+" length="+length+" nRecord="+nRecord+" nField="+nField);
 
       // Parsing du buffer (on reprend éventuellement là où on en était)
       int position=offset;
       while( position<length ) {
          if( nField==nbField ) {
             nField=0;
-            //System.out.print(nRecord+": ");
+//            System.out.print(nRecord+": ");
          }
 
          // En BINARY2, il faut lire le masque de bits en préambule de la ligne
@@ -313,7 +315,7 @@ final public class TableParser implements XMLConsumer {
             // sinon ce sera pour la prochaine fois
             int n = length-position;
             if( n<nullMask.length ) {
-               //System.out.println("Memo de "+n+" bytes pour la prochaine lecture à cause du nullMask..");
+//               System.out.println("Memo de "+n+" bytes pour la prochaine lecture à cause du nullMask..");
                memoB = new byte[n];
                System.arraycopy(b,position,memoB,0,n);
                return true;
@@ -325,6 +327,7 @@ final public class TableParser implements XMLConsumer {
          } else maskRead=false;
 
          int nbBytes = len[nField]==-1 ? -1 : binSizeOf(type[nField], len[nField]);
+         int lenv=0;   // Pour les champs variables.
 
          // Champ variable ?
          if( nbBytes==-1 ) {
@@ -332,12 +335,14 @@ final public class TableParser implements XMLConsumer {
             // Y a-t-il encore au-moins 4 bytes ? sinon ce sera pour la prochaine fois
             int n = length-position;
             if( n<4 ) {
-               //System.out.println("Memo de "+n+" bytes pour la prochaine lecture à cause de la longueur d'un champ variable..");
+//               System.out.println("Memo de "+n+" bytes pour la prochaine lecture à cause de la longueur d'un champ variable..");
                memoB = new byte[n];
                System.arraycopy(b,position,memoB,0,n);
                return true;
             }
-            nbBytes = getInt(b, position);
+            
+            lenv = getInt(b, position);
+            nbBytes =  binSizeOf( type[nField], lenv );
             position+=4;
          }
 
@@ -352,7 +357,7 @@ final public class TableParser implements XMLConsumer {
             // Dans le cas d'un champ variable, il faut également garder sa taille
             if( len[nField]==-1 ) position-=4;
             int n = length-position;
-            //System.out.println("Memo de "+n+" bytes pour la prochaine lecture à cause d'un champ non complet..");
+//            System.out.println("Memo de "+n+" bytes pour la prochaine lecture à cause d'un champ non complet..");
             memoB = new byte[n];
             System.arraycopy(b,position,memoB,0,n);
             return true;
@@ -363,14 +368,14 @@ final public class TableParser implements XMLConsumer {
          if( inBinary2 && isNull(nullMask,nField) ) record[nField]="null";
 
          // Sinon
-         else record[nField] = getBinField(b,position, len[nField]==-1 ? nbBytes : len[nField], type[nField],prec[nField], 0.,1.,false,0);
+         else record[nField] = getBinField(b,position, len[nField]==-1 ? lenv /*nbBytes */ : len[nField], type[nField],prec[nField], 0.,1.,false,0);
 
-         //System.out.print(" "+nbBytes+"/"+record[nField]);
+//         System.out.print(" "+nbBytes+"/"+record[nField]);
          position = nextPosition;
          nField++;
          if( nField==nbField ) {
             consumeRecord(record,nRecord++);
-            //System.out.println();
+            System.out.println();
          }
       }
 
@@ -681,6 +686,7 @@ final public class TableParser implements XMLConsumer {
                               type=='C'? 8:
                                  type=='M'? 16:
                                     type=='P'? 8:
+                                       type=='U'? 2:
                                        0;
       if( sizeOf==0 ) {
          System.out.println("Problème sérieux pour ["+type+"]");
@@ -705,12 +711,13 @@ final public class TableParser implements XMLConsumer {
          boolean hasNull,int tnull) {
       if( n==0 ) return "";
       if( type=='A' ) return getStringTrim(t,i,n);
+//      if( type=='U' ) return getStringUTrim(t,i,n);
       if( n==1 ) return getBinField(t,i,type,prec,tzero,tscale,hasNull,tnull);
 
-      StringBuffer a=null;
+      StringBuilder a=null;
       for( int j=0; j<n; j++ ) {
-         if( j==0 ) a = new StringBuffer();
-         else a.append(' ');
+         if( j==0 ) a = new StringBuilder();
+         else if( type!='U' ) a.append(' ');
          a.append( getBinField(t,i+binSizeOf(type,j),type,prec,tzero,tscale,hasNull,tnull) );
       }
       return a+"";
@@ -765,11 +772,16 @@ final public class TableParser implements XMLConsumer {
          return fmt( Double.longBitsToDouble(a),p,z,s )
                +(b>=0?"+":"-")
                +fmt( Double.longBitsToDouble(b),p,z,s )+"i";
+         case 'U': 
+            try { return new String(t, i, 2, utf16); }
+            catch( Exception e) { return "[??]"; }
          case 'A': return ""+( (char)t[i]);
          default: return "[???]";
       }
    }
-
+   
+   static private Charset utf16 = Charset.forName("UTF-16");
+   
 
    /**
     * Mise en forme d'un entier
@@ -890,6 +902,10 @@ final public class TableParser implements XMLConsumer {
       //      for( fin = offset+len-1; fin>deb && (s[fin]==BLB || s[fin]==TABB); fin--);
       //      return new String(s,deb,fin-deb+1);
    }
+   
+//   static final public String getStringUTrim(byte s[],int offset,int len) {
+//      return (new String(s,offset,len,utf16)).trim();
+//   }
 
    /** Extrait la chaine de caractères indiquée par la paramètre en trimmant
     * les éventuels blancs en début et fin de chaine
@@ -946,6 +962,7 @@ final public class TableParser implements XMLConsumer {
       cooepoch = new Hashtable<String,String>(10);
       cooequinox = new Hashtable<String,String>(10);
       cooFieldref = new Hashtable<String,String>(10);
+      typeFmt = dis.getType();
 
       return (xmlparser.parse(dis,endTag) && error==null /* && nField>1 */ );
    }
@@ -1293,7 +1310,8 @@ final public class TableParser implements XMLConsumer {
             if( name.equalsIgnoreCase("LINK") ) {
                f.addInfo("href",(String)atts.get("href"));
                f.addInfo("gref",(String)atts.get("gref"));
-               f.addInfo("refValue",(String)atts.get("content-type"));
+               String contentRole = (String)atts.get("content-role");
+               if( contentRole==null || contentRole.equalsIgnoreCase("doc") ) f.addInfo("refValue",(String)atts.get("content-type"));
                f.addInfo("refText",(String)atts.get("title"));
                inLinkField=true;
 
@@ -1352,13 +1370,58 @@ final public class TableParser implements XMLConsumer {
          if( sSedId!=null )   consumer.tableParserInfo("      .SEDid col     #"+nSedId+1);
          inSEDGroup=false;
       }
+      
+      if( (typeFmt & MyInputStream.EPNTAP)!=0 ) {
+         consumer.tableParserInfo("   -EPNTAP VOTABLE => c1min,c2min used as longitude,latitude");
+      }
 
       // Par défaut, ce sera du ICRS
       srcAstroFrame=null;
-
-      if( nRA<0 ) {
+      
+      // Aucune colonne ne ressemble de près ou de loin à des coordonnées
+      if( nRA<0 || nDEC<0 ) {
          if( !(flagXY=(nX>=0 && nY>=0))) { nRA=0; nDEC=1; }
          else consumer.setTableInfo("__XYPOS","true");
+      }
+
+      // Si un COOSYS ref a été utilisé, on va se baser sur lui pour déterminer de façon certaine
+      // les colonnes utilisant le même COOSYS
+      if( coosys!=null && nRA!=-1) {
+         
+         // On recherche le "ref" du champ de coordonnées le plus probable pour RA
+         Field f = memoField.elementAt( nRA );
+         if( f.ref!=null ) {
+            
+            // Pour tous les champs associés aux coordonnées qui n'ont pas de ref (ou pas le même ref),
+            // je vais vérifier voire ajuster le choix
+            boolean flagDec=false, flagPmra=false, flagPmdec=false;  // Liste des éléments des coordonnées à vérifier
+            Field f1;
+            boolean ok=false;
+            if( nDEC>=0 )   { f1 =  memoField.elementAt( nDEC );   ok = f.ref.equals( f1.ref ); }
+            flagDec=!ok;
+            ok=false;
+            if( nPMRA>=0 )  { f1 =  memoField.elementAt( nPMRA );  ok = f.ref.equals( f1.ref ); }
+            flagPmra=!ok;
+            flagPmra=true;
+            ok=false;
+            if( nPMDEC>=0 ) { f1 =  memoField.elementAt( nPMDEC ); ok = f.ref.equals( f1.ref ); }
+            flagPmdec=!ok;
+            
+            // On passe en revue tous les champs, et s'ils ont même ref, on "diminue" de mille la qualité de
+            // la détection du rôle (on ne le fait que pour le premier champ trouvé => ON POURRAIT LE FAIRE
+            // POUR CELUI QUI A LA MEILLEURE QUALITE PARMI CEUX QUI ONT MEME REF ET ROLE)
+            if( flagDec || flagPmra || flagPmdec ) {
+               Enumeration<Field> e = memoField.elements();
+               for( int i=0; e.hasMoreElements(); i++ ) {
+                  f1 = e.nextElement();
+                  if( f1.ref!=null && f1.ref.equals( f.ref ) ) {
+                          if( flagDec   && qualDEC>=0   && f.cooPossibleSignature==Field.DE )   { nDEC=i;   qualDEC-=1000; } 
+                     else if( flagPmra  && qualPMRA>=0  && f.cooPossibleSignature==Field.PMRA ) { nPMRA=i;  qualPMRA-=1000; } 
+                     else if( flagPmdec && qualPMDEC>=0 && f.cooPossibleSignature==Field.PMDE ) { nPMDEC=i; qualPMDEC-=1000; } 
+                  }
+               }
+            }
+         }
       }
 
       consumer.setTableRaDecXYIndex(nRA,nDEC,nPMRA,nPMDEC,nX,nY,
@@ -1426,8 +1489,8 @@ final public class TableParser implements XMLConsumer {
       // Gestion du système du calcul de l'année par défaut en fonction du système
       char letter='J';
       if( sys.indexOf("FK4")>=0 || sys.indexOf("B1950")>=0 ) letter='B';
-      if( ep!=null && ep.length()>1 && !Character.isDigit(ep.charAt(0)) ) ep = letter+ep;
-      if( eq!=null && eq.length()>1 && !Character.isDigit(eq.charAt(0)) ) eq = letter+eq;
+      if( ep!=null && ep.length()>1 && Character.isDigit(ep.charAt(0)) ) ep = letter+ep;
+      if( eq!=null && eq.length()>1 && Character.isDigit(eq.charAt(0)) ) eq = letter+eq;
 
       if( sys.indexOf("FK4")>=0 ) {
          if( eq==null ) srcAstroFrame = AF_FK4;
@@ -1461,16 +1524,23 @@ final public class TableParser implements XMLConsumer {
          else consumer.tableParserInfo("      !!! Coordinate system unknown... assuming ICRS");
       }
 
-      // Pour le moment, identique à ICRS donc inutile
-      if( srcAstroFrame==AF_FK5
-            || (srcAstroFrame+"").equals("ICRS")
-            || (srcAstroFrame+"").equals("FK5(J2000.0)") ) srcAstroFrame=null;
+      // Déjà dans le bon référentiel
+      if( (srcAstroFrame+"").equals("ICRS") ) srcAstroFrame=null;
 
       if( ref==null ) ref="null";
 
       if( srcAstroFrame!=null ) {
-         c = new Astropos(srcAstroFrame);
-         consumer.tableParserInfo("      => RA/DEC coordinate conversion: ref=\""+ref+"\" => "+srcAstroFrame+" to "+trgAstroFrame);
+
+         // Pour le moment, identique à ICRS donc inutile
+         if( srcAstroFrame==AF_FK5 || (srcAstroFrame+"").equals("FK5(J2000.0)") ) {
+            consumer.tableParserInfo("      => RA/DEC coordinate conversion not required: ref=\""+ref+"\" => "+srcAstroFrame+" to "+trgAstroFrame);
+            srcAstroFrame=null;
+         
+         } else {
+
+            c = new Astropos(srcAstroFrame);
+            consumer.tableParserInfo("      => RA/DEC coordinate conversion: ref=\""+ref+"\" => "+srcAstroFrame+" to "+trgAstroFrame);
+         }
       } else {
          consumer.tableParserInfo("      => RA/DEC coordinate system used: ref=\""+ref+"\" => "+trgAstroFrame);
       }
@@ -1756,6 +1826,7 @@ final public class TableParser implements XMLConsumer {
       String name = f.name==null?"":f.name;
       String ucd =  f.ucd==null?"":f.ucd;
       String unit = f.unit==null?"":f.unit;
+      String ID   = f.ID==null?"":f.ID;
       boolean numeric = f.isNumDataType();
       int qual;
       int n;
@@ -1765,20 +1836,11 @@ final public class TableParser implements XMLConsumer {
       if( memoField==null ) memoField = new Vector<Field>();
       memoField.addElement( f );
 
-      // Cas vraiment particulier d'une colonne unique pour les coordonnées
-      if( ucd.equals("pos.eq") ||  ucd.equals("pos.eq;meta.main") ) {
-         nRA=nDEC = nField;
-         this.unit = getUnit(unit);
-         format= unit.length()==0 ? FMT_UNKNOWN :
-            unit.indexOf("h")>=0 && unit.indexOf("m")>=0 && unit.indexOf("s")>=0 ?FMT_SEXAGESIMAL : FMT_DECIMAL;
-            validLastCoordSys();
-            qualRA=qualDEC=0;
-            return;
-      }
 
       // Détection du RA et évaluation de la qualité de cette détection
       qual=-1;
       if( ucd.equals("POS_EQ_RA_MAIN") || ucd.equals("pos.eq.ra;meta.main") ) qual=0;
+      else if( (typeFmt&MyInputStream.EPNTAP)!=0 && ID.equals("c1min") ) qual=50;
       else if( ucd.startsWith("POS_EQ_RA") || ucd.startsWith("pos.eq.ra") ) qual=100;
       else if( (n=raName(name))>=0 ) {
          if( unit.indexOf("h:m:s")>=0 ) qual=200+n;
@@ -1794,15 +1856,16 @@ final public class TableParser implements XMLConsumer {
       }
       if( qual>=0 && qualRA>qual ) {
          nRA=nField; qualRA=qual;
+         f.cooPossibleSignature = Field.RA;
          this.unit = getUnit(unit);
-         format= unit.length()==0 ? FMT_UNKNOWN :
-            unit.indexOf("h")>=0 && unit.indexOf("m")>=0 && unit.indexOf("s")>=0 ?FMT_SEXAGESIMAL : FMT_DECIMAL;
-            validLastCoordSys();
+         format= unit.length()==0 ? FMT_UNKNOWN : unit.indexOf("h")>=0 && unit.indexOf("m")>=0 && unit.indexOf("s")>=0 ?FMT_SEXAGESIMAL : FMT_DECIMAL;
+         validLastCoordSys();
       }
 
       // Détection du DE et évaluation de la qualité de cette détection
       qual=-1;
       if( ucd.equals("POS_EQ_DEC_MAIN") || ucd.equals("pos.eq.dec;meta.main") )qual=0;
+      else if( (typeFmt&MyInputStream.EPNTAP)!=0 && ID.equals("c2min") ) qual=50;
       else if( ucd.startsWith("POS_EQ_DEC") || ucd.startsWith("pos.eq.dec") ) qual=100;
       else if( (n=deName(name))>=0 ) {
          if( unit.indexOf("d:m:s")>=0 ) qual=200+n;
@@ -1822,6 +1885,7 @@ final public class TableParser implements XMLConsumer {
 
       if( qual>=0 && qualDEC>qual ) {
          nDEC=nField; qualDEC=qual;
+         f.cooPossibleSignature = Field.DE;
       }
 
       // Détection du PMRA et évaluation de la qualité de cette détection
@@ -1848,7 +1912,10 @@ final public class TableParser implements XMLConsumer {
             catch( Exception e ) { qual=700+n; }
          }
       }
-      if( qual>=0 &&  qualPMRA>qual ) { nPMRA=nField; qualPMRA=qual; }
+      if( qual>=0 &&  qualPMRA>qual ) {
+         nPMRA=nField; qualPMRA=qual;
+         f.cooPossibleSignature = Field.PMRA;
+      }
 
       // Détection du PMDE et évaluation de la qualité de cette détection
       qual=-1;
@@ -1866,7 +1933,10 @@ final public class TableParser implements XMLConsumer {
             catch( Exception e ) { qual=700+n; }
          }
       }
-      if( qual>=0 &&  qualPMDEC>qual ) { nPMDEC=nField; qualPMDEC=qual; }
+      if( qual>=0 &&  qualPMDEC>qual ) {
+         nPMDEC=nField; qualPMDEC=qual;
+         f.cooPossibleSignature = Field.PMDE;
+      }
 
 
       // Détection du X et évaluation de la qualité de cette détection
@@ -1900,6 +1970,17 @@ final public class TableParser implements XMLConsumer {
          else qual=700+n;
       }
       if( qual>=0 &&  qualY>qual ) { nY=nField; qualY=qual; }
+      
+      // Cas vraiment particulier d'une colonne unique pour les coordonnées
+      if( nRA==-1 && (ucd.equals("pos.eq") ||  ucd.equals("pos.eq;meta.main")) ) {
+         nRA=nDEC = nField;
+         this.unit = getUnit(unit);
+         format= unit.length()==0 ? FMT_UNKNOWN : unit.indexOf("h")>=0 && unit.indexOf("m")>=0 && unit.indexOf("s")>=0 ?FMT_SEXAGESIMAL : FMT_DECIMAL;
+         validLastCoordSys();
+         qualRA=qualDEC=0;
+         return;
+      }
+
    }
 
    /** XMLparser interface */
@@ -2035,11 +2116,12 @@ final public class TableParser implements XMLConsumer {
             else {
                String s = rec[nRA];
                int i = s.indexOf('+');
-               if( i<0 ) i =s.indexOf('-');
-               if( i<0 ) { i = s.indexOf(','); if( i>0 ) i++; }
-               if( i<0 ) i = s.indexOf(' ');
+               int j=i;
+               if( i<0 ) i=j =s.indexOf('-');
+               if( i<0 ) { i=j = s.indexOf(','); if( i>0 ) i++; }
+               if( i<0 ) i=j = s.indexOf(' ');
                if( i<0 ) throw new Exception("Unsupported syntax for coordinates expressed as an unique field");
-               ra = s.substring(0,i).trim();
+               ra = s.substring(0,j).trim();
                dec= s.substring(i).trim();
             }
             

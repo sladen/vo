@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -77,7 +78,7 @@ import cds.tools.Util;
  */
 public final class ServerDialog extends JFrame
 implements SwingWidgetFinder, Runnable, ActionListener,
-DropTargetListener, DragSourceListener, DragGestureListener {
+DropTargetListener, DragSourceListener, DragGestureListener, GrabItFrame {
    static final int MAXSERVER = 10;
 
    // Les indices des serveurs
@@ -97,7 +98,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
    // Les chaines
    String TITLE,/*HISTORY,*/SUBMIT,RESET,CLEAR,HELP,CLOSE,IMG,CAT,OTHER,MESSAGE,
-   TIPRESET,TIPCLEAR,TIPSUBMIT,TIPCLOSE;
+   TIPRESET,TIPCLEAR,TIPSUBMIT,TIPCLOSE,GENERICERROR;
 
    // Les composantes de l'objet
    Server[] server;
@@ -109,6 +110,8 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
    // popup d'accès aux serveurs ajoutés par l'utilisateur via PLASTIC
    ServerFolder voResPopup;
+   
+   TapManager tapManager = null;
 
    // Les infos a memoriser
    int current = 0; // le formulaire courant
@@ -119,7 +122,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
    // pour robot
    Server curServer, localServer, vizierServer,vizierArchives,vizierSurveys,
-   vizierBestof,discoveryServer, aladinServer, fovServer, almaFovServer, vizierSED, hipsServer;
+   vizierBestof,discoveryServer, aladinServer, fovServer, almaFovServer, vizierSED, hipsServer, tapServer;
    JButton submit;
 
    // Les references aux autres objets
@@ -174,13 +177,13 @@ DropTargetListener, DragSourceListener, DragGestureListener {
     * @param type Server.IMAGE, Server.CATALOG, Server.OTHERS suivant que l'on traite les
     *           serveurs Images, Donnees, ou applications distantes
     */
-   private void addGluServer(Vector<Server> sv, int type) {
+   private void addGluServer(Vector<Server> sv, Vector<Server> sourceServer, int type) {
       //      Enumeration e = Glu.vGluServer.elements();
       Server sTmp;
       int i;
 
-      for( int j = Glu.vGluServer.size() - 1; j >= 0; j-- ) {
-         sTmp = (Server) Glu.vGluServer.elementAt(j);
+      for( int j = sourceServer.size() - 1; j >= 0; j-- ) {
+         sTmp = sourceServer.elementAt(j);
          if( (sTmp.type & type) ==0 ) continue;
 
          // Correction du bug multi-instances d'Aladin dans le cas de l'applet
@@ -202,8 +205,8 @@ DropTargetListener, DragSourceListener, DragGestureListener {
             if( i < 0 ) {
                i = sv.size(); // Indice de son emplacement
                sv.addElement(new ServerFolder(aladin, sTmp.aladinMenu, i,
-                     type == Server.IMAGE ? ServerFolder.LEFT :
-                        type == Server.CATALOG ? ServerFolder.RIGHT : ServerFolder.TOP ));
+                     sTmp.type == Server.IMAGE ? ServerFolder.LEFT :
+                        sTmp.type == Server.CATALOG || sTmp.type == Server.MOC ? ServerFolder.RIGHT : ServerFolder.TOP ));
             }
             ((ServerFolder) sv.elementAt(i)).addItem(sTmp.aladinLabel);
          }
@@ -214,6 +217,10 @@ DropTargetListener, DragSourceListener, DragGestureListener {
     * => afin de pouvoir le rendre visible immédiatement le cas échéant */
    protected int getLastGluServerIndice() {
       return findIndiceServer(aladin.glu.lastGluServer);
+   }
+   
+   protected int getTapServerIndex() {
+	      return findIndiceServer(tapServer);
    }
 
 
@@ -307,6 +314,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       TIPCLEAR = aladin.chaine.getString("TIPCLEAR");
       TIPSUBMIT = aladin.chaine.getString("TIPSUBMIT");
       TIPCLOSE = aladin.chaine.getString("TIPCLOSE");
+      GENERICERROR = Aladin.getChaine().getString("GENERICERROR");
    }
 
 
@@ -350,7 +358,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       if( !Aladin.OUTREACH && Aladin.NETWORK ) sv.addElement(aladinServer = new ServerAladin(aladin));
 
       // Les serveurs Images via GLU
-      if( Aladin.NETWORK ) addGluServer(sv, Server.IMAGE);
+      if( Aladin.NETWORK ) addGluServer(sv, Glu.vGluServer, Server.IMAGE);
 
       if( Aladin.OUTREACH && Aladin.NETWORK ) sv.addElement(aladinServer = new ServerAladin(aladin));
 
@@ -361,22 +369,38 @@ DropTargetListener, DragSourceListener, DragGestureListener {
          vizierServer = svizier = new ServerVizieR(aladin, this, actions);
          if( !Aladin.OUTREACH ) {
             sv.addElement(svizier);
-            sv.addElement(vizierSurveys = new ServerVizieRSurvey(aladin,
-                  ((ServerVizieR) svizier).vSurveys));
-            sv.addElement(vizierArchives = new ServerVizieRMission(aladin,
-                  ((ServerVizieR) svizier).vArchives));
+            if( !Aladin.BETA ) {
+               sv.addElement(vizierSurveys = new ServerVizieRSurvey(aladin,
+                     ((ServerVizieR) svizier).vSurveys));
+               sv.addElement(vizierArchives = new ServerVizieRMission(aladin,
+                     ((ServerVizieR) svizier).vArchives));
+            }
             sv.addElement(new ServerSimbad(aladin));
             sv.addElement(new ServerNED(aladin));
-            if( Aladin.PROTO ) {
-               sv.addElement(new ServerSWarp(aladin));
-            }
-            if( Aladin.BETA ) {
+            if( !Aladin.BETA ) {
+//               sv.addElement(new ServerSWarp(aladin));
                sv.addElement(new ServerMocQuery(aladin));
             }
+//            if( Aladin.PROTO) sv.addElement(new ServerXmatch(aladin));
+            if( Aladin.BETA ) {//TODO:: tintinproto
+            	this.tapManager = TapManager.getInstance(aladin);
+            	
+            	tapServer = new ServerTap(aladin);
+				sv.addElement(tapServer);
+            	
+            	
+                /*if (aladin.glu.lastTapGluServer != null) {//drag drop of new server take priority
+                	tapServer = aladin.glu.lastTapGluServer;
+                	tapServer.HIDDEN = false;
+                	if( !tapServer.isVisible() ) tapServer.setVisible(true);
+    			} else{//initial aladin load
+    				tapServer = new ServerTap(aladin);
+    				sv.addElement(tapServer);
+    			}*/
+            }
+            
          } else {
             sv.addElement(new ServerSimbad(aladin));
-            //            sv.addElement(vizierBestof = new BestofServer(aladin,
-            //                  ((VizieRServer) svizier).vSurveys));
             sv.addElement(vizierSurveys = new ServerVizieRSurvey(aladin,
                   ((ServerVizieR) svizier).vSurveys));
             sv.addElement(vizierArchives = new ServerVizieRMission(aladin,
@@ -386,14 +410,14 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       }
 
       // Les serveurs Catalog via GLU
-      if( Aladin.NETWORK ) addGluServer(sv, Server.CATALOG);
+      if( Aladin.NETWORK ) addGluServer(sv, Glu.vGluServer, Server.CATALOG | Server.MOC);
 
       // Tri des serveurs pour mettre ceux qui sont sous "others" en fin de
       // liste
       if( !Aladin.OUTREACH ) sv = triServer(sv);
 
       // L'arbre des HiPS
-      if( !Aladin.PROTO ) sv.addElement(hipsServer = new ServerHips(aladin));
+      if( !Aladin.BETA ) sv.addElement(hipsServer = new ServerHips(aladin));
 
       // L'acces local/url
       sv.addElement(localServer = new ServerFile(aladin));
@@ -402,7 +426,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       discoveryServer = null;
 
       // Le mode discovery
-      if( !Aladin.OUTREACH && Aladin.NETWORK ) {
+      if( !Aladin.OUTREACH && Aladin.NETWORK && !Aladin.BETA) {
          discoveryServer = new ServerAllVO(aladin);
          sv.addElement(discoveryServer);
       }
@@ -411,7 +435,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       sv.addElement(new ServerWatch(aladin));
 
       // Les serveurs Spectra via GLU
-      if( !Aladin.OUTREACH && Aladin.NETWORK ) addGluServer(sv, Server.SPECTRUM);
+      if( !Aladin.OUTREACH && Aladin.NETWORK ) addGluServer(sv, Glu.vGluServer, Server.SPECTRUM);
 
       // Les FoV
       if( !Aladin.OUTREACH ) {
@@ -428,7 +452,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
       // Les serveurs d'application via GLU
       if( !Aladin.OUTREACH && Aladin.NETWORK )
-         addGluServer(sv, Server.APPLI | Server.APPLIIMG);
+         addGluServer(sv, Glu.vGluServer, Server.APPLI | Server.APPLIIMG);
 
       // Serveurs obtenus via PLASTIC
       //      if( !Aladin.OUTREACH && Aladin.PROTO && Aladin.PLASTIC_SUPPORT ) {
@@ -463,7 +487,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       JLabel l,limg,ldat;
       limg = l = new JLabel(Util.fold("<center><i>"+IMG+"</i></center>",80,true));
       l.setFont(Aladin.BOLD);
-      l.setForeground(Aladin.DARKBLUE);
+      l.setForeground(Aladin.COLOR_LABEL);
       gbimg.setConstraints(l,gcimg);
       buttonImg.add(l);
       gcimg.insets.bottom=0;
@@ -473,7 +497,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       gcdat.insets.top=12;
       ldat = l = new JLabel(Util.fold("<center><i>"+CAT+"</i></center>",80,true));
       l.setFont(Aladin.BOLD);
-      l.setForeground(Aladin.DARKBLUE);
+      l.setForeground(Aladin.COLOR_LABEL);
       gbdat.setConstraints(l,gcdat);
       buttonData.add(l);
       gcdat.insets.bottom=0;
@@ -482,7 +506,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       gctop.insets.right=12;
       l = new JLabel(Util.fold("<center><i>"+OTHER+"</i></center>",80,true));
       l.setFont(Aladin.BOLD);
-      l.setForeground(Aladin.DARKBLUE);
+      l.setForeground(Aladin.COLOR_LABEL);
       gbtop.setConstraints(l,gctop);
       buttonTop.add(l);
       gctop.insets.right=0;
@@ -621,7 +645,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       m=submit = new JButton(SUBMIT);         // m.setModeMenu(true);
       m.addActionListener(this); m.setOpaque(false);
       m.setToolTipText(TIPSUBMIT);
-      m.setForeground(Aladin.GREEN);
+      m.setForeground(Aladin.COLOR_GREEN);
       m.setFont(m.getFont().deriveFont(Font.BOLD));
       actions.add(submit);
       actions.add(m=new JButton(CLOSE));   // m.setModeMenu(true);
@@ -652,7 +676,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
       aladin.manageDrop();
 
-      if( !Aladin.PROTO ) setCurrent("hips");
+      if( !Aladin.BETA ) setCurrent("hips");
       else setCurrent("file");
 
       // INUTILE, C'EST MAINTENANT ASSEZ RAPIDE !
@@ -660,6 +684,178 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       //      th.start();
       run();
    }
+   
+    protected ServerDialog(Aladin aladin, Vector<Server> sourceServer) {
+      this.aladin = aladin;
+      Aladin.setIcon(this);
+
+      int i;
+      Vector<Server> sv = new Vector<Server>(100); // Temporaire pour la creation de serveur[]
+      JPanel actions = new JPanel();
+      createChaine();
+      setTitle(TITLE);
+      calque = aladin.calque;
+
+      setFont(Aladin.BOLD);
+      enableEvents(AWTEvent.WINDOW_EVENT_MASK);
+
+      getRootPane().registerKeyboardAction(new ActionListener() {
+         public void actionPerformed(ActionEvent e) { trapESC(); }
+      },
+      KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE,0),
+      JComponent.WHEN_IN_FOCUSED_WINDOW
+            );
+      getRootPane().registerKeyboardAction(new ActionListener() {
+         public void actionPerformed(ActionEvent e) { trapESC(); }
+      },
+      KeyStroke.getKeyStroke(KeyEvent.VK_W,Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()),
+      JComponent.WHEN_IN_FOCUSED_WINDOW
+            );
+
+      JLabel status = new JLabel(""); status.setFont( Aladin.LITALIC );
+      status.setForeground( Color.blue );
+
+      // Les serveurs d'application via GLU
+      if( !Aladin.OUTREACH && Aladin.NETWORK )
+         addGluServer(sv, sourceServer, Server.APPLI | Server.APPLIIMG);
+
+      // Construction des panel des boutons
+      JPanel buttonTop = new JPanel();
+      buttonImg = new JPanel();
+      buttonTop.setOpaque(false);
+
+      GridBagLayout gbtop = new GridBagLayout();
+      GridBagConstraints gctop = new GridBagConstraints();
+      buttonTop.setLayout(gbtop);
+
+      JLabel l;
+
+      gctop.insets.right=12;
+      l = new JLabel(Util.fold("<center><i>DataLink</i></center>",80,true));
+      l.setFont(Aladin.BOLD);
+      l.setForeground(Aladin.COLOR_LABEL);
+      gbtop.setConstraints(l,gctop);
+      buttonTop.add(l);
+      gctop.insets.right=0;
+
+      // Construction du tableau des serveurs et des boutons
+      // et remplissage des panels adequats
+      server = new Server[sv.size()];
+      buttons = new MyButton[sv.size()];
+      MyButton lastTop=null;
+
+      for( i = 0; i < server.length; i++ ) {
+         server[i] = sv.elementAt(i);
+
+         // Certains serveurs n'auront pas leur propre bouton et formulaire
+         if( server[i].isHidden() ) {
+            //System.out.println("Le serveur ["+server[i].getTitle()+"] n'a
+            // pas son propre formulaire");
+            continue;
+         }
+
+        
+         // Un bouton a part entiere
+         if( server[i].aladinMenu == null ) {
+        	 lastTop=buttons[i] = new MyButton(aladin, status, MyButton.TOP,
+                     server[i].aladinLabel, server[i].description);
+               gbtop.setConstraints(buttons[i],gctop);
+               buttonTop.add(buttons[i]);
+            buttons[i].setAlwaysUp(false);
+            buttons[i].setModeMenu(true);
+            if( server[i].aladinLogo!=null ) {
+               try {
+                  buttons[i].setBackGroundLogo(aladin.getImagette(server[i].aladinLogo),
+                        server[i] instanceof ServerFolder ? MyButton.WITHLABEL:
+                           MyButton.NOLABEL );
+               } catch( Exception e ) {
+                  System.err.println(e.getMessage());
+               }
+            }
+         }
+      }
+
+      l = new JLabel();
+      gctop.fill = GridBagConstraints.BOTH;
+      gbtop.setConstraints(l,gctop);
+      buttonTop.add(l);
+      
+      if( lastTop!=null )   lastTop.setLastInColumn();
+
+      sv = null;
+      buttons[bcurrent].push();
+      setFont(Aladin.PLAIN);
+
+      // Construction des panels associees a chaque serveur ou Popup
+      mp = new JPanel();
+      mp.setOpaque(true);
+      card = new CardLayout();
+      mp.setLayout(card);
+      for( i = 0; i < server.length; i++ ) {
+         if( server[i] == null || server[i].isHidden()) continue;
+         server[i].setOpaque(true);
+         mp.add(server[i].aladinLabel, server[i]);
+      }
+      selectDialog = new SelectDialog(this, mp);
+
+      // Construction du panel central (boutons images - forms - boutons data)
+      JPanel milieu = new JPanel();
+      milieu.setOpaque(false);
+      milieu.setLayout(new BorderLayout());
+      Aladin.makeAdd(milieu, selectDialog, "West");
+
+      // Construction des boutons d'actions
+      JButton m;
+      actions.add((m=new JButton(RESET)));    // m.setModeMenu(true);
+      m.addActionListener(this); m.setOpaque(false);
+      m.setToolTipText(TIPRESET);
+      actions.add((m=new JButton(CLEAR)));    // m.setModeMenu(true);
+      m.addActionListener(this); m.setOpaque(false);
+      m.setToolTipText(TIPCLEAR);
+      //      actions.add((m=new JButton(HISTORY)));  // m.setModeMenu(true);
+      //      m.addActionListener(this);
+      actions.add(new JLabel("           "));
+      m=submit = new JButton(SUBMIT);         // m.setModeMenu(true);
+      m.addActionListener(this); m.setOpaque(false);
+      m.setToolTipText(TIPSUBMIT);
+      m.setForeground(Aladin.COLOR_GREEN);
+      m.setFont(m.getFont().deriveFont(Font.BOLD));
+      actions.add(submit);
+      actions.add(m=new JButton(CLOSE));   // m.setModeMenu(true);
+      m.addActionListener(this); m.setOpaque(false);
+      m.setToolTipText(TIPCLOSE);
+      m.setForeground(Color.red);
+      m.setFont(m.getFont().deriveFont(Font.BOLD));
+      actions.add(m= Util.getHelpButton(this,MESSAGE));  // m.setModeMenu(true);
+      actions.setFont(Aladin.BOLD);
+
+      // Construction de la barre du bas (status, et boutons d'action)
+      JPanel bas = new JPanel();
+      bas.setOpaque(false);
+      bas.setLayout(new BorderLayout(0,0));
+      Aladin.makeAdd(bas, status,"Center");
+      Aladin.makeAdd(bas, actions, "South");
+      actions.setOpaque(false);
+
+      // Le panel de la frame elle-meme
+      JPanel ct = (JPanel)getContentPane();
+      ct.setOpaque(true);
+      ct.setLayout(new BorderLayout(0,0));
+      //      ct.setBackground(new Color(250,249,245));
+      ct.setBorder(BorderFactory.createEmptyBorder(3,3,0,3));
+      Aladin.makeAdd(ct, buttonTop, "North");
+      Aladin.makeAdd(ct, milieu, "Center");
+      Aladin.makeAdd(ct, bas, "South");
+
+      aladin.manageDrop();
+
+      // INUTILE, C'EST MAINTENANT ASSEZ RAPIDE !
+      //      Thread th = new Thread(this,"AladinServerPack");
+      //      th.start();
+      run();
+   }
+     
+	   
 
    public void dragGestureRecognized(DragGestureEvent dragGestureEvent) { }
    public void dragEnter(DropTargetDragEvent dropTargetDragEvent) {
@@ -846,7 +1042,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
     * fonction du x,y de la souris
     * @param x,y Position dans la vue
     */
-   protected void setGrabItCoord(double x, double y) {
+   public void setGrabItCoord(double x, double y) {
       ViewSimple v = aladin.view.getCurrentView();
       Plan pr = v.pref;
       if( pr == null ) return;
@@ -864,7 +1060,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    /**
     * Arrete le GrabIt
     */
-   protected void stopGrabIt() {
+   public void stopGrabIt() {
       JToggleButton grab = server[current].grab;
       if( grab != null ) {
          Plan pref = aladin.calque.getPlanRef();
@@ -879,7 +1075,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    /**
     * Démarrage d'une séquence de GrabIT
     */
-   protected void startGrabIt() {
+   public void startGrabIt() {
       if( server[current].grab == null
             || !server[current].grab.getModel().isSelected() ) return;
       aladin.f.toFront();
@@ -889,7 +1085,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
     * Retourne true si le bouton grabit du formulaire existe et qu'il est
     * enfoncé
     */
-   protected boolean isGrabIt() {
+   public boolean isGrabIt() {
       return (server[current].modeCoo != Server.NOMODE
             && server[current].grab != null && server[current].grab.getModel().isSelected());
    }
@@ -899,7 +1095,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
     * fonction du x,y de la souris
     * @param x,y Position dans la vue
     */
-   protected void setGrabItRadius(double x1, double y1, double x2, double y2) {
+   public void setGrabItRadius(double x1, double y1, double x2, double y2) {
       if( server[current].modeRad == Server.NOMODE ) return;
       if( Math.abs(x1 - x2) < 3 && Math.abs(y1 - y2) < 3 ) return;
       ViewSimple v = aladin.view.getCurrentView();
@@ -1003,36 +1199,37 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
       String defTarget = lastTarget != null ? lastTarget
             : objet != null ? aladin.localisation.getFrameCoord(objet) : radec != null ? aladin.localisation.getFrameCoord(radec) : "";
-            String defTaille;
-            if( mode == 5 ) defTaille = lastTaille != null ? lastTaille : taille;
-            else defTaille = taille != null ? taille : lastTaille;
+            
+      String defTaille;
+      if( mode == 5 ) defTaille = lastTaille != null ? lastTaille : taille;
+      else defTaille = taille != null ? taille : lastTaille;
 
-            setDefaultTarget(defTarget);
-            if( server[i].modeRad != Server.NOMODE ) setDefaultTaille(taille);
+      setDefaultTarget(defTarget);
+      if( server[i].modeRad != Server.NOMODE ) setDefaultTaille(taille);
 
-            // Positionnement de l'epoque d'observation
-            if( v!=null ) {
-               epoch = v.getEpoch();
-               if( epoch != null ) server[i].setDate(epoch);
-               else if( v.pref instanceof PlanImage ) {
-                  epoch = ((PlanImage)v.pref).getDateObs();
-                  if( epoch!=null ) server[i].setDate(epoch);
-               }
-               setDefaultDate(epoch);
-            }
+      // Positionnement de l'epoque d'observation
+      if( v!=null ) {
+         epoch = v.getEpoch();
+         if( epoch != null ) server[i].setDate(epoch);
+         else if( v.pref instanceof PlanImage ) {
+            epoch = ((PlanImage)v.pref).getDateObs();
+            if( epoch!=null ) server[i].setDate(epoch);
+         }
+         setDefaultDate(epoch);
+      }
 
-            // Si le formulaire a un arbre de métadata non vide, on ne met pas
-            // à jour le target à moins que le target soit vide
-            if( server[i].tree != null && !server[i].tree.isEmpty()
-                  && (server[i].target==null || server[i].target.getText().trim().length()!=0 ) ) return;
+      // Si le formulaire a un arbre de métadata non vide, on ne met pas
+      // à jour le target à moins que le target soit vide
+      if( server[i].tree != null && !server[i].tree.isEmpty()
+            && (server[i].target==null || server[i].target.getText().trim().length()!=0 ) ) return;
 
-            server[i].setTarget(defTarget);
-            try {
-               if( defTaille != null && defTaille.trim().length()!=0
-                     && server[i].modeRad != Server.NOMODE ) server[i].resolveRadius(defTaille, true);
-            } catch( Exception e ) {
-               if( aladin.levelTrace>=3 ) e.printStackTrace();
-            }
+      server[i].setTarget(defTarget);
+      try {
+         if( defTaille != null && defTaille.trim().length()!=0
+               && server[i].modeRad != Server.NOMODE ) server[i].resolveRadius(defTaille, true);
+      } catch( Exception e ) {
+         if( aladin.levelTrace>=3 ) e.printStackTrace();
+      }
 
    }
 
@@ -1109,8 +1306,12 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       int i = findIndiceServer(nom);
 
       // Les cas particuliers VizieR
-      if( i<0 && vizierSurveys.setParam(nom) )  i=findIndiceServer(vizierSurveys);
-      if( i<0 && vizierArchives.setParam(nom) ) i=findIndiceServer(vizierArchives);
+      if( vizierSurveys!=null ) {
+         if( i<0 && vizierSurveys.setParam(nom) )  i=findIndiceServer(vizierSurveys);
+      }
+      if( vizierSurveys!=null ) {
+         if( i<0 && vizierArchives.setParam(nom) ) i=findIndiceServer(vizierArchives);
+      }
 
       if( i<0 ) return false;
       setCurrent(i);
@@ -1123,6 +1324,23 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    public boolean show(String nom) {
       int i = findIndiceServer(nom);
       if( i<0 ) return false;
+      
+      if (Aladin.BETA && "TAP".equals(nom)) {//TODO::tintinproto
+    	  if (!tapManager.checkDummyInitForServerDialog(tapServer)) {
+  			return false;
+      	  };
+    	  /*if (aladin.glu.lastTapGluServer == null && tapManager.checkDummyTapServer(tapServer)) {
+    		  try {
+				this.tapManager.showTapRegistryForm();
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				Aladin.warning(this, Aladin.getChaine().getString("GENERICERROR"));
+				e.printStackTrace();
+			}
+    		  return false;
+		  }*/
+      }
+      
       setCurrent(i);
       toFront();
       return true;
@@ -1134,6 +1352,18 @@ DropTargetListener, DragSourceListener, DragGestureListener {
       setCurrent(findIndiceServer(x));
       toFront();
    }
+   
+	/**
+	 * Method to replace old server entries on server dialog
+	 * @param oldServerRef
+	 * @param newServer
+	 */
+	protected void findReplaceServer(Server oldServerRef, Server newServer) {
+		int oldServerIndex = findIndiceServer(oldServerRef);
+		server[oldServerIndex] = newServer;
+		mp.remove(oldServerRef);
+		mp.add(newServer.aladinLabel, newServer);
+	}
 
    /** Montre le formulaire du serveur passé en paramètre */
    protected boolean show(Server x,String param1) {
@@ -1285,6 +1515,9 @@ DropTargetListener, DragSourceListener, DragGestureListener {
          server[current].memTarget(); // Memorisation du precédent target
          //         myClose.normal();
          cache();
+         if (tapManager != null) {
+        	 tapManager.hideTapRegistryForm();
+		 }
          return;
       }
       if( CLEAR.equals(s) ) {
@@ -1311,6 +1544,21 @@ DropTargetListener, DragSourceListener, DragGestureListener {
 
       // Changement du formulaire
       server[current].memTarget(); // Memorisation du precedent target
+      if (Aladin.BETA && "TAP".equals(what)) {//TODO::tintinproto
+    	  if (!tapManager.checkDummyInitForServerDialog(tapServer)) {
+			return false;
+    	  };
+    	 /* if (aladin.glu.lastTapGluServer == null && tapManager.checkDummyTapServer(tapServer)) {
+    		  try {
+				this.tapManager.showTapRegistryForm();
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				Aladin.warning(this, Aladin.getChaine().getString("GENERICERROR"));
+				e.printStackTrace();
+			}
+    		  return false;
+		  }*/
+      }
       setCurrent((String) what);
 
       return false;
@@ -1342,7 +1590,7 @@ DropTargetListener, DragSourceListener, DragGestureListener {
    }
 
    public void hide() {
-      if( !aladin.PROTO ) stopHipsUpdater();
+      if( !aladin.BETA ) stopHipsUpdater();
       super.hide();
    }
 

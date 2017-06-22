@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -90,6 +91,22 @@ public final class Coord {
          return coo.toString(o);
       } catch( Exception e ) { System.err.println(e); }
       return "";
+   }
+   
+   /** Affichage en degré de l'objet
+    * @param 
+    */
+   public String getDeg() {
+      Astrocoo coo = new Astrocoo();
+      coo.set(al,del);
+      coo.setPrecision(Astrocoo.ARCSEC+1);
+      try{
+         String o = "2d";
+         return coo.toString(o);
+      } catch( Exception e ) { System.err.println(e); }
+      return "";
+      
+//     return Util.myRound(al)+" "+(del>=0?"+":"")+Util.myRound(del);
    }
 
    /** Affichage sexagesimal de l'objet.

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,9 +19,9 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.event.MouseEvent;
@@ -55,13 +57,37 @@ abstract public class MyIcon extends JComponent implements
       this.aladin=aladin;
       addMouseMotionListener(this);
       addMouseListener(this);
+      setBackground( Aladin.COLOR_MAINPANEL_BACKGROUND);
    }
    
    public Dimension getPreferredSize() { return new Dimension(W,H); }
    
    /** Affichage de l'icon du split. */
-   abstract protected void drawLogo(Graphics g);
-
+   protected void drawLogo(Graphics g) {
+      g.setColor( Aladin.COLOR_MAINPANEL_BACKGROUND );
+      g.fillRect(0, 0, W, H);
+   }
+   
+   protected boolean isAvailable() { return true; }
+   protected boolean isActivated() { return false; }
+   protected boolean isMouseIn() { return in; }
+   
+   protected Color getFillInColor() {
+      return !isAvailable() ? Aladin.COLOR_MAINPANEL_BACKGROUND
+            : Aladin.COLOR_CONTROL_FILL_IN;
+   }
+   protected Color getLogoColor() {
+      boolean isAvailable = isAvailable();
+      Color c =  !isAvailable ? Aladin.COLOR_CONTROL_FOREGROUND_UNAVAILABLE :
+         isActivated() ? Aladin.COLOR_ICON_ACTIVATED : Aladin.COLOR_CONTROL_FOREGROUND;
+      if( isMouseIn() && isAvailable ) c=c.brighter();
+      return c;
+   }
+   protected Color getLabelColor() {
+      return isAvailable() ? Aladin.COLOR_CONTROL_FOREGROUND 
+            : Aladin.COLOR_CONTROL_FOREGROUND_UNAVAILABLE;
+   }
+   
    /** Recuperation de la chaine de help (une page) */
    abstract protected String Help();
 
@@ -70,7 +96,6 @@ abstract public class MyIcon extends JComponent implements
 
    /** Recuperation de la chaine de help (Tooltip) */
    abstract protected String getHelpTip();
-
  
    protected void in() { up=true; repaint(); }
 
@@ -88,8 +113,7 @@ abstract public class MyIcon extends JComponent implements
    public void mouseMoved(MouseEvent e) {
       if( aladin.inHelp ) return;
       if( DESCRIPTION==null ) DESCRIPTION = getHelpTip();
-//      aladin.status.setText(DESCRIPTION);
-      Util.toolTip(this,DESCRIPTION);
+      Util.toolTip(this,DESCRIPTION,true);
    }
 
   /** On quitte le bouton du split*/

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -40,11 +41,11 @@ import cds.tools.Util;
  */
 public final class Tool {
    // Couleurs geres
-   static final Color CS  = Color.black;     // Couleur si l'outil est selectionnable
+   static final Color CS  = Aladin.COLOR_CONTROL_FOREGROUND;     // Couleur si l'outil est selectionnable
    //   static final Color CNS = Color.gray;      // COuleur si l'outil n'est pas selectionnable
-   static final Color CNS = Aladin.MYGRAY;      // COuleur si l'outil n'est pas selectionnable
-   static final Color CD = Aladin.MAXBLUE;   // Couleur du bouton appuyé
-   static final Color CU = Aladin.BLUE;      // Couleur du bouton releve
+   static final Color CNS = Aladin.COLOR_CONTROL_FOREGROUND_UNAVAILABLE;      // COuleur si l'outil n'est pas selectionnable
+   static final Color CD = Aladin.COLOR_TOOL_DOWN;   // Couleur du bouton appuyé
+   static final Color CU = Aladin.COLOR_TOOL_UP;      // Couleur du bouton releve
 
    // Differents modes possible d'un bouton
    static final int UNAVAIL =  0;           //   0 - UP/non-selectionnable
@@ -102,6 +103,7 @@ public final class Tool {
       /*19 */      9,
       /*20 */      9,
       /*21 */      11,
+      /*22 */      12,
    };
 
    // Décalage du logo par rapport au centre du bouton (vers le haut)
@@ -128,6 +130,7 @@ public final class Tool {
       /*19 */      9,
       /*20 */      9,
       /*21 */      9,
+      /*22 */      8,
    };
 
    // La fleche de selection
@@ -201,7 +204,26 @@ public final class Tool {
       {3,5,11}, {10,12,11},
       {3,4,12}, {11,12,12}
    };
-
+   
+   // Les segments X1,X2,Y pour le MOC
+   static final int MOC[][] = {
+         {15,15,0}, {21,21,0},
+         {14,14,1}, {16,16,1}, {20,20,1}, {22,22,1},
+         {13,13,2}, {17,17,2}, {19,19,2}, {23,23,2},
+         {6,6,3},   {12,12,3}, {18,18,3}, {24,24,3},
+         {5,5,4},   {7,7,4},   {11,11,4}, {13,13,4}, {17,17,4},{19,19,4}, {23,23,4},
+         {4,4,5},   {8,8,5},   {10,10,5}, {14,14,5}, {16,16,5},{20,20,5}, {22,22,5},
+         {3,3,6},   {9,9,6},   {15,15,6}, {21,21,6},
+         {2,2,7},   {10,10,7}, {14,14,7}, {22,22,7},
+         {1,1,8},   {11,11,8}, {13,13,8}, {23,23,8},
+         {0,0,9},   {12,12,9}, {24,24,9},
+         {1,1,10},  {11,11,10},{13,13,10},{23,23,10},
+         {2,2,11},  {10,10,11},{14,14,11}, {22,22,11},
+         {3,3,12},  {9,9,12},  {15,15,12}, {21,21,12},
+         {4,4,13},  {8,8,13},  {10,10,13}, {14,14,13}, {16,16,13},{20,20,13},
+         {5,5,14},  {7,7,14},  {11,11,14}, {13,13,14}, {17,17,14},{19,19,14}, 
+         {6,6,15},  {12,12,15},{18,18,15},
+   };
 
    /*
    //Le carre du label
@@ -340,6 +362,7 @@ public final class Tool {
             aladin.chaine.getString("CROP"),
             aladin.chaine.getString("PLOT"),
             aladin.chaine.getString("SPECT"),
+            aladin.chaine.getString("MOC"),
       };
 
       explanation=new String[]{
@@ -365,6 +388,7 @@ public final class Tool {
             aladin.chaine.getString("HCROP"),
             aladin.chaine.getString("HPLOT"),
             aladin.chaine.getString("HSPECT"),
+            aladin.chaine.getString("HMOC"),
       };
    }
 
@@ -443,24 +467,41 @@ public final class Tool {
 
       Polygon p;
       //      boolean flagIsForTool = ToolBox.isForTool(ntool) /* || ntool==ToolBox.FILTER */;
-      boolean flagIsForTool = false;
+//      boolean flagIsForTool = false;
       int dx = idx + W/2 - dX();
       int dy = idy + mode + H/3 - dY()+3;
-      Color c1 = (mode==UNAVAIL && !flagIsForTool)?CNS:currentButton?CS:CS;
-      Color c2 = (mode==UNAVAIL && !flagIsForTool)?CNS:CS;
+//      Color c1 = (mode==UNAVAIL && !flagIsForTool)?CNS:currentButton?CS:CS;
+//      Color c2 = (mode==UNAVAIL && !flagIsForTool)?CNS:CS;
 
       // Mémorisation de la position du tracé
       X=idx;
       Y=idy;
-
-      Color CBG = aladin.toolBox.getBackground();
-      Color CBU = new Color(250,249,254);
-
-      g.setColor( mode==DOWN ? CU : currentButton && mode!=UNAVAIL ? CBU : CBG);
+      
+      // Tracé du fond
+      Color c1 = Aladin.COLOR_CONTROL_FOREGROUND_UNAVAILABLE;
+      if( mode==UP || mode==DOWN ) {
+         c1 = Aladin.COLOR_CONTROL_FOREGROUND;
+         if( currentButton || mode==DOWN )  c1 = c1.brighter();
+      }
+      
+      Color bg = Aladin.COLOR_MAINPANEL_BACKGROUND;
+      if( (mode==UP || mode==DOWN) && currentButton ) bg = bg.brighter();
+      g.setColor( bg );
       g.fillRect(idx+2,idy+2,W-3,H-3);
-      if( mode==DOWN ) Util.drawRoundRect(g, idx+1, idy+1,W-2,H-2, 4, Color.darkGray, Color.white);
-      else if( mode==UP && currentButton ) Util.drawRoundRect(g, idx+1, idy+1,W-2,H-2, 4, Color.white, Color.darkGray);
-      else Util.drawRoundRect(g, idx+1, idy+1,W-2,H-2, 4, CBG, CBG);
+      
+      if( mode==DOWN ) Util.drawRect(g, idx+1, idy+1,W-2,H-2,
+            Aladin.COLOR_CONTROL_FOREGROUND, Aladin.COLOR_CONTROL_FOREGROUND);
+
+      Color cPapier = Aladin.COLOR_CONTROL_FILL_IN;
+      
+//      Color CBG = aladin.toolBox.getBackground();
+//      Color CBU = new Color(250,249,254);
+//
+//      g.setColor( mode==DOWN ? CU : currentButton && mode!=UNAVAIL ? CBU : CBG);
+//      g.fillRect(idx+2,idy+2,W-3,H-3);
+//      if( mode==DOWN ) Util.drawRect(g, idx+1, idy+1,W-2,H-2, Color.gray, Color.gray);
+//      else if( mode==UP && currentButton ) Util.drawRect(g, idx+1, idy+1,W-2,H-2, Color.gray, Color.gray);
+//      else Util.drawRect(g, idx+1, idy+1,W-2,H-2,  CBG, CBG);
 
 
       //      // Couleur du fond
@@ -487,21 +528,20 @@ public final class Tool {
       //         Util.drawRoundRect(g, idx+1, idy+1,W-2,H-2, 4, CS, Color.white);
       //      }
 
-      Color cPapier = Color.white;
 
 
       // Dessin du logo suivant le type d'outil
       switch(ntool) {
          case ToolBox.SELECT:                // dessin de la fleche du select
             p = setPolygon(selectX,selectY,dx,dy);
-            g.setColor(cPapier);
+            g.setColor( mode==UNAVAIL || Aladin.DARK_THEME ? cPapier :  new Color( 230,230,230 ));
             g.fillPolygon(p);
             g.setColor( c1 );
             g.drawPolygon(p);
             break;
          case ToolBox.DRAW:                // dessin du crayon
             //            g.setColor( cPapier );
-            g.setColor( mode==UNAVAIL ? cPapier : new Color( 215,198,142) );
+            g.setColor( mode==UNAVAIL || Aladin.DARK_THEME ? cPapier :  new Color( 215,198,142) );
             p = setPolygon(craymX,craymY,dx,dy);
             g.fillPolygon(p);
             g.setColor(c1);
@@ -516,14 +556,14 @@ public final class Tool {
          case ToolBox.TAG:                // dessin du grand A avec le réticule
             p = setPolygon(exAX,exAY,dx,dy);
             //            g.setColor(cPapier);
-            g.setColor( mode==UNAVAIL ? cPapier : new Color( 215,198,142) );
+            g.setColor( mode==UNAVAIL || Aladin.DARK_THEME ? cPapier : new Color( 215,198,142) );
             g.fillPolygon(p);
             g.setColor(c1);
             g.drawPolygon(p);
             p = setPolygon(bAX,bAY,dx,dy);
             g.drawPolygon(p);
 
-            g.setColor( mode==UNAVAIL ? c1 : Color.red.darker() );
+            g.setColor( mode==UNAVAIL ? c1 : Aladin.COLOR_RED );
             g.drawLine(dx+4,dy+3,dx+4,dy+3+6);
             g.drawLine(dx+4-3,dy+6,dx+4+3,dy+6);
 
@@ -534,7 +574,7 @@ public final class Tool {
             g.setColor(c1);
             g.drawOval(dx+1,dy,14,14);
             //            g.setColor(c1);
-            g.setColor( mode==UNAVAIL ? c1 : Color.red.darker() );
+            g.setColor( mode==UNAVAIL ? c1 :  Aladin.COLOR_RED );
             g.drawLine(dx+8,dy+4,dx+8,dy+4+6);
             g.drawLine(dx+8-3,dy+7,dx+8+3,dy+7);
             break;
@@ -552,26 +592,31 @@ public final class Tool {
          case ToolBox.DEL:                // la croix
             //            g.setColor(c1);
             p = setPolygon(crX,crY,dx,dy);
-            g.setColor( mode==UNAVAIL ? c1 : Color.red.darker() );
+            g.setColor( mode==UNAVAIL ? c1 :  Aladin.COLOR_RED );
             g.fillPolygon(p);
             g.drawPolygon(p);
             break;
          case ToolBox.RGB:
             if( mode!=UNAVAIL ) {
-               g.setColor(Color.red);   g.fillOval(dx-5,dy-3,12,12);
-               g.setColor(Color.green); g.fillOval(dx+3,dy-3,12,12);
-               g.setColor(Color.blue);  g.fillOval(dx-1,dy+4,12,12);
+               g.setColor( Aladin.COLOR_RED);   g.fillOval(dx-5,dy-3,12,12);
+               g.setColor( Aladin.COLOR_GREEN); g.fillOval(dx+3,dy-3,12,12);
+               g.setColor( Aladin.COLOR_BLUE);  g.fillOval(dx-1,dy+4,12,12);
             }
             g.setColor(c1);
             drawCercle(g,dx-7,dy-4);
             drawCercle(g,dx+1,dy-4);
             drawCercle(g,dx-3,dy+3);
             break;
+         case ToolBox.MOC:
+            g.setColor( c1 );
+            for(i=0; i<MOC.length; i++) { int s[] = MOC[i]; g.drawLine(dx+s[0],dy+s[2],dx+s[1],dy+s[2]); }
+            break;
          case ToolBox.BLINK:
             g.setColor(c1);
             g.fillRect(dx+1,dy+2,23,13);
             g.setColor(cPapier);
-            g.setColor( mode==UNAVAIL ? cPapier : new Color( 236,226,181) );
+            g.setColor( mode==UNAVAIL ? cPapier : Aladin.DARK_THEME ? 
+                  Aladin.COLOR_CONTROL_FOREGROUND_UNAVAILABLE : new Color( 236,226,181) );
             g.fillRect(dx+1,dy+5,4,7);
             g.fillRect(dx+8,dy+5,10,7);
             g.fillRect(dx+21,dy+5,3,7);
@@ -586,9 +631,9 @@ public final class Tool {
                g.setColor( mode==UNAVAIL ? c1 : new Color( 127,88,0) );
                p = setPolygon(m1X,m1Y,dx,dy);
                g.fillPolygon(p);
-               g.setColor( c2 );
+               g.setColor( c1 );
                g.drawPolygon(p);
-               g.setColor(mode==UNAVAIL ? c2 : Color.red);
+               g.setColor(mode==UNAVAIL ? c1 :Aladin.COLOR_RED );
                for( i=0; i<m3X.length; i++ ) {
                   g.drawLine(dx+m3X[i][0],dy+m3X[i][2],dx+m3X[i][1],dy+m3X[i][2]);
                }
@@ -600,7 +645,6 @@ public final class Tool {
             drawRsampIcon(g,c1,dx,dy,true);
             break;
          case ToolBox.PROP:
-            //            g.setColor(c1);
             g.setColor( mode==UNAVAIL ? c1 : new Color( 85,121,203) );
             p = setPolygon(p1X,p1Y,dx,dy);
             g.fillPolygon(p);
@@ -614,7 +658,6 @@ public final class Tool {
             g.drawLine(dx+3,dy+9,dx+3,dy+9); g.drawLine(dx+6,dy+9,dx+12,dy+9);
             break;
          case ToolBox.WEN:                // la loupe
-            //            g.setColor(c1);
             g.setColor( mode==UNAVAIL ? c1 : new Color( 127,88,0) );
             p = setPolygon(lpX,lpY,dx,dy);
             g.fillPolygon(p);
@@ -627,14 +670,13 @@ public final class Tool {
             break;
          case ToolBox.ZOOM:                // le Z du Zoom
             p = setPolygon(zX,zY,dx,dy);
-            g.setColor( mode==UNAVAIL ? cPapier : new Color( 215,198,142) );
+            g.setColor( mode==UNAVAIL || Aladin.DARK_THEME ? cPapier : new Color( 215,198,142) );
             g.fillPolygon(p);
             g.setColor(c1);
             g.drawPolygon(p);
             break;
          case ToolBox.PAN:                // la main du PAN
-            g.setColor( cPapier );
-            g.setColor( mode==UNAVAIL ? cPapier : new Color(239,220,219) );
+            g.setColor( mode==UNAVAIL || Aladin.DARK_THEME ? cPapier : new Color(239,220,219) );
             for( i=0; i<pF.length; i++) g.fillRect(pF[i][0]+dx,pF[i][1]+dy,pF[i][2],pF[i][3]);
             g.setColor(c1);
             for( i=0; i<pV.length; i++ ) g.drawLine(pV[i][2]+dx,pV[i][0]+dy,pV[i][2]+dx,pV[i][1]+dy);
@@ -648,7 +690,7 @@ public final class Tool {
             g.drawLine(cmX[0]+dx,cmX[1]+dy,cmX[2]+dx,cmX[3]+dy);
             g.drawLine(cmY[0]+dx,cmY[1]+dy,cmY[2]+dx,cmY[3]+dy);
             g.setColor( cPapier );
-            g.setColor( mode==UNAVAIL ? cPapier : Color.red );
+            g.setColor( mode==UNAVAIL ? cPapier : Aladin.COLOR_RED );
             for( i=0; i<cmlX.length-1; i++ )
                g.drawLine(cmlX[i]+dx,cmlY[i]+dy, cmlX[i+1]+dx,cmlY[i+1]+dy);
             break;
@@ -701,7 +743,7 @@ public final class Tool {
          case ToolBox.CROP:
             g.setColor(c1);
             for(i=0; i<CROPN.length; i++) { int s[] = CROPN[i]; g.drawLine(dx+s[0],dy+s[2],dx+s[1],dy+s[2]); }
-            g.setColor(mode==UNAVAIL ? c1 : Color.red.darker() /*new Color( 85,121,203)*/ );
+            g.setColor(mode==UNAVAIL ? c1 : Aladin.COLOR_RED /*new Color( 85,121,203)*/ );
             for(i=16; i<CROPN.length; i++) { int s[] = CROPN[i]; g.drawLine(dx+s[0],dy+s[2],dx+s[1],dy+s[2]); }
             g.setColor( cPapier );
             for(i=0; i<CROPB.length; i++) { int s[] = CROPB[i]; g.drawLine(dx+s[0],dy+s[2],dx+s[1],dy+s[2]); }
@@ -716,7 +758,7 @@ public final class Tool {
             g.setColor(c1);
             g.drawLine(dx,dy,dx,dy+h); g.drawLine(dx-1,dy+1,dx+1,dy+1);
             g.drawLine(dx,dy+h,dx+w,dy+h); g.drawLine(dx+w-1,dy+h-1,dx+w-1,dy+h+1);
-            g.setColor( mode==UNAVAIL ? c1 : Color.red ); //new Color( 85,121,203) );
+            g.setColor( mode==UNAVAIL ? c1 : Aladin.COLOR_RED ); //new Color( 85,121,203) );
             for( i=0; i<plot.length; i++ ) g.drawLine(plot[i][0]+dx,dy+h-plot[i][1],plot[i][0]+dx,dy+h-plot[i][1]);
             break;
       }
@@ -726,7 +768,7 @@ public final class Tool {
          int x,y;
 
          //         g.setColor(currentButton && mode==UP ? Color.white : c2);
-         g.setColor(c2);
+         g.setColor(c1);
 
          // Positionnement du label en fonction de la presence
          // ou de l'absence d'une icone
@@ -739,7 +781,7 @@ public final class Tool {
             y += idy + H/2+Aladin.SIZE/2-5;
          } else {
             g.setFont(Aladin.SPLAIN);
-            x += idx + W/2-g.getFontMetrics().stringWidth(label[ntool])/2-2;
+            x += idx + W/2-g.getFontMetrics().stringWidth(label[ntool])/2;
             y += idy + H-4;
          }
 

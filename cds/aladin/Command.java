@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -526,11 +527,23 @@ public final class Command implements Runnable {
          Tok st = new Tok(param);
          while( st.hasMoreTokens() ) {
             String s = st.nextToken();
-            Plan p = getPlanFromParam(s,method==2?1:0);
-            if( p==null ) continue;
-            if( method==1 && !p.isPixel()) continue;
-            if( method==3 && p.type!=Plan.FOLDER ) continue;
-            if( p!=null ) {
+            
+            // Requête avec jokers
+            if( s.indexOf('*')>=0 || s.indexOf('?')>=0 ) {
+               for( Plan p: allPlan ) {
+                  if( p==null ) continue;
+                  if( method==1 && !p.isPixel()) continue;
+                  if( method==3 && p.type!=Plan.FOLDER ) continue;
+                  if( !Util.matchMask(s, p.label) ) continue;
+                  if( p.flagOk || method==4 ) v.addElement(p);
+               }
+               
+            // requete simple
+            } else {
+               Plan p = getPlanFromParam(s,method==2?1:0);
+               if( p==null ) continue;
+               if( method==1 && !p.isPixel()) continue;
+               if( method==3 && p.type!=Plan.FOLDER ) continue;
                if( p.flagOk || method==4 ) v.addElement(p);
             }
          }
@@ -997,13 +1010,13 @@ public final class Command implements Runnable {
       String server = st.nextToken();
       if( server.equalsIgnoreCase("allsky") ) server="hips";   // pour compatibilité
       if( !withServer || a.dialog.getServer(server)<0 
-            && (!Aladin.PROTO || Aladin.PROTO && !server.equalsIgnoreCase("HiPS"))) {
+            && (!Aladin.BETA || Aladin.BETA && !server.equalsIgnoreCase("HiPS"))) {
 
          // Si la vue courante est vide il faut prendre
          // la liste des serveurs par defaut
          if( a.view.getCurrentView().isFree() /* || a.isFullScreen() */ ) {
             t=cmd;
-            if( Aladin.OUTREACH || a.isFullScreen() ) s="hips(\"P/DSS2/color\")";
+            if( Aladin.OUTREACH || a.isFullScreen() ) s="hips(\"CDS/P/DSS2/color\")";
             else {
                s=a.configuration.getServer();
                String p = a.configuration.getSurvey();
@@ -1103,29 +1116,77 @@ public final class Command implements Runnable {
       //         } while( encore);
       //      }
    }
+   
+   private enum ModeServerInfo { SERVER, AVANT_CRITERE, INQUOTE_CRITERE, 
+      IN_CRITERE, APRES_SERVER, APRES_INQUOTE, BACKSLASH, FIN };
 
    /** Decoupage du serveur courant et de ses criteres eventuels */
    protected int getServerInfo(StringBuffer server,StringBuffer criteria,
-         char a[],int i) {
-      int inPar;	// Niveau de parenthesage
-      int d;
-
-      for( d=i, inPar=0; i<a.length; i++ ) {
-         //System.out.println("a["+i+"]="+a[i]+" inPar="+inPar);
-         if( inPar==0 ) {
-            if( a[i]=='(' ) {
-               inPar++;
-               server.append(new String(a,d,i-d));
-               d=i+1;
-            } else if( a[i]==',' ) break;
-         } else if( a[i]==')' ) {
-            inPar--;
-            criteria.append(new String(a,d,i-d));
-         }
+         char a[],int i)  {
+//      int inPar;	// Niveau de parenthesage
+//      int d;
+      char quote=' ';
+      ModeServerInfo mode;
+      
+      for( mode=ModeServerInfo.SERVER; i<a.length && mode!=ModeServerInfo.FIN; i++ ) {
+         char c = a[i];
+         switch(mode) {
+            case SERVER: 
+               if( c==',' ) { mode=ModeServerInfo.FIN; break; }
+               if( c=='(' ) mode=ModeServerInfo.AVANT_CRITERE;
+               else server.append(c);
+               break;
+            case AVANT_CRITERE:
+               if( Character.isWhitespace(c) ) break;
+               if( c=='"' || c=='\'' ) { quote=c; mode=ModeServerInfo.INQUOTE_CRITERE; }
+               else mode=ModeServerInfo.IN_CRITERE;
+               criteria.append(c); 
+               break;
+            case IN_CRITERE:
+               if( c==')' ) { mode=ModeServerInfo.APRES_SERVER; break; }
+               if( Character.isWhitespace(c) || c==',' ) mode=ModeServerInfo.AVANT_CRITERE;
+               criteria.append(c);
+               break;
+            case INQUOTE_CRITERE:
+               if( c==quote ) mode=ModeServerInfo.APRES_INQUOTE;
+               else if( c=='\\' ) mode=ModeServerInfo.BACKSLASH;
+               criteria.append(c);
+               break;
+            case BACKSLASH:
+               mode=ModeServerInfo.INQUOTE_CRITERE;
+               criteria.append(c);
+               break;
+            case APRES_INQUOTE:
+               if( c==')' ) { mode=ModeServerInfo.APRES_SERVER; break; }
+               if( c==',' ) mode=ModeServerInfo.AVANT_CRITERE;
+               criteria.append(c);
+               break;
+            case APRES_SERVER:
+               if( c==',' )  mode=ModeServerInfo.FIN;
+               break;
+        }
       }
-      if( server.length()==0 ) server.append(new String(a,d,i-d));
-      if( i<a.length && a[i]==',' ) i++;
+      
+//      if( mode!=ModeServerInfo.FIN && mode!=ModeServerInfo.APRES_SERVER ) throw new Exception("Script syntax error");
+      
       return i;
+
+//      for( d=i, inPar=0; i<a.length; i++ ) {
+//         //System.out.println("a["+i+"]="+a[i]+" inPar="+inPar);
+//         if( inPar==0 ) {
+//            if( a[i]=='(' ) {
+//               inPar++;
+//               server.append(new String(a,d,i-d));
+//               d=i+1;
+//            } else if( a[i]==',' ) break;
+//         } else if( a[i]==')' ) {
+//            inPar--;
+//            criteria.append(new String(a,d,i-d));
+//         }
+//      }
+//      if( server.length()==0 ) server.append(new String(a,d,i-d));
+//      if( i<a.length && a[i]==',' ) i++;
+//      return i;
    }
 
    /** retourne false si la ligne designant les serveurs ne contient
@@ -1142,6 +1203,7 @@ public final class Command implements Runnable {
       return ! (server.equalsIgnoreCase("Local")
             || server.equalsIgnoreCase("MyData")
             || server.equalsIgnoreCase("VizieRX")
+            || server.equalsIgnoreCase("MOC")
             || (server.equalsIgnoreCase("VizieR")
                   && Util.indexOfIgnoreCase(criteriaX.toString(),"allsky")>=0)
                   || server.equalsIgnoreCase("allsky")
@@ -1171,7 +1233,7 @@ public final class Command implements Runnable {
          if( target.length()==0 ) {
             Aladin.warning(a.chaine.getString("WNEEDOBJ"),1);
             return null;
-         } else a.dialog.setDefaultTarget(target);
+         } else a.dialog.setDefaultTarget(targetX.toString() );  // Attention 
 
          // On verifie immediatement que l'identificateur est bien
          // reconnu par Simbad
@@ -1203,7 +1265,7 @@ public final class Command implements Runnable {
          Aladin.trace(4,"Command.execGetCmd("+cmd+","+label+") => server=["+server+"] criteria=["+criteria+"] target=["+target+"] radius=["+radius+"])");
          if( server.equalsIgnoreCase("VizierX") ) server="VizieR";   // Pour charger tout un catalogue sans poser un problème de compatibilité
 
-         if( Aladin.PROTO && server.equalsIgnoreCase("hips") ) {
+         if( Aladin.BETA && server.equalsIgnoreCase("hips") ) {
             int n=a.directory.createPlane(target,radius,criteria,label,null);
             if( n!=-1 ) {
                a.calque.getPlan(n).setBookmarkCode("get "+server+(criteria.length()>0?"("+criteria+")":"")+" $TARGET $RADIUS");
@@ -2296,7 +2358,7 @@ public final class Command implements Runnable {
          
          // Pour des objets
          if( type==-1 || type==Plan.TOOL ) {
-            int n = a.createMocRegion(order);
+            int n = a.createPlanMocByRegions(order);
             Plan pMoc = a.calque.getPlan(n);
             if( label!=null ) pMoc.setLabel(label);
             
@@ -2981,9 +3043,9 @@ public final class Command implements Runnable {
       // ex: toto = get Simbad m1
       StringBuffer tp = new StringBuffer();
       String s = getTargetPlane(tp, s1);
+      
       String label = tp.length()==0 ? null : "="+tp.toString();
-      //System.out.println("TargetPlane=["+tp+"] => s="+s+" label="+label);
-
+//      System.out.println("TargetPlane=["+tp+"] => s="+s+" label="+label);
 
       Tok st = new Tok(s);
       String cmd = st.nextToken();
@@ -3075,7 +3137,7 @@ public final class Command implements Runnable {
       //      else if( cmd.equalsIgnoreCase("skygen") ) execSkyGen(param);
       else if( cmd.equalsIgnoreCase("macro") )  execMacro(param);
       //      else if( cmd.equalsIgnoreCase("createRGB") ) testCreateRGB(param);
-      else if( cmd.equalsIgnoreCase("test") )   hop();
+      else if( cmd.equalsIgnoreCase("tap") )   tap();
       else if( cmd.equalsIgnoreCase("cleancache") )   PlanBG.cleanCache();
       else if( cmd.equalsIgnoreCase("testlang") ) a.chaine.testLanguage(param);
       else if( cmd.equalsIgnoreCase("testimg") )testCalib(label,param,0);
@@ -3744,7 +3806,7 @@ public final class Command implements Runnable {
                }
 
                if( p instanceof PlanMoc ) (a.save).saveMoc(file, (PlanMoc)p, HealpixMoc.FITS);
-               else if( p.isCatalog() ) (a.save).saveCatalog(file,p,!vot,addXY);
+               else if( p.isCatalog() ) (a.save).saveCatalog(file,p,!vot,false,addXY);
                else if( p.isImage() && !(p instanceof PlanImageBlink) ) (a.save).saveImage(file,p,hpx?1:fits?0:2);
                else {
                   String tmp="plane type ["+Plan.Tp[p.type]+"] not supported";
@@ -4850,9 +4912,14 @@ public final class Command implements Runnable {
       }catch( Exception e ) { e.printStackTrace();  }
    }
 
-   private void hop() {
-//      PlanMoc.PERIMETER = !PlanMoc.PERIMETER;
-//      System.out.println("Tracage perimetre MOC : "+PlanMoc.PERIMETER);
+   // Just for testing tap list for Chaitra
+   private void tap () {
+      try {
+         ArrayList<String> b = a.directory.getBigTAPServers(5);
+         for( String s : b ) System.out.println(s);
+      } catch( Exception e ) {
+         e.printStackTrace();
+      }
    }
 
 }

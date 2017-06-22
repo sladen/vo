@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin.bookmark;
 
@@ -70,7 +71,8 @@ public class ButtonBookmark extends JButton {
    }
       
    private void suite() {
-      setFont( Aladin.SPLAIN );
+      setFont( Aladin.SBOLD );
+      setForeground(Aladin.COLOR_LABEL);
       setBackground( aladin.getBackground() );
       setBorder(BorderFactory.createEmptyBorder(1,10,1,5));
       setToolTipText("<html>"+
@@ -107,8 +109,7 @@ public class ButtonBookmark extends JButton {
    /** Affichage du bouton "bookmark", avec une petite étoile en préfixe */
    public void paintComponent(Graphics g) {
       super.paintComponent(g);
-      g.setColor( fct.isLocalDefinition() ? Color.blue : Orange);
-      Util.drawStar(g, 6,8);
+      Util.drawStar(g, 5,8, fct.isLocalDefinition() ? Aladin.COLOR_BLUE : Orange);
    }
 
 }
