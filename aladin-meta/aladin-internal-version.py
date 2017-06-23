@@ -5,7 +5,7 @@ import re
 import zipfile
 
 def hunt_versions(lines):
-    VERSION = 'String VERSION.*"v(\d\.\d+)".*;'
+    VERSION = 'String VERSION.*"v(\d+\.\d+)".*;'
     results = []
     for l in lines:
         m = re.search(VERSION, l)
