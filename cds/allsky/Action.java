@@ -1,4 +1,6 @@
-// Copyright 2012 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -26,6 +28,7 @@ public enum Action {
    JPEG      ("Build all preview tiles (JPEG) + Allsky.jpg"),
    PNG       ("Build all preview tiles (PNG) + Allsky.png"),
    MOC       ("(Re)build the MOC (MultiOrder Coverage map)"),
+   MOCERROR  ("Build the MOC of suspected erroneous FITS tiles"),
    MAP       ("Build an HEALPix map from the HiPS tiles"),
    MOCINDEX  ("(Re)build the index MOC (MultiOrder Coverage map) in HpxFinder directory"),
    MOCHIGHT  ("Build a high resolution output coverage map (MOC order=pixelRes)"),
@@ -50,7 +53,7 @@ public enum Action {
    PROP      ("Display HiPS properties files in HiPS version "+Constante.HIPS_VERSION+" syntax"),
    MIRROR    ("Mirror a remote HiPS locally"),
    RGB       ("Build and RGB HiPS based on 2 or 3 other HiPS"),
-   CHECK     ("** In progress: Check readability of all tiles"),
+   LINT      ("Check HiPS IVOA 1.0 standard compatibility"),
    //   INFO      ("Generate properties and index.html information files"),
    MAPTILES  ("Build all FITS tiles from a HEALPix Fits map"),
    FINDER,PROGEN,  // Pour compatibilité

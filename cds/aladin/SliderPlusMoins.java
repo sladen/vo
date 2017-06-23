@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -72,10 +73,10 @@ MouseMotionListener,MouseListener,Widget {
 
    public SliderPlusMoins(Aladin aladin,String title, int min, int max, final int incr,int wheelIncr) {
       this.aladin = aladin;
-      setBackground( aladin.getBackground());
       slider = new Slider(min,max,incr);
 
       label = new Lab(title);
+      label.setOpaque(true);
       label.setFont(Aladin.SBOLD);
       label.setBackground( aladin.getBackground() );
 
@@ -95,19 +96,21 @@ MouseMotionListener,MouseListener,Widget {
          public void actionPerformed(ActionEvent e) { submit(incr); }
       });
 
-      setLayout( new BorderLayout(0,0));
       JPanel p = new JPanel(new BorderLayout(5,0));
       p.setBackground( aladin.getBackground());
       p.add(moins,BorderLayout.WEST);
       p.add(slider,BorderLayout.CENTER);
       p.add(plus,BorderLayout.EAST);
 
+      setLayout( new BorderLayout(0,0));
+      setBackground( aladin.getBackground());
+      setOpaque(true);
       add(label,BorderLayout.WEST);
       add(p,BorderLayout.CENTER);
 
       setEnabled(false);
 
-      setBorder( BorderFactory.createEmptyBorder(0, 10, 0, 5));
+//      setBorder( BorderFactory.createEmptyBorder(0, 10, 0, 5));
       addMouseWheelListener(this);
       this.wheelIncr=wheelIncr;
    }
@@ -136,7 +139,8 @@ MouseMotionListener,MouseListener,Widget {
       enable=m;
       super.setEnabled(m);
       slider.setEnabled(m);
-      label.setForeground( m ? Color.black : Aladin.MYGRAY );
+      label.setForeground( m ? Aladin.COLOR_CONTROL_FOREGROUND 
+            : Aladin.COLOR_CONTROL_FOREGROUND_UNAVAILABLE );
       plus.setEnabled(m);
       moins.setEnabled(m);
    }
@@ -170,7 +174,7 @@ MouseMotionListener,MouseListener,Widget {
          this.incr=incr;
          addMouseListener(this);
          addMouseMotionListener(this);
-         setBackground( aladin.getBackground());
+         setBackground( Aladin.COLOR_MAINPANEL_BACKGROUND );
       }
 
       public String toString() { return "slider["+min+" .. "+max+"] => "+value; }
@@ -243,23 +247,27 @@ MouseMotionListener,MouseListener,Widget {
          g.setClip(null);
          g.setColor( slider.getBackground());
          g.fillRect(0, 0, W, H);
-
-         Util.drawCartouche(g, 0, H/2-2, W, 5, 1f, enable ? Color.gray : Aladin.MYGRAY, Color.white);
+         
+         Color bg = Aladin.COLOR_BACKGROUND;
+         Color fg = Aladin.COLOR_FOREGROUND;
+         
+         Util.drawCartouche(g, 0, H/2-2, W, 5, 1f, 
+               enable ? Aladin.COLOR_CONTROL_FOREGROUND : Aladin.MYGRAY, bg);
 
          int x = getPos();
          if( x-7<0 ) x=7;
          if( x+5>W ) x=W-5;
 
          r = new Rectangle(x-7, H/2-6, 14, 13);
-         g.setColor( enable ? Color.lightGray : Aladin.MYGRAY );
+         g.setColor( enable ? Aladin.COLOR_CONTROL_FOREGROUND : Aladin.COLOR_CONTROL_FOREGROUND_UNAVAILABLE );
          g.fillRect(r.x,r.y,r.width,r.height);
          if( enable ) Util.drawEdge(g,r.x,r.y,r.width,r.height);
 
          x=x-4;
          for( int i=0; i<3; i++ ) {
-            g.setColor(!enable ? Color.lightGray : in ? Aladin.GREEN : Color.black );
+            g.setColor(!enable ? Aladin.COLOR_CONTROL_FOREGROUND_UNAVAILABLE : fg );
             g.drawLine(x+i*3,H/2-4,x+i*3,H/2+3);
-            g.setColor(Color.white);
+            g.setColor(bg);
             g.drawLine(x+i*3+1,H/2-4,x+i*3+1,H/2+3);
          }
       }
@@ -280,9 +288,10 @@ MouseMotionListener,MouseListener,Widget {
          super.paintComponent(g);
          int H = getHeight();
          int W = getWidth();
-         g.setColor( slider.getBackground());
+         g.setColor( slider.getBackground() );
          g.fillRect(0, 0, W, H);
-         g.setColor( !enable ? Aladin.MYGRAY : in ? aladin.GREEN : Color.black);
+         g.setColor( !enable ? Aladin.COLOR_CONTROL_FOREGROUND_UNAVAILABLE :
+           in ? Aladin.COLOR_CONTROL_FOREGROUND.brighter() : Aladin.COLOR_CONTROL_FOREGROUND);
          String s = getText();
          g.drawString(s,W/2-g.getFontMetrics().stringWidth(s)/2,H/2+5);
       }

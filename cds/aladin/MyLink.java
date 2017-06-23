@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -222,7 +223,7 @@ public final class MyLink extends JComponent {
        return true;
        
    }
-   public boolean mouseEnter(Event e, int x, int y) { if( mode==UP ) { color=Aladin.GREEN; repaint(); } return true;}
+   public boolean mouseEnter(Event e, int x, int y) { if( mode==UP ) { color=Aladin.COLOR_GREEN; repaint(); } return true;}
    public boolean mouseExit(Event e, int x, int y) { color=Color.black; repaint(); return true;}
 
    static boolean flagShift=false;
@@ -294,7 +295,7 @@ public final class MyLink extends JComponent {
 
       // Couleur du fond du bouton
       if( mode==DOWN ) {
-         g.setColor(type!=NORMAL?Aladin.LBLUE:Color.gray);
+         g.setColor(type!=NORMAL?Aladin.COLOR_CONTROL_BACKGROUND:Color.gray);
          g.fillRect(2,2,W-4,H-4);
       }
 

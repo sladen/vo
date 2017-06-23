@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,15 +19,10 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.event.MouseEvent;
-import java.awt.image.*;
-import java.net.*;
-import java.io.*;
-import java.util.*;
+import java.awt.Color;
+import java.awt.Graphics;
 
 /**
  * Bouton "Grille" pour afficher/cacher la grille de coordonnées
@@ -157,33 +154,24 @@ public class Grid extends MyIcon {
       
    }
    
-   private boolean isAvailable() {
+   protected boolean isAvailable() {
       if( aladin.calque==null ) return false;
       Plan p = aladin.calque.getPlanRef();
       return p!=null && Projection.isOk(p.projd);
    }
-   private boolean isActive()    { return aladin.calque.hasGrid(); }
-   private boolean isMouseIn()   { return false; /* return in; */ }
+   protected boolean isActivated()    { return aladin.calque.hasGrid(); }
+   protected boolean isMouseIn()   { return in; }
    
   /** Affichage du logo */
    protected void drawLogo(Graphics g) {
-      
+      super.drawLogo(g);
       int x=5;
       int y=2;
       
-      g.setColor( getBackground() );
-      g.fillRect(0,0,W,H);
+      fillBG(g,x,y, getFillInColor());
+      drawGrid(g,x,y, getLogoColor() );
       
-      // Remplissage
-      fillBG(g,x,y,Color.white);
-      
-      // Dessin
-      drawGrid(g,x,y, !isAvailable() ? Aladin.MYGRAY :
-                          isActive() ? Aladin.GREEN :
-                         isMouseIn() ? Color.blue : Color.black);
-      
-      // Label
-      g.setColor(isAvailable() ? Color.black : Aladin.MYGRAY);
+      g.setColor( getLabelColor() );
       g.setFont(Aladin.SPLAIN);
       g.drawString(LABEL,W/2-g.getFontMetrics().stringWidth(LABEL)/2,H-2);
    }

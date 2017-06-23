@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.xml;
 
@@ -346,9 +347,9 @@ public final class XMLParser {
       Util.resetString(curString);         // Pour mémoriser la chaine courante
       Util.resetString(macro);             // Pour mémoriser la macro courante
 
-      //System.out.print("mode="+mode+": [");
+//      System.out.print("mode="+mode+": [");
       while( encore && (c1=c=xmlGetc())!=EOF ) {
-         //System.out.print(c);
+//         System.out.print(c);
 
          // Traitement des macros (si besoin est)
          if( (mode==0 || mode==2) /* mode<3 */ && (c=='&' || macro.length()>0) ) {
@@ -455,7 +456,7 @@ public final class XMLParser {
       start=0;
       length=(mode==3)?ch.length-3:(mode==5 && xml4 && ol>=0 )?ol:ch.length-1;
       if( length<0 ) length=0;
-      //System.out.println("]");
+//      System.out.println("]");
       return c1;
    }
 

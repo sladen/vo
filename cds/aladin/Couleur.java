@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,10 +19,13 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
@@ -54,27 +59,50 @@ public final class Couleur extends JComponent implements MouseListener {
    
    // Les premières couleurs par défaut sont en "dur", les autres random
    static Color [] DC1 = {
-      Color.red,
-      Color.blue,
-      new Color(153,204,0),
-      new Color(255,255,0),
-      new Color(0,0,102),
-      new Color(0,255,255),
-      new Color(153,0,204),
-      new Color(0,153,204),
-      new Color(204,153,0),
-      new Color(204,0,153),
-      new Color(0,254,153),
-      new Color(102,51,51),
-      new Color(255,204,154),      
-      new Color(255,154,204),      
-      new Color(154,255,51),
-      new Color(102,0,0),
-      new Color(255,154,51),
-      new Color(255,0,255),
-      new Color(0,255,0),
-      new Color(0,0,0),
-      new Color(255,255,255),
+         
+         new Color(255,174,71),   // Orange clair
+         new Color(0,142,212),    // Bleu azur
+         new Color(255,20,20),    // Rouge
+         new Color(180,196,45),   // Vert kaki
+         new Color(255,154,204),  // Rose-violet
+         new Color(223,225,36),   // Jaune-vert
+         new Color(97,177,204),   // Bleu clair
+         new Color(187,136,0),    // Brun
+         new Color(204,0,153),    // Violet
+         new Color(0,254,153),    // Vert d'eau
+         new Color(255,204,154),  // Rose-peau
+         new Color(102,117,197),  // Bleu satin
+         new Color(154,255,51),   // Vert clair
+         new Color(211,79,2),     // Brun teck
+         new Color(255,255,20),   // Jaune
+         new Color(255,20,255),   // Magenta
+         new Color(20,255,255),   // cyan
+         new Color(85,109,117),   // Gris foncé
+         new Color(146,161,161),  // Gris clair
+         new Color(20,20,20),     // Noir
+         new Color(235,235,235),  // Blanc
+
+//      Aladin.COLOR_RED, //Color.red,
+//      Aladin.COLOR_BLUE, //Color.blue,
+//      new Color(153,204,0),
+//      new Color(255,255,0),
+//      new Color(0,0,102),
+//      new Color(0,255,255),
+//      new Color(153,0,204),
+//      new Color(0,153,204),
+//      new Color(204,153,0),
+//      new Color(204,0,153),
+//      new Color(0,254,153),
+//      new Color(102,51,51),
+//      new Color(255,204,154),      
+//      new Color(255,154,204),      
+//      new Color(154,255,51),
+//      new Color(102,0,0),
+//      new Color(255,154,51),
+//      new Color(255,0,255),
+//      new Color(0,255,0),
+//      new Color(0,0,0),
+//      new Color(255,255,255),
    };
    
    Color[] dc;

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,10 +19,10 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
 import java.awt.Graphics;
+import java.io.InputStreamReader;
 import java.util.Iterator;
 import java.util.TreeMap;
 
@@ -76,9 +78,9 @@ public class PlanBGProgen extends PlanBGCat {
       int fin = s.lastIndexOf("/"+Constante.FILE_HPXFINDER);
       if( fin==-1 ) return null;
       String propPath = s.substring(0,fin)+"/"+Constante.FILE_PROPERTIES;
-      MyInputStream in=null;
+      InputStreamReader in=null;
       try {
-         in = cds.tools.Util.openStream(propPath);
+         in = new InputStreamReader( cds.tools.Util.openStream(propPath), "UTF-8" );
          prop = new MyProperties();
          prop.load(in);
          String label = prop.getProperty("label");

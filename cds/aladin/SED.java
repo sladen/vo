@@ -1,4 +1,6 @@
-// Copyright 2012 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -26,6 +28,8 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseWheelEvent;
 import java.net.URL;
 import java.text.NumberFormat;
@@ -33,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 
 import javax.swing.JPanel;
+import javax.swing.Timer;
 
 import cds.tools.Util;
 import cds.xml.Field;
@@ -91,11 +96,19 @@ class SED extends JPanel {
    private int currentX,currentY;         // Dernière position de la souris
    private SEDItem siIn;                  // !=null si sous la souris
    
+   static private Color COLOROPT;
+   static private Color COLORREF;
+   
+
+   
    public SED(Aladin aladin) {
       this.aladin = aladin;
       transparency = 0.5f;
       flagWavelength = aladin.configuration.getSEDWave();
       radius = 5;
+      
+      COLOROPT = Aladin.DARK_THEME ? new Color(47,68,83) : new Color(234,234,255);
+      COLORREF = Aladin.DARK_THEME ? Aladin.COLOR_STACK_HIGHLIGHT : new Color(255,234,234);
    }
    
    /** Mémorise le repère de la vue afin de pouvoir le réafficher ultérieurement
@@ -149,7 +162,7 @@ class SED extends JPanel {
          aladin.calque.repaintAll();
          
       } catch( Exception e ) {
-         aladin.view.zoomview.setSED((String)null);
+         aladin.view.zoomview.setSED((String)null,(String)null);
          aladin.command.printConsole("!!! VizieR photometry parsing error => "+e.getMessage());
          if( aladin.levelTrace>=3 ) e.printStackTrace();
       }
@@ -160,18 +173,20 @@ class SED extends JPanel {
       for( SEDItem si : sedList )  si.highLight = si.o==o;
    }
    
-   /** Charge et crée un SED à partir d'un identificateur de source astronomique (à la Sésame) */
-   protected void loadFromSource(String source) {
+   /** Charge et crée un SED à partir d'un identificateur de source astronomique (à la Sésame)
+    * @param position position de la source (résultat Sésame)
+    * @param source identificateur de la source
+    */
+   protected void loadFromSource(String position, String source) {
       clear();
       this.source = source;
       try {
          aladin.trace(2,"VizieR photometry loading around source \""+source+"\"...");
-         url = ""+aladin.glu.getURL(SEDGLUTAG,Glu.quote(source)+" "+radius);
-//         url = "http://cdsarc.u-strasbg.fr/viz-bin/sed?-c="+URLEncoder.encode(source) +"&-c.rs="+radius;
+         url = ""+aladin.glu.getURL(SEDGLUTAG,Glu.quote(position)+" "+radius);
          aladin.trace(2,"Phot. loading: "+url);
-         loadASync( Util.openAnyStream(url) );
+         loadASync( url );
       } catch( Exception e ) {
-         aladin.view.zoomview.setSED((String)null);
+         aladin.view.zoomview.setSED((String)null,(String)null);
          aladin.command.printConsole("!!! VizieR photometry builder error ["+source+"] => "+e.getMessage());
          if( aladin.levelTrace>=3 ) e.printStackTrace();
       }
@@ -200,30 +215,32 @@ class SED extends JPanel {
    private synchronized void setIsLoading(boolean flag) { isLoading=flag; }
    
    // Chargement et création d'un SED à partir d'un flux de manière asynchrone
-   private void loadASync(MyInputStream in) {
+   private void loadASync( final String url) {
       planeAlreadyCreated=readyToDraw=false;
       setIsLoading(true);
       clear();
       aladin.view.zoomview.repaint();
-      final MyInputStream inParam=in;
 
-      try {
-         plan = new PlanCatalog(aladin);
-         plan.pcat = new Pcat(plan,Color.black,aladin.calque,aladin.status,aladin);
-         //      (new Thread() {  
-         //         public void run() {
-         plan.pcat.tableParsing(inParam, "TABLE");
-         parseAndDraw();
-      } catch( Exception e ) {
-         aladin.view.zoomview.setSED((String)null);
-         aladin.command.printConsole("!!! VizieR photometry parsing error => "+e.getMessage());
-         if( aladin.levelTrace>=3 ) e.printStackTrace();
-      } finally {
-         if( inParam!=null ) try { inParam.close(); } catch( Exception e ) {}
-         setIsLoading(false);
-      }
-      //         }
-      //      } ).start();
+      plan = new PlanCatalog(aladin);
+      plan.pcat = new Pcat(plan,Color.black,aladin.calque,aladin.status,aladin);
+      (new Thread() {  
+         public void run() {
+            Util.pause(10);
+            MyInputStream inParam =  null;
+            try {
+               inParam = Util.openAnyStream(url);
+               plan.pcat.tableParsing(inParam, "TABLE");
+               parseAndDraw();
+            } catch( Exception e ) {
+               aladin.view.zoomview.setSED((String)null,(String)null);
+               aladin.command.printConsole("!!! VizieR photometry parsing error => "+e.getMessage());
+               if( aladin.levelTrace>=3 ) e.printStackTrace();
+            } finally {
+               if( inParam!=null ) try { inParam.close(); } catch( Exception e ) {}
+               setIsLoading(false);
+            }
+         }
+      } ).start();
    }
 
    // Mise en place des listes de points du SED et des conversions de coordonnées
@@ -418,7 +435,7 @@ class SED extends JPanel {
 
          // Mise en évidence de ce point particulièrement
          if( highLight ) {
-            g.setColor( Aladin.GREEN);
+            g.setColor( Aladin.COLOR_GREEN);
             g.drawRect(r.x, r.y, r.width, r.height);
             
             // Affichage des infos sous le graphique
@@ -443,9 +460,6 @@ class SED extends JPanel {
 //   public Dimension getDimension() { return new Dimension(ZoomView.getSIZE(),ZoomView.getSIZE()); }
    public Dimension getDimension() { return new Dimension(aladin.calque.zoom.zoomView.getWidth(),aladin.calque.zoom.zoomView.getHeight()); }
    
-   static final private Color COLOROPT = new Color(234,234,255);
-   static final private Color COLORREF = new Color(255,234,234);
-   
    
    private int lastWidth=0,lastHeight=0;
    
@@ -461,24 +475,24 @@ class SED extends JPanel {
       int gauche=margeGauche, droite=dim.width-margeDroite;
       
       // Nettoyage
-      g.setColor(Color.white);
-      g.clearRect(0, 0, dim.width, dim.height);
+      g.setColor( Aladin.COLOR_BACKGROUND );
+      g.fillRect(0, 0, dim.width, dim.height);
       
       // Bande d'énergie (0.5..1mJy) de référence
       if( yRefMin!=yRefMax ) {
          g.setColor(COLORREF);
          g.fillRect(gauche,bas-Math.max(yRefMin,yRefMax), droite-gauche, Math.abs(yRefMax-yRefMin+1) );
       }
-      
+
       // Bande optique de référence
       if( xOptMin!=xOptMax ) {
          g.setColor(COLOROPT);
          g.fillRect(gauche+Math.min(xOptMin,xOptMax), haut, Math.abs(xOptMax-xOptMin+1), bas-haut);
       }
-      
+
       // Tracé des axes
       int arrow=3;
-      g.setColor(Color.gray);
+      g.setColor( Aladin.COLOR_CONTROL_FOREGROUND );
       g.drawLine(gauche, haut, gauche, bas);
       g.drawLine(gauche, haut, gauche-arrow, haut+arrow);
       g.drawLine(gauche, haut, gauche+arrow, haut+arrow);
@@ -487,14 +501,14 @@ class SED extends JPanel {
       g.drawLine(droite, bas, droite-arrow, bas+arrow);
       
       // Légende
-      g.setColor(Color.black);
+      g.setColor( Aladin.COLOR_CONTROL_FOREGROUND );
       g.setFont(Aladin.SSPLAIN);
       g.drawString("log f("+NU+")",gauche-2,haut-4);
       g.drawString((fluxMax==0 ? "":getUnitJy(fluxMax)),gauche+4,haut+6);
       g.drawString("log "+(flagWavelength ? MU : NU),droite+2,bas);
       
       // Tracé de la valeur sous la souris
-      g.setColor(LIGHTGRAY);
+      g.setColor( Aladin.COLOR_CONTROL_FOREGROUND );
       String s;
       if( !Double.isNaN(currentAbs) ) {
          g.drawLine(currentX,bas,currentX,bas-5);
@@ -507,6 +521,8 @@ class SED extends JPanel {
             g.drawString(s, 5,dim.height-3);
          }
       }
+      
+      g.setColor( Aladin.COLOR_CONTROL_FOREGROUND );
       if( !Double.isNaN(currentFlux) ) {
          g.drawLine(gauche,currentY,gauche+5,currentY);
          g.setFont(Aladin.SSPLAIN);
@@ -524,15 +540,21 @@ class SED extends JPanel {
       drawMore(g);
 //      drawInfo(g);
       drawHelp(g);
+      
 
       SEDItem siIn=null;
       
       // Pas encore prêt
       if( sedList==null || !readyToDraw ) {
-         g.setFont(Aladin.ITALIC);
+         
          s = aladin.chaine.getString("SEDLOADING");
+         int x = dim.width/2-g.getFontMetrics().stringWidth(s)/2;
          int y = (haut+bas)/2-20;
-         g.drawString(s,dim.width/2-g.getFontMetrics().stringWidth(s)/2,y+=18);
+         drawBlink(g,x-15,y+10);
+         
+         g.setFont(Aladin.ITALIC);
+         g.setColor( Aladin.COLOR_CONTROL_FOREGROUND); //Aladin.COLOR_GREEN );
+         g.drawString(s,x,y+=18);
          s = Coord.getUnit(radius/3600.)+" around";
          g.drawString(s,dim.width/2-g.getFontMetrics().stringWidth(s)/2,y+=18);
          s = source;
@@ -541,7 +563,7 @@ class SED extends JPanel {
          
       // Tracé des points
       } else {
-         
+         stopBlink();
          g.setFont(Aladin.SPLAIN);
          Composite c = ((Graphics2D)g).getComposite();
          try {
@@ -556,7 +578,7 @@ class SED extends JPanel {
       
       // Tracé de l'intervalle de Fréquence
       if( siIn==null ) {
-         g.setColor(Color.black);
+         g.setColor( Aladin.COLOR_CONTROL_FOREGROUND );
          g.setFont(Aladin.SPLAIN);
          s = flagWavelength ? getUnitWave(absMin) :  getUnitFreq(absMin);
          g.drawString(s,gauche,bas+10);
@@ -566,7 +588,7 @@ class SED extends JPanel {
       
       // Tracé du titre du graphique : le nom de la source
       if( source!=null ) {
-         g.setColor(Aladin.GREEN);
+         g.setColor(Aladin.COLOR_GREEN);
          g.setFont(Aladin.BOLD);
          String s1 = "VizieR Phot. at "+Coord.getUnit(radius/3600.);
          int size = g.getFontMetrics().stringWidth(s1);
@@ -591,7 +613,7 @@ class SED extends JPanel {
    private void drawCroix(Graphics g) {
       int w=5;
       int width=getDimension().width;
-      g.setColor(Aladin.BKGD);
+      g.setColor(Aladin.COLOR_BUTTON_BACKGROUND);
       rCroix = new Rectangle(width-w-4,1,w+4,w+4);
       g.fillRect(rCroix.x,rCroix.y,rCroix.width,rCroix.height);
       g.setColor(Color.red);
@@ -617,11 +639,31 @@ class SED extends JPanel {
 //      g.drawString("^",rInfo.x+2,rInfo.y+10);
 //   }
    
+   
+   private boolean blinkState=false;
+   
+   private Timer timerBlink=null;
+
+   // Le voyant clignotant d'attente
+   private void drawBlink(Graphics g, int x, int y) {
+      if( timerBlink==null ) timerBlink = new Timer(500,new ActionListener() {
+         public void actionPerformed(ActionEvent e) { aladin.calque.zoom.zoomView.repaint(); }
+      });
+      timerBlink.start();
+      Slide.drawBall(g, x, y, blinkState ? Color.white : Color.green );
+      blinkState = !blinkState;
+   }
+   
+   private void stopBlink() {
+      if( timerBlink==null ) return;
+      timerBlink.stop();
+   }
+
    // Trace l'icone de demande de chargement du SED dans l'outil Web
    private void drawMore(Graphics g) {
       int w=5;
       Dimension dim=getDimension();
-      g.setColor(Aladin.BKGD);
+      g.setColor(Aladin.COLOR_BUTTON_BACKGROUND);
       rMore = new Rectangle(dim.width-w-4,16+3*w,w+4,w+4);
       g.fillRect(rMore.x,rMore.y,rMore.width,rMore.height);
       g.setColor( flagWavelength ? Color.blue : Color.red );
@@ -633,7 +675,7 @@ class SED extends JPanel {
    private void drawWave(Graphics g) {
       int w=5;
       Dimension dim=getDimension();
-      g.setColor(Aladin.BKGD);
+      g.setColor(Aladin.COLOR_BUTTON_BACKGROUND);
       rWave = new Rectangle(dim.width-w-4,11+2*w,w+4,w+4);
       g.fillRect(rWave.x,rWave.y,rWave.width,rWave.height);
       g.setColor( flagWavelength ? Color.blue : Color.red );
@@ -645,7 +687,7 @@ class SED extends JPanel {
    private void drawHelp(Graphics g) {
       int w=5;
       Dimension dim=getDimension();
-      g.setColor(Aladin.BKGD);
+      g.setColor(Aladin.COLOR_BUTTON_BACKGROUND);
       rHelp = new Rectangle(dim.width-w-4,6+w,w+4,w+4);
       g.fillRect(rHelp.x,rHelp.y,rHelp.width,rHelp.height);
       g.setColor( Color.blue );
@@ -655,7 +697,7 @@ class SED extends JPanel {
    
    /** Actions à effectuer lors du relachement de la souris */
    protected void mouseRelease(int x,int y) {
-      if( rCroix.contains(x,y) ) aladin.view.zoomview.setSED((String)null);
+      if( rCroix.contains(x,y) ) aladin.view.zoomview.setSED((String)null,(String)null);
 //      else if( rInfo.contains(x,y) ) createStackPlane();
       else if( rMore.contains(x,y) ) more();
       else if( rHelp.contains(x,y) ) help();
@@ -702,14 +744,14 @@ class SED extends JPanel {
    /** Actions à effectuer lorsque la souris sort du cadre */
    protected void mouseExit() {
       currentAbs=currentFlux=Double.NaN;
-      aladin.view.simRep = null;
+//      aladin.view.simRep = null;
    }
    
    /** Actions à effectuer lorsque la souris entre dans le cadre */
-   protected void mouseEnter() {
-      aladin.view.simRep = simRep;
-      if( simRep!=null ) aladin.view.repaintAll();
-   }
+//   protected void mouseEnter() {
+//      aladin.view.simRep = simRep;
+//      if( simRep!=null ) aladin.view.repaintAll();
+//   }
    
    /** Associe le bon tooltip */
    private void toolTip(String k) {

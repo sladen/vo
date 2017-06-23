@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -73,8 +74,8 @@ import cds.tools.Util;
  */
 public final class FrameColorMap extends JFrame implements MouseListener {
 
-   static public final String CM[]      = { "gray", "BB", "A","stern" };
-   static public final String CMA[]     = { "gray", "BB", "A","stern" };
+   static public final String CM[]      = { "gray", "BB", "Red","Green","Blue", "A","stern"  };
+   static public final String CMA[]     = { "gray", "BB", "Red","Green","Blue", "A","stern" };
 
    // Les chaines statiques
    private String CMTITRE,CMREVERSE,CMLIMITS,CMERRORRANGE,CMRESET,CMLOCALCUT,CMCLOSE,

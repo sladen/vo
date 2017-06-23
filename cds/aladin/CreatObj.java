@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -69,8 +71,8 @@ public final class CreatObj implements Runnable {
       a.status = new Status(a,a.WELCOME);
 //      trace(1,"Creating Status object");
 
-      a.match = new Match(a);
-      a.look = new Look(a);
+      a.match = new IconMatch(a);
+      a.look = new IconStudy(a);
       a.grid = new Grid(a);
       a.oeil = new Oeil(a);
       a.northup = new Northup(a);

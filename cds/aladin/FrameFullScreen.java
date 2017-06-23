@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -430,8 +431,6 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
    /** Fin du mode plein écran => réintégration de la vue dans son container originale */
    protected void end() {
       
-      System.out.println("end");
-      
       viewSimple.aladin.fullScreen=null;
       viewSimple.setToolTipText(null);
       viewSimple.setBounds(bounds);
@@ -556,7 +555,7 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
          XGRID = getWidth()-(XMARGE+2);
          YGRID = getHeight()-ymarge+8;
          aladin.grid.fillBG(g,XGRID,YGRID,Color.white);
-         aladin.grid.drawGrid(g,XGRID,YGRID,aladin.calque.hasGrid()?Aladin.GREEN:Color.black);
+         aladin.grid.drawGrid(g,XGRID,YGRID,aladin.calque.hasGrid()?Aladin.COLOR_GREEN:Color.black);
       } else {
          XGRID=-1;
          //        ymarge=100;
@@ -681,7 +680,7 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
             g.drawString(label,getWidth()/2-g.getFontMetrics().stringWidth(label)/2,
                   y+h+15);
          }
-         g.setColor(Aladin.GREEN);
+         g.setColor(Aladin.COLOR_GREEN);
          if( blinkState ) s=s+"_";
          g.drawString(s, x+5, y+h-5);
       }
@@ -825,7 +824,7 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
                   rep=true;
                   if( !w.glu ) continue;
                   w.haspushed=true;
-                  if( w.archive ) { end(); w.callArchive(aladin,o); }
+                  if( w.archive ) { end(); w.callArchive(aladin,o,false); }
                   else w.callGlu(aladin.glu,aladin.mesure.mcanvas);
                   return true;
                }
@@ -885,7 +884,7 @@ public final class FrameFullScreen extends JFrame implements ActionListener {
       // Dans le logo de la grille
       else if( XGRID>0 && x>=XGRID && x<=XGRID+15 && y>=YGRID && y<=YGRID+15 ) {
          cursor= Aladin.HANDCURSOR;
-         Util.toolTip(viewSimple,aladin.grid.getHelpTip());
+         Util.toolTip(viewSimple,aladin.grid.getHelpTip(),true);
          rep=true;
       }
 

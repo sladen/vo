@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -265,7 +266,8 @@ public class Ligne extends Position {
       Ligne apres = finligne;
       if( avant!=null ) avant.finligne=apres;
       if( apres!=null ) apres.debligne=avant;
-      if( bout==3 ) plan.aladin.calque.zoom.zoomView.cutOff(this);
+      if( bout==2 ) plan.aladin.calque.zoom.zoomView.cutOff(this);
+      else if( bout==3 ) plan.aladin.calque.zoom.zoomView.stopHist();
    }
 
    /** Retourne true si la Ligne fait partie d'un polygone (dernier segment

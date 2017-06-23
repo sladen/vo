@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -383,8 +384,7 @@ MouseMotionListener, MouseListener, KeyListener
 
    /** Retourne la liste des noms des colormaps */
    public static String [] getCMList() {
-      String res [] = new String[ FrameColorMap.CM.length +
-                                  (customCMName==null ? 0 : customCMName.size())];
+      String res [] = new String[ FrameColorMap.CM.length + (customCMName==null ? 0 : customCMName.size())];
       // ajout des CM par défaut
       int i=0;
       for( ; i<FrameColorMap.CM.length; i++ ) res[i] = FrameColorMap.CM[i];
@@ -556,6 +556,18 @@ MouseMotionListener, MouseListener, KeyListener
             gn[i] = (i-64)<<1;  if( gn[i]<0 ) gn[i]=0; else if( gn[i]>255 ) gn[i]=255;
             bl[i] = (i-128)<<1; if( bl[i]<0 ) bl[i]=0;
          }
+         interpolPalette(rd,gn,bl,inverse,transp,tr0,tr1,tr2,fct);
+         
+      } else if( typeCM== PlanImage.CMRED ) {
+         for( i=0; i<256; i++ ) rd[i]=i;
+         interpolPalette(rd,gn,bl,inverse,transp,tr0,tr1,tr2,fct);
+
+      } else if( typeCM== PlanImage.CMGREEN ) {
+         for( i=0; i<256; i++ ) gn[i]=i;
+         interpolPalette(rd,gn,bl,inverse,transp,tr0,tr1,tr2,fct);
+
+      } else if( typeCM== PlanImage.CMBLUE ) {
+         for( i=0; i<256; i++ ) bl[i]=i;
          interpolPalette(rd,gn,bl,inverse,transp,tr0,tr1,tr2,fct);
 
          // S'il s'agit d'une table des couleurs A
@@ -1017,7 +1029,7 @@ MouseMotionListener, MouseListener, KeyListener
       // Tracé des 3 courbes de la colormap en superposition de l'histogramme
       if( !flagCMBand ) {
          for( int j=0; j<3; j++ ) {
-            gr.setColor(j==0?Color.red:j==1?Aladin.GREEN:Color.blue);
+            gr.setColor(j==0?Color.red:j==1?Aladin.COLOR_GREEN:Color.blue);
             byte t[] = j==0?r:j==1?g:b;
             for( int i=0; i<256; i++ ) {
                y = (int)( (256-(t[i]&0xFF))*f-0.5);

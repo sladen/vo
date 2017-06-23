@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -154,7 +155,7 @@ public final class Save extends JFrame implements ActionListener {
    static String [] CHOICE;
 
    static String TITLE,INFO,FISTINFO,SECONDINFO,CLOSE,EXPORT,DIR,
-   CANNOT,CANNOT1,INFOIMG,SAVEIN,SAVERGBIN,ENCODER;
+   CANNOT,CANNOT1,INFOIMG,SAVEIN,SAVERGBIN,SAVEMOC,ENCODER;
 
    // Memorisation temporaire
    JTextField directory;
@@ -182,6 +183,7 @@ public final class Save extends JFrame implements ActionListener {
       CANNOT1 = aladin.chaine.getString("SFCANNOT1");
       INFOIMG = aladin.chaine.getString("SFINFOIMG");
       SAVEIN = aladin.chaine.getString("SFSAVEIN");
+      SAVEMOC = aladin.chaine.getString("SFSAVEMOCIN");
       SAVERGBIN = aladin.chaine.getString("SFSAVERGBIN");
       ENCODER = aladin.chaine.getString("SFJPEGENCODER");
 
@@ -556,7 +558,7 @@ public final class Save extends JFrame implements ActionListener {
 
          c.gridwidth = 1;
          c.anchor = GridBagConstraints.WEST;
-         JLabel l = new JLabel(SAVEIN);
+         JLabel l = new JLabel(SAVEMOC);
          l.setFont(Aladin.BOLD);
          g.setConstraints(l,c); p.add(l);
 
@@ -848,44 +850,16 @@ public final class Save extends JFrame implements ActionListener {
 
    static int [] b642a=null;
 
-   //   public static int get64(byte [] b, int k,
-   //         char [] a, int start, int length) {
-   //      byte [] res = decode(new String(a,start,length));
-   //      System.arraycopy(res, 0, b, k, res.length);
-   //      return k+res.length;
-   //   }
-   //
-   //   private final static char[] ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toCharArray();
-   //
-   //   private static int[]  toInt   = new int[128];
-   //
-   //   static {
-   //       for(int i=0; i< ALPHABET.length; i++) toInt[ALPHABET[i]]= i;
-   //   }
-   //
-   //   public static byte[] decode(String s){
-   //      int delta = s.endsWith( "==" ) ? 2 : s.endsWith( "=" ) ? 1 : 0;
-   //      byte[] buffer = new byte[s.length()*3/4 - delta];
-   //      int mask = 0xFF;
-   //      int index = 0;
-   //      for(int i=0; i< s.length(); i+=4){
-   //          int c0 = toInt[s.charAt( i )];
-   //          int c1 = toInt[s.charAt( i + 1)];
-   //          buffer[index++]= (byte)(((c0 << 2) | (c1 >> 4)) & mask);
-   //          if(index >= buffer.length){
-   //              return buffer;
-   //          }
-   //          int c2 = toInt[s.charAt( i + 2)];
-   //          buffer[index++]= (byte)(((c1 << 4) | (c2 >> 2)) & mask);
-   //          if(index >= buffer.length){
-   //              return buffer;
-   //          }
-   //          int c3 = toInt[s.charAt( i + 3 )];
-   //          buffer[index++]= (byte)(((c2 << 6) | c3) & mask);
-   //      }
-   //      return buffer;
-   //  }
-
+   
+//   /** Décodage Base64 en Java 1.8 */
+//   public static int get64(byte [] b, int k, char [] a, int start, int length) {
+//      String s = new String(a,start,length);
+//      byte [] input = s.getBytes();
+//      byte [] output = Base64.getMimeDecoder().decode( input );
+//      System.arraycopy(output, 0, b, k, output.length);
+//      return k+output.length;
+//   }
+   
    /** Decodage d'une image en base 64. - Merci Fox pour le code
     *  Le traitement peut etre en fait en plusieurs fois.
     * @param b[] le tableau des pixels en sortie
@@ -1318,12 +1292,12 @@ public final class Save extends JFrame implements ActionListener {
       }
    }
 
-   protected boolean saveCatalog(String s,Plan p, boolean tsv, boolean addXY) {
+   protected boolean saveCatalog(String s,Plan p, boolean tsv, boolean addCoo, boolean addXY) {
       s=aladin.getFullFileName(s);
       File f = new File(s);
       boolean rep;
       if( tsv ) rep=saveCatTSV(f,p);
-      else rep=saveCatVOTable(f,p,addXY);
+      else rep=saveCatVOTable(f,p,addCoo,addXY);
       if( rep ) aladin.memoLastFile(s);
       return rep;
    }
@@ -1331,7 +1305,7 @@ public final class Save extends JFrame implements ActionListener {
    protected boolean saveCatalog(File file, Plan p ,int mode) {
       if( mode==TSV ) return saveCatTSV(file,p);
       else if( mode==JSON ) return saveCatJSON(file,p);
-      else return saveCatVOTable(file,p,false);
+      else return saveCatVOTable(file,p,false,false);
    }
 
    /** Ajout d'un suffixe en cas de multi-table en TSV */
@@ -1589,11 +1563,11 @@ public final class Save extends JFrame implements ActionListener {
     * @param addXY ajout (ou non) des positions (X,Y) -> utilisé par SimPlay générique
     * @return boolean true si la sauvegarde s'est bien effectuee, false sinon
     */
-   protected boolean saveCatVOTable(File file, Plan p, boolean addXY ) {
+   protected boolean saveCatVOTable(File file, Plan p, boolean addCoo, boolean addXY ) {
       try {
          DataOutputStream out = new DataOutputStream(
                new BufferedOutputStream(new FileOutputStream(file)));
-         aladin.writePlaneInVOTable(p, out, addXY);
+         aladin.writePlaneInVOTable(p, out, addCoo, addXY);
          out.close();
       }
       catch(IOException ioe) {errorFile=errorFile+"\n"+file;return false;}

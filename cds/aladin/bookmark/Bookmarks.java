@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,10 +19,9 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin.bookmark;
 
-import java.awt.Dimension;
+import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.event.ActionEvent;
@@ -43,6 +44,7 @@ import cds.aladin.Command;
 import cds.aladin.Function;
 import cds.aladin.Glu;
 import cds.aladin.MyInputStream;
+import cds.aladin.MyToolbarUI;
 import cds.aladin.Tok;
 import cds.aladin.Widget;
 import cds.aladin.WidgetControl;
@@ -55,7 +57,7 @@ import cds.aladin.WidgetControl;
 public class Bookmarks extends JToolBar implements Widget {
    private Aladin aladin;
    private FrameBookmarks frameBookmarks;     // Gère la fenêtre de consultation/édition des favoris
-
+   private Color cbg;   // Couleur du fond (pour que ça marche sous Ubuntu)
    private String memoDefaultList="";
 
    public Bookmarks(Aladin aladin) {
@@ -63,17 +65,26 @@ public class Bookmarks extends JToolBar implements Widget {
       frameBookmarks = null;
       //      toolBar = null;
 
+//      setUI( new MyToolbarUI() );
+      
       setRollover(true);
       setFloatable(false);
       setBorderPainted(false);
       setBorder(BorderFactory.createEmptyBorder());
       setBackground( aladin.getBackground() );
-      
    }
    
-   public Dimension getPreferredSize() {
-      return new Dimension( super.getPreferredSize().width, 16);
+   protected void paintComponent(Graphics g) {
+	   super.paintComponent(g);
+       g.setColor( aladin.getBackground() );
+       g.fillRect(0, 0, getWidth(), getHeight());
    }
+   
+//   public Dimension getMinimumSize() { return getPreferredSize(); }
+//   public Dimension getMaximumSize() { return getPreferredSize(); }
+//   public Dimension getPreferredSize() {
+//      Dimension dim = super.getPreferredSize(); dim.height=22; return dim;
+//   }
 
    /** Initialisation des bookmarks */
    public void init(boolean noCache) {
@@ -154,6 +165,7 @@ public class Bookmarks extends JToolBar implements Widget {
       if( !Aladin.OUTREACH ) {
          JButton plus = new JButton("+");
          plus.setBackground( aladin.getBackground());
+         plus.setForeground( Aladin.COLOR_LABEL );
          plus.setBorder(BorderFactory.createEmptyBorder(2,8,2,8));
          plus.setToolTipText(aladin.getChaine().getString("BKMEDITOR"));
          plus.setFont( plus.getFont().deriveFont(Font.BOLD));

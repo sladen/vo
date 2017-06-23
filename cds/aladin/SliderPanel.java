@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -73,16 +74,13 @@ public class SliderPanel extends JPanel {
 
       setLayout( new BorderLayout() );
       setBackground( aladin.getBackground());
-      
-      JPanel p0 = new JPanel();
-      p0.setBackground( Color.yellow );
+      setOpaque(true);
       
       sp = new JPanel(new BorderLayout());
       sp.setBackground( aladin.getBackground());
       adjustSliderPanel();
       
-      add(p0);
-      add(sp);
+      add(sp,BorderLayout.CENTER);
    }
    
    protected void adjustSliderPanel() {

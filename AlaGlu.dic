@@ -58,6 +58,132 @@
 %O CDS'aladin
 %U <&AlaU>/nph-aladin.pl?frame=gludic
 
+%ActionName        CS
+%Description       Generic CS query
+%Url               $4RA=$1&DEC=$2&SR=$3&VERB=3
+%Param.Description $4=Base URL (incl. '?')
+%Param.Description $1=Right Ascension
+%Param.Description $2=Declination
+%Param.Description $3=Radius in deg
+%Param.DataType    $1=Target(RAd)
+%Param.DataType    $2=Target(DEd)
+%Param.DataType    $3=Field(RADIUSd)
+%Param.Value       $3=0.17
+%Param.DataType    $4=BaseUrl
+%ResultDataType    Mime(text/xml)
+%Aladin.Menu       VO protocols..
+%Aladin.XLabel     Generic Cone Search query
+%Aladin.LabelPlane $4
+%Aladin.Profile    >9.6
+%DistribDomain     ALADIN
+
+%ActionName        SIA2
+%Description       Generic SIAv2 query
+%Url               $4REQUEST=query&POS=CIRCLE+$1+$2+$3
+%Param.Description $4=Base URL (incl. '?')
+%Param.Description $1=Right Ascension
+%Param.Description $2=Declination
+%Param.Description $3=Radius in deg
+%Param.DataType    $1=Target(RAd)
+%Param.DataType    $2=Target(DEd)
+%Param.DataType    $3=Field(RADIUSd)
+%Param.Value       $3=0.17
+%Param.DataType    $4=BaseUrl
+%ResultDataType    Mime(text/xml)
+%Aladin.Menu       VO protocols..
+%Aladin.XLabel     Generic Simple Image Access v2 query
+%Aladin.LabelPlane $4
+%Aladin.Profile    >9.6
+%DistribDomain     ALADIN
+
+%ActionName        SIA
+%Description       Generic SIAv1 query
+%Url               $4POS=$1,$2&SIZE=$3&FORMAT=image/fits
+%Param.Description $4=Base URL (incl. '?')
+%Param.Description $1=Right Ascension
+%Param.Description $2=Declination
+%Param.Description $3=Radius in deg
+%Param.DataType    $1=Target(RAd)
+%Param.DataType    $2=Target(DEd)
+%Param.DataType    $3=Field(RADIUSd)
+%Param.Value       $3=0.17
+%Param.DataType    $4=BaseUrl
+%ResultDataType    Mime(text/xml)
+%Aladin.Menu       VO protocols..
+%Aladin.XLabel     Generic Simple Image Access v1 query
+%Aladin.LabelPlane $4
+%Aladin.Profile    >9.6
+%DistribDomain     ALADIN
+
+%ActionName        SSA
+%Description       Generic SSA v1 query
+%Url               $4POS=$1,$2&SIZE=$3&REQUEST=queryData
+%Param.Description $4=Base URL (incl. '?')
+%Param.Description $1=Right Ascension
+%Param.Description $2=Declination
+%Param.Description $3=Radius in deg
+%Param.DataType    $1=Target(RAd)
+%Param.DataType    $2=Target(DEd)
+%Param.DataType    $3=Field(RADIUSd)
+%Param.Value       $3=0.17
+%Param.DataType    $4=BaseUrl
+%ResultDataType    Mime(text/xml)
+%Aladin.Menu       VO protocols..
+%Aladin.XLabel     Generic Simple Spectra Access query
+%Aladin.LabelPlane $4
+%Aladin.Profile    >9.6
+%DistribDomain     ALADIN
+
+%ActionName        MOC
+%Description       MOC server
+%Url               <&MOC_url>?$1&get=$2&order=$3
+%Param.Description $1=Id(s) ex: CDS/P/2MASS/J,...
+%Param.Description $2=Operation
+%Param.Value       $2=moc - Union
+%Param.Value       $2=imoc - Intersection
+%Param.Description $3=Specific order
+%Aladin.Menu       VO protocols..
+%Aladin.XLabel     Coverage server (MOC)
+%Aladin.LabelPlane $1 MOC
+%Aladin.Profile    >9.6
+%DistribDomain     ALADIN
+%ResultDataType    Mime(moc/fits)
+
+%ActionName        MOC_url
+%Description       Base url of MocServer
+%SeeAction         MOC_1
+%SeeAction         MOC_2
+%DistribDomain     ALADIN
+
+%ActionName        MOC_1
+%Url               http://alasky.u-strasbg.fr/MocServer/query
+%DistribDomain     ALADIN
+
+%ActionName        MOC_2
+%Url               http://alaskybis.u-strasbg.fr/MocServer/query
+%DistribDomain     ALADIN
+
+%ActionName        Vignettes.CDS
+%Description       Vignette de densite des tables VizieR et de Simbad
+%SeeAction         Vignettes.CDS_0
+%SeeAction         Vignettes.CDS_1
+%DistribDomain     ALADIN
+
+%ActionName        Vignettes.CDS_0
+%Description       Vignette de densite des tables VizieR et de Simbad (alasky)
+%Url               http://alasky.u-strasbg.fr/footprints/tables/$1/densityMap?format=png&size=small
+%Param.Description $1=Identification de la table (ex: vizier/II_337_out)
+%ResultDataType    Mime(image/png)
+%DistribDomain     ALADIN
+
+%ActionName        Vignettes.CDS_1
+%Description       Vignette de densite des tables VizieR et de Simbad (alaskybis)
+%Url               http://alaskybis.u-strasbg.fr/footprints/tables/$1/densityMap?format=png&size=small
+%Param.Description $1=Identification de la table (ex: vizier/II_337_out)
+%ResultDataType    Mime(image/png)
+%DistribDomain     ALADIN
+
+
 
 #----------------- ADDITIONNAL SERVERS ------------------------------
 #---------- see the FAQ or the manual to have more explanations -----
@@ -223,23 +349,23 @@
 #%Aladin.Bookmarks Optical,IR,UV,Radio,DSS,Simbad,NED
 #%Aladin.Profile >=6.033
 
-%ActionName GenericSIA
-%Description Generic SIA query
-%U $4POS=$1,$2&SIZE=$3&FORMAT=image/fits
-%Param.Description $4=Base URL (incl. '?')
-%Param.Description $1=Right Ascension
-%Param.Description $2=Declination
-%Param.Description $3=Radius in deg
-%Param.DataType $1=Target(RAd)
-%Param.DataType $2=Target(DEd)
-%Param.DataType $3=Field(RADIUSd)
-%Param.Value $3=0.17
-%ResultDataType Mime(sia/xml)
-%Aladin.Menu Others...
-%Aladin.XLabel Generic SIA query
-%Aladin.LabelPlane SIA $4
-%Aladin.Profile >6.909
-%DistribDomain ALADIN
+#%ActionName GenericSIA
+#%Description Generic SIA query
+#%U $4POS=$1,$2&SIZE=$3&FORMAT=image/fits
+#%Param.Description $4=Base URL (incl. '?')
+#%Param.Description $1=Right Ascension
+#%Param.Description $2=Declination
+#%Param.Description $3=Radius in deg
+#%Param.DataType $1=Target(RAd)
+#%Param.DataType $2=Target(DEd)
+#%Param.DataType $3=Field(RADIUSd)
+#%Param.Value $3=0.17
+#%ResultDataType Mime(sia/xml)
+#%Aladin.Menu Others...
+#%Aladin.XLabel Generic SIA query
+#%Aladin.LabelPlane SIA $4
+#%Aladin.Profile >6.909
+#%DistribDomain ALADIN
 
 #### Cartes biblio ####
 
@@ -329,12 +455,223 @@
 %VerboseDesc Earth topographic map. Data origin : http://topex.ucsd.edu/cgi-bin/get_data.cgi
 
 
+###Aladin's TAP###
+#%A TAP3
+#%D CDS'aladin TAP4
+#%O CDS'aladin
+#%ResultDataType Mime(application/xml)
+#%Aladin.Label Choose my TAP server...
+#%Aladin.Menu TAP
+#%Aladin.Menu.OnClickLoad TapServices.txt
+#%Aladin.LabelPlane TAP
+
+###TAP client description from GLU###
+%ActionName    cadc.nrc.ca/tap
+%Description    CADC via TAP GLU
+%DistribDomain    ALADIN
+%Owner    aladin
+%Url  http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/tap
+%ResultDataType    Mime(votable/xml)
+%Aladin.Protocol TAPv1
+#%Aladin.Protocol TAPv1-TREEPANEL
+%Aladin.Label TAP
+%Aladin.LabelPlane TAP-CADC
+%Param.Description							$7=Collection
+%Param.DataType								$7=char(caom2.SIAv1)
+%Param.Value								$7=- Any
+%Param.Value								$7=HST
+%Param.Value								$7=CFHT
+%ADQL.Where									$7=collection=$7
+
+%Param.Description			 				$1=Right ascension
+%Param.DataType        						$1=Target(RAd,caom2.SIAv1,ivoa.ObsCore)
+%Param.Description 							$2=Declination
+%Param.DataType        						$2=Target(DEd,caom2.SIAv1,ivoa.ObsCore)
+%Param.Description 							$3=Radius
+%Param.DataType        						$3=Field(RADIUSd,caom2.SIAv1,ivoa.ObsCore)
+%ADQL.Where        							$1=SpatialCS
+#SpatialCS function description below
+%ADQL.Func.SpatialCS						1=CONTAINS(POINT('ICRS', %1$s, %2$s), CIRCLE('ICRS', $1, $2, $3 ))
+%ADQL.FuncParam.SpatialCS.caom2.SIAv1 		position_center_ra	position_center_dec
+%ADQL.FuncParam.SpatialCS.ivoa.ObsCore 		s_ra	s_dec
+
+%Param.Description 							$4=Energy
+%Param.DataType        						$4=Band(m,caom2.SIAv1,ivoa.ObsCore)
+%ADQL.Where        							$4=BandRange
+%ADQL.Func.BandRange						%1$s>$4 AND %2$s<$4
+%ADQL.FuncParam.BandRange.caom2.SIAv1 		energy_bounds_cval1	energy_bounds_cval2
+%ADQL.FuncParam.BandRange.ivoa.ObsCore 		em_min	em_max
+
+%Param.Description							$5=Time axis
+%Param.DataType   	 						$5=Date(OP,ParseToMJD,caom2.SIAv1,ivoa.ObsCore)
+%ADQL.Where        							$5=TimeRange
+%ADQL.Func.TimeRange						%1$s $5
+%ADQL.FuncParam.TimeRange.caom2.SIAv1 		time_bounds_cval1	time_bounds_cval2
+%ADQL.FuncParam.TimeRange.ivoa.ObsCore 		t_min	t_max
+
+%Param.Description  						$6=Table
+%Param.DataType  							$6=Tables(caom2.SIAv1,ivoa.ObsCore)
+%Param.Value        						$6=caom2.SIAv1
+%Param.Value        						$6=ivoa.ObsCore
+%ADQL.TAPTables								caom2.SIAv1	ivoa.ObsCore
+%ADQL.From        							$6=$6
+
+%Param.Description  						$8=Output fields
+%Param.DataType								$8=COLUMNS
+%Param.Value        						$8=* - All fields
+%Param.Value        						$8=collection, publisherDID, instrument_name, position_center_ra, position_center_dec, energy_bounds_center, time_bounds_center - few fields
+%Param.DataType  							$8=char(caom2.SIAv1)
+%ADQL.Select        						$8=$8
+
+%Param.Description  						$9=Max records
+%Param.Value        						$9=TOP 10 - A few
+%Param.Value        						$9=TOP 1000 - first 1000
+%Param.Value        						$9=- Default server limit
+%Param.DataType								$9=TOP(caom2.SIAv1,ivoa.ObsCore)
+%ADQL.Select        						$9=$9
+
+%Param.Description 							$10=Target name
+%Param.DataType   	 						$10=char(ivoa.ObsCore)
+%ADQL.Where        							$10=target_name LIKE "$10"
+
+%Param.Description 							$11=Facility name
+%Param.DataType   	 						$11=char(ivoa.ObsCore)
+%ADQL.Where        							$11=facility_name LIKE "$11"
 
 
+#GLU record for Gaia tapvizier (Gaia Collaboration, 2016)
+%ActionName    GAIA_VIZIER
+%Description    Gaia via TAP Vizier
+%Owner    CDS'aladin
+%DistribDomain    ALADIN
+%Aladin.Protocol TAPv1
+%VersionNumber    1475571165  2016/10/04 10:52:35
+%Url    http://tapvizier.u-strasbg.fr/TAPVizieR/tap
+
+%Param.Description	$1=Target
+%Param.DataType    $1=Target(RAd,"I/337/gaia","I/337/tgasptyc")
+%Param.Description	$2=Declination
+%Param.DataType	$2=Target(DEd,"I/337/gaia","I/337/tgasptyc")
+%Param.Description	$3=Radius
+%Param.DataType	$3=Field(RADIUSd,"I/337/gaia","I/337/tgasptyc")
+%ADQL.Where	$1=1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', $1, $2, $3 ))
+#%ADQL.Where	$1=1%3DCONTAINS%28POINT%28%27ICRS%27%2C+rap%2C+dec%29%2C+CIRCLE%28%27ICRS%27%2C+$1%2C+$2%2C+$3+%29%29
+%Param.Value	$3=0.17
+
+%Param.Description	$4=Table
+%Param.DataType	$4=Tables("I/337/gaia","I/337/tgasptyc")
+%Param.Value  	$4="I/337/gaia" - Gaia Source data
+%Param.Value  	$4="I/337/tgasptyc" - TGAS supplemented with BT and VT magnitudes
+%ADQL.TAPTables	"I/337/gaia"	"I/337/tgasptyc"
+%ADQL.From	$4=$4
+
+%Param.Description  	$5=Plx [mas](ex: >50)
+%Param.DataType  	$5=char(OP,"I/337/gaia","I/337/tgasptyc")
+%ADQL.Where 		$5=parallax $5
+
+%Param.Description  	$6=Gmag (ex: 10..11)
+%Param.DataType  	$6=char(OP,"AND","I/337/gaia","I/337/tgasptyc")
+%ADQL.Where 		$6=phot_g_mean_mag $6
+
+%Param.Description  	$7=pm limit [mas/yr]
+%Param.DataType  	$7=char("I/337/gaia","I/337/tgasptyc")
+#%ADQL.Where 	$7= SQRT(POWER(pmRA,2)%2BPOWER(pmdec,2))>$7
+%ADQL.Where 	$7= SQRT(POWER(pmRA,2)+POWER(pmdec,2))>$7
+
+%Param.Description	$8=Max records
+%Param.Value	$8=TOP 10 - A few
+%Param.Value	$8=TOP 1000 - first 1000
+%Param.Value	$8=- Default server limit
+%Param.DataType	$8=TOP("I/337/gaia","I/337/tgasptyc")
+%ADQL.Select	$8=$8
+
+%Param.Description  	$9=Output columns
+%Param.Value  	$9=* - Default columns
+%Param.Value	$9=ra, dec, pmra, pmdec, SQRT(POWER(pmRA,2)+POWER(pmdec,2)) as pm  - Position and proper motion
+%Param.Value	$9=source_id, phot_g_mean_mag+5*log10(parallax)-10 as g_mag - Absolute magnitude MG 
+%Param.Value  	$9=b,dec,dec_error,duplicated_source,phot_g_mean_flux,phot_g_mean_flux_error, phot_g_mean_mag,phot_variable_flag,l,ra,ra_error, source_id,ref_epoch,pmRa,ra_dec_corr
+%Param.Value	$9=MAX(SQRT(POWER(pmRA,2)+POWER(pmdec,2))) as maxPm - Largest proper motion
+%Param.DataType  	$9=char("I/337/gaia")
+%ADQL.Select	$9=$9
+
+%ResultDataType    Mime(votable/xml)
+%Aladin.Label TAP
+%Aladin.LabelPlane GaiaGluTap
 
 
+#GLU record for Gaia DR1 from ARI
+#Catalog Identifier    : Gaia-DR1.cat
+%ActionName    GaiaGluTAPARI
+%Description    Gaia DR1 (Gaia Collaboration, 2016)
+%Owner    CDS'aladin
+%DistribDomain    ALADIN
+%Aladin.Protocol TAPv1
+%VersionNumber    1475571165  2016/10/04 10:52:35
+%Url    http://gaia.ari.uni-heidelberg.de/tap
 
+%Param.Description	$1=Target
+%Param.DataType    	$1=Target(RAd,gaiadr1.gaia_source,gaiadr1.tgas_source)
+%Param.Description	$2=Declination
+%Param.DataType		$2=Target(DEd,gaiadr1.gaia_source,gaiadr1.tgas_source)
+%Param.Description	$3=Radius
+%Param.DataType	$3=Field(RADIUSd,gaiadr1.gaia_source,gaiadr1.tgas_source)
+%ADQL.Where	$1=1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', $1, $2, $3 ))
+%Param.Value	$3=0.17
 
+%Param.Description	$4=Table
+%Param.DataType		$4=Tables(gaiadr1.gaia_source,gaiadr1.tgas_source)
+%Param.Value  		$4=gaiadr1.gaia_source - Gaia Source data
+%Param.Value  		$4=gaiadr1.tgas_source - TGAS supplemented with BT and VT magnitudes
+%ADQL.TAPTables	gaiadr1.gaia_source	gaiadr1.tgas_source
+%ADQL.From	$4=$4
+
+%Param.Description  	$5=Plx [mas](ex: >50)
+%Param.DataType  		$5=char(OP,gaiadr1.gaia_source,gaiadr1.tgas_source)
+%ADQL.Where 			$5=parallax $5
+
+%Param.Description  $6=Gmag (ex: 10..11)
+%Param.DataType  	$6=char(OP,gaiadr1.gaia_source,gaiadr1.tgas_source)
+%ADQL.Where 		$6=phot_g_mean_mag $6
+
+%Param.Description  $7=pm limit [mas/yr]
+%Param.DataType  	$7=char(gaiadr1.gaia_source,gaiadr1.tgas_source)
+%ADQL.Where 		$7= SQRT(POWER(pmRA,2)+POWER(pmdec,2))>$7
+
+%Param.Description	$8=Max records
+%Param.Value	$8=TOP 10 - A few
+%Param.Value	$8=TOP 1000 - first 1000
+%Param.Value	$8=- Default server limit
+%Param.DataType	$8=TOP(gaiadr1.gaia_source,gaiadr1.tgas_source)
+%ADQL.Select	$8=$8
+
+%Param.Description  	$9=Output columns
+%Param.Value  	$9=* - Default columns
+%Param.Value	$9=ra, dec, pmra, pmdec, SQRT(POWER(pmRA,2)+POWER(pmdec,2)) as pm  - Position and proper motion
+%Param.Value	$9=source_id, phot_g_mean_mag+5*log10(parallax)-10 as g_mag - Absolute magnitude MG 
+%Param.Value	$9=b,dec,dec_error,duplicated_source,phot_g_mean_flux,phot_g_mean_flux_error, phot_g_mean_mag,phot_variable_flag,l,ra,ra_error, source_id,ref_epoch,pmRa,ra_dec_corr
+%Param.Value	$9=MAX(SQRT(POWER(pmRA,2)+POWER(pmdec,2))) as maxPm - Largest proper motion
+%Param.DataType  	$9=char(gaiadr1.gaia_source)
+%ADQL.Select	$9=$9
+
+%Param.Description	$10=Plx uncertainity limit
+%Param.DataType  	$10=char(gaiadr1.gaia_source,gaiadr1.tgas_source)	
+%ADQL.Where	$10=parallax/parallax_error >= $10
+
+%ResultDataType    Mime(votable/xml)
+%Aladin.Label TAP
+%Aladin.LabelPlane GaiaGluTapARI
+
+%ActionName    Sample1
+%Aladin.TapService					ALATAP
+%Aladin.Label		SomeOtherLabel
+%Description    NASA's Wide-field Infrared Survey Explorer (WISE; Wright et al. 2010) mapped the sky at 3.4, 4.6, 12, and 22 Î¼m (W1, W2, W3, W4) in 2010 with an angular resolution of 6.1", 6.4", 6.5", & 12.0" in the four bands. WISE achieved 5Ï? point source sensitivities better than 0.08, 0.11, 1 and 6 mJy in unconfused regions on the ecliptic in the four bands. Sensitivity improves toward the ecliptic poles due to denser coverage and lower zodiacal background.
+%Url    http://gaia.ari.uni-heidelberg.de/tap
+
+%ActionName    tapvizierGeneric
+%Aladin.TapService					ALATAP
+%Aladin.Label		tapvizierGeneric
+%Description    <html>Gaia DR1 <br/>(Gaia Collaboration, 2016)</html>
+%Url    http://tapvizier.u-strasbg.fr/TAPVizieR/tap
 
 
 

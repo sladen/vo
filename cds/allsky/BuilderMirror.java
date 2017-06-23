@@ -1,4 +1,6 @@
-// Copyright 2012 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -20,9 +22,12 @@
 package cds.allsky;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -69,10 +74,12 @@ public class BuilderMirror extends BuilderTiles {
       // Chargement des propriétés distantes
       prop = new MyProperties();
       MyInputStream in = null;
+      
+      InputStreamReader in1=null;
       try {
-         in = Util.openAnyStream( context.getInputPath()+"/properties");
-         prop.load(in);
-      } finally{  if( in!=null ) in.close(); }
+         in1 = new InputStreamReader( Util.openAnyStream( context.getInputPath()+"/properties"), "UTF-8" );
+         prop.load(in1);
+      } finally{  if( in1!=null ) in1.close(); }
 
       // Détermination du statut
       String s = prop.getProperty(Constante.KEY_HIPS_STATUS);
@@ -132,6 +139,7 @@ public class BuilderMirror extends BuilderTiles {
       if( s!=null ) { if( s.equals("color")) context.setBitpixOrig(0); }
       else {
          s = prop.getProperty(Constante.OLD_ISCOLOR);
+         if( s==null ) s = prop.getProperty("isColor");
          if( s!=null && s.equals("true")) context.setBitpixOrig(0);
       }
       if( context.isColor() ) context.info("Mirroring colored HiPS");
@@ -157,10 +165,10 @@ public class BuilderMirror extends BuilderTiles {
       // Peut être existe-t-il déjà une copie locale à jour ?
       if( (new File(context.getOutputPath()+"/properties")).exists() ) {
          MyProperties localProp = new MyProperties();
-         in = null;
+         in1 = null;
          try {
-            in = Util.openAnyStream( context.getOutputPath()+"/properties");
-            localProp.load(in);
+            in1 = new InputStreamReader( Util.openAnyStream( context.getOutputPath()+"/properties") , "UTF-8");
+            localProp.load(in1);
 
             String dLocal = localProp.getProperty(Constante.KEY_HIPS_RELEASE_DATE);
             String dRemote = prop.getProperty(Constante.KEY_HIPS_RELEASE_DATE);
@@ -179,7 +187,7 @@ public class BuilderMirror extends BuilderTiles {
             isUpdate=true;
             context.info("Updating a previous HiPS copy ["+context.getOutputPath()+"]...");
 
-         } finally{  if( in!=null ) in.close(); }
+         } finally{ if( in1!=null ) in1.close(); }
       }
    }
 
@@ -244,9 +252,9 @@ public class BuilderMirror extends BuilderTiles {
          }
          prop.replaceValue(Constante.KEY_HIPS_STATUS, status1.toString());
 
-         FileOutputStream out = null;
+         OutputStreamWriter out = null;
          try {
-            out = new FileOutputStream( context.getOutputPath()+"/properties");
+            out = new OutputStreamWriter( new FileOutputStream( context.getOutputPath()+"/properties"), "UTF-8");
             prop.store( out, null);
          } finally {  if( out!=null ) out.close(); }
       }
@@ -319,9 +327,29 @@ public class BuilderMirror extends BuilderTiles {
    }
    
    private int copy(String fileIn, String fileOut) throws Exception {
-      if( isLocal ) return copyLocal(fileIn,fileOut);
-      return copyRemote(fileIn,fileOut);
+      try {
+         if( isLocal ) return copyLocal(fileIn,fileOut);
+         return copyRemote(fileIn,fileOut);
+         
+      } catch( FileNotFoundException e ) {
+         context.warning("File not found ["+fileIn+"] => ignored (may be out of the MOC)");
+      }
+      return 0;
    }
+   
+//   static public void main(String [] s) {
+//      try {
+//         String fileIn="http://alasky.u-strasbg.fr/SDSS/DR9/color/Norder10/Dir20000/Npix28115.jpg";
+////         String fileIn="http://alasky.u-strasbg.fr/SDSS/DR9/color/Norder10/Dir20000/Npix28124.jpg";
+//         String fileOut="/Users/Pierre/Desktop/toto.jpg";
+//         int size = copyRemote(fileIn,fileOut);
+//         System.out.println("copy done => "+size);
+//      } catch( Exception e ) {
+//         
+//         e.printStackTrace();
+//      }
+//      
+//   }
 
    // Copie d'un fichier distant (url) vers un fichier local, uniquement si la copie locale évenutelle
    // et plus ancienne et/ou de taille différente à l'originale.
@@ -374,6 +402,7 @@ public class BuilderMirror extends BuilderTiles {
                while( es.read(buf1) > 0) { }
                es.close();  
             }
+         
          } finally { if( dis!=null ) try{ dis.close(); } catch( Exception e) {}  }
 
          RandomAccessFile f = null;

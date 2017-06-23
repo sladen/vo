@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -52,7 +54,7 @@ import cds.xml.TableParser;
  * @version 1.1 : (fév 2005) GIF
  * @version 1.0 : (16 juin 2003) creation
  */
-public final class MyInputStream extends FilterInputStream {
+public class MyInputStream extends FilterInputStream {
 
    // La taille des blocs du tampon
    private static final int BLOCCACHE = 65536;
@@ -71,7 +73,7 @@ public final class MyInputStream extends FilterInputStream {
    static final public long AJ 	    = 1<<9;
    static final public long AJS 	= 1<<10;
    static final public long IDHA    = 1<<11;
-   static final public long SIA_SSA = 1<<12; // SIA ou SSA
+   static final public long SIA     = 1<<12;
    static final public long CSV 	= 1<<13;
    static final public long NOTAVAILABLE= 1<<14;
    static final public long AJSx    = 1<<15;
@@ -103,21 +105,26 @@ public final class MyInputStream extends FilterInputStream {
    static final public long TAP     = 1L<<41;
    static final public long OBSTAP  = 1L<<42;
    static final public long EOF     = 1L<<43;
-   static final public long PROP= 1L<<44;
+   static final public long PROP    = 1L<<44;
+   static final public long SSA     = 1L<<45;
+   static final public long SIAV2   = 1L<<46;
+   static final public long EPNTAP  = 1L<<47;
 
    static final String FORMAT[] = {
       "UNKNOWN","FITS","JPEG","GIF","MRCOMP","HCOMP","GZIP","XML","ASTRORES",
       "VOTABLE","AJ","AJS","IDHA","SIA","CSV","UNAVAIL","AJSx","PNG","XFITS",
       "FOV","FOV_ONLY","CATLIST","RGB","BSV","FITS-TABLE","FITS-BINTABLE","CUBE",
       "SEXTRACTOR","HUGE","AIPSTABLE","IPAC-TBL","BMP","RICE","HEALPIX","GLU","ARGB","PDS",
-      "HPXMOC","DS9REG","SED","BZIP2","AJTOOL","TAP","OBSTAP","EOF","PROP" };
+      "HPXMOC","DS9REG","SED","BZIP2","AJTOOL","TAP","OBSTAP","EOF","PROP","SSA", "SIAV2",
+      "EPNTAP" };
 
    // Recherche de signatures particulieres
    static private final int DEFAULT = 0; // Detection de la premiere occurence
    static private final int FITSEND = 1; // Detection de la fin d'entete FITS
+   static private final int FITSEND2 = 2; // Detection de la fin de la deuxième entete FITS (cas RICE)
 
 
-   private boolean withBuffer; // true si on a demandé une bufferisation
+   protected boolean withBuffer; // true si on a demandé une bufferisation
    private byte cache[]=null; // Le tampon
    private int offsetCache=0; // Position du prochain octet a lire dans le tampon
    private int inCache=0;     // Nombre d'octets disponibles dans le tampon
@@ -127,7 +134,7 @@ public final class MyInputStream extends FilterInputStream {
    private boolean alreadyRead; // true si le flux a deja ete entame
    private long dejaLu;       // Nombre d'octets déjà lu sur le flux
    private String commentCalib=null;  // Calib trouvée dans un segment commentaire (pour JPEG ou PNG)
-   private String filename=null; // Nom du fichier d'origine si connu (pour debug)
+   protected String filename=null; // Nom du fichier d'origine si connu
    private boolean fitsHeadRead; // true si on a déjà charger (ou essayé)
    // toute l'entête fits courante dans le cache (voir hasFitsKey())
 
@@ -174,7 +181,8 @@ public final class MyInputStream extends FilterInputStream {
     * @return le flux lui-meme, ou un nouveau flux s'il s'agit d'un flux
     *          gzippe
     */
-   public MyInputStream startRead() throws IOException {
+   public MyInputStream startRead() throws IOException,Exception {
+      
       long t = isGZorBzip2();
       if( (t & GZ)!=0 ) {
          return new MyInputStream(new GZIPInputStream(this),GZ,withBuffer);
@@ -236,7 +244,7 @@ public final class MyInputStream extends FilterInputStream {
    /** Juste pour tester s'il s'agit d'un flux gzippé ou Bzippé2 */
    public long isGZorBzip2() throws IOException {
       // le type de stream a deja ete detecte
-      if( flagGetType ) return type;
+      if( flagGetType && alreadyRead ) return type;
 
       // Le stream a deja ete entame, impossible de determine le type
       if( alreadyRead ) return 0;
@@ -293,12 +301,19 @@ public final class MyInputStream extends FilterInputStream {
       else if( (hasFitsKey("PIXTYPE", "HEALPIX") || hasFitsKey("ORDERING","NEST") || hasFitsKey("ORDERING","RING"))
             && !hasFitsKey("XTENSION","IMAGE") )  type |= HEALPIX;
 
-      // Detection de HCOMP
-      int n = findFitsEnd();
-      int c0 =  (cache[n]) & 0xFF;
-      int c1 =  (cache[n+1]) & 0xFF;
-      //System.out.println("FITS Data magic code "+c0+" "+c1);
-      if( c0==221 && c1==153 ) type |= HCOMP;
+      // Rice
+      if(  (type&XFITS)!=0 ) {
+         findFitsEnd2();
+         if( hasFitsKey("ZCMPTYPE","RICE_1") ) type |= RICE;
+         
+         // Detection de HCOMP
+      } else {
+         int n = findFitsEnd();
+         int c0 =  (cache[n]) & 0xFF;
+         int c1 =  (cache[n+1]) & 0xFF;
+         //System.out.println("FITS Data magic code "+c0+" "+c1);
+         if( c0==221 && c1==153 ) type |= HCOMP;
+      }
    }
 
    /**
@@ -334,13 +349,20 @@ public final class MyInputStream extends FilterInputStream {
             c[i] = (cache[offsetCache+i]) & 0xFF;
             //System.out.println("MAGIC CODE c["+i+"]="+c[i]);
          }
-
+         
+         // Préfixe BOM UTF-8
+         if( c[0]==239 && c[1]==187 && c[2]==191 ) {
+            Aladin.trace(3,"BOM UTF-8 detected and skipped");
+            for( int i=0; i<3; i++ ) read();
+            System.arraycopy(c, 3, c, 0, c.length-3);
+         }
+         
          // Detection de GZIP
          if( c[0]==31  && c[1]==139 ) type |= GZ;
 
          // Detection de BZIP2 => ACTUELLEMENT IL Y A UN BUG DANS LE DECOMPRESSEUR BZIP2
          else if( Aladin.PROTO && c[0]=='B'  && c[1]=='Z' )  type |= BZIP2;
-
+         
          // Détection PDS
          else if( c[0]=='P' && c[1]=='D' && c[2]=='S' ) type |=PDS;
 
@@ -425,7 +447,7 @@ public final class MyInputStream extends FilterInputStream {
             type |= FITSB;
 
             // Compression RICE
-            if(  hasFitsKey("ZCMPTYPE","RICE_1") ) type |= RICE;
+            if( hasFitsKey("ZCMPTYPE","RICE_1") ) type |= RICE;
 
             // Pour répérer les tables AIPS CC de calculs intermédiaires
             else if( hasFitsKey("EXTNAME","AIPS CC") && hasFitsKey("TFIELDS","3")
@@ -455,8 +477,7 @@ public final class MyInputStream extends FilterInputStream {
          else /* if( c[0]=='<' && c[1]=='?' &&
              (c[2]=='X' || c[2]=='x') &&
              (c[3]=='M' || c[3]=='m') &&
-             (c[4]=='L' || c[4]=='l')  ) {
-             type |= XML; */
+             (c[4]=='L' || c[4]=='l')  ) type |= XML; */
 
             // Detection de ASTRORES
             if( lookForSignature("<!DOCTYPE ASTRO",false)>0 ) type |= ASTRORES|XML;
@@ -469,8 +490,8 @@ public final class MyInputStream extends FilterInputStream {
                type |= VOTABLE|XML;
 
                // Detection de IDHA
-               if( lookForSignature("name=\"ObservingProgram\"",true)>0 ) type |= IDHA|XML;
-               if( lookForSignature("name=\"Observation_Group\"",true)>0 ) type |= IDHA|XML;
+               if( lookForSignature("name=\"ObservingProgram\"",true)>0 
+                     || lookForSignature("name=\"Observation_Group\"",true)>0 ) type |= IDHA|XML;
 
                // Detection de SIA
                // TODO : à améliorer car <RESOURCE ID=... type="results" ne sera pas reconnu
@@ -478,8 +499,26 @@ public final class MyInputStream extends FilterInputStream {
                      // SIAP et anciennes versions de SSAP
                      lookForSignature("ucd=\"VOX:Image_Title\"",true)>0
                      || lookForSignature("ucd=\"VOX:Image_AccessReference\"",true)>0
-                     // SSAP 1.x (ce n'est qu'un 'should' malheureusement)
-                     || lookForSignature("SSAP</INFO>", true)>0
+                     
+//                     // SSAP 1.x (ce n'est qu'un 'should' malheureusement)
+//                     || lookForSignature("SSAP</INFO>", true)>0
+//                     // SSAP 1.x
+//                     || lookForSignature("utype=\"ssa:Access.Reference\"", true)>0
+//                     // en raison des namespace, je suis obligé de tronquer la partie 'utype='
+//                     // je mets ici un certain nombre de champs 'MANDATORY' qui suggèrent fortement qu'il s'agit d'un document SSA
+//                     || (     lookForSignature("Dataset.DataModel", true)>0
+//                           && lookForSignature("Dataset.Length", true)>0
+//                           && lookForSignature("Access.Reference", true)>0
+//                           && lookForSignature("Access.Format", true)>0
+//                           && lookForSignature("DataID.Title", true)>0  )
+                     )
+                  type |= SIA;
+
+               // Detection de SSA
+               // TODO : à améliorer car <RESOURCE ID=... type="results" ne sera pas reconnu
+               else if( 
+                     // anciennes versions de SSAP
+                     lookForSignature("SSAP</INFO>", true)>0
                      // SSAP 1.x
                      || lookForSignature("utype=\"ssa:Access.Reference\"", true)>0
                      // en raison des namespace, je suis obligé de tronquer la partie 'utype='
@@ -490,9 +529,9 @@ public final class MyInputStream extends FilterInputStream {
                            && lookForSignature("Access.Format", true)>0
                            && lookForSignature("DataID.Title", true)>0  )
                      )
-                  type |= SIA_SSA;
-
-               // Detection de FOV
+                  type |= SSA;
+               
+              // Detection de FOV
                else if( lookForSignature("name=\"FoVRef\"",true)>0 ||
                      lookForSignature("ID=\"FoVRef\"",true)>0   ||
                      // pour nouveau format
@@ -512,8 +551,20 @@ public final class MyInputStream extends FilterInputStream {
 
                else if( lookForSignature("utype=\"photdm:PhotometryFilter.SpectralAxis.Coverage.Location.Value", true)>0 ) {
                   type |= SED;
+               }  
+               
+               else if( lookForSignature("utype=\"obscore:ObsDataset.dataProductType\"", true)>0
+                       || lookForSignature("utype=\"obscore:Access.Reference\"", true)>0
+                       || lookForSignature("utype=\"obscore:Access.Format\"", true)>0 ) {
+                   type |= SIAV2;
                }
 
+               else if( lookForSignature("ID=\"c1min\"", true)>0
+                     && lookForSignature("ID=\"c1max\"", true)>0 
+                     && lookForSignature("ID=\"c2min\"", true)>0
+                     && lookForSignature("ID=\"c2max\"", true)>0) {
+                 type |= EPNTAP;
+             }
             }
          /* } */
 
@@ -1093,7 +1144,7 @@ public final class MyInputStream extends FilterInputStream {
          StringBuilder ligneb = new StringBuilder(256);
          deb = getLigne(ligneb,deb);
          String ligne = ligneb.toString();
-         if( ligne.length()==0 || ligne.charAt(0)=='#' ) continue;
+         if( ligne.trim().length()==0 || ligne.charAt(0)=='#' ) continue;
          
          // Test qu'il y a bien un caractère "égal"
          int posEquals = ligne.indexOf('=');
@@ -1863,6 +1914,19 @@ public final class MyInputStream extends FilterInputStream {
       return posAfterFitsHead;
    }      
 
+   /**
+    * Detection de la fin de la deuxième entete FITS.
+    * Genere un EOFException si non trouve
+    * @return la position du premier octet qui suit l'entete FITS (mod 80 et non 2880)
+    *         dans le tampon.
+    */
+   private int findFitsEnd2() throws IOException {
+      if( fitsHeadRead ) return posAfterFitsHead;
+      posAfterFitsHead =  findSignature("END",false,FITSEND2);
+      fitsHeadRead=true;
+      return posAfterFitsHead;
+   }      
+
    /** Détermine si le flux contient un mot clé Fits "KEY   = Value" ou  "KEY   = 'Value'"
     *  Va au préalable charger le tampon jusqu'au prochain END en position %80 si nécessaire
     *  @param key Le mot clé fits recherché (sans blanc ni égale (=), en majuscules
@@ -1946,7 +2010,8 @@ public final class MyInputStream extends FilterInputStream {
          throws IOException {
       int offset=offsetCache;	// position ou l'on commence la recherche
       int n;
-
+      int nbEnd=0;
+      
       do {
 
          // Recherche de la signature, avec reiteration (augmente le tampon)
@@ -1968,15 +2033,25 @@ public final class MyInputStream extends FilterInputStream {
                // des donnees FITS pour preparer un eventuel test
                // du MAGIC NUMBER de HCOMP
                if( inCache<dataFits+2 ) loadInCache(dataFits+2-inCache);
-               //for( int i=n-3; i<dataFits+2; i++ ) {
-               //   if( i%10==0 ) System.out.println();
-               //   char x = (char)cache[i];
-               //   if( x>'A' && x<'Z' ) System.out.print(x);
-               //   else System.out.print(" "+(((int)cache[i])&0xFF));
-               //}
-               //System.out.println();
 
                return dataFits;
+               
+            // Dans le cas de la méthode FITSEND2, on va lire également la deuxième entête
+            } else if( methode==FITSEND2 ) {
+               if( (n-sig.length())%80==0) {
+                  nbEnd++;
+                  if( nbEnd==2 ) {
+                     int dataFits = ((n/80)+1)*80;
+                     //System.out.println("==> Data fits offset "+dataFits);
+
+                     // On remplit le cache jusqu'au deux premiers bytes
+                     // des donnees FITS pour preparer un eventuel test
+                     // du MAGIC NUMBER de HCOMP
+                     if( inCache<dataFits+2 ) loadInCache(dataFits+2-inCache);
+
+                     return dataFits;
+                  }
+               }
             }
 
             offset=n;
@@ -1989,7 +2064,7 @@ public final class MyInputStream extends FilterInputStream {
 
       public static void main(String[] args) {
          try {
-            if( args.length==0 ) args = new String[] { "C:\\Users\\Pierre\\Desktop\\Test.prop" };
+            if( args.length==0 ) args = new String[] { "D:\\Skymapper\\Skymapper_0864036950_2016-04-07T03c27c51_24_red.fits.fz" };
             for( int i=0; i<args.length; i++ ) {
                String file=args[i];
                InputStream in = new FileInputStream(new File(file));
@@ -2007,7 +2082,7 @@ public final class MyInputStream extends FilterInputStream {
                f.close();
    //            out.close();
             }
-         } catch( IOException e ) { e.printStackTrace(); }
+         } catch( Exception e ) { e.printStackTrace(); }
       }
 
 }

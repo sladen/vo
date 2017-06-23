@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -18,9 +20,6 @@
 //
 
 package cds.allsky;
-
-import healpix.essentials.HealpixBase;
-import healpix.essentials.Pointing;
 
 import java.awt.Polygon;
 import java.io.BufferedReader;
@@ -42,6 +41,8 @@ import cds.fits.CacheFits;
 import cds.fits.Fits;
 import cds.tools.pixtools.CDSHealpix;
 import cds.tools.pixtools.Util;
+import healpix.essentials.HealpixBase;
+import healpix.essentials.Pointing;
 
 final public class ThreadBuilderTile {
 
@@ -112,26 +113,26 @@ final public class ThreadBuilderTile {
    }
 
    private boolean needMem(long rqMem) {
-      return context.cacheFits.getFreeMem()<rqMem;
+      long mem =  CacheFits.getFreeMem();
+      return mem-40*1024L*1024L<rqMem;
    }
+   
+   static public int nbThreads;
 
-   private boolean requiredMem(long nbProgen ) throws Exception {
+   protected boolean requiredMem(long nbProgen,int nbThreads ) throws Exception {
       long rqMem = 4 * nbProgen * Constante.ORIGCELLWIDTH*Constante.ORIGCELLWIDTH*context.getNpixOrig();
       rqMem += 2*tileSide*tileSide*context.getNpix();
-      return needMem(nbThreadRunning*rqMem);
+      return needMem(nbThreads*rqMem);
    }
    
    private Object objRel = new Object();
 
-   private void checkMem(int nbProgen ) throws Exception {
-      long rqMem = 4 * nbProgen * Constante.ORIGCELLWIDTH*Constante.ORIGCELLWIDTH*context.getNpixOrig();
-      checkMem(nbProgen,rqMem);
-   }
    private void checkMem(int nbProgen, long rqMem ) throws Exception {
       rqMem += 2*tileSide*tileSide*context.getNpix();
       if( nbProgen>Constante.MAXOVERLAY ) {
          rqMem += 2*tileSide*tileSide*8;
       }
+//      System.out.println("required "+cds.tools.Util.getUnitDisk(rqMem)+"/"+cds.tools.Util.getUnitDisk(CacheFits.getFreeMem()));
       if( !needMem(rqMem) ) return;
       synchronized( objRel ) {
          if( !needMem(rqMem) ) return;
@@ -141,42 +142,47 @@ final public class ThreadBuilderTile {
          if( (sizeReleaseBitmap=builderTiles.releaseBitmap())>0 ) {
             System.gc();
             cds.tools.Util.pause(100);
-            context.info("Need more RAM: output Fits bitmap release => "+cds.tools.Util.getUnitDisk(sizeReleaseBitmap));
+            if( context.getVerbose()>3 ) context.info("Need more RAM: output Fits bitmap release => "+cds.tools.Util.getUnitDisk(sizeReleaseBitmap));
             if( !needMem(rqMem) ) return;
          }
 
-         if( isTheLastRunning() ) {
-            context.warning(Thread.currentThread().getName()+" needs "+
+         if( builderTiles.nbThreadRunning()<=1 ) {
+            context.cacheFits.forceClean();
+            if( context.getVerbose()>3 ) context.warning(Thread.currentThread().getName()+" needs "+
                   cds.tools.Util.getUnitDisk(rqMem)+" but can not stop (last thread running) !");
+            return;
          }
          try {
-            nbThreadRunning--;
+            if( !builderTiles.arret(this) ) {
+               if( context.getVerbose()>3 ) context.warning(Thread.currentThread().getName()+" needs "+
+                     cds.tools.Util.getUnitDisk(rqMem)+" but can not stop (sub thread) !");
+               return;
+              
+            }
+            if( context.getVerbose()>3 ) context.info(Thread.currentThread().getName()+" suspended");
             while( needMem(rqMem) ) {
                try {
-                  context.warning(Thread.currentThread().getName()+" is waiting more memory (need "+
+                  if( context.getVerbose()>3 ) context.info(Thread.currentThread().getName()+" is waiting more memory (need "+
                         cds.tools.Util.getUnitDisk(rqMem)+")...");
 
                   cds.tools.Util.pause((int)( 1000*(1+Math.random()*5)));
                   context.cacheFits.forceClean();
-                  nbThreadRunning = builderTiles.nbThreadRunning(); // Pour etre vraiment sur
-                  if( nbThreadRunning<=1 ) {
-                     context.warning(Thread.currentThread().getName()+" resumes (last thread runnning)");
-                     //                  context.cacheFits.forceClean();
+                  if( builderTiles.nbThreadRunning()<=0 ) {
+                     if( context.getVerbose()>3 ) context.warning(Thread.currentThread().getName()+" resumes (last thread)");
                      break;
                   }
                } catch( Exception e ) { }
                if( context.isTaskAborting() ) throw new Exception("Task abort !");
             }
-         } finally { nbThreadRunning++; }
+         } finally {
+            if( builderTiles.reprise(this) ) {
+               if( context.getVerbose()>3 ) context.info(Thread.currentThread().getName()+" restarted");
+            }
+        }
       }
    }
-
-   static protected int nbThreadRunning=0;
-
-   private boolean isTheLastRunning() {
-      return nbThreadRunning<=1;
-   }
    
+
    /** Détermination de la mémoire requise pour ouvrir n fichiers originaux de downFiles à partir de la position deb */
    protected long getReqMem(ArrayList<SrcFile> downFiles,int deb, int n) {
       long mem=0L;
@@ -207,16 +213,13 @@ final public class ThreadBuilderTile {
          int n=downFiles.size();
          if( n>statMaxOverlays ) statMaxOverlays=n;
 
-
          // Pas trop de progéniteurs => on peut tout faire d'un coup
          // Pour les cubes, on va pour le moment travailler en 1 seule passe (A VOIR PAR LA SUITE S'IL FAUT AMELIORER)
-         if( !context.live && (coaddMode==Mode.ADD || !mixing || n<Constante.MAXOVERLAY  || !requiredMem(mixing ? n : 1)) ) {
+         if( !context.live && (coaddMode==Mode.ADD || !mixing || n<Constante.MAXOVERLAY  || !requiredMem(mixing ? n : 1, nbThreads)) ) {
 
             statOnePass++;
             long mem = getReqMem(downFiles, 0, n);
             checkMem(mixing ? n : 1, mem);
-//            checkMem(mixing ? n : 1);
-            
             out = buildHealpix1(bt,order,npix_file,z,downFiles,0,n,null);
 
             // Trop de progéniteurs, on va travailler en plusieurs couches de peinture
@@ -224,7 +227,6 @@ final public class ThreadBuilderTile {
          } else {
 
             statMultiPass++;
-//            checkMem(Constante.MAXOVERLAY);
 
             // poids déjà calculés
             double [] weight = null;
@@ -289,10 +291,7 @@ final public class ThreadBuilderTile {
 
       for( int i=downFiles.size()-1; i>=0; i-- ) {
          SrcFile f1 = downFiles.get(i);
-         if( f1!=null ) {
-            Fits f = f1.fitsfile;
-            f.rmUser();
-         }
+         try { if( f1!=null ) f1.release(); } catch( Exception e ) { }
       }
 
       if( context.isTaskAborting() ) throw new Exception("Task abort !");
@@ -1037,6 +1036,7 @@ final public class ThreadBuilderTile {
          return fitsfile.getFilename();
       }
 
+      /** Ouverture effective du fichier FITS */
       protected void open(int frame) throws Exception {
          if( isOpened==frame ) return;
          if( isOpened!=-1 ) fitsfile.rmUser();  // je ne peux de totue façon pas ouvrir simultanément plusieurs frame du même fichier
@@ -1051,7 +1051,12 @@ final public class ThreadBuilderTile {
          // Mode normal
          else {
             if( context.depth>1 || frame>0 ) name = addFrameToName(name,frame);
-            fitsfile=context.cacheFits.getFits(name,mode,true,false);
+            try {
+               fitsfile=context.cacheFits.getFits(name,mode,true,false);
+            } catch( MyInputStreamCachedException e ) {
+               context.taskAbort();
+               throw new Exception();
+            }
          }
 
          // Faut-il associer un Polygon particulier
@@ -1059,8 +1064,16 @@ final public class ThreadBuilderTile {
 
          isOpened=frame;
          fitsfile.addUser();
+         MyInputStreamCached.incActiveFile(name);
 
          blank = !hasAlternateBlank ? fitsfile.blank : blankOrig;
+      }
+      
+      /** Libération des ressources associées à la geston de ce fichier Fits */
+      protected void release() {
+         fitsfile.rmUser();
+         MyInputStreamCached.decActiveFile(name);
+         isOpened=-1;
       }
 
       // J'ai [ext;x,y-wxh] et je veux [ext;x,y,z-w*h*d]

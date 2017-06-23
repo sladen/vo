@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -463,6 +464,7 @@ public final class Legende extends AbstractTableModel  {
       return field[i].refText.length()+1;
    }
 
+   protected String getID(int i)       { return i>=field.length?null:field[i].ID;     }
    protected String getName(int i)     { return i>=field.length?null:field[i].name;     }
    protected String getHref(int i)     { return i>=field.length?null:field[i].href;     }
    protected String getGref(int i)     { return i>=field.length?null:field[i].gref;     }
@@ -568,7 +570,7 @@ public final class Legende extends AbstractTableModel  {
    public Object getValueAt(int row, int col) {
       switch(col) {
          case N:           return (row+1)+"";
-         case COO:         return field[row].getCooSignature();
+         case COO:         return getCooSignature(row); //field[row].getCooSignature();
          case VISIBLE:     return new Boolean(field[row].visible);
          case NAME:        return field[row].name;
          case UNIT:        return field[row].unit;
@@ -581,6 +583,11 @@ public final class Legende extends AbstractTableModel  {
          case PRECISION:   return field[row].precision;
       }
       return "";
+   }
+   
+   private String getCooSignature(int row) {
+      if( field[row].isDe() && getRa()==-1 ) return "COO";
+      return field[row].getCooSignature();
    }
 
    public boolean isCellEditable(int row, int col) { return col>0; }

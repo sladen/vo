@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,8 +19,14 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
+
+import static cds.aladin.Constants.DOTREGEX;
+import static cds.aladin.Constants.EMPTYSTRING;
+import static cds.aladin.Constants.GLU_FROM;
+import static cds.aladin.Constants.GLU_SELECT;
+import static cds.aladin.Constants.GLU_WHERE;
+import static cds.aladin.Constants.TAPv1;
 
 import java.awt.Dimension;
 import java.awt.Point;
@@ -27,9 +35,11 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
@@ -37,6 +47,7 @@ import java.util.Hashtable;
 import java.util.StringTokenizer;
 import java.util.Vector;
 
+import cds.aladin.Constants.TapClientMode;
 import cds.tools.UrlLoader;
 import cds.tools.Util;
 import cds.vizier.VizieRQuery;
@@ -134,7 +145,9 @@ public final class Glu implements Runnable {
 
    /** Mémorisation des items des Tree outreach définis par le dictionnaire GLU */
    protected static Vector vGluCategory;
-
+   
+   protected TapManager tapManager;
+   
    /** Tri des listes */
    protected void tri() {
       Comparator c = TreeObj.getComparator();
@@ -160,6 +173,7 @@ public final class Glu implements Runnable {
       vGluApp      = new Vector(10);
       vHips       = new Vector(10);
       vGluCategory = new Vector(10);
+      this.tapManager = TapManager.getInstance(aladin);
 
       // Peut être un site GLU défini dans la configuration utilisateur
       String nphGlu;
@@ -249,8 +263,25 @@ public final class Glu implements Runnable {
       aladin.dialog = new ServerDialog(aladin);
       if( showLastGlu ) {
          int c1 = aladin.dialog.getLastGluServerIndice();
+         if (Aladin.BETA) {
+        	 if (lastTapGluServer != null) {
+            	 c1 = aladin.dialog.getTapServerIndex();
+            	 aladin.dialog.findReplaceServer(aladin.dialog.tapServer, lastTapGluServer);
+     			 aladin.dialog.tapServer = lastTapGluServer;
+            	 lastTapGluServer = null;
+//            	 aladin.dialog.setCurrent("TAP");
+     		} else if (oldDialog.tapServer != null) {
+     			aladin.dialog.findReplaceServer(aladin.dialog.tapServer, oldDialog.tapServer);
+    			aladin.dialog.tapServer = oldDialog.tapServer;
+     		}
+		}
+         
          if( c1!=-1 ) c=c1;
       }
+      if (Aladin.BETA) {
+    	  tapManager.reloadTapServerList();
+      }
+      
       aladin.dialog.setCurrent(c);
       if( p!=null ) {
          aladin.dialog.flagSetPos=true;
@@ -335,6 +366,17 @@ public final class Glu implements Runnable {
       res.append('\'');
       return res.toString();
    }
+   
+   static String doubleQuote(String s) {
+	      char a[] = s.toCharArray();
+	      StringBuffer res = new StringBuffer("\"");
+	      for( int i=0; i<a.length; i++ ) {
+	         if( a[i]=='\'' ) res.append('\\');
+	         res.append(a[i]);
+	      }
+	      res.append('\"');
+	      return res.toString();
+	   }
 
 
    // Vieux code que je garde pour mémoire
@@ -1091,13 +1133,21 @@ public final class Glu implements Runnable {
     * @param aladinFilter1 liste des filtres prédéfinis
     * @param aladinLogo Le logo associé (adresse HTTP)
     * @param record Simple copie de l'enregistrement GLU orginal
+ * @param tapTables 
+ * @param adqlWhere 
+ * @param adqlFrom 
+ * @param adqlSelect 
+ * @param adqlFuncParams 
+ * @param adqlFunc 
     */
    private void memoServer(String actionName, String description, String verboseDescr,
          String aladinMenu, String aladinMenuNumber,String aladinLabel,
          String aladinLabelPlane, String docUser, Hashtable paramDescription1,
          Hashtable paramDataType1, Hashtable paramValue1,
          String resultDataType, String institute, Vector aladinFilter1,
-         String aladinLogo,String dir,String system,StringBuffer record,String aladinProtocol) {
+         String aladinLogo,String dir,boolean localFile, String system,StringBuffer record,String aladinProtocol, 
+         String[] tapTables, Hashtable<String,String> adqlSelect, Hashtable<String,String> adqlFrom, 
+         Hashtable<String,String> adqlWhere, Hashtable<String, String> adqlFunc, Hashtable<String, String> adqlFuncParams) {
       int i;
 
       // Pour éviter les doublons
@@ -1143,16 +1193,68 @@ public final class Glu implements Runnable {
                   aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue,
                   resultDataType, institute, aladinFilter, aladinLogo, record);
          } else {
-            g = new ServerGlu(aladin, actionName, description, verboseDescr, aladinMenu,
-                  aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue,
-                  resultDataType, institute, aladinFilter, aladinLogo, dir, system, record, aladinProtocol);
+            if(aladinProtocol!=null && Util.indexOfIgnoreCase(aladinProtocol, TAPv1) == 0) {
+	            GluAdqlTemplate gluAdqlTemplate = new GluAdqlTemplate(adqlSelect, adqlFrom, adqlWhere, adqlFunc, adqlFuncParams);
+	            TapClientMode clientMode = null;
+	            boolean isForDialog = true;
+	            if (aladinProtocol.endsWith("TREEPANEL")) {
+	            	clientMode = TapClientMode.TREEPANEL;
+	            	isForDialog = false;
+	            } else {
+	            	clientMode = TapClientMode.DIALOG;
+				}
+	            TapClient tapClient = tapManager.getExistingTapClientForGluActionName(clientMode, actionName);
+	            if (tapClient == null) {
+	            	tapClient = new TapClient(clientMode, tapManager, actionName, null);
+	            	tapManager.addNewTapClientToCache(isForDialog, actionName, tapClient);
+				}
+	        	g = new ServerGlu(aladin, actionName, description, verboseDescr, aladinMenu,
+	                    aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue,
+	                    null, resultDataType, institute, aladinFilter, aladinLogo, dir, system, record, aladinProtocol, tapTables, 
+	                    gluAdqlTemplate, tapClient);
+	           	 g.setAdqlFunc(adqlFunc);
+	      		 g.setAdqlFuncParams(adqlFuncParams);
+	      		 
+	      		 g.HIDDEN = true;
+	      		 if (localFile) {//changing tapserver here wont work. ServerDialog that contraints the instance of tapserver is reloaded at glu reload.
+	      			if (!isForDialog) {
+		      			tapManager.showTapPanelFromTree(actionName, g);
+		      		} else {
+		      			lastTapGluServer = g;
+					}
+//	      			tapManager.loadTapServer(g);
+				}
+	      		
+            } else {
+            	g = new ServerGlu(aladin, actionName, description, verboseDescr, aladinMenu,
+                        aladinMenuNumber, aladinLabel, aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue,
+                        null, resultDataType, institute, aladinFilter, aladinLogo, dir, system, record, aladinProtocol, null, null, null);
+			}
          }
-         vGluServer.addElement(g);
-         if( !g.isHidden() )  lastGluServer = g;
+         if (g!=null) {
+        	 vGluServer.addElement(g);
+             if( !g.isHidden())  lastGluServer = g;
+		}
       }
    }
+   
+   
+   /*private void standardForm(String formName, String actionName, String description, String verboseDescr,
+	         String aladinMenu, String aladinMenuNumber,String aladinLabel,
+	         String aladinLabelPlane, String docUser, Hashtable paramDescription1,
+	         Hashtable paramDataType1, Hashtable paramValue1,
+	         String resultDataType, String institute, Vector aladinFilter1,
+	         String aladinLogo,String dir,String system,StringBuffer record,String aladinProtocol) {
+	      if( aladin!=null ) {  // test Glu.main()
+	    	  ActionGlu actionGlu = new ActionGlu();
+	    	  actionGlu.setActionName(actionName);
+	    	  actionGlu.setPDPKPV(paramDescription1, paramDataType1, paramValue1);
+	    	  vGluStdServerForms.put(formName, actionGlu);
+	      }
+	   }*/
 
    protected ServerGlu lastGluServer=null;
+   protected ServerGlu lastTapGluServer=null;
 
    static private String subCR(String s) {
       char[] a = s.toCharArray();
@@ -1467,6 +1569,12 @@ public final class Glu implements Runnable {
       Hashtable paramDataType = null;// Les types des parametres (cle=numero du param)
       Hashtable paramValue = null;// Les valeurs possibles des parametres (cle=numero du
       // param)
+      Hashtable adqls = null; //for tap glu adql elements
+      Hashtable<String,String> adqlSelect = null; //for tap glu adql select elements
+  	  Hashtable<String,String> adqlFrom = null; //for tap glu adql from elements
+  	  Hashtable<String,String> adqlWhere = null; //for tap glu adql where elements
+  	  Hashtable<String,String> adqlFunc = null; //for tap glu adql functions
+  	  Hashtable<String,String> adqlFuncParams = null; //for tap glu adql functions
       Vector aladinFilter = null; // Les filtres prédéfinis
       String aladinSurvey=null; // Le préfixe du survey dans le cas d'enregistrement de Ciel
       String aladinHpxParam=null;      // Paramètres particuliers dans le cas d'un ciel Healpix
@@ -1480,13 +1588,22 @@ public final class Glu implements Runnable {
       String aladinProfile=null;  // indications d'usage (undergraduate, beta, 5.9+...)
       boolean flagPlastic = false; // true si on a un champ %Aladin.Plastic
       boolean flagGluSky = false;  // true si on a "hpx" dans le profile => GluSky background
+      boolean flagTapServices = false;
 
       int maxIndir = Integer.MAX_VALUE; // Pour repérer la meilleure indirection
+      String tablesIndex = EMPTYSTRING;
+      String[] tapTables = null;
 
       paramDescription = new Hashtable();
       paramDataType = new Hashtable();
       paramValue = new Hashtable(10);
+      adqlSelect = new Hashtable();
+      adqlFrom = new Hashtable();
+      adqlWhere = new Hashtable();
+      adqlFunc = new Hashtable();
+      adqlFuncParams = new Hashtable();
       aladinFilter = new Vector(10);
+      
 
       try {
 
@@ -1566,20 +1683,28 @@ public final class Glu implements Runnable {
                try {
                   if( hasValidProfile(aladinProfile,aladinTree,flagPlastic) && distribAladin ) {
                      if( aladin!=null && aladinBookmarks!=null ) aladin.bookmarks.memoGluBookmarks(actionName,aladinBookmarks);
-                     else if( flagGluSky && !Aladin.PROTO ) memoHips(withLog,actionName,id,aladinLabel,aladinMenuNumber,url,description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,aladinTree,
+                     else if( flagGluSky && !Aladin.BETA ) memoHips(withLog,actionName,id,aladinLabel,aladinMenuNumber,url,description,verboseDescr,ack,aladinProfile,copyright,copyrightUrl,aladinTree,
                            aladinSurvey,aladinHpxParam,skyFraction,origin);
                      else if( aladinTree!=null ) memoTree(actionName,description,aladinTree,url,docUser,aladinUrlDemo);
                      else if( flagPlastic ) memoApplication(actionName,aladinLabel,aladinMenuNumber,description,verboseDescr,institute,releaseNumber,
                            copyright,docUser,jar,javaParam,download,webstart,applet,dir,aladinActivated,system);
+                     else if (flagTapServices && flagLabel) {
+ 						tapManager.addTapService(actionName, aladinLabel,url,description);
+ 					 }
                      else if( flagLabel ) memoServer(actionName,description,verboseDescr,aladinMenu,aladinMenuNumber,
-                           aladinLabel,aladinLabelPlane,docUser,paramDescription,paramDataType,paramValue,
-                           resultDataType,institute,aladinFilter,aladinLogo,dir,localFile?system:null,record,aladinProtocol);
-                  }
-               } catch( Exception e ) {
-                  if( Aladin.levelTrace>=3 ) e.printStackTrace();
+                             aladinLabel,aladinLabelPlane,docUser,paramDescription,paramDataType,paramValue,
+                             resultDataType,institute,aladinFilter,aladinLogo,dir,localFile, localFile?system:null,record,aladinProtocol,
+                             tapTables, adqlSelect, adqlFrom, adqlWhere, adqlFunc, adqlFuncParams);
+                     
+                    }
+               } catch (Exception e) {
+            	   if( Aladin.levelTrace>=3 ) {
+            	      System.err.println("Error in GLU record "+actionName);
+            	      e.printStackTrace();
+            	   }
                }
                distribAladin = !testDomain;
-               flagGluSky=flagPlastic=flagLabel = false;
+               flagGluSky=flagPlastic=flagLabel=flagTapServices = false;
                aladinUrlDemo=aladinTree=aladinProfile=aladinProtocol=null;
 
                // On mémorise le filtre pour le serveurs non GLU
@@ -1594,6 +1719,11 @@ public final class Glu implements Runnable {
                paramDataType = new Hashtable();
                paramValue = new Hashtable(10);
                aladinFilter = new Vector(10);
+               adqlSelect = new Hashtable();
+               adqlFrom = new Hashtable();
+               adqlWhere = new Hashtable();
+               adqlFunc = new Hashtable();
+               adqlFuncParams = new Hashtable();
                actionName = subCR(getValue(s, dis));
                record=new StringBuffer(1000);
                record.append("%"+Util.fillWithBlank(name, 4)+" "+actionName+"\n");
@@ -1672,8 +1802,10 @@ public final class Glu implements Runnable {
                if( getValue(s, dis).equals("ALADIN") ) distribAladin = true;
             } else if( name.equals("P.D") || name.equals("Param.Description") ) {
                paramDescription.put(getNumParam(value), getValParam(value));
-            } else if( name.equals("P.K") || name.equals("Param.DataType") ) {
-               paramDataType.put(getNumParam(value), getValParam(value));
+            } else if( name.equals("P.K") || name.equals("Param.DataType")) {
+            	String num = getNumParam(value);
+                String v = getValParam(value);
+               paramDataType.put(num, v);
             } else if( name.equals("M.I") || name.equals("Institute") ) {
                institute = value;
             } else if( name.equals("P.V") || name.equals("Param.Value") ) {
@@ -1683,7 +1815,32 @@ public final class Glu implements Runnable {
                if( v1 != null ) v1 = v1 + "\t" + v;
                else v1 = v;
                paramValue.put(num, v1);
-            }
+            } else if (name.equals("ADQL.TAPTables")) {// add more specific restrictions if required
+				String v = getValParam(value);
+            	tapTables = v.split("\\t");
+			} else if (name.startsWith("ADQL")) {
+            	String[] clauseElements = name.split(DOTREGEX);
+            	String num = getNumParam(value);
+                String v = getValParam(value);
+            	if (clauseElements.length==2) {
+					if (clauseElements[1].equals(GLU_WHERE)) {
+						adqlWhere.put(num, v);
+					} else if (clauseElements[1].equals(GLU_SELECT)) {
+						adqlSelect.put(num, v);
+					} else if (clauseElements[1].equals(GLU_FROM)) {
+						adqlFrom.put(num, v);
+					}
+				}  else if (name.startsWith("ADQL.FuncParam") && clauseElements.length > 3) {
+					String paramName = name.replace("ADQL.FuncParam.", EMPTYSTRING);
+					adqlFuncParams.put(paramName, value);
+				} else if (name.startsWith("ADQL.Func") && clauseElements.length > 2){
+					String paramName = name.replace("ADQL.Func.", EMPTYSTRING);
+					adqlFunc.put(paramName, value);
+				}
+				} else if (name.equals("Aladin.TapService")
+						&& (value.equals("ALATAP") || value.equals("TAP") || value.equals("TAPv1"))) {
+					flagTapServices = true;
+			}
          }
 
          dis.close();
@@ -1703,9 +1860,20 @@ public final class Glu implements Runnable {
             else if( aladinTree!=null ) memoTree(actionName,description,aladinTree,url,docUser,aladinUrlDemo);
             else if( flagPlastic ) memoApplication(actionName,aladinLabel,aladinMenuNumber,description,verboseDescr,institute,releaseNumber,
                   copyright,docUser,jar,javaParam,download,webstart,applet,dir,aladinActivated,system);
+            else if (flagTapServices && flagLabel) {
+					tapManager.addTapService(actionName, aladinLabel,url,description);
+			}
             else if( flagLabel ) memoServer(actionName,description,verboseDescr,aladinMenu,aladinMenuNumber,
                   aladinLabel,aladinLabelPlane,docUser,paramDescription,paramDataType,paramValue,
-                  resultDataType,institute,aladinFilter,aladinLogo,dir,localFile?system:null,record,aladinProtocol);
+                  resultDataType,institute,aladinFilter,aladinLogo,dir,localFile,localFile?system:null,record,aladinProtocol, 
+                  tapTables, adqlSelect, adqlFrom, adqlWhere, adqlFunc, adqlFuncParams);
+            /*else if (stdForm != null && !stdForm.isEmpty()) {//may be use this to load standardforms directly.
+				serverDataLinks(actionName, description, verboseDescr, aladinMenu, aladinMenuNumber, aladinLabel,
+						aladinLabelPlane, docUser, paramDescription, paramDataType, paramValue, null,
+						resultDataType, institute, aladinFilter, aladinLogo, dir, system, record, aladinProtocol,
+						null);
+			}*/
+				
          }
 
          // On mémorise le filtre pour le serveurs non GLU
@@ -2070,10 +2238,14 @@ public final class Glu implements Runnable {
       StringBuffer res = new StringBuffer();
       boolean encode = (mode & ENCODE) == ENCODE;
       boolean isurl = (mode & NOURL) == 0;
+      boolean isMultiple = false;// &var=$n* to append multiple variable, indicate * in url. Result: &var=val1&var=val2
+      String[] multipleParams = null;
 
       // Mappage de la chaine s dans un tableau manipulable
       if( s.length() == 0 ) return "";
       a = s.toCharArray();
+      
+      String[] paramRaw = Arrays.copyOf(param, param.length);
 
       one: while( true ) {
          deb = i;
@@ -2091,6 +2263,10 @@ public final class Glu implements Runnable {
                i++;
             }
             if( i == a.length ) break one;
+            if (isMultiple && a[deb]=='*' ) {//to not append *
+    			deb++;
+    			isMultiple = false;
+    		}
 
             // Determination du numero
             for( offsetNum = ++i; i < a.length && a[i] >= '0' && a[i] <= '9'; i++ );
@@ -2104,21 +2280,41 @@ public final class Glu implements Runnable {
 
 
          // S'agit-il bien d'un champ &toto=$1&, et non  &toto=yyyy$1xxxx&
-         boolean okToRemovePrefix = offsetNum>=2 && a[offsetNum-2]=='=' && (i>=a.length || a[i]=='&');
+         boolean okToRemovePrefix = offsetNum>=2 && a[offsetNum-2]=='=' && (i>=a.length || a[i]=='&' || a[i]=='*');
+         isMultiple = offsetNum>=2 && a[offsetNum-2]=='=' && (i<a.length && a[i]=='*') ;
+                  
          // Recherche de la fin du prefixe
          fin = offsetNum - 1; // Par defaut
          if( isurl && okToRemovePrefix && (num >= param.length || param[num].length() == 0) ) {
-            while( fin > 0 && a[fin] != '&' && a[fin] != '?' ) fin--; // on supprime le "&name="
+            while( fin > 0 && a[fin] != '&' && a[fin] != '?' && a[fin] != '*') fin--; // on supprime le "&name="
             if( fin==0 ) fin=offsetNum-1; // De fait avant le '?'
             else if( a[fin] == '?' ) fin++; // On laisse le '?'
          }
 
          // Memorisation du prefixe
-         res.append(new String(a, deb, fin - deb));
+         String paramName = new String(a, deb, fin - deb);
+         res.append(paramName);
 
          // Memorisation de la valeur si necessaire
          if( num < param.length ) {
-            res.append(param[num]);
+        	 if (isMultiple ) {
+ 				try {
+ 					multipleParams = paramRaw[num].trim().split(" ");//TODO:: for now the assumed delimiter is space.
+ 					if (multipleParams!=null) {
+ 						res.append(URLEncoder.encode(multipleParams[0], "UTF-8"));
+ 						for (int j = 1; j < multipleParams.length; j++) {
+ 							res.append(paramName).append(URLEncoder.encode(multipleParams[j], "UTF-8"));
+ 						}
+ 					} else {
+ 						res.append(param[num]);
+ 					}
+ 				} catch (UnsupportedEncodingException e) {
+ 					// TODO Auto-generated catch block
+ 					e.printStackTrace();
+ 				}
+ 			} else {
+ 				res.append(param[num]);
+ 			}
 
             // Encodage des paramètres si dans le paramètre que l'on vient de substituer
             // il y a un '?'

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -43,6 +44,7 @@ public final class FrameMocOperation extends FrameRGBBlink {
 
    // Les composantes de l'objet
    private ButtonGroup cbg;	         // Les checkBox des opérations possibles
+   private JRadioButton rUnion,rInter,rSub,rDiff,rComp;
 
    @Override
    protected void createChaine() {
@@ -74,7 +76,7 @@ public final class FrameMocOperation extends FrameRGBBlink {
    protected String getHelp() { return HELP1; }
 
    @Override
-   protected int getToolNumber() { return -2; }
+   protected int getToolNumber() { return ToolBox.MOC; }
    @Override
    protected int getNb() { return 10; }
 
@@ -112,15 +114,15 @@ public final class FrameMocOperation extends FrameRGBBlink {
 
       JPanel pp=new JPanel();
       JRadioButton cb;
-      cb=new JRadioButton(SUNION); cb.setActionCommand(SUNION);
+      rUnion=cb=new JRadioButton(SUNION); cb.setActionCommand(SUNION);
       cbg.add(cb); pp.add(cb);
-      cb=new JRadioButton(INTER); cb.setActionCommand(INTER);
+      rInter=cb=new JRadioButton(INTER); cb.setActionCommand(INTER);
       cbg.add(cb); pp.add(cb); cb.setSelected(true);
-      cb=new JRadioButton(SUB); cb.setActionCommand(SUB);
+      rSub=cb=new JRadioButton(SUB); cb.setActionCommand(SUB);
       cbg.add(cb); pp.add(cb);
-      cb=new JRadioButton(DIFF); cb.setActionCommand(DIFF);
+      rDiff=cb=new JRadioButton(DIFF); cb.setActionCommand(DIFF);
       cbg.add(cb); pp.add(cb);
-      cb=new JRadioButton(COMP); cb.setActionCommand(COMP);
+      rComp=cb=new JRadioButton(COMP); cb.setActionCommand(COMP);
       cbg.add(cb); pp.add(cb);
 
       c.gridwidth=GridBagConstraints.REMAINDER;
@@ -179,5 +181,17 @@ public final class FrameMocOperation extends FrameRGBBlink {
    }
    
    @Override
-   protected void adjustWidgets() { };
+   protected void adjustWidgets() { 
+      PlanMoc [] pList = getPlans();
+      
+      boolean un = pList.length==1;
+      boolean deux = pList.length==2;
+      boolean plus = pList.length>1;
+
+      rUnion.setEnabled(plus);
+      rInter.setEnabled(plus);
+      rDiff.setEnabled(deux);
+      rSub.setEnabled(deux);
+      rComp.setEnabled(un);
+   };
 }

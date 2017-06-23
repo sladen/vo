@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,10 +19,8 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.awt.Color;
 import java.awt.Graphics;
 
 /**
@@ -39,13 +39,13 @@ public class Hdr extends MyIcon {
       LABEL= "hdr";
    }
    
-   private boolean isAvailable() {
+   protected boolean isAvailable() {
       try {
          Plan p = aladin.calque.getPlanBase();
          return p instanceof PlanBG ?  ((PlanBG)p).inFits : p.hasAvailablePixels() ;
       } catch( Exception e ) { return false; }
    }
-   private boolean isActivated() {
+   protected boolean isActivated() {
       try {
          Plan p = aladin.calque.getPlanBase();
 //       return  p instanceof PlanBG &&  ((PlanBG)p).truePixels;
@@ -71,18 +71,17 @@ public class Hdr extends MyIcon {
    
   /** Affichage du logo */
    protected void drawLogo(Graphics g) {
-      g.setColor(!isAvailable() ? Aladin.MYGRAY : isActivated() ? Color.red /* Aladin.GREEN */ : in ? Color.blue : Color.black);
+      super.drawLogo(g);
       int x=4,y=1;
-//      int x=9,y=6;
-//      Util.drawCirclePix(g, x, y);
       
+      g.setColor( getLogoColor() );
       g.fillRect(x+1, y+8, 3, 4);
       g.fillRect(x+5, y+6, 3, 6);
       g.fillRect(x+9, y+1, 3, 11);
       g.drawLine(x-2,y+11,x+14,y+11);
       
       // Label
-      g.setColor(isAvailable() ? Color.black : Aladin.MYGRAY);
+      g.setColor( getLabelColor() );
       g.setFont(Aladin.SPLAIN);
       g.drawString(LABEL,W/2-g.getFontMetrics().stringWidth(LABEL)/2-1,H-2);
 

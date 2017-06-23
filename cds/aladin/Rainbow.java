@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -261,7 +262,7 @@ public class Rainbow  extends JComponent implements Widget  {
       int x=(int)((r.x+r.width-2)/z);
       int y=(int)((r.y+2)/z);
       int w=5;
-      g.setColor(Aladin.BKGD);
+      g.setColor(Aladin.COLOR_BUTTON_BACKGROUND);
       g.fillRect(x-w-4,y+1,w+4,w+4);
       g.setColor(Color.red);
       g.drawLine(x-w-3,y+2,x-3,y+w+2);

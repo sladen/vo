@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -948,6 +949,9 @@ public class FrameInfo extends JFrame implements WindowListener, MyListener, Act
             // pour activer le bouton grab
             if( aladin.dialog.server[aladin.dialog.current].grab!=null )
                 aladin.dialog.server[aladin.dialog.current].grab.setEnabled(true);
+            if( aladin.additionalServiceDialog.server[aladin.additionalServiceDialog.current].grab!=null )
+                aladin.additionalServiceDialog.server[aladin.additionalServiceDialog.current].grab.setEnabled(true);
+            aladin.grabUtilInstance.setAllGrabItsEnabled(true);
         }
       // les JRadioButton
       else if( src instanceof JRadioButton ) {

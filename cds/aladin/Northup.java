@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,14 +19,9 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.image.*;
-import java.net.*;
-import java.io.*;
-import java.util.*;
+import java.awt.Graphics;
 
 /**
  * Bouton pour forcer le nord en haut
@@ -42,12 +39,12 @@ public class Northup extends MyIcon {
       NORTHUP= aladin.chaine.getString("NORTHUP");
    }
    
-   private boolean isAvailable() {
+   protected boolean isAvailable() {
       try {
          return !aladin.calque.isFree() && aladin.view.getCurrentView().canBeNorthUp();
       } catch( Exception e ) { return false; }
    }
-   private boolean isActivated() {
+   protected boolean isActivated() {
       try {
          return !aladin.calque.isFree()&& aladin.view.getCurrentView().isNorthUp();
       } catch( Exception e ) { return false; }
@@ -55,7 +52,9 @@ public class Northup extends MyIcon {
    
   /** Affichage du logo */
    protected void drawLogo(Graphics g) {
-      g.setColor(!isAvailable() ? Aladin.MYGRAY : isActivated() ? Color.red : in ? Color.blue : Color.black);
+      super.drawLogo(g);
+      
+      g.setColor( getLogoColor() );
       int x=7,y=0;
       g.drawLine(x,y+10,x+9,y+10);
       g.drawLine(x+1,y+9,x+1,y+11);
@@ -65,7 +64,7 @@ public class Northup extends MyIcon {
       g.drawLine(x+8,y+2,x+12,y+2);
       
       // Label
-      g.setColor(isAvailable() ? Color.black : Aladin.MYGRAY);
+      g.setColor( getLabelColor() );
       g.setFont(Aladin.SPLAIN);
       g.drawString(NORTHUP,W/2-g.getFontMetrics().stringWidth(NORTHUP)/2,H-2);
 

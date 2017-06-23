@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -26,13 +28,14 @@ import java.util.TimeZone;
 
 public class Constante {
 
-   static final public String HIPS_VERSION  = "1.31";
+   static final public String HIPS_VERSION  = "1.4";
 
 
    // Noms des différents fichiers HiPS
    static final public String FILE_PROPERTIES  = "properties";
    static final public String FILE_HPXFINDER   = "HpxFinder";
    public static final String FILE_MOC         = "Moc.fits";
+   public static final String FILE_MOCERROR    = "MocError.fits";
    static final public String FILE_METADATAXML = "metadata.xml";
    static final public String FILE_METADATATXT = "metadata.txt";
    
@@ -154,6 +157,7 @@ public class Constante {
    static public final String OLD_NBPIXGENERATEDIMAGE   = "nbPixGeneratedImage";
    static public final String OLD_ORDERING              = "ordering";
    static public final String OLD_ISPARTIAL             = "isPartial";
+   static public final String OLD_ISIAU                 = "IAU";
    static public final String OLD_ARGB                  = "ARGB";
    static public final String OLD_TYPEHPX               = "typehpx";
    static public final String OLD_LENHPX                = "lenhpx";
@@ -182,7 +186,7 @@ public class Constante {
    static public String SURVEY = HIPS;  // sous répertoire final contenant la hierarchie healpix
 
    static public final int ORDER           = 9;    // Taille des imagettes HEALPix
-   static public final int ORIGCELLWIDTH   = 1024;  // Taille des cellules des images originales lors de la Hipselisation
+   static public final int ORIGCELLWIDTH   = 512;  // Taille des cellules des images originales lors de la Hipselisation
    static public final int GZIPMAXORDER    = 5;    // On gzippe les tiles que jusqu'au niveau 5
    static public final int MAXOVERLAY      = 10;   // Nombre max de recouvrement pris en compte
    static public final int DEFAULTMOCORDER = 8;    // MOC ORDER minimal

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,7 +19,6 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
 
@@ -25,9 +26,10 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Cursor;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -41,6 +43,8 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.plaf.basic.BasicTextFieldUI;
+
 
 /**
  * Classe gerant l'affichage conjoint d'un champ d'affichage et d'un champ
@@ -92,13 +96,15 @@ public abstract class MyBox extends JPanel implements MouseListener,MouseMotionL
       // Creation du label contenant la valeur de la position courant
       pos = new Text("",30);
       pos.setFont(FONT);
-      pos.setForeground( Color.gray );
+      pos.setBackground( Aladin.COLOR_TEXT_BACKGROUND );
+      pos.setForeground( Aladin.COLOR_TEXT_FOREGROUND );
       pos.addMouseListener(this);
 
       // Creation d'un champ de saisie
       text = new Text("",30);
       text.setFont(FONT);
-      text.setForeground( Aladin.MYBLUE );
+      text.setBackground( Aladin.COLOR_TEXT_BACKGROUND );
+      text.setForeground( Aladin.COLOR_TEXT_FOREGROUND );
       text.addMouseListener(this);
       text.addMouseMotionListener(this);
 
@@ -107,20 +113,26 @@ public abstract class MyBox extends JPanel implements MouseListener,MouseMotionL
       cardPanel.add(LABEL_SAISIE,text);
       cardPanel.setBackground( aladin.getBackground());
 
-      JPanel p2 = new JPanel(new BorderLayout(0,0) );
-      p2.add( label=new Lab(titre),BorderLayout.WEST);
-      p2.add( cardPanel,BorderLayout.CENTER);
-      p2.setBackground( aladin.getBackground());
-
-      setLayout(new BorderLayout(3,3));
+      setLayout(new BorderLayout(0,0));
       setBackground( aladin.getBackground() );
-      add(p2,BorderLayout.CENTER);
+      
+      label=new Lab(titre);
+      add( label,BorderLayout.WEST );
+      add( cardPanel, BorderLayout.CENTER );
 
       if( !Aladin.OUTREACH ) {
          JPanel p1 = new JPanel( new BorderLayout(0,0));
          p1.setBorder(BorderFactory.createEmptyBorder(0, 30, 0, 30));
-         p1.add( new Lab(aladin.chaine.getString("FRAME")),BorderLayout.WEST );
-         p1.add( c,BorderLayout.EAST );
+         p1.add( new Lab(aladin.chaine.getString("FRAME")+" "),BorderLayout.WEST );
+         
+         GridBagLayout g;
+         JPanel pCombo = new JPanel( g=new GridBagLayout() );
+         pCombo.setBackground( aladin.getBackground() );
+         GridBagConstraints gc = new GridBagConstraints();
+         gc.fill = GridBagConstraints.HORIZONTAL;
+         pCombo.add(c,gc);
+         
+         p1.add( pCombo,BorderLayout.CENTER );
          p1.setBackground( aladin.getBackground());
          add(p1,BorderLayout.EAST);
       }
@@ -136,7 +148,7 @@ public abstract class MyBox extends JPanel implements MouseListener,MouseMotionL
       text.setBackground(flag?Color.white : getBackground() );
       if( !flag) text.setText("");
       pos.setBackground(flag?Color.white : getBackground() );
-      label.setForeground(flag?Aladin.DARKBLUE:Color.lightGray);
+      label.setForeground(flag?Aladin.COLOR_LABEL:Color.lightGray);
       c.setEnabled(flag);
    }
 
@@ -164,6 +176,7 @@ public abstract class MyBox extends JPanel implements MouseListener,MouseMotionL
    /** Doit être surchargée par les classes filles */
    protected JComboBox createChoice() {
       JComboBox c = new JComboBox();
+      c.setUI( new MyComboBoxUI());
       c.addActionListener(new ActionListener() {
          public void actionPerformed(ActionEvent arg0) { actionChoice(); }
       });
@@ -225,51 +238,53 @@ public abstract class MyBox extends JPanel implements MouseListener,MouseMotionL
          super(t,JLabel.RIGHT);
          setBorder(BorderFactory.createEmptyBorder(0,3,0,2));
          setFont(Aladin.BOLD);
-         setForeground(Aladin.DARKBLUE);
+         setForeground(Aladin.COLOR_LABEL);
       }
 
       //      public Dimension getPreferredSize() {
       //         return new Dimension(60,super.getPreferredSize().height);
       //      }
    }
-
+   
    /** Classe pour un JTextField avec reset en bout de champ (petite croix rouge) */
    class Text extends JTextField {
-      private Dimension dim=null;
+//      private Dimension dim=null;
       private Rectangle cross=null;
 
       Text(String t,int width) {
          super(t,width);
-         dim = new Dimension(width,super.getPreferredSize().height);
+         setUI( new BasicTextFieldUI() );
+
+//         dim = new Dimension(width,super.getPreferredSize().height-3);
       }
 
-      public Dimension getPreferredSize() { return dim; }
+//      public Dimension getPreferredSize() { return dim; }
 
       boolean in(int x,int y) {
          if( cross==null || text.getText().length()==0) return false;
-         //         return cross.contains(x,y);
          return x>=cross.x;
       }
 
       public void paintComponent(Graphics g) {
-         try {
-            super.paintComponent(g);
-            drawCross(g,getWidth()-X-8,getHeight()/2-X/2);
-         } catch( Exception e ) { }
+    	  try {
+    		  super.paintComponent(g);
+    		  drawCross(g,getWidth()-X-8,getHeight()/2-X/2);
+    	  } catch( Exception e ) { }
       }
 
       static private final int X = 6;
       private void drawCross(Graphics g, int x, int y) {
-         g.setColor(Color.white);
-         //         g.fillRect(x-3, y-7, dim.height, dim.height);
+         g.setColor( getBackground() );
          g.fillOval(x-3, y-3, X+7, X+7);
-         g.setColor( text.getText().length()>0 ? Color.red.darker() : Color.gray );
-         g.drawLine(x,y,x+X,y+X);
-         g.drawLine(x+1,y,x+X+1,y+X);
-         g.drawLine(x+2,y,x+X+2,y+X);
-         g.drawLine(x+X,y,x,y+X);
-         g.drawLine(x+X+1,y,x+1,y+X);
-         g.drawLine(x+X+2,y,x+2,y+X);
+         if( text.getText().length()>0 ) {
+            g.setColor( text.getText().length()>0 ? Color.red.darker() : Color.gray );
+            g.drawLine(x,y,x+X,y+X);
+            g.drawLine(x+1,y,x+X+1,y+X);
+            g.drawLine(x+2,y,x+X+2,y+X);
+            g.drawLine(x+X,y,x,y+X);
+            g.drawLine(x+X+1,y,x+1,y+X);
+            g.drawLine(x+X+2,y,x+2,y+X);
+         }
          cross = new Rectangle(x,y,X,X);
       }
       

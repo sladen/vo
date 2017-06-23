@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -38,6 +39,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -134,6 +136,7 @@ public class PlanBG extends PlanImage {
    static final int DRAWPOLARISATION=1;
 
    // pour l'affichage de la polarisation
+   protected boolean segmentIAUConv = false;
    private float segmentLenFactor = 1f;
    private int segmentThickness = 1;
    private float segmentDensityFactor = 1f;
@@ -160,7 +163,6 @@ public class PlanBG extends PlanImage {
    protected MyProperties prop = null; // La liste des propriétés associées au HiPS
 
    protected String gluTag=null;   // Identificateur dans le dico GLU
-   protected String id=null;       // Identification unique
    protected String survey;        // Nom du background
    protected String version="";    // Numéro de version du background si existant (ex: -v1.2)
    protected String url;           // Préfixe de l'url permettant d'accéder au background
@@ -219,37 +221,37 @@ public class PlanBG extends PlanImage {
    /**
     * Création d'un plan Healpix
     * @param aladin
-    * @param gluSky
+    * @param to
     * @param c Coordonnée centrale ou null si non spécifiée
     * @param radius Taille du champ en degrés, ou <=0 si non spécifié
     */
-   protected PlanBG(Aladin aladin, TreeObjDir gluSky, String label, Coord c,double radius,String startingTaskId) {
+   protected PlanBG(Aladin aladin, TreeObjDir to, String label, Coord c,double radius,String startingTaskId) {
       super(aladin);
       this.startingTaskId = startingTaskId;
       initCache();
 
-      gluTag = gluSky.getID();
-      id = gluSky.internalId;
-      url = gluSky.getUrl();
-      survey = gluSky.label;
-      version = gluSky.version;
-      minOrder = gluSky.minOrder;
-      maxOrder = gluSky.maxOrder;
-      useCache = gluSky.useCache();
-      local=gluSky.local;
-      loadMocNow=gluSky.loadMocNow();
-      frameOrigin=gluSky.frame;
-      description=gluSky.description;
-      verboseDescr=gluSky.verboseDescr;
-      ack=gluSky.ack;
-      copyright=gluSky.copyright;
-      copyrightUrl=gluSky.copyrightUrl;
+      gluTag = to.getID();
+      id = to.internalId;
+      url = to.getUrl();
+      survey = to.label;
+      version = to.version;
+      minOrder = to.minOrder;
+      maxOrder = to.maxOrder;
+      useCache = to.useCache();
+      local=to.local;
+      loadMocNow=to.loadMocNow();
+      frameOrigin=to.frame;
+      description=to.description;
+      verboseDescr=to.verboseDescr;
+      ack=to.ack;
+      copyright=to.copyright;
+      copyrightUrl=to.copyrightUrl;
       co=c;
       coRadius=radius;
       if( label!=null && label.trim().length()>0 ) setLabel(label);
-      setSpecificParams(gluSky);
+      setSpecificParams(to);
       //      if( copyrightUrl==null ) copyrightUrl=url;
-      aladin.trace(3,"AllSky creation: "+gluSky.toString1()+(c!=null ? " around "+c:""));
+      aladin.trace(3,"AllSky creation: "+to.toString1()+(c!=null ? " around "+c:""));
       suite();
    }
 
@@ -264,10 +266,6 @@ public class PlanBG extends PlanImage {
       (new File(getCacheDir()+Util.FS+getCacheName())).mkdir();
       aladin.trace(3,"HEALPix local cache for "+getCacheName()+" is out of date => renamed => will be removed");
    }
-   
-   
-   
-
 
    /** Charge les propriétés à partir du fichier "properties" et en profite
     * 1) pour déterminer le meilleur site miroir (le cas échéant)
@@ -298,7 +296,7 @@ public class PlanBG extends PlanImage {
             if( useCache && f.exists() ) {
                conn.setIfModifiedSince( f.lastModified() );
                prop = new MyProperties();
-               InputStream in1 = new FileInputStream(f);
+               InputStreamReader in1 = new InputStreamReader(new FileInputStream(f));
                prop.load(in1,true,false);
                in1.close();
                dateRef = prop.getProperty(Constante.KEY_HIPS_RELEASE_DATE);
@@ -322,7 +320,7 @@ public class PlanBG extends PlanImage {
                   // properties est bien différente de celle de la version déjà en cache
                   // (nécessaire dans le cas de sites miroirs, ou d'accès via CGI FX)
                   prop = new MyProperties();
-                  InputStream in1 = new ByteArrayInputStream(buf);
+                  InputStreamReader in1 = new InputStreamReader( new ByteArrayInputStream(buf) );
                   prop.load(in1,true,false);
                   in1.close();
                   String dateRef1= prop.getProperty(Constante.KEY_HIPS_RELEASE_DATE);
@@ -362,7 +360,8 @@ public class PlanBG extends PlanImage {
          }
          if( in==null ) throw new Exception();
          prop = new MyProperties();
-         prop.load(in,true,false);
+         
+         prop.load( new InputStreamReader(in),true,false);
          in.close();
       } catch( Exception e ) { prop=null; }
       return prop;
@@ -833,8 +832,8 @@ public class PlanBG extends PlanImage {
 
    protected void suite() {
 
-      if( this.label==null || this.label.trim().length()==0) setLabel(survey);
-      int defaultProjType = Aladin.PROTO ? aladin.projSelector.getProjType() 
+      if( this.label==null || this.label.trim().length()==0) setLabel( id!=null ? id : survey);
+      int defaultProjType = Aladin.BETA ? aladin.projSelector.getProjType() 
                : aladin.configuration.getProjAllsky();
       if( co==null  ) {
          flagNoTarget=true;
@@ -847,7 +846,7 @@ public class PlanBG extends PlanImage {
       objet = co+"";
 
       // On va garder le même type de projection que le plan de base.
-      if( Aladin.PROTO ) {
+      if( Aladin.BETA ) {
          Plan base = aladin.calque.getPlanBase();
          if( base instanceof PlanBG ) defaultProjType = base.projd.t;
       }
@@ -946,9 +945,7 @@ public class PlanBG extends PlanImage {
    }
 
    @Override
-   public String getUrl() {
-      return url;
-   }
+   public String getUrl() { return url; }
 
    @Override
    protected void planReady(boolean ready) {
@@ -956,6 +953,7 @@ public class PlanBG extends PlanImage {
       setPourcent(0);
       flagOk=ready;
       aladin.synchroPlan.stop(startingTaskId);
+      
       if( co!=null ) aladin.view.setRepere(co);
 
       // Chargement du MOC associé, avec ou sans création d'un plan dédié
@@ -1136,9 +1134,9 @@ public class PlanBG extends PlanImage {
       try {
          MyProperties prop = new MyProperties();
          String urlFile = url+"/"+Constante.FILE_PROPERTIES;
-         InputStream in = null;
+         InputStreamReader in = null;
          try {
-            in=Util.openAnyStream(urlFile);
+            in= new InputStreamReader( Util.openAnyStream(urlFile), "UTF-8" );
             prop.load(in);
          } finally { if( in!=null ) try { in.close(); } catch( Exception e ) {} }
          
@@ -1819,8 +1817,7 @@ public class PlanBG extends PlanImage {
 
    /**
     * Récupération d'une valeur de pixel HEALPix pour une coordonnée particulière
-    * par approximation linéaire avec le pixel le plus proche
-    * ainsi que les 4 voisins N-S-E-W.
+    * par approximation linéaire 3 voisins (S,SW,W) + le pixel en question
     * @param order l'ordre Healpix pour lequel le pixel sera récupéré, -1 si ordre courant de l'affichage
     */
    protected double getHealpixLinearPixel(double ra,double dec,double ra1,double dec1, int order) {
@@ -3239,7 +3236,7 @@ public class PlanBG extends PlanImage {
 
       if( v.getTaille()<15 ) return;
       g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-      g.setColor( aladin.isCinema() ? Color.black : Color.white);
+      g.setColor( Aladin.COLOR_BACKGROUND );
       Stroke st = g.getStroke();
 
       int epaisseur = 200;
@@ -3255,12 +3252,12 @@ public class PlanBG extends PlanImage {
       int chouilla = (int)( (v.getWidth()/800. -1)*6 );
       if( chouilla<0 ) chouilla=0;
 
-      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.FEYE || projd.t==Calib.ZEA) {
+      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.ZEA) {
          Coord c = projd.c.getProjCenter();
          projd.getXYNative(c);
          PointD center = v.getViewCoordDble(c.x, c.y);
          double signe = c.del<0?1:-1;
-         c.del = c.del + signe*( projd.t==Calib.SIN || projd.t==Calib.FEYE ? 89 : 179);
+         c.del = c.del + signe*( projd.t==Calib.SIN ? 89 : 179);
          projd.getXYNative(c);
          PointD haut = v.getViewCoordDble(c.x, c.y);
          double deltaY = haut.y-center.y;
@@ -3304,7 +3301,7 @@ public class PlanBG extends PlanImage {
          m=0;
          g.setStroke(new BasicStroke(2));
          g.setColor( new Color(210,220,255) );
-         if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.FEYE || projd.t==Calib.ZEA) {
+         if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.ZEA) {
             g.drawOval(x-m,y-m,(rayon+m)*2,(rayon+m)*2);
          } else if( projd.t==Calib.AIT || projd.t==Calib.MOL) {
             if( angle==0 ) g.drawOval(x-m,y-m,(grandAxe+m)*2,(rayon+m)*2);
@@ -3338,12 +3335,12 @@ public class PlanBG extends PlanImage {
 //      if( projd.t==Calib.TAN || projd.t==Calib.SIP ) g.fillRect(0,0,v.getWidth(),v.getHeight());
 //      else 
          
-      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.FEYE || projd.t==Calib.ZEA) {
+      if( projd.t==Calib.SIN || projd.t==Calib.ARC || projd.t==Calib.ZEA) {
          Coord c = projd.c.getProjCenter();
          projd.getXYNative(c);
          PointD center = v.getViewCoordDble(c.x, c.y);
          double signe = c.del<0?1:-1;
-         c.del = c.del + signe*( projd.t==Calib.SIN || projd.t==Calib.FEYE ? 89 : 179);
+         c.del = c.del + signe*( projd.t==Calib.SIN ? 89 : 179);
          projd.getXYNative(c);
          PointD haut = v.getViewCoordDble(c.x, c.y);
          double deltaY = haut.y-center.y;
@@ -3418,6 +3415,10 @@ public class PlanBG extends PlanImage {
       }
    }
 
+   protected boolean isSegmentIAUConv() {
+      return segmentIAUConv;
+   }
+   
    protected float getSegmentLenFactor() {
       return segmentLenFactor;
    }

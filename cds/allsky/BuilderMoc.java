@@ -1,20 +1,22 @@
-// Copyright 2012 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
-// This file is part of Aladin.
+//This file is part of Aladin.
 //
-// Aladin is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, version 3 of the License.
+//    Aladin is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation, version 3 of the License.
 //
-// Aladin is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
+//    Aladin is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
 //
-// The GNU General Public License is available in COPYING file
-// along with Aladin.
+//    The GNU General Public License is available in COPYING file
+//    along with Aladin.
 //
 
 package cds.allsky;
@@ -41,8 +43,8 @@ public class BuilderMoc extends Builder {
    protected int tileOrder;
    protected boolean isMocHight;
    
-   private String ext=null; // Extension à traiter, null si non encore affectée.
-   private int frameCube=-1; // Numéro de la frame à utiliser pour générer le MOC dans le cas d'un gros cube (depth>10)
+   protected String ext=null; // Extension à traiter, null si non encore affectée.
+   protected int frameCube=-1; // Numéro de la frame à utiliser pour générer le MOC dans le cas d'un gros cube (depth>10)
 
    public BuilderMoc(Context context) {
       super(context);
@@ -134,12 +136,12 @@ public class BuilderMoc extends Builder {
    long startTime=0L;
    int nbTiles = -1;
    
-   private void initStat() {
+   protected void initStat() {
       startTime = System.currentTimeMillis();
       nbTiles=1;
    }
    
-   private void updateStat() {
+   protected void updateStat() {
       nbTiles++;
    }
    
@@ -193,7 +195,7 @@ public class BuilderMoc extends Builder {
       }
    }
    
-   private void generateTileMoc(HealpixMoc moc,File f,int fileOrder, long npix) throws Exception {
+   protected void generateTileMoc(HealpixMoc moc,File f,int fileOrder, long npix) throws Exception {
       updateStat();
       if( isMocHight ) generateHighTileMoc(moc,fileOrder,f,npix);
       else moc.add(fileOrder,npix);
@@ -201,15 +203,17 @@ public class BuilderMoc extends Builder {
    
    private void generateHighTileMoc(HealpixMoc moc,int fileOrder, File f, long npix) throws Exception {
       Fits fits = new Fits();
-      MyInputStream dis = new MyInputStream(new FileInputStream(f));
-      dis=dis.startRead();
+      MyInputStream dis = null;
       try {
+         dis = new MyInputStream(new FileInputStream(f));
+         dis=dis.startRead();
          fits.loadFITS(dis);
+         dis.close();
+         dis=null;
       }catch( Exception e ) {
          System.err.println("f="+f.getAbsolutePath());
          throw e;
-      }
-      dis.close();
+      } finally { if( dis!=null ) dis.close(); }
       
       long nside = fits.width;
       long min = nside * nside * npix;
@@ -248,7 +252,7 @@ public class BuilderMoc extends Builder {
 
    
    // Retourne l'extension du fichier passé en paramètre, "" si aucune
-   private String getExt(String file) {
+   protected String getExt(String file) {
       int offset = file.lastIndexOf('.');
       if( offset == -1 ) return "";
       int pos = file.indexOf(Util.FS,offset);
@@ -257,7 +261,7 @@ public class BuilderMoc extends Builder {
    }
    
    // Retourne le numéro de la frame dans le cas d'une tuile de cube, 0 si non trouvé
-   private int getCubeFrameNumber(String file) {
+   protected int getCubeFrameNumber(String file) {
       try {
          int fin = file.lastIndexOf('.');
          int deb = file.lastIndexOf('_',fin);

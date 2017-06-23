@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -1206,7 +1207,7 @@ public class Source extends Position implements Comparator {
 
    /** VOTable just for this source */
    public InputStream getVOTable() throws Exception {
-      return plan.aladin.writeObjectInVOTable(null, this, null, true, false, false).getInputStream();
+      return plan.aladin.writeObjectInVOTable(null, this, null, true, false, false,false).getInputStream();
    }
 
   /**

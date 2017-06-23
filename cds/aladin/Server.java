@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,8 +19,11 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
+
+import static cds.aladin.Constants.DATALINK_FORM;
+import static cds.aladin.Constants.REGEX_BAND_RANGEINPUT;
+import static cds.aladin.Constants.REGEX_TIME_RANGEINPUT;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -35,10 +40,18 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.OutputStream;
 import java.net.URL;
+import java.text.ParseException;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
@@ -50,8 +63,20 @@ import javax.swing.JPanel;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
+import javax.swing.SwingUtilities;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultHighlighter;
+import javax.swing.text.Highlighter;
+import javax.swing.text.Highlighter.HighlightPainter;
 
+import adql.db.exception.UnresolvedIdentifiersException;
+import adql.parser.ADQLParser;
+import adql.parser.TokenMgrError;
+import adql.query.ADQLQuery;
+import cds.aladin.Constants.TapServerMode;
+import cds.moc.HealpixMoc;
 import cds.tools.Astrodate;
+import cds.tools.ScientificUnitsUtil;
 import cds.tools.Util;
 
 /**
@@ -72,6 +97,7 @@ public class Server extends JPanel
    static final int SPECTRUM  = 4;
    static final int APPLI     = 8;
    static final int APPLIIMG  =16;
+   static final int MOC       =32;
 
    // Les différents status de la dernière interrogation ALLVO
    static final int STATUS_OK       = 0;
@@ -86,10 +112,10 @@ public class Server extends JPanel
    static final int YOUTREACH = 60; // Ordonnée du premier label en mode OUTREACH
    static final int MAXSELECTEDPLANE = 10; // Nombre max d'images à charger avant affichage un warning
 
-   protected String TARGET,RAD,GRABIT="",DEFAULT_METHODE,TARGET_EX,RADIUS_EX,WNEEDOBJ,
-        WNEEDRAD,WNEEDDATE, WNEEDCAT,WERROR,WTOOLARGE,WERRORDATE,WDEJA,HASFILTER1,
-        HASFILTER2,NOINPUTITEM,WNEEDCHECK,UNKNOWNOBJ,NOTTOOMANY;
-
+	protected String TARGET, RAD, GRABIT = "", DEFAULT_METHODE, TARGET_EX, RADIUS_EX, WNEEDOBJ, WNEEDRAD, WNEEDDATE,
+			WNEEDCAT, WERROR, WTOOLARGE, WERRORDATE, WDEJA, HASFILTER1, HASFILTER2, NOINPUTITEM, WNEEDCHECK, UNKNOWNOBJ,
+			NOTTOOMANY, DATEFORMATINCORRECT, BANDFORMATINCORRECT, TARGETOUTOFBOUNDSMESSAGE, CHECKQUERY_SUCCESS,
+			CHECKQUERY_ISBLANK;
 
    // Pour le positionnement des widgets en absolu
    static final int XTAB1=10;		// Abscisse des labels des champs à saisir
@@ -117,14 +143,18 @@ public class Server extends JPanel
    protected JTextField coo[];	 // Pointe les champs du target
    protected JTextField rad[];	 // Pointe les champs du field (radius...)
    protected JTextField date;	 // Pointe sur le champ de la date (s'il y a lieu)
+   protected JTextField band;
    protected JComponent input[];	 // Pointe sur les champs des inputs (TextField pour IMGs et CATs, sinon Choice)
    protected int nbInput=0;      // nombre de champs input
    protected JLabel targetLabel=null; // Le label du target
+   protected Vector<JTextField> adqlOpInputs;
 
    protected int modeDate=0;
    protected int modeRad=0	;
    protected int modeCoo=0;
    protected int modeInput[]; // Mémorise le modeInput de chaque champ input
+   protected int modeBand=0;
+   protected int modePos = 0; 
 
    static final int NOMODE = 0;  // Aucun mode défini (pour target ou radius)
    static final int COO    = 1;   // Coordonnees en J2000 sexa un champ
@@ -146,10 +176,14 @@ public class Server extends JPanel
    static final int RADBOXd=64; // Field en box (degrés), 2 champs
    static final int RADSQRs=128; // Field en carre (arcsec), 1 champ
    static final int RADBOXs=256; // Field en box (arcsec), 2 champs
+   static final int STRINGd = 512; //user inputs- box or circle will be processed in degrees 1 field
 
    static final int JD    = 1;		// Date en Modified Julian Day
    static final int MJD   = 2;		// Date en Julian Day
    static final int YEARd = 4;		// Date en années décimale
+   static final int ParseToMJD = 8; //Parse any date to MJD
+   
+   static final int BANDINMETERS = 1; //Parse to meters
 
    static final int IMG    = 1;		// Input : une URL d'image (FITS)
    static final int IMGs   = 2;		// Input : URLs d'images (FITS)
@@ -189,9 +223,15 @@ public class Server extends JPanel
    // Les references aux objets
    public Aladin aladin;
 
+   //for tap client
+   ADQLParser adqlParser;
+   public TapClient tapClient;
+   protected TapServerMode mode;
+   JComboBox modeChoice = null;
+   
    protected String getTitle() { return aladinLabel; }
    protected String getOrigin() { return institute; }
-   protected String getType() { return type==IMAGE?"Image":type==CATALOG?"Catalog":type==SPECTRUM?"Spectra":""; }
+   protected String getType() { return type==IMAGE?"Image":type==CATALOG?"Catalog":type==SPECTRUM?"Spectra":type==MOC?"Coverage (MOC)":""; }
    protected MyInputStream getMetaData(String target,String radius,StringBuffer infoUrl) throws Exception { return null; }
    protected boolean isHidden() { return HIDDEN; }
    protected boolean isDiscovery() { return DISCOVERY; }
@@ -235,6 +275,11 @@ public class Server extends JPanel
       NOINPUTITEM    =aladin.chaine.getString("NOINPUTITEM");
       UNKNOWNOBJ     =aladin.chaine.getString("UNKNOWNOBJ");
       NOTTOOMANY       =aladin.chaine.getString("NOTTOOMANY");
+      DATEFORMATINCORRECT = aladin.chaine.getString("DATEFORMATINCORRECT");
+      BANDFORMATINCORRECT = aladin.chaine.getString("BANDFORMATINCORRECT");
+      TARGETOUTOFBOUNDSMESSAGE = aladin.chaine.getString("TARGETOUTOFBOUNDSMESSAGE");
+      CHECKQUERY_ISBLANK = Aladin.chaine.getString("CHECKQUERY_ISBLANK");
+      CHECKQUERY_SUCCESS = Aladin.chaine.getString("CHECKQUERY_SUCCESS");
 
       statusAllVO=new JLabel(" "); // Le status pour le mode ALLVO
 
@@ -274,7 +319,7 @@ public class Server extends JPanel
             : status==STATUS_ERROR ?    "Error    "
             : status==STATUS_ABORT ?    "Abort    "
                   : "-");
-      statusAllVO.setForeground( status==STATUS_OK ? Aladin.GREEN
+      statusAllVO.setForeground( status==STATUS_OK ? Aladin.COLOR_GREEN
             : status==STATUS_ERROR ? Color.red
             : status==STATUS_NORESULT ? Color.blue: Color.black);
 
@@ -341,7 +386,7 @@ public class Server extends JPanel
    * @return le target (resolu ou non) sinon null
    */
    protected String resolveTarget(String t) throws Exception {
-      t=aladin.localisation.getICRSCoord(t);
+//      t=aladin.localisation.getICRSCoord(t);
       if( coo!=null ) {
          if( (modeCoo & SIMBAD)!=0 ) {
             coo[0].setText(t);
@@ -403,6 +448,13 @@ public class Server extends JPanel
          else if( (modeRad&RADIUS)!=0 )  rad[0].setText(rm+"");
          else if( (modeRad&RADIUSd)!=0 ) rad[0].setText((rm/60.)+"");
          else if( (modeRad&RADIUSs)!=0 ) rad[0].setText((rm*60.)+"");
+         else if( (modeRad&STRINGd)!=0 ) {rad[0].setText((rm/60.)+"");
+        	 /*int i = getDelimiterIndex(s); if (i<0) { //circle
+        		 rad[0].setText((rm/60.)+""); } else {//rectangle
+				rad[0].setText((wm/60.)+" "); if (rad[1]==null) { rad[1] = new JTextField(); } rad[1].setText((hm/60.)+"");
+			}*/
+        	 
+         }     
       }
 
       // Mise à jour du champ radius générique
@@ -456,7 +508,8 @@ public class Server extends JPanel
 
    static protected int HAUT=25;    // Hauteur des components classiques
    static protected int MARGE=1;      // Marge entre les components
-
+   static protected int LIST_HAUT=80; 
+   
    protected JCheckBox testServer=null;
 
    /**
@@ -476,7 +529,7 @@ public class Server extends JPanel
 //       JButton b = new JButton(FrameServer.INFO);
 //       JButton b = Util.getHelpButton(this,MESSAGE)
              
-       JButton b = new JButton(new ImageIcon(Aladin.aladin.getImagette("Help.gif")));
+       JButton b = new JButton(new ImageIcon(Aladin.aladin.getImagette("Help.png")));
        b.setMargin(new Insets(0,0,0,0));
        b.setBorderPainted(false);
        b.setContentAreaFilled(false);
@@ -570,12 +623,23 @@ public class Server extends JPanel
             grab.setMargin(new Insets(m.top,2,m.bottom,2));
             grab.setOpaque(false);
             grab.addActionListener(new ActionListener() {
-               public void actionPerformed(ActionEvent e) {
-                  aladin.dialog.startGrabIt();
-               }
+				public void actionPerformed(ActionEvent e) {
+					aladin.dialog.startGrabIt();
+					if (aladin.additionalServiceDialog != null) {
+						aladin.additionalServiceDialog.startGrabIt();
+					}
+					// ABOVE NOT REALLY NEEDED, BEACUSE OF THE BELOW.
+					aladin.f.toFront();
+					JPanel server = Server.this;
+					aladin.grabUtilInstance.grabFrame = (GrabItFrame) SwingUtilities.getRoot(server);
+
+				}
             });
             grab.setFont(Aladin.SBOLD);
             grab.setEnabled(false);
+            if (this.aladinLabel.equalsIgnoreCase(Constants.DATALINK_CUTOUT_FORMLABEL)) {//TODO:change this logic?
+            	grab.setEnabled(true);//deefault true for datalink forms
+			}
             grab.setBounds(x+l+3,y+2,pickL-2,HAUT-4);
             p.add(grab);
          }
@@ -689,8 +753,54 @@ public void layout() {
     protected String resolveQueryField() throws Exception {
        if( radius!=null ) resolveRadius( radius.getText().trim(), false );
        if( target==null ) return null;
-       return resolveTarget( target.getText().trim() );
+       String t=aladin.localisation.getICRSCoord(target.getText().trim() );
+       return resolveTarget( t );
     }
+    
+    /**
+     * Method to test if the target specified is within the target limits.
+     * @param posBounds
+     * @param rectVertices
+     * @return
+     * @throws NumberFormatException
+     * @throws Exception
+     */
+    protected String isWithinBounds(HealpixMoc posBounds, List<Coord> rectVertices) throws NumberFormatException, Exception {
+    	String result = null;
+    	HealpixMoc userSpecified = null;
+    	
+		if (posBounds!=null) {
+    		String radiusInput  = radius.getText().trim();
+    		int i = getDelimiterIndex(radiusInput);
+    		if (i<0) {
+				//circle
+    			userSpecified = aladin.createMocRegionCircle(Double.parseDouble(coo[0].getText()), Double.parseDouble(coo[1].getText()), Double.parseDouble(rad[0].getText()), -1);
+			} else {
+				//rectangly
+				double width = getWM(radiusInput)/60.;
+				double height = getHM(radiusInput)/60.;
+				userSpecified = aladin.createMocRegionRectangle(rectVertices, Double.parseDouble(coo[0].getText()), Double.parseDouble(coo[1].getText()), width, height);
+			}
+    		
+    		if (userSpecified!=null) {
+    			userSpecified.toRangeSet();
+            	if (!posBounds.rangeSet.containsAll(userSpecified.rangeSet)) {
+    				result = TARGETOUTOFBOUNDSMESSAGE;
+    			}
+			} else {
+				result = TARGETOUTOFBOUNDSMESSAGE;
+			}
+        	
+		}
+    	return result;
+	}
+    
+    public List<Coord> getRectVertices() {
+    	String radiusInput  = radius.getText().trim();
+    	double width = getWM(radiusInput)/60.;
+		double height = getHM(radiusInput)/60.;
+		return Util.getRectangleVertices(Double.parseDouble(coo[0].getText()), Double.parseDouble(coo[1].getText()), width, height);
+	}
 
  /** Retourne le target courant en ICRS
   * @param confirm true - teste que le champ est bien renseigné
@@ -816,8 +926,7 @@ public void layout() {
 
       if( s.length()==0 ) return 0;
 
-      int i = s.indexOf(',');
-      if( i<0 ) i = s.trim().indexOf('x');
+      int i = getDelimiterIndex(s);
 
       // Le Champ est exprimé en Rayon (un seul paramètre)
       if( i<0 ) {
@@ -837,6 +946,12 @@ public void layout() {
          case 2: return hm;
       }
       return 0;
+   }
+   
+   public static int getDelimiterIndex(String s) {
+	   int i = s.indexOf(',');
+	   if( i<0 ) i = s.trim().indexOf('x');
+	   return i;
    }
 
   /** Clear du formulaire (et reaffichage) */
@@ -886,20 +1001,57 @@ public void layout() {
 //         grab.setEnabled(grabEnable);
 //      }
    }
-   
+
    protected boolean updateWidgets() {
-      if( aladin.dialog==null ) return false;
-      
-      // Activation ou non du bouton GrabIt
-      if( !aladin.dialog.isGrabIt() && grab!=null ) {
-         Plan pref = aladin.calque.getPlanRef();
-         boolean grabEnable = pref!=null && Projection.isOk(pref.projd);
-         grab.setEnabled(grabEnable);
+      int widgetsUpdateCounter = 0;
+      if( aladin.dialog!=null ) {
+         this.updateWidgets(aladin.dialog);
+         widgetsUpdateCounter++;
       }
-      
-      return true;
+
+      if( aladin.additionalServiceDialog!=null ) {
+         this.updateWidgets(aladin.additionalServiceDialog);
+         widgetsUpdateCounter++;
+      }
+
+      // Activation ou non du bouton GrabIt
+      return widgetsUpdateCounter==2;
+   }
+
+   protected void updateWidgets(ServerDialog dialog) {
+	   if( !dialog.isGrabIt() && grab!=null ) {
+	         Plan pref = aladin.calque.getPlanRef();
+	         boolean grabEnable = pref!=null && Projection.isOk(pref.projd);
+	         grab.setEnabled(grabEnable);
+	      }
    }
    
+   protected void updateWidgets(GrabItFrame frame) {
+	   if( !frame.isGrabIt() && grab != null ) {
+	         Plan pref = aladin.calque.getPlanRef();
+	         boolean grabEnable = pref != null && Projection.isOk(pref.projd);
+	         grab.setEnabled(grabEnable);
+	      }
+   }
+   
+   /**
+    * Quickfix for a (one of datalink) SODA form to not have the default date like Skybot
+    * It would not be a travesty not to have this quickfix
+    * It will only fill the SODA client form with an epoch-in ISO which the client has to change to proper format
+    * So we will not fill epoch in the soda form
+    * @return
+    */
+	public boolean setDateForServerGluIsDateLinkForms() {
+		boolean result = false;
+		if (this instanceof ServerGlu) {
+			if (((ServerGlu) this).actionName.equals(DATALINK_FORM)
+					&& (date.getText() != null || !date.getText().isEmpty())) {
+				result = true;
+			}
+		}
+		return result;
+	}
+
    /** Pre-remplissage du champ Date. Si c'est une valeur double, on considère
     * que c'est une année décimale et on la convertit en JD, sinon on laisse
     * tel que.
@@ -907,6 +1059,7 @@ public void layout() {
     */
     protected void setDate(String s) {
        if( date==null ) return;
+       if( setDateForServerGluIsDateLinkForms()) return;
        // On suppose que s est en année décimale (via getEpoch() )
        try {
 // Methode Fox
@@ -930,6 +1083,212 @@ public void layout() {
        catch(Exception e) {}
 
     }
+    
+    /**
+	 * Method to process date to MJD
+     * @param replaceUserField -to replace the processed value in the user field or not
+     * @param input
+     * @param strings 
+     * @return dateinMJD
+     * @throws Exception 
+	 */
+    public StringBuffer setDateInMJDFormat(boolean replaceUserField, String input, String[] range) throws Exception {
+		StringBuffer error = null;
+		StringBuffer processedText = null;
+		if( date!=null && modeDate == ParseToMJD && input!=null && !input.isEmpty()) {
+			processedText = new StringBuffer();
+			Pattern p = Pattern.compile(Constants.REGEX_NUMBERNOEXP);
+			String delimiterRegex = REGEX_TIME_RANGEINPUT;
+			Pattern regex = Pattern.compile(delimiterRegex);
+			Matcher matcher = regex.matcher(input);
+			String delimiter = getDelimiter(matcher);
+			String[] time = input.split(delimiterRegex);
+			for (int i = 0; i < time.length; i++) {
+				time[i] = time[i].trim();
+				Matcher m = p.matcher(time[i]);
+				if (m.find()) {
+					double timeInput = Double.parseDouble(time[i]);
+					error = isValueWithinLimits(timeInput, range, Constants.TIME);
+					if (error != null) {
+						throw new Exception(error.toString());
+					}
+					processedText.append(timeInput);
+					if (i + 1 < time.length) {
+						processedText.append(delimiter);
+					}
+				} else {
+					try {	
+						Date date = Util.parseDate(time[i]);
+						if (date==null) {
+							throw new Exception(DATEFORMATINCORRECT);
+						} else {
+							double timeInput = Util.ISOToMJD(date);
+							processedText.append(timeInput);
+							if (i + 1 < time.length) {
+								processedText.append(delimiter);
+							}
+							error = isValueWithinLimits(timeInput, range, Constants.TIME);
+							if (error != null) {
+								throw new Exception(error.toString());
+							}
+						}
+						
+					} catch (ParseException pe) {
+						// TODO Auto-generated catch block
+						pe.printStackTrace();
+						throw pe;
+					}
+					
+				}
+			}
+			if (processedText!=null && processedText.length()!=0) {
+				if (replaceUserField) {
+					date.setText(processedText.toString());
+				}
+				processedText = new StringBuffer(processedText.toString().replaceAll(delimiter, " "));
+			}
+			
+			System.out.println(date.getText());
+		}
+		return processedText;
+	}
+   
+	/**
+	 * Method to process spectral band inputs
+	 * @param replaceUserField -to replace the processed value in the user field or not
+	 * @param input
+	 * @throws Exception 
+	 */
+	public StringBuffer processSpectralBand(boolean replaceUserField, String input, String[] range) throws Exception {
+		StringBuffer error = null;
+		StringBuffer result = null;
+		if (band!=null && (modeBand == BANDINMETERS) && input!=null && !input.isEmpty()) {
+			result = new StringBuffer();
+			String delimiterRegex = REGEX_BAND_RANGEINPUT;
+			Pattern regex = Pattern.compile(delimiterRegex);
+			Matcher matcher = regex.matcher(input);
+			String delimiter = getDelimiter(matcher);
+			String[] spectralBand = input.split(delimiter);
+			for (int i = 0; i < spectralBand.length; i++) {
+				double bandInputInMeters = ScientificUnitsUtil.getUnitInMeters(spectralBand[i].trim());
+				error = isValueWithinLimits(bandInputInMeters, range, Constants.BAND);
+				if (error!=null) {
+					throw new Exception(error.toString());
+				}
+				result.append(bandInputInMeters);
+				if ((i + 1) < spectralBand.length) {
+					result.append(delimiter);
+				}
+			}
+			if (result!=null && result.length()!=0) {
+				if (replaceUserField) {
+					band.setText(result.toString().trim());
+				}
+				result = new StringBuffer(result.toString().trim().replaceAll(delimiter, " "));
+			}
+			
+		}
+		return result;
+	}
+	
+	/**
+	 * Extract delimiter or return default -1;
+	 * @param matcher
+	 * @return
+	 */
+	public static String getDelimiter(Matcher matcher) {
+		String delimiter = null;
+		if (matcher.find()) {
+			delimiter = matcher.group("delimiter");
+		}
+		if (delimiter == null) {
+			delimiter = ",";
+		}
+		return delimiter;
+	}
+	
+	/**
+	 * Method to check if field value is within the limits
+	 * @param input
+	 * @param range
+	 * @param paramName
+	 * @return message to display incase of limit violation
+	 */
+	public StringBuffer isValueWithinLimits(String input, String[] range, String paramName) {
+		StringBuffer output = null;
+		if (range!=null &&  input!=null && !input.isEmpty() && range[0]!=null && range[1]!=null) {
+			String [] inputs = input.split("\\s");
+			for (int i = 0; i < inputs.length; i++) {
+				Double inputNumber = Double.parseDouble(inputs[i]);
+				output = isValueWithinLimits(inputNumber, range, paramName);
+			}
+		}
+		return output;
+	}
+	
+	/**
+	 * Method to check if field value is within the limits
+	 * @param input
+	 * @param range
+	 * @param paramName
+	 * @return message to display incase of limit violation
+	 */
+	public StringBuffer isValueWithinLimits(double input, String[] range, String paramName) {
+		StringBuffer output = null;
+		if (range!=null && ((isValidNumberRange(range[0]) && input<Double.parseDouble(range[0])) || (isValidNumberRange(range[1]) && input>Double.parseDouble(range[1])))) {
+			output = new StringBuffer("Please specify ");
+			if (paramName==null) {
+				output.append(" value");
+			}else {
+				output.append(paramName);
+			}
+			output.append(" between ").append(range[0]).append(" and ").append(range[1]);
+		}
+		return output;
+	}
+	
+	public static boolean isValidNumberRange(String range) {
+		return range!=null && !range.trim().isEmpty(); 
+	}
+	
+	
+	/**
+	 * Method to check if the field value is within the allowed values
+	 * @param input
+	 * @param allowedValues
+	 * @param paramName
+	 * @return message to display incase of violation
+	 */
+	public StringBuffer isValueWithinGivenOptions(String inputs, String[] allowedValues, String paramName) {
+		boolean valueFound = false;
+		StringBuffer output = null;
+		String[] input= null;
+		if (allowedValues!=null && inputs!=null && !inputs.isEmpty()) {
+			input=inputs.split(" ");
+			for (int i = 0; i < input.length; i++) {
+				for (int j = 0; j < allowedValues.length; j++) {
+					if (allowedValues[j]!=null && input[i].equalsIgnoreCase(allowedValues[j])) {
+						valueFound = true;
+						break;
+					}
+				}
+				if (!valueFound) {
+					break;
+				}
+			}
+			if (!valueFound) {
+				output = new StringBuffer("Please specify ");
+				if (paramName==null) {
+					output.append(" value ");
+				}else {
+					output.append(paramName);
+				}
+				output.append("within: ").append(Arrays.toString(allowedValues).replaceAll("[\\[\\]null(,$)]", ""));
+			}
+			
+		}
+		return output;
+	}
 
     /** Positionnement d'une valeur particulière (s) sur un component
      * de type INPUT. Nécessaire pour l'utilisation via Aladin script
@@ -1050,8 +1409,22 @@ public void layout() {
      /** Retourne true si le Component passé en paramètre concerne un
       * dhamp de date  */
      protected boolean isFieldDate(JComponent c) {
-        return date!=null;
+    	 if( date!=null ) {
+             if( date==c) return true;
+          }
+    	 return false;
      }
+     
+     protected boolean isFieldBand(JComponent c) {
+    	 if( band!=null ) {
+             if( band==c) return true;
+          }
+    	 return false;
+     }
+
+     /*protected boolean isFieldDate(JComponent c) {
+        return date!=null;
+     }*/
 
      /** Retourne true si le Component passé en paramètre est input */
      protected boolean isFieldInput(JComponent c) {
@@ -1215,6 +1588,11 @@ public void layout() {
    /** Affichage du status report pour le serveur */
    protected void showStatusReport() {
       if( aladin.frameInfoServer==null )  aladin.frameInfoServer = new FrameInfoServer(aladin);
+      else if (!(this instanceof ServerTap) && aladin.frameInfoServer.isOfTapServerType()){
+    	  aladin.frameInfoServer.dispose();
+    	  aladin.frameInfoServer = new FrameInfoServer(aladin);
+	}
+      
       aladin.frameInfoServer.show(this);
    }
 
@@ -1310,10 +1688,20 @@ public void layout() {
     * (voir ArchiveServer) */
    protected boolean setParam(String param) { return false; }
 
- /** Retourne le premier mot du nom */
-   protected String getNom() {
-      StringTokenizer st = new StringTokenizer(aladinLabel);
-      return st.nextToken();
+// /** Retourne le premier mot du nom */
+//   protected String getNom() {
+//      StringTokenizer st = new StringTokenizer(aladinLabel);
+//      return st.nextToken();
+//   }
+   
+   /** Retourne un label associé au plan généré par ce serveur.
+    * Si s est vide ou null, ou ne contient qu'un identificateur technique "as id" retourne 
+    * un label par défaut. Dans le dernier cas le label par défaut sera inséré en préfixe.
+    * Dans tous les autres cas retourne le label proposé. */
+   protected String getDefaultLabelIfRequired(String s) { return getDefaultLabelIfRequired(s,aladinLabel); }
+   protected String getDefaultLabelIfRequired(String s,String defaut) {
+      if( s==null || s.length()==0 ) return defaut;
+      return s;
    }
 
  /** Retrouve le frame.
@@ -1504,6 +1892,123 @@ public void layout() {
       if( a2.ordre==null ) return 1;
       return a1.ordre.compareTo(a2.ordre);
    }
+   
+   /**
+    * Essentially calls checkQuery and then shows valid message on screen
+    * @param arrayList 
+    */
+	public void checkQueryFlagMessage() {
+		try {
+			if (this.checkQuery() != null) {
+				Aladin.info(this, CHECKQUERY_SUCCESS);
+			}
+		} catch (UnresolvedIdentifiersException uie) {
+			// TODO Auto-generated catch block
+			Iterator<adql.parser.ParseException> it = uie.getErrors();
+			adql.parser.ParseException ex = null;
+			while(it.hasNext()){
+				ex = it.next();
+				highlightQueryError(tap.getHighlighter(), ex);
+			}
+			Aladin.warning(this, "Not sure about the highlighted words : " + ex.getMessage());
+		}
+	}
+   /**
+	 * Method parses adql query from user using Grégory
+	 * Mantelet's (ARI/ZAH) adql parser lib
+	 * @return the adql query
+	 * @throws UnresolvedIdentifiersException 
+	 */
+	public ADQLQuery checkQuery() throws UnresolvedIdentifiersException {
+		if (tap.getText().isEmpty()) {
+			Aladin.warning(this, CHECKQUERY_ISBLANK);
+			return null;
+		}
+		ADQLQuery query = null;
+		Highlighter highlighter = tap.getHighlighter();
+		try {
+			highlighter.removeAllHighlights();
+			query = this.adqlParser.parseQuery(tap.getText());//parser already set when/if table changed
+		} catch (UnresolvedIdentifiersException ie) {	
+			Aladin.trace(3, "Number of errors in the query:"+ie.getNbErrors());
+			throw ie;
+		} catch (adql.parser.ParseException pe) {
+			highlightQueryError(highlighter, pe);
+			Aladin.warning(this, "Check the syntax around the highlighted words : " + pe.getMessage());
+		} catch (TokenMgrError e) {
+			// TODO: handle exception
+			Aladin.warning(this, "Incorrect query: " + e.getMessage());
+		}
+		return query;
+	}
+	
+	/**
+	 * Conveinience method. Submits a tap server(glu or ServerTap type) of sync or async requests
+	 * @param sync
+	 * @param requestParams
+	 * @param name
+	 * @param url
+	 */
+	public void submitTapServerRequest(boolean sync, Map<String, Object> requestParams, String name, String url) {
+		ADQLQuery query = null;
+		try {
+			query = checkQuery();
+		} catch (UnresolvedIdentifiersException e) {
+			//error is handled in the respective checkQuery() methods
+			ADQLParser syntaxParser = new ADQLParser();
+			try {
+				query = syntaxParser.parseQuery(tap.getText());
+			} catch (adql.parser.ParseException e1) {
+				// TODO Auto-generated catch block
+				Aladin.trace(3, "Parse exception with query..");
+			}
+			Aladin.trace(3, "I do not understand some identifiers..but may be user knows better..");
+		}
+		if (query != null) {
+			try {
+				TapManager tapManager = TapManager.getInstance(aladin);
+				Aladin.trace(3, "Firing " + sync + " for " + name + " url: " + url + "\n query: " + tap.getText()
+						/*+ "\n ADQLQuery: " + query.toADQL()*/ + "\n requestParams: " + requestParams);
+				if (sync) {
+					//Spec: Synchronous requests may issue a redirect to the result using HTTP code 303: See Other.
+					tapManager.fireSync(name, url, tap.getText(), query, requestParams);
+				} else {
+					tapManager.fireASync(name, url, tap.getText(), query, requestParams);
+				}
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				if( Aladin.levelTrace >= 3 ) e.printStackTrace();
+				Aladin.warning(aladin.dialog, "Server error!");
+			}
+		}
+	}
+	
+	public void highlightQueryError(Highlighter highlighter, adql.parser.ParseException pe) {
+		int errorStart = pe.getPosition().beginColumn-1;
+		int errorEnd = pe.getPosition().endColumn-1;
+		highlightQueryError(highlighter, errorStart, errorEnd);
+	}
+	
+	/**
+	 * Method to highlight error written in the tap text field
+	 * @param highlighter
+	 * @param pe
+	 * @param unrecognisedParams -not used currently
+	 */
+	public void highlightQueryError(Highlighter highlighter, int errorStart, int errorEnd) {
+		HighlightPainter painter = new DefaultHighlighter.DefaultHighlightPainter(Aladin.LIGHTORANGE);
+		try {
+//			String tableName = tap.getText().substring(errorStart, errorEnd);
+//			unrecognisedParams.add(tableName);
+			highlighter.addHighlight(errorStart, errorEnd, painter);
+		} catch (BadLocationException e) {
+			if( Aladin.levelTrace >= 3 ) e.printStackTrace();
+			//Don't do anything if this feature fails
+		} catch (IndexOutOfBoundsException e) {
+			if( Aladin.levelTrace >= 3 ) e.printStackTrace();
+			//Don't do anything if this fails
+		}
+	}
 
 
 }

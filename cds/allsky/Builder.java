@@ -1,4 +1,6 @@
-// Copyright 2012 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -19,8 +21,10 @@
 
 package cds.allsky;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.InputStreamReader;
 
 import cds.aladin.MyProperties;
 import cds.fits.Fits;
@@ -47,6 +51,7 @@ public abstract class Builder {
          case JPEG:      return new BuilderJpg(context);
          case PNG:       return new BuilderPng(context);
          case MOC:       return new BuilderMoc(context);
+         case MOCERROR:  return new BuilderMocError(context);
          case MOCINDEX:  return new BuilderMocIndex(context);
          case CLEAN:     return new BuilderClean(context);
          case CLEANINDEX:return new BuilderCleanIndex(context);
@@ -57,7 +62,7 @@ public abstract class Builder {
          case CLEANPNG:  return new BuilderCleanPng(context);
          case CLEANDATE: return new BuilderCleanDate(context);
          case CLEANWEIGHT:return new BuilderCleanWeight(context);
-         case CHECK:     return new BuilderCheck(context);
+         case LINT:      return new BuilderLint(context);
          case GZIP:      return new BuilderGzip(context);
          case GUNZIP:    return new BuilderGunzip(context);
          case RGB:       return new BuilderRgb(context);
@@ -310,7 +315,7 @@ public abstract class Builder {
          MyProperties prop = new MyProperties();
          File f = new File( propFile );
          if( f.exists() ) {
-            FileInputStream in = new FileInputStream(propFile);
+            InputStreamReader in = new InputStreamReader( new BufferedInputStream( new FileInputStream(propFile) ), "UTF-8");
             prop.load(in);
             in.close();
             String s = prop.getProperty(Constante.KEY_HIPS_PIXEL_CUT);
@@ -355,10 +360,11 @@ public abstract class Builder {
          MyProperties prop = new MyProperties();
          File f = new File( propFile );
          if( f.exists() ) {
-            FileInputStream in = new FileInputStream(propFile);
+            InputStreamReader in = new InputStreamReader( new BufferedInputStream( new FileInputStream(propFile) ), "UTF-8");
             prop.load(in);
             in.close();
-            String s = prop.getProperty(Constante.KEY_OBS_COLLECTION);
+            String s = prop.getProperty(Constante.KEY_OBS_TITLE);
+//            String s = prop.getProperty(Constante.KEY_OBS_COLLECTION);
             if( s==null ) s = prop.getProperty(Constante.OLD_OBS_COLLECTION);
             if( s!=null && s.length()>0 ) label=s;
          }

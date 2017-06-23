@@ -1,4 +1,6 @@
-// Copyright 2012 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -19,6 +21,8 @@
 
 package cds.allsky;
 
+import java.io.OutputStreamWriter;
+
 /** Permet de visualiser les properties maj d'un survey préalablement généré
  * @author Pierre Fernique [CDS]
  */
@@ -31,7 +35,7 @@ public class BuilderProp extends Builder {
    public void run() throws Exception {
       context.scriptCommand=null;
       System.out.println();
-      context.writePropertiesFile(System.out);
+      context.writePropertiesFile( new OutputStreamWriter( System.out ) );
       System.out.println();
    }
 

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,8 +19,9 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
+import static cds.aladin.Constants.REGEX_NUMBER;
+
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics;
@@ -29,17 +32,26 @@ import java.awt.Rectangle;
 import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.swing.JFrame;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
+import cds.astro.Unit;
+import cds.tools.Astrodate;
+import cds.tools.ConfigurationReader;
+import cds.tools.ScientificUnitsUtil;
 import cds.tools.Util;
 import cds.xml.Field;
 import cds.xml.TableParser;
@@ -84,6 +96,8 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
    int nIdVraisemblance=0; // 10-nom commence par ID, 20-nom contient "name" ou "designation", 30-ucd=ID_main 40-ucd=meta.id,meta.main
    boolean badRaDecDetection;       // true si la détection des colonnes RA et DEC est plus qu'incertaine
    boolean flagVOTable=false;       // True si on est sûr a priori que c'est du VOTable (évite le test)
+   boolean flagSIAV2 = false;
+   boolean flagEPNTAP = false;
    boolean flagLabelFromData=false; // True si on laisse possible le renommage du plan par le contenu
 
    protected StringBuffer parsingInfo=null;    // Information éventuelle sur le parsing des données
@@ -482,9 +496,11 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
    boolean firstTrace=true;	         // Pour afficher la premiere source en cas de trace
    private int indexAccessUrl=-1;    // Position de la colonne pour in access_url éventuel
    private int indexAccessFormat=-1; // Position de la colonne pour un access_format éventuel
+   private int indexSTC=-1;          // Position de la colonne pour un FOV STC éventuel
    private int indexOID=-1;          // Position de la colonne OID eventuelle
    private TableParser res;          // Parser utilisé pour créer les objets
-   private StringBuffer line = new StringBuffer(500);
+   private StringBuilder line = new StringBuilder(500);
+   private Map<Integer, Field> standardisedColumns = new HashMap<Integer, Field>();
 
 
    // Légende générique qui vient remplacer toutes les légendes propres
@@ -518,6 +534,13 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
             int underRA, underDE, RA, DE;
             underRA = underDE = RA = DE = -1;
             Field fRA = null, fDE = null;
+            String siaStandardColumns = null;
+            String siaHideColumns = null;
+            if (flagSIAV2) {
+            	siaStandardColumns = ConfigurationReader.getInstance().getPropertyValue("SIAV2StandardColumns"); //column to standardize in SIAV2 results table;
+            	siaHideColumns = ConfigurationReader.getInstance().getPropertyValue("SIAV2HideColumns"); //column to hide in SIAV2 results table;
+			}
+            
             for( int i = 0; e.hasMoreElements(); i++ ) {
                Field f = (Field) e.nextElement();
                if( f == null ) continue;
@@ -544,10 +567,28 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
                      && (f.type.indexOf("hidden") >= 0 || f.type.indexOf("trigger") >= 0) ) {
                   hiddenField[i] = true;
                   f.visible=false;
-                  //                  continue;
                }
 
                v.addElement(f);
+               if(flagSIAV2 && f.name!=null){
+            	   if (siaHideColumns!=null && siaHideColumns.contains(f.name)) {
+            		   hiddenField[i] = true;
+                       f.visible=false;
+            	   }
+            	   
+            	   if (siaStandardColumns != null && siaStandardColumns.contains(f.name)) {
+            		   Field displayField = new Field(f);
+            		   displayField.name = Aladin.getChaine().getString(f.name);
+            		   //below logic to check if standardized columns are to be hidden
+            		   if (siaHideColumns != null && siaHideColumns.contains(displayField.name)) {
+            			   displayField.visible = false;
+                	   } else {
+                		   displayField.visible = true;
+                	   }
+                	   v.addElement(displayField);
+                	   this.standardisedColumns.put(i, displayField);
+            	   }
+			   }
             }
 
             // Si champs RAJ2000 et DEJ2000 on cache _RAJ2000 et _DEJ2000
@@ -612,8 +653,12 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
             String a=value[i].trim();
             if( leg == null || !leg.hasInfo(j) || a.length() == 0
                   || a.equals("0") || a.equals("-") /* || a.equalsIgnoreCase("null") */ ) {
-               line.append("\t" + ((a.length() == 0) ? " " : value[i]));
-               continue;
+            	String displayString = "\t" + ((a.length() == 0) ? " " : value[i]);
+            	line.append(displayString);
+            	if (flagSIAV2 && standardisedColumns.containsKey(i)) {
+            		line.append(displayString);
+           		}
+            	continue;
             }
 
             // Construction des ancres
@@ -621,7 +666,17 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
             String gref = leg.getGref(j);
             String refText = leg.getRefText(j);
             String flagArchive = leg.getRefValue(j);
-
+            String utype = leg.getUtype(j);
+            String name = leg.getName(j);
+            
+            if( indexSTC==-1 && flagEPNTAP && leg.getID(j).equals("s_region") ) {
+               indexSTC=j;
+            }
+            
+            if( indexSTC==-1 && Util.indexOfIgnoreCase( value[i], "Polygon ")==0 ) {
+               indexSTC=j;
+            }
+            
             // On met un lien sur les urls ?
             if( href==null && (value[i].startsWith("http://") || value[i].startsWith("https://") || value[i].startsWith("ftp://"))) {
                href=value[i];
@@ -629,20 +684,30 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
                // SIA 1.0
                if( flagArchive==null ) {
                   String ucd = leg.getUCD(j);
-                  if( ucd!=null && ucd.indexOf("Image_AccessReference")>=0 ) flagArchive="image/fits";
+                  if( ucd!=null && Util.indexOfIgnoreCase(ucd,"Image_AccessReference")>=0 ) {
+                     flagArchive="image/fits";
+                     indexAccessUrl=-2;  // Pour éviter de le traiter par la suite
+                  }
                }
                
                // SSA - spectrum
                if( flagArchive==null ) {
-                  String utype = leg.getUtype(j);
-                  if( utype!=null && utype.indexOf("ssa:Access.Reference")>=0 ) {
+                  if( utype!=null && Util.indexOfIgnoreCase(utype,"ssa:Access.Reference")>=0 ) {
                      flagArchive="spectrum/???";
+                     indexAccessUrl=-2;  // Pour éviter de le traiter par la suite
                   }
                }
                // SSA - preview
                if( flagArchive==null ) {
                   String ucd = leg.getUCD(j);
-                  if( ucd!=null && ucd.indexOf("meta.ref.url;datalink.preview")>=0 ) flagArchive="image/???";
+                  if( ucd!=null && Util.indexOfIgnoreCase(ucd,"meta.ref.url;datalink.preview")>=0 ) {
+                     flagArchive="image/???";
+                  }
+               }
+               
+               // datalink uniquement basé sur le nom de la colonne (genre Markus)
+               if( flagArchive==null ) {
+                  if( name.equalsIgnoreCase("datalink") ) flagArchive="data/???";
                }
             }
 
@@ -652,25 +717,27 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
             if( tag!=null && flagArchive!=null && (flagArchive.startsWith("spectr") && flagArchive.indexOf('/')>0) ) tag="£"+tag;
 
             else if( tag != null && flagArchive != null && flagArchive.indexOf('/')>0  ) tag = "^" + tag;
-
-            // AVO, support de Specview, je dois tester sur spectrumavo car les
-            // spectres
-            // accessibles à partir de VizieR sont gzippés et ne rentrent pas
-            // directement dans Specview
-            // TODO
-            //else if( tag!=null && flagArchive!=null && flagArchive.startsWith("spectrumavo/") ) tag="*"+tag;
-
+            
+            // utype "a la obscore"
+            if( indexAccessUrl==-1 && Util.indexOfIgnoreCase(utype,"Access.Reference")>=0 ) indexAccessUrl=j;
+            if( indexAccessFormat==-1 && Util.indexOfIgnoreCase(utype,"Access.Format")>=0 ) indexAccessFormat=j;
 
             // DESORMAIS LE TEXTE FORCE EST MIS A LA VISUALISATION DES MESURES (A FAIRE)
 //            String text = (refText != null) ? refText : value[i];
             String text = value[i];
 
-            line.append("\t");
+            line.append('\t');
             if( tag != null ) {
                line.append("<&" + dollarSub(tag, value, (href != null) ? 1 : 0));
                if( text != null ) line.append("|" + dollarSub(text, value, 0));
-               line.append(">");
-            } else line.append(text);
+               line.append('>');
+            } else {
+            	line.append(text);
+            	if (standardisedColumns.containsKey(i)) {
+            		line.append('\t');
+            		line.append(this.processValuesToStandardRepresentation(standardisedColumns.get(i), text));
+    			}
+            }
          }
 
          // Calcul en vue de definir la target
@@ -696,8 +763,8 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
 
             // Dans le cas d'un résultat ObsTAP, on devra post-traiter le tag sur le champ "access_url" en fonction
             // de la valeur MIME du champ "access_format" (alternativement content-type)
-            indexAccessUrl = leg.find("access_url");
-            indexAccessFormat = leg.find("access_format");
+            if( indexAccessUrl==-1 )    indexAccessUrl    = leg.find("access_url");
+            if( indexAccessFormat==-1 ) indexAccessFormat = leg.find("access_format");
             if( indexAccessFormat==-1 ) indexAccessFormat = leg.find("content_type");
          }
 
@@ -711,6 +778,7 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
          // Fov STCS attaché ?
          int idxSTCS = source.findUtype(TreeBuilder.UTYPE_STCS_REGION1);
          if( idxSTCS<0 ) idxSTCS = source.findUtype(TreeBuilder.UTYPE_STCS_REGION2);
+         if( idxSTCS<0 ) idxSTCS = indexSTC;
          if (idxSTCS>=0) {
             try {
                source.setFootprint(source.getValue(idxSTCS));
@@ -722,11 +790,11 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
 
          // Post-traitement ObsTap => on remplace le <&xxx par <^xxx ou <£xxx e la colonne "access_url"
          // en fonction du MIME type de la colonne "access_format"
-         if( indexAccessFormat>=0 && indexAccessUrl>=0 ) {
+         if( indexAccessUrl>=0 ) {
             try {
-               String fmt = source.getCodedValue(indexAccessFormat);
+               String fmt = indexAccessFormat==-1 ? "" : source.getCodedValue(indexAccessFormat);
                String val = source.getCodedValue(indexAccessUrl);
-               if( val.startsWith("<&") && fmt.length()>0 && fmt.indexOf("html")<0 && fmt.indexOf("plain")<0 ) {
+               if( val.startsWith("<&") && /* fmt.length()>0 && */ fmt.indexOf("html")<0 && fmt.indexOf("plain")<0 ) {
                   String tag="^";
                   if( fmt.startsWith("spectr") && fmt.indexOf('/')>0 ) tag="£";
                   val = "<&"+tag+val.substring(2);
@@ -737,14 +805,102 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
             }
          }
 
-         // Pour laisser la main aux autres threads
-         if( Aladin.isSlow && nb_o%200==0 ) Util.pause(10);
-
       } catch( Exception e ) {
          System.out.println("setRecord (3p) " + e);
          e.printStackTrace();
       }
    }
+   
+   /**
+    * Method to process data to standardised representation.
+    * Currently time(in MJD) and spectral data(in m) are supported.
+    * This method is used because in case of siav2 we know date is in MJD 
+    * as opposed to other results where date could be in JD 
+    * 
+    * @param field
+    * @param text
+    * @return formated string
+    */
+	public String processValuesToStandardRepresentation(Field field, String text) {
+		if (!flagSIAV2) {//for now only siav2 are known to get time in MJD and spectral data in m.
+			return text;
+		}
+
+		String standardRepresentation = text;
+		try {
+			if (text != null && !text.trim().isEmpty() && field != null && field.ucd != null) {
+				if (field.ucd.split("\\.")[0].equalsIgnoreCase("time") && "D".equalsIgnoreCase(field.datatype)
+						&& "d".equalsIgnoreCase(field.unit)) {
+					Pattern regex = Pattern.compile(REGEX_NUMBER);
+					Matcher matcher = regex.matcher(text);
+					if (matcher.find()) {
+						standardRepresentation = this.convertMJDToISO(text);
+					}
+				} else if (field.ucd.split("\\.")[0].equalsIgnoreCase("em") && "D".equalsIgnoreCase(field.datatype)
+						&& "m".equalsIgnoreCase(field.unit)) {
+					standardRepresentation = this.setStandardSpectralRepresentation(text);
+				}
+			}
+		} catch (Exception e) {
+			if (Aladin.levelTrace >= 3)
+				e.printStackTrace();
+			standardRepresentation = text;
+		}
+		return standardRepresentation;
+	}
+
+   public String convertMJDToISO(String timeWord) {
+		double valueInProcess= Astrodate.MJDToJD(Double.valueOf(timeWord)); 
+		return Astrodate.JDToDate(valueInProcess);
+	}
+	
+   /**
+    * Method to process spectral data
+    * The input wavelength (in m): will be converted to either 
+    * 		- eV(higher frequencies: Gamma, X-ray)
+    * 		- m (mid: EUV, UV, optical, IR)
+    * 		- Hz(lower frequencies: micro, radio)
+    * The boundaries for the above categorization is defined in configuration file as
+    * 		- WAVELENGTHRANGE1(Between X-ray and UV) 
+    * 		- WAVELENGTHRANGE2(between IR and Radio)
+    * @param text
+    * @return formatted spectral param
+    */
+	public String setStandardSpectralRepresentation(String text) {
+		String defaultWavelengthUnit = "m";
+		Double spectralVal = Double.parseDouble(text);
+		Unit unitToProcess = null;
+		Double wavelengthRange1 = Double
+				.parseDouble(ConfigurationReader.getInstance().getPropertyValue("WAVELENGTHRANGE1"));
+		Double wavelengthRange2 = Double
+				.parseDouble(ConfigurationReader.getInstance().getPropertyValue("WAVELENGTHRANGE2"));
+		try {
+			if (spectralVal != null && spectralVal != 0.0d) {
+				if (spectralVal < wavelengthRange1) {
+					// convert to eV
+					unitToProcess = ScientificUnitsUtil.convertMeter2eV(spectralVal);
+
+				} else if (spectralVal >= wavelengthRange1 && spectralVal < wavelengthRange2) {
+					// Do no conversions
+					unitToProcess = new Unit(defaultWavelengthUnit);
+					unitToProcess.value = spectralVal;
+				} else if (spectralVal >= wavelengthRange2) {
+					// Convert to hertz
+					unitToProcess = ScientificUnitsUtil.convertMeter2Frequency(spectralVal);
+				}
+
+				if (unitToProcess != null) {
+					text = ScientificUnitsUtil.prefixProcessing(unitToProcess);
+				}
+			} else {
+				text = "0.0";
+			}
+		} catch (ParseException e) {
+			// TODO: handle exception
+			e.printStackTrace();
+		}
+		return text;
+	}
 
    /** Retourne true si on a des infos sur le catalogue */
    protected boolean hasCatalogInfo() { return parsingInfo!=null || description!=null; }
@@ -810,7 +966,7 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
       if( nX>=0   && nX<n   ) ((Field)vField.elementAt(nX)).coo=Field.X;
       if( nY>=0   && nY<n   ) ((Field)vField.elementAt(nY)).coo=Field.Y;
       badRaDecDetection = badDetection;
-      plan.hasPM=-1;
+      if( plan!=null ) plan.hasPM=-1;
    }
 
    //   /** Retourne l'indice de la colonne RA si connu, sinon -1 */
@@ -1044,8 +1200,11 @@ public final class Pcat implements TableParserConsumer/* , VOTableConsumer */ {
          }
          plan.dis=dis;
 
-         flagVOTable=(dis.getType() & MyInputStream.VOTABLE)!=0;
-         flagFootprint = (dis.getType() & MyInputStream.FOV)!=0;
+         long type=dis.getType();
+         flagVOTable=(type & MyInputStream.VOTABLE)!=0;
+         flagFootprint = (type & MyInputStream.FOV)!=0;
+         flagSIAV2 = (type & MyInputStream.SIAV2)!= 0;
+         flagEPNTAP = (type & MyInputStream.EPNTAP)!= 0;
          if( flagFootprint ) {
             // devrait etre RESOURCE, mais il y a un bug dans getUnreadBuffer (mange un tag trop en avant)
             endTag = "TABLE";

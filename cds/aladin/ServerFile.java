@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,7 +19,6 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 import java.awt.Dimension;
 import java.awt.Insets;
@@ -28,6 +29,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.Hashtable;
@@ -214,6 +216,20 @@ public class ServerFile extends Server implements XMLConsumer {
       } catch(Exception e) { }
       return s;
    }
+   
+   private String getLabelFromFile(String f) {
+      if( f==null ) return "Data";
+      String label;
+      int i = f.lastIndexOf(f.startsWith("http:")||f.startsWith("https:")||f.startsWith("ftp:") ? "/"
+            : Util.FS);
+      label=(i>=0)?f.substring(i+1):f;
+
+      // Suppression d'une extension éventuelle
+      i = label.lastIndexOf('.');
+      if( i>0 && label.length()-i<=5 ) label = label.substring(0,i);
+      
+      return label;
+   }
 
    /** Creation d'un plan issu d'un chargement d'un fichier AJ, fits ou autre
     * @param f path du fichier
@@ -234,15 +250,17 @@ public class ServerFile extends Server implements XMLConsumer {
 
          waitCursor();
          try {
-            if( label==null ) {
-               int i = f.lastIndexOf(f.startsWith("http:")||f.startsWith("https:")||f.startsWith("ftp:") ? "/"
-                     : Util.FS);
-               label=(i>=0)?f.substring(i+1):f;
-
-               // Suppression d'une extension éventuelle
-               i = label.lastIndexOf('.');
-               if( i>0 && label.length()-i<=5 ) label = label.substring(0,i);
-            }
+//            if( label==null ) {
+//               int i = f.lastIndexOf(f.startsWith("http:")||f.startsWith("https:")||f.startsWith("ftp:") ? "/"
+//                     : Util.FS);
+//               label=(i>=0)?f.substring(i+1):f;
+//
+//               // Suppression d'une extension éventuelle
+//               i = label.lastIndexOf('.');
+//               if( i>0 && label.length()-i<=5 ) label = label.substring(0,i);
+//            }
+            
+            label = getDefaultLabelIfRequired( label, getLabelFromFile(f) );
 
             // Analyse du contenu d'un répertoire local
             if( is==null && !(f.startsWith("http:") || f.startsWith("https:"))) {
@@ -437,7 +455,15 @@ public class ServerFile extends Server implements XMLConsumer {
 
                // C'est peut être un fichier de properties ?
             } else if( (type & MyInputStream.PROP)!=0 ) {
-               if( aladin.directory.addHipsProp(in, localFile) ) {
+               
+               // Dans le cas d'un fichier properties local, on passe le path pour 
+               // fournit l'accès au HiPS associé dans le cas où il n'est pas décrit
+               // par un hips_service_url
+               String path = null;
+               int i = (f==null || !mode.equals("file")) ? -1 : f.lastIndexOf("properties");
+               if( i>0 ) path = f.substring(0,i-1);
+               
+               if( aladin.directory.addHipsProp( new InputStreamReader(in), true, path) ) {
                   n=1;
                }
 

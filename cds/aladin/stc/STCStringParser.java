@@ -1,3 +1,24 @@
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
+// The Aladin program is distributed under the terms
+// of the GNU General Public License version 3.
+//
+//This file is part of Aladin.
+//
+//    Aladin is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation, version 3 of the License.
+//
+//    Aladin is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
+//
+//    The GNU General Public License is available in COPYING file
+//    along with Aladin.
+//
+
 package cds.aladin.stc;
 
 import java.util.ArrayList;
@@ -10,6 +31,7 @@ import java.util.regex.Pattern;
 import cds.aladin.stc.STCObj.ShapeType;
 
 public class STCStringParser {
+	public final int mandatoryStcCircleWords = 5;
     public STCStringParser() {}
 
     public List<STCObj> parse(String stcString) {
@@ -18,18 +40,20 @@ public class STCStringParser {
 
         String[] shapesStrs = splitShapesStrings(stcString);
         for (String shapeStr : shapesStrs) {
-            Iterator<String> itWords  = Arrays.asList(shapeStr.split("[ \t]+", -1)).iterator();
+        	List<String> stcWords = Arrays.asList(shapeStr.split("[ \t]+", -1));
+            Iterator<String> itWords  = stcWords.iterator();
             String curWord;
             while (itWords.hasNext()) {
                 curWord = itWords.next();
-
-                if (curWord.equals("POLYGON")) {
-                    try {
-                        stcObjs.add(parsePolygon(itWords));
-                    }
-                    catch(Exception e) {
-                        e.printStackTrace();
-                    }
+                try {
+                	if (curWord.equals("POLYGON")) {
+                		stcObjs.add(parsePolygon(itWords));
+                	} else if (curWord.equals("CIRCLE") && stcWords.size() == mandatoryStcCircleWords) {
+                		stcObjs.add(parseCircle(itWords));
+    				}
+                }
+                catch(Exception e) {
+                    e.printStackTrace();
                 }
             }
         }
@@ -45,14 +69,15 @@ public class STCStringParser {
     private String[] splitShapesStrings(String stcString) {
         ArrayList<String> result = new ArrayList<String>();
 
-        String shapes = new String();
+        String shapes = new String("(");
         for (ShapeType shapeType : STCObj.ShapeType.values()) {
             shapes += shapeType.name() + "|";
         }
-        shapes = shapes.substring(0, shapes.length() - 1);
+        shapes = shapes.substring(0, shapes.length() - 1)+")";
 
         String regexp = new String(shapes);
-        regexp += "( +[A-Za-z0-9]+)( +[-]?[0-9\\.]+)+";
+        //regexp += "( +[A-Za-z0-9]+)( +[-]?[0-9\\.]+)+";
+        regexp +="(\\s+[A-Za-z0-9]+)+(\\s+[-]?[0-9\\.]+)+";
         Pattern p = Pattern.compile(regexp);
         Matcher m = p.matcher(stcString);
         while (m.find()) {
@@ -68,9 +93,15 @@ public class STCStringParser {
         while (itWords.hasNext()) {
             double ra, dec;
             ra = dec = Double.NaN;
+            String nextParam;
             try {
-                ra = Double.parseDouble(itWords.next());
-                dec = Double.parseDouble(itWords.next());
+            	nextParam = itWords.next();
+                if (!isNumber(nextParam)) {// to ignore all strings [<refpos>] [<flavor>] which are not handled currently.
+                	continue;
+                }
+            	ra = Double.parseDouble(nextParam);
+            	dec = Double.parseDouble(itWords.next());// any words between numbers is unexpected and hence exception
+				
             }
             catch(Exception e) {
                 e.printStackTrace();
@@ -80,6 +111,23 @@ public class STCStringParser {
         }
         return polygon;
     }
+    
+    private STCObj parseCircle(Iterator<String> stcWords) {
+		STCCircle circle = new STCCircle(STCFrame.valueOf(stcWords.next()), stcWords.next(), stcWords.next(), stcWords.next());
+		return circle;
+	}
+    
+    /**
+     * Method to check for presense of any alphabet
+     * @param input
+     * @return
+     */
+    public boolean isNumber(String input) {
+    	String regexp = "[A-Za-z]";
+    	Pattern p = Pattern.compile(regexp);
+        Matcher m = p.matcher(input);
+        return !m.find();
+	}
 
     public static void main(String[] args) {
         STCStringParser parser = new STCStringParser();

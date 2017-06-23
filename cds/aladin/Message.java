@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,14 +19,32 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
 
-import java.awt.*;
-import java.awt.event.*;
-import java.util.*;
-import javax.swing.*;
+import java.awt.BorderLayout;
+import java.awt.Button;
+import java.awt.Component;
+import java.awt.Dialog;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.Label;
+import java.awt.Panel;
+import java.awt.Point;
+import java.awt.TextField;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.StringTokenizer;
+
+import javax.swing.JLabel;
+import javax.swing.JPanel;
 
 /**
  * Gestion des messages
@@ -102,7 +122,7 @@ public class Message extends Panel {
 //                 a.setFont( new Font("Helvetica",Font.BOLD,taille));
                  if( type==WARNING) {
                     a.setFont(a.getFont().deriveFont(Font.BOLD));
-                    a.setForeground(Color.red);
+                    a.setForeground( Aladin.COLOR_RED );
                  }
                  c.insets = new Insets(mh,mg,0,20); mh=MH;
                  g.setConstraints(a,c);

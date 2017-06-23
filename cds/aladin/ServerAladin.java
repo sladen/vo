@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,17 +19,23 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.image.*;
-import java.net.*;
-import java.io.*;
-import java.util.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.DataInputStream;
+import java.net.URL;
+import java.util.StringTokenizer;
 
-import javax.swing.*;
+import javax.swing.ButtonGroup;
+import javax.swing.JCheckBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JRadioButton;
+import javax.swing.JScrollPane;
 
 import cds.tools.Util;
 
@@ -420,7 +428,8 @@ public final class ServerAladin extends Server implements Runnable, MyListener {
       if( !verif(Plan.IMAGE,target,qual, PlanImage.getFmt(format)+"/"+PlanImage.getRes(resol) ) ) return -1;
 
       // Generation automatique du label du plan
-      if( label==null) label=getPlanLabel(resol,qual);
+//      if( label==null) label=getPlanLabel(resol,qual);
+      label = getDefaultLabelIfRequired(label,getPlanLabel(resol,qual));
 
       // Positionnement de l'origine si non mentionne
       if( origin==null ) {
@@ -467,7 +476,7 @@ public final class ServerAladin extends Server implements Runnable, MyListener {
 
 //         MyInputStream is = new MyInputStream(url.openStream());
          MyInputStream is = Util.openStream(url);
-         if( (is.getType() & (MyInputStream.IDHA|MyInputStream.SIA_SSA))==0 ) {
+         if( (is.getType() & (MyInputStream.IDHA|MyInputStream.SIA|MyInputStream.SSA))==0 ) {
             String err = is.readLine().trim();
             Aladin.warning(this,SERVERR+
                            "\n\""+err+"\"");

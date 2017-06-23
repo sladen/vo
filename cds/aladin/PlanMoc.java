@@ -1,4 +1,6 @@
-// Copyright 2012 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -507,6 +509,10 @@ public class PlanMoc extends PlanBGCat {
          if( (++i)>=order ) { bord++; i=1; }
          return res;
       }
+	@Override
+	public void remove() {
+		// TODO Auto-generated method stub
+	}
    }
    
    private long oiz=-1;

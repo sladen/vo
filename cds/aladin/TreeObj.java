@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -37,8 +39,6 @@ public class TreeObj  implements Comparator {
    String ordre;
    int isIn;            // 1-le noeud est isIn, 0-le noeud est isOut, -1-on ne sait pas encore
    boolean isHidden;    // true si le noeud n'est pas pris dans l'arbre
-   boolean activated;   // true si actuellement inclus dans l'arbre, false si élagué
-   int treeIndex ;      // Index dans l'arbre (au niveau du parent)
    int nb;   // Nombre de noeud terminaux dans sa descendance actuelle
    int nbRef; // Idem mais pour sa descendance initiale (avant d'éventuels élagages)
    boolean wasExpanded;  // true si le noeud est actuellement expanded
@@ -59,9 +59,7 @@ public class TreeObj  implements Comparator {
       this.path  = path;
       this.ordre = ordre==null ? "Z" : ordre;
       this.isIn=-1;
-      this.activated = false;
       this.isHidden = false;
-      this.treeIndex = -1;
       nb=-1;
       panel=createPanel();
    }
@@ -89,34 +87,23 @@ public class TreeObj  implements Comparator {
    void setHidden( boolean flag ) { this.isHidden=flag; };
    boolean isHidden() { return isHidden; }
    
-   void setActivated( boolean flag ) { this.activated=flag; };
-   boolean isActivated() { return activated; }
-   
-   protected boolean isInStack() { return false; }
+   protected Color isInStack() { return null; }
 
    JPanel getPanel() { return panel; }
-
-   public void setForeground(Color fg) { checkbox.setForeground(fg); }
-
-   public Color getForeground() { return checkbox.getForeground(); }
 
    protected JPanel createPanel() {
       
       checkbox = new JCheckBox(label);
-      //      checkbox.setBackground(background);
       checkbox.setBorder(BorderFactory.createEmptyBorder());
       gc = new GridBagConstraints();
       gc.fill = GridBagConstraints.VERTICAL;
       gc.anchor = GridBagConstraints.CENTER;
       gc.gridx = GridBagConstraints.RELATIVE;
-      //      gc.insets = new Insets(2,0,4,5);
       gc.insets = new Insets(0,0,0,5);
       gb = new GridBagLayout();
       
       JPanel panel = new JPanel(gb);
-      panel.setBackground( aladin.getBackground() );
       panel.setOpaque(true);
-      //      panel.setBackground(background);
       gb.setConstraints(checkbox,gc);
       panel.add(checkbox);
       return panel;

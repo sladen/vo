@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -271,26 +272,15 @@ public class SourceStat extends SourceTag {
    /** Change le rayon d'un repère CERCLE (r en pixels dans le plan de ref de v)  + maj des mesures */
    void setRayon(ViewSimple v,double r) {
       Coord c = new Coord();
-      Projection proj = v.getProj().copy();
-      proj.setProjCenter(0,0);
-      double d=0;
-      c.al=c.del=0;
-
+      Projection proj  = v.getProj();
+      c.al=raj;
+      c.del=dej;
       proj.getXY(c);
 
-      // Y a blême pour les Calibs qui ne sont pas en equatorial.
-      // Dans ce cas, je prend comme référence le point lui-même
-      // et je ne change pas le centre de projection
-      if( Double.isNaN(c.del) ) {
-         proj = v.getProj().copy();
-         c.al=raj;
-         c.del=dej;
-         d=dej;
-         proj.getXY(c);
-      }
       c.y+=r;
       proj.getCoord(c);
-      radius=Math.abs(d-c.del);
+      
+      radius=Math.abs(dej-c.del);
       resume();
    }
 

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -308,7 +309,7 @@ public final class ServerVizieR extends Server implements CDSConstants,Runnable 
       int i;
       boolean allColumn=false;
       if( (i=criteria.indexOf("allcolumns"))>=0 ) {
-         criteria=criteria.substring(0,i) + criteria.substring(i+"allcolumns".length());
+         criteria=criteria.substring(0,i-1) + criteria.substring(i+"allcolumns".length());
          criteria=criteria.trim();
          allColumn=true;
       }
@@ -316,7 +317,7 @@ public final class ServerVizieR extends Server implements CDSConstants,Runnable 
       // Tout le catalogue
       if( cbGetAllCat.isSelected() ) target="";
       if( (i=criteria.indexOf("allsky"))>=0 ) {
-         criteria=criteria.substring(0,i) + criteria.substring(i+"allsky".length());
+         criteria=criteria.substring(0,i-1) + criteria.substring(i+"allsky".length());
          criteria=criteria.trim();
          target="";
       }
@@ -326,9 +327,23 @@ public final class ServerVizieR extends Server implements CDSConstants,Runnable 
 
 //System.out.println("criteria ["+criteria+"]");
 
-      String catalogs=criteria;	// EN PREMIERE APPROCHE...
-      if( label==null ) label=catalogs;
-      return creatVizieRPlane(target,radius,catalogs,label,institute,allColumn);
+      String catalogs= addCDSPrefix(criteria);	// EN PREMIERE APPROCHE...
+//      if( label==null ) label=catalogs;
+      label = getDefaultLabelIfRequired(label,catalogs);
+      return creatVizieRPlane(target,radius,criteria,label,institute,allColumn);
+   }
+   
+   // Ajoute le préfixe "CDS/" devant chaque nom de table si ce n'est déjà fait
+   private String addCDSPrefix( String s ) {
+      StringBuilder res=null;
+      Tok tok = new Tok(s,", ");
+      while( tok.hasMoreTokens() ) {
+         String s1 = tok.nextToken();
+         if( !s1.startsWith("CDS/") ) s1="CDS/"+s1;
+         if( res==null ) res = new StringBuilder(s1);
+         else res.append(","+s1);
+      }
+      return res.toString();
    }
 
    /** Creation d'un plan de maniere specifique */
@@ -600,7 +615,7 @@ public final class ServerVizieR extends Server implements CDSConstants,Runnable 
                }
                
                // Chargement de la carte de densité
-               else if( action.equals(CATDMAP) ) aladin.calque.newPlanDMap(cata);
+               else if( action.equals(CATDMAP) ) aladin.calque.newPlanDMap(cata,cata);
                defaultCursor();
                return;
             } catch( Exception e1 ) {

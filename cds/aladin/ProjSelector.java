@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -20,6 +22,10 @@
 package cds.aladin;
 
 import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -40,14 +46,15 @@ public class ProjSelector extends JPanel {
       this.aladin = aladin;
 
       // Construction du Panel (label + selector)
-      setLayout(new BorderLayout(0,0));
-      setBackground( aladin.getBackground() );
       JLabel lab = new JLabel( aladin.chaine.getString("PROPPROJ")+" " );
-      lab.setFont(Aladin.BOLD);
-      lab.setForeground(Aladin.DARKBLUE);
+      lab.setFont(lab.getFont().deriveFont(Font.BOLD));
+      lab.setForeground(Aladin.COLOR_LABEL);
 
-      add( lab, BorderLayout.WEST);
-      combo = new JComboBox<String>( Projection.getAlaProj() );
+      String [] list = Projection.getAlaProj();
+      combo = new JComboBox<String>( list );
+      combo.setUI( new MyComboBoxUI());
+      combo.setMaximumRowCount(list.length);
+      combo.setFont(Aladin.PLAIN);
       
       // Positionnement de la projection par défaut
       String s = aladin.configuration.getProj();
@@ -59,7 +66,22 @@ public class ProjSelector extends JPanel {
          }
       });
       combo.setPrototypeDisplayValue("12345678");
-      add( combo, BorderLayout.CENTER);
+      
+//      JPanel pCombo = new JPanel( new FlowLayout(FlowLayout.LEFT,0,0));
+//      pCombo.setBackground( aladin.getBackground() );
+//      pCombo.add(combo);
+      
+      GridBagLayout g;
+      JPanel pCombo = new JPanel( g=new GridBagLayout() );
+      pCombo.setBackground( aladin.getBackground() );
+      GridBagConstraints gc = new GridBagConstraints();
+      gc.fill = GridBagConstraints.HORIZONTAL;
+      pCombo.add(combo,gc);
+      
+      setLayout(new BorderLayout(7,7));
+      setBackground( aladin.getBackground() );
+      add( lab, BorderLayout.WEST);
+      add( pCombo, BorderLayout.CENTER);
    }
    
    /** Change la projection de tous les plans HiPS exceptés ceux qui ont une

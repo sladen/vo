@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -16,7 +18,6 @@
 //    The GNU General Public License is available in COPYING file
 //    along with Aladin.
 //
-
 
 package cds.aladin;
 
@@ -99,7 +100,7 @@ public class PluginDescription extends JPanel {
       p.add(l = name = new JLabel(), c);
       l.setFont(l.getFont().deriveFont(Font.BOLD + Font.ITALIC,
             l.getFont().getSize2D() + 2));
-      l.setForeground(Aladin.GREEN);
+      l.setForeground(Aladin.COLOR_GREEN);
       c.gridwidth = 1;
       c.anchor = GridBagConstraints.WEST;
       c.fill = GridBagConstraints.HORIZONTAL;
@@ -309,7 +310,7 @@ public class PluginDescription extends JPanel {
       state.setText((running = suspended = ap.isSuspended()) ? SUSPENDED
             : !(running = ap.isRunning()) ? IDLE : threaded ? RUNNING : ACTIVE);
       state.setForeground(suspended ? Color.orange : running ? Color.red
-            : Aladin.GREEN);
+            : Aladin.COLOR_GREEN);
       start.setEnabled(!running);
       stop.setEnabled(running);
       resume.setEnabled(threaded && running && suspended);

@@ -1,4 +1,6 @@
-// Copyright 2010 - UDS/CNRS
+// Copyright 1999-2017 - Université de Strasbourg/CNRS
+// The Aladin program is developped by the Centre de Données
+// astronomiques de Strasbourgs (CDS).
 // The Aladin program is distributed under the terms
 // of the GNU General Public License version 3.
 //
@@ -17,10 +19,10 @@
 //    along with Aladin.
 //
 
-
 package cds.aladin;
 
 import java.awt.Dimension;
+
 import javax.swing.JScrollBar;
 
 /**
@@ -35,6 +37,7 @@ public class MyScrollbar extends JScrollBar {
    
    MyScrollbar(int orientation,int value,int visible,int min,int max) {
       super(orientation,value,visible,min,max);
+      if( Aladin.DARK_THEME ) setUI( new MyScrollBarUI() );
    }
    
    MyScrollbar(int orientation) {
